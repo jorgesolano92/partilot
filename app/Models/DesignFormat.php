@@ -50,6 +50,12 @@ class DesignFormat extends Model
         'margins',
         'output',
         'snapshot_path',
+        'designer_type',
+        'approval_status',
+        'submitted_for_approval_at',
+        'approval_decided_at',
+        'approved_by_user_id',
+        'approval_rejection_reason',
     ];
 
     protected $casts = [
@@ -58,6 +64,8 @@ class DesignFormat extends Model
         'backgrounds' => 'array',
         'output' => 'array',
         'margins' => 'array',
+        'submitted_for_approval_at' => 'datetime',
+        'approval_decided_at' => 'datetime',
     ];
 
     public function entity()

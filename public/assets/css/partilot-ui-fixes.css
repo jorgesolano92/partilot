@@ -262,3 +262,19 @@ small.text-muted,
         display: list-item !important;
     }
 }
+
+/* Pestañas horizontales en Ajustes (app.min.css fuerza .nav-item { width: 100% }) */
+.config-inline-tabs {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0;
+    border-bottom: 1px solid #dee2e6;
+}
+.config-inline-tabs .nav-item {
+    width: auto;
+    flex: 0 0 auto;
+}
+.config-inline-tabs .nav-link {
+    white-space: nowrap;
+}

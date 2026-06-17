@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Http\Controllers\DesignController;
 use App\Models\DesignFormat;
 use App\Models\Set;
+use App\Services\DesignApprovalService;
+use App\Services\ManagementFeeService;
 use App\Support\FpdiPdfMerge;
 use App\Support\GeneratedPdfCatalog;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -41,6 +43,20 @@ class GenerateParticipationPdfJob implements ShouldQueue
         ini_set('memory_limit', '2048M');
 
         $design = DesignFormat::findOrFail($this->designId);
+
+        if ($design->set_id) {
+            $set = Set::with('entity')->find($design->set_id);
+            if ($set) {
+                $feeService = app(ManagementFeeService::class);
+                $feeService->ensureSnapshot($set, $design);
+                if ($feeService->blocksQrExport($set, $design)) {
+                    throw new \RuntimeException(
+                        app(DesignApprovalService::class)->blockMessage($design)
+                    );
+                }
+            }
+        }
+
         $controller = app(DesignController::class);
 
         $cacheKey = 'participation_html_pdf_v9_'.$this->designId;

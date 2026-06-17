@@ -44,10 +44,12 @@
 
                                 <h4 class="mb-0 mt-1">
                                     Datos del Sorteo
+                                    @if($lotteryAccess['canEditLotteryFull'] ?? false)
                                     <a href="{{ route('lotteries.edit', $lottery->id) }}" class="btn btn-light float-end" style="border: 1px solid silver; border-radius: 30px;">
                                         <img src="{{url('assets/form-groups/edit.svg')}}" alt="">
                                         Editar
                                     </a>
+                                    @endif
                                 </h4>
                                 <small><i>Información detallada del sorteo</i></small>
 

@@ -23,7 +23,11 @@ use App\Models\EmailCommunicationLog;
 use App\Services\CommunicationEmailService;
 use App\Support\FpdiPdfMerge;
 use App\Support\GeneratedPdfCatalog;
+use App\Services\DesignApprovalService;
 use App\Services\ImageOptimizationService;
+use App\Services\ManagementFeePaymentService;
+use App\Services\ManagementFeeService;
+use App\Services\AdministrationBillingService;
 use App\Services\PrintQuoteService;
 use App\Services\QrCodeService;
 use GuzzleHttp\Client;
@@ -846,6 +850,13 @@ class DesignController extends Controller
             $set = Set::forUser(auth()->user())->findOrFail($request->set_id);
         }
 
+        if (! $byInvitation) {
+            $prePayRedirect = $this->redirectIfEntityDesignerMustPayManagementFee($set);
+            if ($prePayRedirect) {
+                return $prePayRedirect;
+            }
+        }
+
         if (
             ! $byInvitation
             && $request->boolean('new_design')
@@ -1112,7 +1123,11 @@ class DesignController extends Controller
             }
 
             $this->fillDesignFormatFromSaveData($existing, $data);
+            app(DesignApprovalService::class)->assignDesignerTypeIfMissing($existing, auth()->user());
             $existing->save();
+            if (in_array($request->input('save_reason'), ['manual-save', 'final-save'], true)) {
+                app(DesignApprovalService::class)->invalidateApprovalAfterEdit($existing->refresh());
+            }
             $this->linkInvitationToDesignIfNeeded($existing->id);
 
             return response()->json([
@@ -1123,6 +1138,7 @@ class DesignController extends Controller
         }
 
         $designFormat = DesignFormat::create($data);
+        app(DesignApprovalService::class)->assignDesignerTypeIfMissing($designFormat, auth()->user());
         $this->linkInvitationToDesignIfNeeded($designFormat->id);
         return response()->json([
             'success' => true,
@@ -1214,7 +1230,7 @@ class DesignController extends Controller
     public function generatePdfParticipation($id)
     {
         $design = DesignFormat::findOrFail($id);
-        $this->authorizeDesignPdfExport($design);
+        $this->authorizeParticipationQrExport($design);
         $html = $design->participation_html;
         return $this->renderPdfFromHtml($html, 'participation.pdf');
     }
@@ -1605,7 +1621,7 @@ class DesignController extends Controller
         ini_set('memory_limit', '1024M');   // 1GB
         
         $design = DesignFormat::findOrFail($id);
-        $this->authorizeDesignPdfExport($design);
+        $this->authorizeParticipationQrExport($design);
 
         try {
             [$from, $to] = $this->resolveParticipationPdfRange($request, $design);
@@ -2343,10 +2359,11 @@ class DesignController extends Controller
      */
     public function digitalParticipationImage($id)
     {
-        $design = DesignFormat::with(['set.reserve', 'lottery', 'entity'])->findOrFail($id);
+        $design = DesignFormat::with(['set.entity', 'lottery', 'entity'])->findOrFail($id);
         if (! auth()->user()->canAccessEntity((int) $design->entity_id)) {
             abort(403, 'No tienes permisos para ver este diseño.');
         }
+        $this->authorizeParticipationQrExport($design);
 
         $set = $design->set;
         $isDigitalSet = $set && $set->digital_participations > 0 && (int) ($set->physical_participations ?? 0) === 0;
@@ -2375,6 +2392,12 @@ class DesignController extends Controller
             abort(403, 'No tienes permisos para editar este diseño.');
         }
         $setForLock = $format->set_id ? Set::find($format->set_id) : null;
+        if ($setForLock) {
+            $prePayRedirect = $this->redirectIfEntityDesignerMustPayManagementFee($setForLock, $format);
+            if ($prePayRedirect) {
+                return $prePayRedirect;
+            }
+        }
         if ($setForLock && $this->getSetDesignLockContext($setForLock)['locked']) {
             return redirect()->route('design.summary', $id)
                 ->with('warning', 'Este diseño está bloqueado por el estado operativo del set (ventas/asignaciones). Usa el resumen para revisar y descargar PDFs.');
@@ -2402,7 +2425,7 @@ class DesignController extends Controller
      */
     public function summary($id)
     {
-        $design = DesignFormat::with(['set', 'lottery', 'entity'])->findOrFail($id);
+        $design = DesignFormat::with(['set.entity', 'lottery', 'entity'])->findOrFail($id);
         if (!auth()->user()->canAccessEntity((int) $design->entity_id)) {
             abort(403, 'No tienes permisos para ver este diseño.');
         }
@@ -2410,7 +2433,251 @@ class DesignController extends Controller
             ->orderByDesc('id')
             ->first();
         $printOrderLock = $this->getPrintOrderLockContext($design->id);
-        return view('design.summary', compact('design', 'latestPrintOrder', 'printOrderLock'));
+
+        $managementFee = null;
+        $designApproval = null;
+        if ($design->set) {
+            $managementFee = app(ManagementFeeService::class)->buildSummaryContext($design->set, auth()->user(), $design);
+        }
+        $designApproval = app(DesignApprovalService::class)->buildSummaryContext($design, auth()->user());
+        [$stripePublishableKey, ] = app(ManagementFeePaymentService::class)->resolveStripeKeys();
+        $stripePaymentEnabled = app(ManagementFeePaymentService::class)->hasStripeConfigured();
+
+        return view('design.summary', compact(
+            'design',
+            'latestPrintOrder',
+            'printOrderLock',
+            'managementFee',
+            'designApproval',
+            'stripePublishableKey',
+            'stripePaymentEnabled'
+        ));
+    }
+
+    public function approvalsIndex()
+    {
+        $entityIds = auth()->user()->accessibleEntityIds();
+        $designs = DesignFormat::with(['entity', 'lottery', 'set'])
+            ->whereIn('entity_id', $entityIds)
+            ->where('approval_status', DesignApprovalService::STATUS_PENDING)
+            ->orderByDesc('submitted_for_approval_at')
+            ->get()
+            ->filter(fn (DesignFormat $design) => app(DesignApprovalService::class)->canReviewApproval(auth()->user(), $design))
+            ->values();
+
+        return view('design.approvals_index', compact('designs'));
+    }
+
+    public function approvalReview($id)
+    {
+        $design = DesignFormat::with(['set.entity', 'lottery', 'entity'])->findOrFail($id);
+        if (! app(DesignApprovalService::class)->canReviewApproval(auth()->user(), $design)) {
+            abort(403, 'No tienes permisos para revisar este diseño.');
+        }
+
+        return view('design.approval_review', compact('design'));
+    }
+
+    public function submitForApproval($id)
+    {
+        $design = DesignFormat::with('set')->findOrFail($id);
+        if (! auth()->user()->canAccessEntity((int) $design->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        app(DesignApprovalService::class)->submitForApproval($design, auth()->user());
+
+        return redirect()->route('design.summary', $design->id)
+            ->with('success', 'Diseño enviado a la entidad para su aprobación.');
+    }
+
+    public function approveDesign($id)
+    {
+        $design = DesignFormat::with('set')->findOrFail($id);
+        app(DesignApprovalService::class)->approve($design, auth()->user());
+
+        return redirect()->route('design.summary', $design->id)
+            ->with('success', 'Diseño aprobado. Puede procederse al pago de la cuota de gestión.');
+    }
+
+    public function rejectDesign(Request $request, $id)
+    {
+        $design = DesignFormat::with('set')->findOrFail($id);
+        $reason = $request->input('reason');
+        app(DesignApprovalService::class)->reject($design, auth()->user(), is_string($reason) ? $reason : null);
+
+        return redirect()->route('design.approvals.index')
+            ->with('success', 'Diseño rechazado. La administración deberá corregirlo y reenviarlo.');
+    }
+
+    public function payManagementFee(Set $set)
+    {
+        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        $set->load('entity.administration');
+        $design = DesignFormat::query()->where('set_id', $set->id)->orderByDesc('id')->first();
+        $feeService = app(ManagementFeeService::class);
+
+        if ($feeService->isManagementFeeSettled($set)) {
+            if ($design) {
+                return redirect()->route('design.summary', $design->id)
+                    ->with('success', 'La cuota de gestión ya está confirmada.');
+            }
+
+            return redirect()->route('design.index');
+        }
+
+        if ($design && app(DesignApprovalService::class)->requiresEntityApproval($design)) {
+            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED) {
+                return redirect()->route('design.summary', $design->id)
+                    ->with('warning', 'El diseño debe ser aprobado por la entidad antes del pago.');
+            }
+        }
+
+        $feeService->ensureSnapshot($set, $design);
+        $managementFee = $feeService->buildSummaryContext($set, auth()->user(), $design);
+        [$stripePublishableKey, ] = app(ManagementFeePaymentService::class)->resolveStripeKeys();
+        $stripePaymentEnabled = app(ManagementFeePaymentService::class)->hasStripeConfigured();
+
+        return view('design.pay_management_fee', compact(
+            'set',
+            'design',
+            'managementFee',
+            'stripePublishableKey',
+            'stripePaymentEnabled'
+        ));
+    }
+
+    public function createManagementFeePaymentIntent(Set $set)
+    {
+        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        $set->load('entity');
+        $design = DesignFormat::query()->where('set_id', $set->id)->orderByDesc('id')->first();
+        $result = app(ManagementFeePaymentService::class)->createPaymentIntent($set, auth()->user(), $design);
+
+        return response()->json($result, ($result['ok'] ?? false) ? 200 : 422);
+    }
+
+    public function confirmManagementFeeStripe(Request $request, Set $set)
+    {
+        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        $data = $request->validate([
+            'stripe_payment_intent_id' => 'required|string',
+        ]);
+
+        $design = DesignFormat::query()->where('set_id', $set->id)->orderByDesc('id')->first();
+        app(ManagementFeePaymentService::class)->confirmStripePayment(
+            $set,
+            $data['stripe_payment_intent_id'],
+            auth()->user(),
+            $design
+        );
+
+        if ($design) {
+            if (app(DesignApprovalService::class)->requiresPreEditorPayment(auth()->user())) {
+                return redirect()->route('design.editFormat', $design->id)
+                    ->with('success', 'Cuota de gestión PARTILOT pagada correctamente. Ya puede continuar con el diseño.');
+            }
+
+            return redirect()->route('design.summary', $design->id)
+                ->with('success', 'Cuota de gestión PARTILOT pagada correctamente. Ya puede generar los PDF con códigos QR.');
+        }
+
+        return redirect()->route('design.openEditor', $set->id)
+            ->with('success', 'Cuota de gestión PARTILOT pagada correctamente. Ya puede acceder al editor.');
+    }
+
+    public function confirmManagementFeeRemittance(Set $set)
+    {
+        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        $set->load('entity.administration');
+        $design = DesignFormat::query()->where('set_id', $set->id)->orderByDesc('id')->first();
+
+        app(AdministrationBillingService::class)->queueManagementFeeCharge(
+            $set,
+            auth()->user(),
+            $design
+        );
+
+        if ($design) {
+            if (app(DesignApprovalService::class)->requiresPreEditorPayment(auth()->user())) {
+                return redirect()->route('design.editFormat', $design->id)
+                    ->with('success', 'Cuota de gestión registrada en remesa. Ya puede continuar con el diseño.');
+            }
+
+            return redirect()->route('design.summary', $design->id)
+                ->with('success', 'Cuota de gestión registrada en remesa. Ya puede generar los PDF con códigos QR.');
+        }
+
+        return redirect()->route('design.openEditor', $set->id)
+            ->with('success', 'Cuota de gestión registrada en remesa. Ya puede acceder al editor.');
+    }
+
+    public function openEditor(Set $set)
+    {
+        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        $set->load('reserve');
+        $feeService = app(ManagementFeeService::class);
+        if (
+            app(DesignApprovalService::class)->requiresPreEditorPayment(auth()->user())
+            && ! $feeService->isManagementFeeSettled($set)
+        ) {
+            return redirect()->route('design.managementFee.pay', $set->id);
+        }
+
+        $lotteryId = $set->reserve?->lottery_id ?? session('design_lottery_id');
+        if (! $lotteryId) {
+            return redirect()->route('design.index')->with('error', 'No se pudo determinar el sorteo del set.');
+        }
+
+        session([
+            'design_entity_id' => $set->entity_id,
+            'design_lottery_id' => $lotteryId,
+            'design_set_id' => $set->id,
+        ]);
+
+        $request = Request::create(route('design.format'), 'POST', [
+            'set_id' => $set->id,
+            'new_design' => 1,
+        ]);
+        $request->setLaravelSession(session());
+
+        return $this->format($request);
+    }
+
+    public function markManagementFeePaid(Set $set)
+    {
+        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        $set = app(ManagementFeeService::class)->markAsPaid($set, auth()->user());
+
+        $design = DesignFormat::query()
+            ->where('set_id', $set->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($design) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('success', 'Cuota de gestión PARTILOT confirmada. Ya puede generar los PDF con códigos QR.');
+        }
+
+        return back()->with('success', 'Cuota de gestión PARTILOT confirmada.');
     }
 
     public function sendToPrint($id)
@@ -2438,13 +2705,15 @@ class DesignController extends Controller
             'print_configuration_id' => (int) $selectedPrintShop->id,
         ];
         $quote = $this->calculatePrintOrderQuote($design->set, $defaults, chargeDesignFee: false);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design);
         [$stripePublishableKey, $stripeSecretKey] = $this->resolveStripeKeys($selectedPrintShop);
-        $stripePaymentEnabled = $selectedPrintShop->hasStripeConfigured();
+        $stripePaymentEnabled = $selectedPrintShop->hasStripeConfigured() && ! empty($printPayment['can_pay_stripe']);
 
         return view('design.send_to_print', compact(
             'design',
             'defaults',
             'quote',
+            'printPayment',
             'stripePublishableKey',
             'stripePaymentEnabled',
             'selectedPrintShop'
@@ -2465,12 +2734,14 @@ class DesignController extends Controller
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
         $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design);
         [$publishableKey, $secretKey] = $this->resolveStripeKeys($cfg);
 
         return response()->json([
             'ok' => true,
             'quote' => $quote,
-            'stripe_payment_enabled' => $cfg->hasStripeConfigured(),
+            'print_payment' => $printPayment,
+            'stripe_payment_enabled' => $cfg->hasStripeConfigured() && ! empty($printPayment['can_pay_stripe']),
             'stripe_publishable_key' => $publishableKey,
         ]);
     }
@@ -2486,6 +2757,11 @@ class DesignController extends Controller
         }
         if ($blockMessage = $this->printOrderSubmissionBlockMessage($design)) {
             return response()->json(['ok' => false, 'message' => $blockMessage], 422);
+        }
+
+        $design->loadMissing('entity');
+        if (app(AdministrationBillingService::class)->shouldQueuePrintFeeRemittance($design->entity)) {
+            return response()->json(['ok' => false, 'message' => 'Este pedido se confirma por remesa, no con tarjeta.'], 422);
         }
 
         $data = $request->validate($this->printOrderSubmissionRules());
@@ -2546,11 +2822,25 @@ class DesignController extends Controller
             return $redirect;
         }
 
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design);
+        $usesRemittance = ! empty($printPayment['can_queue_remittance']);
+
         $data = $request->validate(array_merge($this->printOrderSubmissionRules(), [
-            'stripe_payment_intent_id' => 'required|string',
+            'payment_method' => 'nullable|in:stripe,remittance',
+            'stripe_payment_intent_id' => 'nullable|required_if:payment_method,stripe|string',
         ]), [
-            'stripe_payment_intent_id.required' => 'No se encontró el pago de Stripe confirmado.',
+            'stripe_payment_intent_id.required_if' => 'No se encontró el pago de Stripe confirmado.',
         ]);
+
+        if ($usesRemittance) {
+            return $this->submitPrintOrderViaRemittance($request, $design, $data);
+        }
+
+        if (empty($data['stripe_payment_intent_id'])) {
+            return redirect()->route('design.sendToPrint', $design->id)
+                ->withInput()
+                ->with('error', 'No se encontró el pago de Stripe confirmado.');
+        }
 
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
@@ -2647,6 +2937,65 @@ class DesignController extends Controller
 
         return redirect()->route('design.summary', $design->id)
             ->with('success', 'Pago confirmado y orden de imprenta enviada correctamente.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    private function submitPrintOrderViaRemittance(Request $request, DesignFormat $design, array $data)
+    {
+        if (! app(AdministrationBillingService::class)->canSubmitPrintOrderViaRemittance(auth()->user(), $design)) {
+            abort(403, 'No puedes enviar este pedido a imprenta por remesa.');
+        }
+
+        $cfg = PrintConfiguration::resolveDefault();
+        $data['print_configuration_id'] = $cfg->id;
+        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false);
+        $expectedTotal = round((float) ($quote['total'] ?? 0), 2);
+        if ($expectedTotal <= 0) {
+            return redirect()->route('design.sendToPrint', $design->id)
+                ->withInput()
+                ->with('error', 'El importe del pedido debe ser mayor que cero.');
+        }
+
+        $order = null;
+        DB::transaction(function () use ($design, $data, $quote, $cfg, &$order) {
+            $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
+            $order = PrintOrder::create([
+                'print_configuration_id' => $cfg->id,
+                'order_code' => $orderCode,
+                'design_format_id' => $design->id,
+                'set_id' => $design->set_id,
+                'entity_id' => $design->entity_id,
+                'lottery_id' => $design->lottery_id,
+                'created_by_user_id' => auth()->id(),
+                'status' => PrintOrder::STATUS_PENDING_REVIEW,
+                'payment_provider' => PrintOrder::PAYMENT_PROVIDER_REMITTANCE,
+                'payment_intent_id' => null,
+                'payment_status' => PrintOrder::PAYMENT_STATUS_PAID,
+                'print_size' => $data['print_size'],
+                'participations_per_book' => (int) $data['participations_per_book'],
+                'back_mode' => $data['back_mode'],
+                'quoted_amount' => $quote['total'],
+                'quote_breakdown' => $quote,
+                'notes' => $data['notes'] ?? null,
+                'sent_at' => null,
+                'paid_at' => now(),
+            ]);
+
+            app(AdministrationBillingService::class)->queuePrintFeeCharge($order, auth()->user());
+
+            $this->insertPrintOrderAuditRow(
+                printOrder: $order,
+                action: 'order_created_remittance',
+                message: 'Orden creada con cargo en remesa periódica.',
+                userId: auth()->id()
+            );
+        });
+
+        return redirect()->route('design.summary', $design->id)
+            ->with('success', 'Pedido enviado a imprenta. El importe quedará pendiente de adeudo en la próxima remesa.');
     }
 
     /**
@@ -2798,6 +3147,12 @@ class DesignController extends Controller
                     $format->output = DesignFormat::mergeTacoQrsIntoOutput($format->set_id, $output ?? []);
                 }
                 $format->save();
+
+                if (isset($data['from_step_5']) && $data['from_step_5'] === true) {
+                    app(DesignApprovalService::class)->assignDesignerTypeIfMissing($format, auth()->user());
+                } else {
+                    app(DesignApprovalService::class)->invalidateApprovalAfterEdit($format->refresh());
+                }
                 
                 // Si viene del paso 5 (configurar salida), redirigir a la vista de resumen
                 if (isset($data['from_step_5']) && $data['from_step_5'] === true) {
@@ -2887,7 +3242,7 @@ class DesignController extends Controller
     public function exportParticipationPdfAsync(Request $request, $id)
     {
         $design = DesignFormat::findOrFail($id);
-        $this->authorizeDesignPdfExport($design);
+        $this->authorizeParticipationQrExport($design);
 
         try {
             [$from, $to] = $this->resolveParticipationPdfRange($request, $design);
@@ -3175,6 +3530,40 @@ class DesignController extends Controller
         if (! $user || ! $user->canExportDesignPdf($design)) {
             abort(403, 'No tienes permisos para exportar este diseño.');
         }
+    }
+
+    private function authorizeParticipationQrExport(DesignFormat $design): void
+    {
+        $this->authorizeDesignPdfExport($design);
+
+        $approvalService = app(DesignApprovalService::class);
+        if ($approvalService->blocksQrExport($design)) {
+            abort(403, $approvalService->blockMessage($design));
+        }
+    }
+
+    private function redirectIfEntityDesignerMustPayManagementFee(Set $set, ?DesignFormat $design = null)
+    {
+        $user = auth()->user();
+        if (! $user || ! app(DesignApprovalService::class)->requiresPreEditorPayment($user)) {
+            return null;
+        }
+
+        if ($design) {
+            app(DesignApprovalService::class)->assignDesignerTypeIfMissing($design, $user);
+            if ($design->designer_type === DesignApprovalService::DESIGNER_ADMINISTRATION) {
+                return null;
+            }
+        }
+
+        $set->loadMissing('entity');
+        $feeService = app(ManagementFeeService::class);
+        if ($feeService->isManagementFeeSettled($set)) {
+            return null;
+        }
+
+        return redirect()->route('design.managementFee.pay', $set->id)
+            ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
     }
 
     public function exportCoverPdfAsync($id)
@@ -3487,7 +3876,17 @@ class DesignController extends Controller
             }
         }
 
-        return view('design.index', compact('designs', 'designLockByDesignId', 'printOrderLockByDesignId'));
+        $approvalContextByDesignId = [];
+        $approvalService = app(DesignApprovalService::class);
+        foreach ($designs as $d) {
+            $approvalContextByDesignId[$d->id] = [
+                'label' => $approvalService->statusLabel($d->approval_status),
+                'status' => $d->approval_status,
+                'requires_approval' => $approvalService->requiresEntityApproval($d),
+            ];
+        }
+
+        return view('design.index', compact('designs', 'designLockByDesignId', 'printOrderLockByDesignId', 'approvalContextByDesignId'));
     }
 
     /**

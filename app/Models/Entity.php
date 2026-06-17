@@ -27,6 +27,7 @@ class Entity extends Model
         'billing_iban',
         'entity_pays_management_fee',
         'entity_pays_print_fee',
+        'stripe_customer_id',
     ];
 
     protected $casts = [

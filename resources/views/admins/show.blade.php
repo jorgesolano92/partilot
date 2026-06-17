@@ -466,6 +466,8 @@
 
 			                    			</div>
 
+			                    			@include('admins.partials.billing_payment_card')
+
 			                    		</div>
                     				</div>
 

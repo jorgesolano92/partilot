@@ -79,9 +79,7 @@
                                         @if($lotteryAccess['canViewResultsLists'] ?? false)
                                         <a href="{{route('lottery.show-results', $lottery->id)}}" class="btn btn-sm btn-light" title="Ver Resultados"><img src="{{url('assets/form-groups/results.svg')}}" alt="" width="12"></a>
                                         @endif
-                                        @if($lotteryAccess['canEditAdminDeadlineOnly'] ?? false)
-                                        <a href="{{url('lottery/edit', $lottery->id)}}" class="btn btn-sm btn-light" title="Editar fecha límite"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
-                                        @elseif($lotteryAccess['canEditLotteryFull'] ?? false)
+                                        @if($lotteryAccess['canEditLotteryFull'] ?? false)
                                         <a href="{{url('lottery/edit', $lottery->id)}}" class="btn btn-sm btn-light" title="Editar"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
                                         @endif
                                         @if($lotteryAccess['canRunScrutiny'] ?? false)

@@ -27,6 +27,16 @@ class Set extends Model
         'deadline_date',
         'tickets',
         'status',
+        'management_fee_status',
+        'management_fee_amount',
+        'management_fee_unit_price',
+        'management_fee_participation_count',
+        'management_fee_payer',
+        'management_fee_paid_at',
+        'management_fee_paid_by_user_id',
+        'management_fee_stripe_payment_intent_id',
+        'management_fee_payment_provider',
+        'management_fee_billing_charge_id',
         'created_at',
         'updated_at'
     ];
@@ -43,6 +53,10 @@ class Set extends Model
         'digital_participations' => 'integer',
         'deadline_date' => 'date',
         'tickets' => 'array',
+        'management_fee_amount' => 'decimal:2',
+        'management_fee_unit_price' => 'decimal:4',
+        'management_fee_participation_count' => 'integer',
+        'management_fee_paid_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -77,6 +91,11 @@ class Set extends Model
     public function designFormats()
     {
         return $this->hasMany(DesignFormat::class);
+    }
+
+    public function managementFeeBillingCharge()
+    {
+        return $this->belongsTo(BillingCharge::class, 'management_fee_billing_charge_id');
     }
 
     /**

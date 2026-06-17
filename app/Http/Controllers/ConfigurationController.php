@@ -21,6 +21,9 @@ use App\Models\Manager;
 use App\Models\Seller;
 use App\Models\User;
 use App\Models\EmailCommunicationLog;
+use App\Models\PartilotBillingSetting;
+use App\Models\BillingDirectDebitOrder;
+use App\Services\AdministrationBillingService;
 use App\Support\ContactEmailRegistry;
 use App\Support\PanelSelectionResolver;
 use Illuminate\Support\Facades\Hash;
@@ -439,6 +442,66 @@ class ConfigurationController extends Controller
             $settingsAdministration = Administration::forUser($user)->findOrFail($scopedAdministrationId);
         }
 
+        $showBillingRemittancePanel = false;
+        $billingAdministrations = collect();
+        $billingAdministrationId = null;
+        $billingAdministration = null;
+        $billingPendingCharges = collect();
+        $billingAllCharges = collect();
+        $billingDirectDebitOrders = collect();
+        $billingDirectDebitOrder = null;
+        $billingView = 'charges';
+        $billingChargeStatus = '';
+
+        if (
+            $section === 'facturacion-cobros'
+            && $user?->isSuperAdmin()
+            && ! $configurationEntityScoped
+            && ! $configurationAdministrationScoped
+        ) {
+            $showBillingRemittancePanel = true;
+            $billingAdministrations = Administration::query()
+                ->orderBy('name')
+                ->get();
+
+            $billingView = $request->get('billing_view') === 'order' ? 'order' : 'charges';
+            $billingChargeStatus = (string) $request->get('billing_charge_status', '');
+
+            if ($request->filled('billing_administration_id')) {
+                $billingAdministrationId = (int) $request->get('billing_administration_id');
+            }
+
+            if ($request->filled('billing_order_id')) {
+                $billingDirectDebitOrder = BillingDirectDebitOrder::query()
+                    ->with(['administration', 'charges.entity', 'createdByUser'])
+                    ->find((int) $request->get('billing_order_id'));
+
+                if ($billingDirectDebitOrder) {
+                    $billingAdministrationId = (int) $billingDirectDebitOrder->administration_id;
+                    $billingView = 'order';
+                }
+            }
+
+            if ($billingAdministrationId) {
+                $billingAdministration = $billingAdministrations->firstWhere('id', $billingAdministrationId)
+                    ?? Administration::query()->find($billingAdministrationId);
+
+                if ($billingAdministration) {
+                    $billingService = app(AdministrationBillingService::class);
+                    $billingPendingCharges = $billingService->pendingChargesForAdministration($billingAdministration->id);
+                    $billingAllCharges = $billingService->chargesForAdministration(
+                        $billingAdministration->id,
+                        $billingChargeStatus !== '' ? $billingChargeStatus : null
+                    );
+                    $billingDirectDebitOrders = BillingDirectDebitOrder::query()
+                        ->withCount('charges')
+                        ->where('administration_id', $billingAdministration->id)
+                        ->orderByDesc('id')
+                        ->get();
+                }
+            }
+        }
+
         if ($section === 'logs-emails' && $scopedEntityId) {
             $entityEmailLogs = EmailCommunicationLog::query()
                 ->orderByDesc('created_at')
@@ -457,6 +520,11 @@ class ConfigurationController extends Controller
                 ->filter(fn (EmailCommunicationLog $log) => (int) data_get($log->context, 'entity_id') === (int) $settingsLogEntityId)
                 ->take(200)
                 ->values();
+        }
+
+        $partilotBillingSettings = null;
+        if ($section === 'config-factura-auto') {
+            $partilotBillingSettings = PartilotBillingSetting::current();
         }
 
         return view('configuration.index', compact(
@@ -505,7 +573,18 @@ class ConfigurationController extends Controller
             'settingsLogEntityId',
             'settingsManagers',
             'settingsPanelUser',
-            'entityEmailLogs'
+            'entityEmailLogs',
+            'partilotBillingSettings',
+            'showBillingRemittancePanel',
+            'billingAdministrations',
+            'billingAdministrationId',
+            'billingAdministration',
+            'billingPendingCharges',
+            'billingAllCharges',
+            'billingDirectDebitOrders',
+            'billingDirectDebitOrder',
+            'billingView',
+            'billingChargeStatus'
         ));
     }
 
@@ -707,6 +786,41 @@ class ConfigurationController extends Controller
 
         return redirect()->route('configuration.index', ['section' => 'imprenta', 'print_config_id' => $config->id])
             ->with('success', $message);
+    }
+
+    public function updatePartilotBilling(Request $request)
+    {
+        if (! $request->user()?->isSuperAdmin()) {
+            abort(403, 'Solo super administrador puede modificar la configuración de facturación PARTILOT.');
+        }
+
+        $data = $request->validate([
+            'company_name' => 'required|string|max:255',
+            'nif_cif' => 'required|string|max:50',
+            'address' => 'required|string|max:255',
+            'postal_code' => 'required|string|max:20',
+            'province' => 'required|string|max:120',
+            'city' => 'required|string|max:120',
+            'phone' => 'required|string|max:50',
+            'email' => 'required|email|max:255',
+            'fee_per_participation_1000' => 'required|numeric|min:0',
+            'fee_per_participation_5000' => 'required|numeric|min:0',
+            'fee_per_participation_10000' => 'required|numeric|min:0',
+            'fee_administration_per_participation' => 'required|numeric|min:0',
+            'payment_management_commission' => 'required|numeric|min:0',
+            'bank_account' => 'required|string|max:80',
+            'sepa_creditor_id' => 'nullable|string|max:35',
+            'stripe_publishable_key' => 'nullable|string|max:255',
+            'stripe_secret_key' => 'nullable|string|max:2000',
+            'stripe_webhook_secret' => 'nullable|string|max:2000',
+        ]);
+
+        $settings = PartilotBillingSetting::current();
+        $settings->fill($data);
+        $settings->save();
+
+        return redirect()->route('configuration.index', ['section' => 'config-factura-auto'])
+            ->with('success', 'Configuración de facturación PARTILOT guardada correctamente.');
     }
 
     public function updatePrintShopPanelAccess(Request $request)

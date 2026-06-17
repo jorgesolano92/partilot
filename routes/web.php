@@ -25,6 +25,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\CommunicationEmailController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\SepaPaymentOrderController;
+use App\Http\Controllers\BillingDirectDebitController;
 use App\Http\Controllers\BackgroundTaskController;
 use App\Models\Administration;
 use App\Models\User;
@@ -192,13 +193,18 @@ Route::group(['prefix' => 'administrations', 'middleware' => 'role:super_admin']
             ->where('panel_account_id', $administration->id)
             ->first();
 
-        return view('admins.show', compact('administration', 'panelUser'));
+        $billingService = app(\App\Services\AdministrationBillingService::class);
+        $pendingBillingCharges = $billingService->pendingChargesForAdministration($administration->id);
+        $pendingBillingTotal = $pendingBillingCharges->sum('amount');
+
+        return view('admins.show', compact('administration', 'panelUser', 'pendingBillingCharges', 'pendingBillingTotal'));
     })->name('administrations.show');
     Route::post('/{administration}/send-panel-access', [AdministratorController::class, 'sendPanelAccessEmail'])
         ->name('administrations.send-panel-access');
     Route::get('/edit/{id}', [AdministratorController::class, 'edit'])->name('administrations.edit');
     Route::put('/update/{id}', [AdministratorController::class, 'update'])->name('administrations.update');
     Route::post('/{administration}/toggle-status', [AdministratorController::class, 'toggleStatus'])->name('administrations.toggle-status');
+    Route::post('/{administration}/billing-payment', [AdministratorController::class, 'updateBillingPayment'])->name('administrations.update-billing-payment');
     Route::post('/check-email', [AdministratorController::class, 'checkEmail'])->name('administrations.check-email');
     Route::post('/assign-primary-manager/{id}', [AdministratorController::class, 'assignPrimaryManager'])->name('administrations.assign-primary-manager');
     Route::get('/edit/manager/{id}', function($id) {
@@ -210,6 +216,12 @@ Route::group(['prefix' => 'administrations', 'middleware' => 'role:super_admin']
     })->name('administrations.edit-manager');
     Route::get('/edit/api/{id}', [AdministratorController::class, 'editApi'])->name('administrations.edit-api');
     Route::put('/update/api/{id}', [AdministratorController::class, 'updateApi'])->name('administrations.update-api');
+});
+
+Route::group(['prefix' => 'billing-direct-debits', 'middleware' => 'role:super_admin'], function () {
+    Route::get('/', [BillingDirectDebitController::class, 'index'])->name('billing-direct-debits.index');
+    Route::get('/{billingDirectDebit}', [BillingDirectDebitController::class, 'show'])->name('billing-direct-debits.show');
+    Route::get('/{billingDirectDebit}/generate-xml', [BillingDirectDebitController::class, 'generateXml'])->name('billing-direct-debits.generate-xml');
 });
 
 Route::group(['prefix' => 'entities'], function() {
@@ -462,6 +474,17 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::post('/send-to-print/{id}/quote', [\App\Http\Controllers\DesignController::class, 'previewPrintOrderQuote'])->name('design.previewPrintOrderQuote');
     Route::post('/send-to-print/{id}/payment-intent', [\App\Http\Controllers\DesignController::class, 'createPrintOrderPaymentIntent'])->name('design.createPrintOrderPaymentIntent');
     Route::post('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'submitPrintOrder'])->name('design.submitPrintOrder');
+    Route::post('/sets/{set}/mark-management-fee-paid', [\App\Http\Controllers\DesignController::class, 'markManagementFeePaid'])->name('design.markManagementFeePaid');
+    Route::get('/management-fee/pay/{set}', [\App\Http\Controllers\DesignController::class, 'payManagementFee'])->name('design.managementFee.pay');
+    Route::get('/editor/{set}', [\App\Http\Controllers\DesignController::class, 'openEditor'])->name('design.openEditor');
+    Route::post('/sets/{set}/management-fee/payment-intent', [\App\Http\Controllers\DesignController::class, 'createManagementFeePaymentIntent'])->name('design.managementFee.paymentIntent');
+    Route::post('/sets/{set}/management-fee/confirm-stripe', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeStripe'])->name('design.managementFee.confirmStripe');
+    Route::post('/sets/{set}/management-fee/confirm-remittance', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeRemittance'])->name('design.managementFee.confirmRemittance');
+    Route::get('/approvals', [\App\Http\Controllers\DesignController::class, 'approvalsIndex'])->name('design.approvals.index');
+    Route::get('/{id}/approval', [\App\Http\Controllers\DesignController::class, 'approvalReview'])->name('design.approval.review');
+    Route::post('/{id}/submit-for-approval', [\App\Http\Controllers\DesignController::class, 'submitForApproval'])->name('design.submitForApproval');
+    Route::post('/{id}/approve', [\App\Http\Controllers\DesignController::class, 'approveDesign'])->name('design.approve');
+    Route::post('/{id}/reject', [\App\Http\Controllers\DesignController::class, 'rejectDesign'])->name('design.reject');
     // Route::post('design/format', [App\Http\Controllers\DesignController::class, 'storeFormat'])->name('design.storeFormat');
 
 });
@@ -507,9 +530,14 @@ Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:pa
     Route::post('/administration-settings', [App\Http\Controllers\ConfigurationController::class, 'updateAdministrationSettings'])->name('configuration.administration-settings.update');
     Route::post('/administration-settings/billing', [App\Http\Controllers\ConfigurationController::class, 'updateAdministrationBilling'])->name('configuration.administration-billing.update');
     Route::post('/imprenta', [App\Http\Controllers\ConfigurationController::class, 'updateImprenta'])->name('configuration.imprenta.update');
+    Route::post('/partilot-billing', [App\Http\Controllers\ConfigurationController::class, 'updatePartilotBilling'])->name('configuration.partilot-billing.update');
     Route::post('/imprenta/panel-access', [App\Http\Controllers\ConfigurationController::class, 'updatePrintShopPanelAccess'])->name('configuration.imprenta.panel-access');
     Route::post('/print-orders/{printOrder}/status', [App\Http\Controllers\ConfigurationController::class, 'updatePrintOrderStatus'])->name('configuration.print-orders.status');
     Route::post('/print-orders/{printOrder}/reconcile-payment', [App\Http\Controllers\ConfigurationController::class, 'reconcilePrintOrderPayment'])->name('configuration.print-orders.reconcile-payment');
+    Route::post('/billing-remittance/{administration}', [BillingDirectDebitController::class, 'store'])->name('configuration.billing-remittance.store');
+    Route::get('/billing-remittance/orders/{billingDirectDebit}/xml', [BillingDirectDebitController::class, 'generateXml'])->name('configuration.billing-remittance.generate-xml');
+    Route::post('/billing-remittance/orders/{billingDirectDebit}/mark-collected', [BillingDirectDebitController::class, 'markCollected'])->name('configuration.billing-remittance.mark-collected');
+    Route::post('/billing-remittance/orders/{billingDirectDebit}/cancel', [BillingDirectDebitController::class, 'cancel'])->name('configuration.billing-remittance.cancel');
     Route::delete('ordenes-pago-entidades/collections/{participationCollection}', [App\Http\Controllers\ConfigurationController::class, 'destroyCollection'])->name('ordenes-pago-entidades.collections.destroy');
     Route::post('ordenes-pago-entidades/crear-sepa', [App\Http\Controllers\ConfigurationController::class, 'crearSepa'])->name('ordenes-pago-entidades.crear-sepa');
     Route::get('ordenes-pago-entidades/nueva-orden', [App\Http\Controllers\ConfigurationController::class, 'nuevaOrdenSepa'])->name('ordenes-pago-entidades.nueva-orden');

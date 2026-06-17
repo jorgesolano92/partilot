@@ -7,7 +7,9 @@ use App\Models\LotteryType;
 use App\Models\Administration;
 use App\Models\LotteryResult;
 use App\Jobs\NotifyLotteryResultsPublishedJob;
+use App\Services\EntityLotteryPrizeService;
 use App\Services\NavidadScrapingService;
+use App\Support\LotteryPanelAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Validator;
@@ -22,12 +24,21 @@ class LotteryController extends Controller
      */
     public function index()
     {
-        $lotteries = Lottery::with(['lotteryType'])
+        $lotteryAccess = LotteryPanelAccess::for(auth()->user());
+        $query = Lottery::with(['lotteryType'])
             ->orderBy('draw_date', 'desc')
-            ->orderBy('id', 'desc')
-            ->get();
+            ->orderBy('id', 'desc');
 
-        $lotteryAccess = \App\Support\LotteryPanelAccess::for(auth()->user());
+        if ($lotteryAccess['canViewEntityPrizesOnly'] ?? false) {
+            $entityIds = auth()->user()->accessibleEntityIds();
+            if (empty($entityIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHas('reserves', fn ($q) => $q->whereIn('entity_id', $entityIds));
+            }
+        }
+
+        $lotteries = $query->get();
 
         return view('lottery.index', compact('lotteries', 'lotteryAccess'));
     }
@@ -37,6 +48,8 @@ class LotteryController extends Controller
      */
     public function create()
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $lotteryTypes = LotteryType::where('is_active', true)->get();
 
         return view('lottery.add', compact('lotteryTypes'));
@@ -47,6 +60,8 @@ class LotteryController extends Controller
      */
     public function store(Request $request)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -93,11 +108,34 @@ class LotteryController extends Controller
     /**
      * Mostrar sorteo específico
      */
-    public function show(Lottery $lottery)
+    public function show(Lottery $lottery, EntityLotteryPrizeService $entityPrizeService)
     {
         $lottery->load(['lotteryType']);
-        
-        return view('lottery.show', compact('lottery'));
+        $lotteryAccess = LotteryPanelAccess::for(auth()->user());
+
+        if ($lotteryAccess['canViewEntityPrizesOnly'] ?? false) {
+            $entity = $entityPrizeService->resolveViewEntity(auth()->user());
+            if (! $entity || ! $entityPrizeService->entityParticipatesInLottery($entity, $lottery)) {
+                abort(403, 'No tiene acceso al premio de este sorteo.');
+            }
+
+            $scrutiny = $entityPrizeService->getScrutinyForEntity($entity, $lottery);
+            $participationStats = $entityPrizeService->participationStats($entity, $lottery);
+            $entityResults = $scrutiny?->detailedResults ?? collect();
+            $totalEntityPrize = $entityResults->sum(fn ($result) => $entityPrizeService->recalculateDecimos($result, $lottery)['premio_total']);
+
+            return view('lottery.show_entity_prizes', compact(
+                'lottery',
+                'entity',
+                'scrutiny',
+                'participationStats',
+                'entityResults',
+                'totalEntityPrize',
+                'entityPrizeService'
+            ));
+        }
+
+        return view('lottery.show', compact('lottery', 'lotteryAccess'));
     }
 
     /**
@@ -105,6 +143,8 @@ class LotteryController extends Controller
      */
     public function edit(Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $lotteryTypes = LotteryType::where('is_active', true)->get();
 
         return view('lottery.edit', compact('lottery', 'lotteryTypes'));
@@ -115,6 +155,8 @@ class LotteryController extends Controller
      */
     public function update(Request $request, Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -167,6 +209,8 @@ class LotteryController extends Controller
      */
     public function destroy(Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         // Eliminar imagen si existe
         if ($lottery->image && File::exists(public_path('uploads/' . $lottery->image))) {
             File::delete(public_path('uploads/' . $lottery->image));
@@ -183,6 +227,8 @@ class LotteryController extends Controller
      */
     public function changeStatus(Request $request, Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $request->validate([
             'status' => 'required|integer|in:1,2,3,4' // 1=active, 2=inactive, 3=completed, 4=cancelled
         ]);
@@ -198,6 +244,8 @@ class LotteryController extends Controller
      */
     public function deleteImage(Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         if ($lottery->image && File::exists(public_path('uploads/' . $lottery->image))) {
             // Eliminar archivo físico
             File::delete(public_path('uploads/' . $lottery->image));
@@ -216,6 +264,8 @@ class LotteryController extends Controller
      */
     public function generate(Request $request)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $validator = Validator::make($request->all(), [
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
@@ -233,7 +283,7 @@ class LotteryController extends Controller
             $dateTo = date('Ymd', strtotime($request->date_to));
 
             // Construir URL de la API (celebrados=true: en pruebas reduce errores 503 respecto a celebrados=false)
-            $apiUrl = "https://www.loteriasyapuestas.es/servicios/buscadorSorteos?game_id=LNAC&celebrados=true&fechaInicioInclusiva={$dateFrom}&fechaFinInclusiva={$dateTo}";
+            $apiUrl = "https://www.loteriasyapuestas.es/servicios/buscadorSorteos?game_id=LNAC&celebrados=false&fechaInicioInclusiva={$dateFrom}&fechaFinInclusiva={$dateTo}";
 
             // Realizar petición HTTP usando Guzzle
             $response = Http::withOptions(['verify' => config('app.http_verify_ssl')])

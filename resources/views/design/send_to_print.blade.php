@@ -28,6 +28,7 @@
 
     <form method="POST" action="{{ route('design.submitPrintOrder', $design->id) }}" id="sendToPrintForm">
         @csrf
+        <input type="hidden" name="payment_method" id="payment_method" value="{{ !empty($printPayment['can_queue_remittance']) ? 'remittance' : 'stripe' }}">
         <input type="hidden" name="stripe_payment_intent_id" id="stripe_payment_intent_id" value="">
         <div class="row g-3">
             <div class="col-lg-7">
@@ -75,6 +76,10 @@
                         <h5 class="mb-1">Resumen de presupuesto</h5>
                         <p class="text-muted small mb-3" id="quote-shop-name">{{ $quote['print_configuration_name'] ?? ($selectedPrintShop->displayName() ?? '') }}</p>
                         <div class="d-flex justify-content-between small mb-2">
+                            <span>Pagador</span>
+                            <strong id="quote-payer">{{ $printPayment['payer_label'] ?? '—' }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between small mb-2">
                             <span>Set</span>
                             <strong>{{ $design->set->set_name ?? ('#'.$design->set_id) }}</strong>
                         </div>
@@ -100,6 +105,13 @@
                             <strong class="fs-5" id="quote-total-display">{{ number_format(($quote['total'] ?? 0), 2, ',', '.') }}€</strong>
                         </div>
 
+                        <div id="remittance-payment-block" class="{{ !empty($printPayment['can_queue_remittance']) ? '' : 'd-none' }}">
+                            <div class="alert alert-info small mb-3">
+                                Esta administración paga por <strong>remesa {{ strtolower($printPayment['remittance_frequency_label'] ?? 'periódica') }}</strong>.
+                                El importe se adeudará en el próximo ciclo de cobro.
+                            </div>
+                        </div>
+
                         <div id="stripe-unconfigured-alert" class="alert alert-warning small mb-3 {{ ($stripePaymentEnabled ?? false) ? 'd-none' : '' }}">
                             Stripe no está configurado para esta imprenta. Añade las claves en <strong>Ajustes → Imprenta</strong>.
                         </div>
@@ -116,10 +128,13 @@
                             <a href="{{ route('design.summary', $design->id) }}" class="btn btn-dark">
                                 <i class="ri-arrow-left-line me-1"></i> Volver
                             </a>
+                            <button type="button" id="btn-remittance-submit" class="btn btn-warning text-dark fw-semibold {{ !empty($printPayment['can_queue_remittance']) ? '' : 'd-none' }}" onclick="return confirmRemittanceSubmit();">
+                                <i class="ri-bank-line me-1"></i> Confirmar en remesa y enviar
+                            </button>
                             <button type="button" id="btn-stripe-pay" class="btn btn-warning text-dark fw-semibold {{ ($stripePaymentEnabled ?? false) ? '' : 'd-none' }}">
                                 <i class="ri-bank-card-line me-1"></i> Pagar y enviar a imprenta
                             </button>
-                            <button type="button" id="btn-stripe-disabled" class="btn btn-warning text-dark fw-semibold {{ ($stripePaymentEnabled ?? false) ? 'd-none' : '' }}" disabled title="Configura Stripe en la imprenta">
+                            <button type="button" id="btn-stripe-disabled" class="btn btn-warning text-dark fw-semibold {{ ($stripePaymentEnabled ?? false) || !empty($printPayment['can_queue_remittance']) ? 'd-none' : '' }}" disabled title="Configura Stripe en la imprenta">
                                 <i class="ri-send-plane-line me-1"></i> Enviar a imprenta
                             </button>
                         </div>
@@ -134,11 +149,22 @@
 @section('scripts')
 <script src="https://js.stripe.com/v3/"></script>
 <script>
+function confirmRemittanceSubmit() {
+    if (!confirm('¿Confirmar el envío a imprenta y registrar el importe en la próxima remesa?')) {
+        return false;
+    }
+    document.getElementById('payment_method').value = 'remittance';
+    document.getElementById('sendToPrintForm').submit();
+    return false;
+}
+
 (() => {
     const payBtn = document.getElementById('btn-stripe-pay');
+    const remittanceBtn = document.getElementById('btn-remittance-submit');
     const disabledBtn = document.getElementById('btn-stripe-disabled');
     const errorBox = document.getElementById('stripe-card-errors');
     const paymentIntentInput = document.getElementById('stripe_payment_intent_id');
+    const paymentMethodInput = document.getElementById('payment_method');
     const form = document.getElementById('sendToPrintForm');
     const cardContainer = document.getElementById('stripe-card-element');
     const quoteUrl = @json(route('design.previewPrintOrderQuote', $design->id));
@@ -148,6 +174,7 @@
     let card = null;
     let publishableKey = @json($stripePublishableKey ?? '');
     let quoteRefreshTimer = null;
+    let usesRemittance = @json(!empty($printPayment['can_queue_remittance']));
 
     const fmtMoney = (n) => (Number(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€';
     const fmtInt = (n) => (Number(n) || 0).toLocaleString('es-ES');
@@ -164,16 +191,40 @@
         errorBox.classList.add('d-none');
     }
 
-    function setStripeUiEnabled(enabled, newPublishableKey) {
+    function setPaymentUi(printPayment, stripeEnabled, stripeKey) {
+        usesRemittance = !!(printPayment && printPayment.can_queue_remittance);
+        const remittanceBlock = document.getElementById('remittance-payment-block');
         const alertEl = document.getElementById('stripe-unconfigured-alert');
         const blockEl = document.getElementById('stripe-payment-block');
-        if (enabled) {
+
+        if (usesRemittance) {
+            remittanceBlock?.classList.remove('d-none');
+            alertEl?.classList.add('d-none');
+            blockEl?.classList.add('d-none');
+            remittanceBtn?.classList.remove('d-none');
+            payBtn?.classList.add('d-none');
+            disabledBtn?.classList.add('d-none');
+            paymentMethodInput.value = 'remittance';
+            if (card) {
+                try { card.unmount(); } catch (e) {}
+                card = null;
+                stripe = null;
+            }
+            clearError();
+            return;
+        }
+
+        remittanceBlock?.classList.add('d-none');
+        remittanceBtn?.classList.add('d-none');
+        paymentMethodInput.value = 'stripe';
+
+        if (stripeEnabled) {
             alertEl?.classList.add('d-none');
             blockEl?.classList.remove('d-none');
             payBtn?.classList.remove('d-none');
             disabledBtn?.classList.add('d-none');
-            if (newPublishableKey) {
-                publishableKey = newPublishableKey;
+            if (stripeKey) {
+                publishableKey = stripeKey;
                 mountCard().catch((e) => showError(e.message));
             }
         } else {
@@ -191,8 +242,9 @@
         }
     }
 
-    function updateQuoteDisplay(quote, stripeEnabled, stripeKey) {
+    function updateQuoteDisplay(quote, printPayment, stripeEnabled, stripeKey) {
         document.getElementById('quote-shop-name').textContent = quote.print_configuration_name || '';
+        document.getElementById('quote-payer').textContent = printPayment?.payer_label || '—';
         document.getElementById('quote-participations').textContent = fmtInt(quote.total_participations);
         document.getElementById('quote-books').textContent = quote.books ?? 0;
         document.getElementById('quote-design').textContent = fmtMoney(quote.subtotal?.design);
@@ -200,7 +252,7 @@
         document.getElementById('quote-back').textContent = fmtMoney(quote.subtotal?.back);
         document.getElementById('quote-book').textContent = fmtMoney(quote.subtotal?.book);
         document.getElementById('quote-total-display').textContent = fmtMoney(quote.total);
-        setStripeUiEnabled(!!stripeEnabled, stripeKey || '');
+        setPaymentUi(printPayment, !!stripeEnabled, stripeKey || '');
     }
 
     async function refreshQuote() {
@@ -217,7 +269,7 @@
         if (!res.ok || !data.ok) {
             throw new Error(data.message || 'No se pudo calcular el presupuesto.');
         }
-        updateQuoteDisplay(data.quote, data.stripe_payment_enabled, data.stripe_publishable_key);
+        updateQuoteDisplay(data.quote, data.print_payment, data.stripe_payment_enabled, data.stripe_publishable_key);
     }
 
     function scheduleQuoteRefresh() {
@@ -262,9 +314,13 @@
         el.addEventListener('input', scheduleQuoteRefresh);
     });
     payBtn?.addEventListener('click', async () => {
+        if (usesRemittance) {
+            return;
+        }
         try {
             clearError();
             payBtn.disabled = true;
+            paymentMethodInput.value = 'stripe';
 
             if (!stripe || !card) {
                 await mountCard();

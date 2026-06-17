@@ -15,6 +15,7 @@ use App\Support\ContactEmailRegistry;
 use App\Models\User;
 use App\Models\Manager;
 use App\Mail\AdministrationWelcomeMail;
+use App\Services\AdministrationBillingService;
 use App\Services\CommunicationEmailService;
 
 class AdministratorController extends Controller
@@ -665,5 +666,29 @@ class AdministratorController extends Controller
             'exists' => $exists,
             'message' => $exists ? 'Este correo ya está en uso por otra administración, entidad o usuario' : null,
         ]);
+    }
+
+    public function updateBillingPayment(Request $request, Administration $administration)
+    {
+        $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
+
+        $data = $request->validate([
+            'billing_payment_mode' => 'required|in:card,remittance',
+            'billing_remittance_frequency' => 'nullable|required_if:billing_payment_mode,remittance|in:monthly,biweekly',
+        ]);
+
+        if ($data['billing_payment_mode'] === AdministrationBillingService::MODE_REMITTANCE
+            && ! app(AdministrationBillingService::class)->hasValidBillingIban($administration)) {
+            return back()->with('error', 'Para activar remesa debe configurar un IBAN válido en los datos legales de la administración.');
+        }
+
+        $administration->forceFill([
+            'billing_payment_mode' => $data['billing_payment_mode'],
+            'billing_remittance_frequency' => $data['billing_payment_mode'] === AdministrationBillingService::MODE_REMITTANCE
+                ? ($data['billing_remittance_frequency'] ?? AdministrationBillingService::FREQUENCY_MONTHLY)
+                : null,
+        ])->save();
+
+        return back()->with('success', 'Modalidad de cobro de la administración actualizada.');
     }
 }

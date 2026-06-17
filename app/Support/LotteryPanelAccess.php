@@ -22,7 +22,6 @@ class LotteryPanelAccess
         return [
             'canManageLotteries' => $isSuperAdmin,
             'canEditLotteryFull' => $isSuperAdmin,
-            'canEditAdminDeadlineOnly' => $isAdministration,
             'canRunScrutiny' => $isSuperAdmin,
             'canViewLotteryTypes' => $isSuperAdmin,
             'canViewResultsLists' => $isSuperAdmin || $isAdministration,
@@ -36,12 +35,20 @@ class LotteryPanelAccess
         return [
             'canManageLotteries' => false,
             'canEditLotteryFull' => false,
-            'canEditAdminDeadlineOnly' => false,
             'canRunScrutiny' => false,
             'canViewLotteryTypes' => false,
             'canViewResultsLists' => false,
             'canViewEntityPrizesOnly' => false,
             'isEntityRole' => false,
         ];
+    }
+
+    public static function ensureCanManageLotteries(?User $user = null): void
+    {
+        $user = $user ?? auth()->user();
+
+        if (! $user?->isSuperAdmin()) {
+            abort(403, 'Solo el super administrador puede gestionar sorteos.');
+        }
     }
 }

@@ -23,6 +23,10 @@ class PrintOrder extends Model
     /** Pago Stripe fallido o cancelado. */
     public const PAYMENT_STATUS_FAILED = 'failed';
 
+    public const PAYMENT_PROVIDER_STRIPE = 'stripe';
+
+    public const PAYMENT_PROVIDER_REMITTANCE = 'remittance';
+
     protected $fillable = [
         'print_configuration_id',
         'order_code',
@@ -43,6 +47,7 @@ class PrintOrder extends Model
         'notes',
         'sent_at',
         'paid_at',
+        'billing_charge_id',
     ];
 
     protected $casts = [
@@ -70,6 +75,11 @@ class PrintOrder extends Model
     public function set()
     {
         return $this->belongsTo(Set::class);
+    }
+
+    public function billingCharge()
+    {
+        return $this->belongsTo(BillingCharge::class);
     }
 
     public function lottery()
@@ -106,9 +116,11 @@ class PrintOrder extends Model
     {
         $s = $paymentStatus ?: '';
         return match ($s) {
-            self::PAYMENT_STATUS_PAID, 'succeeded' => $paymentProvider === 'stripe'
-                ? 'Cobrado (Stripe)'
-                : 'Cobrado',
+            self::PAYMENT_STATUS_PAID, 'succeeded' => match ($paymentProvider) {
+                self::PAYMENT_PROVIDER_STRIPE => 'Cobrado (Stripe)',
+                self::PAYMENT_PROVIDER_REMITTANCE => 'Encolado en remesa',
+                default => 'Cobrado',
+            },
             self::PAYMENT_STATUS_NOT_REQUIRED => 'Sin cobro online',
             self::PAYMENT_STATUS_PENDING => $paymentProvider ? 'Pago pendiente / revisar' : 'Pendiente',
             self::PAYMENT_STATUS_FAILED => 'Pago fallido',
@@ -130,11 +142,18 @@ class PrintOrder extends Model
 
     public function requiresOnlinePayment(): bool
     {
-        return (string) ($this->payment_provider ?? '') === 'stripe';
+        return (string) ($this->payment_provider ?? '') === self::PAYMENT_PROVIDER_STRIPE;
     }
 
     public function isPaymentSettled(): bool
     {
+        $provider = (string) ($this->payment_provider ?? '');
+
+        if ($provider === self::PAYMENT_PROVIDER_REMITTANCE) {
+            return (string) ($this->payment_status ?? '') === self::PAYMENT_STATUS_PAID
+                && $this->billing_charge_id !== null;
+        }
+
         if (! $this->requiresOnlinePayment()) {
             return in_array((string) ($this->payment_status ?? ''), [
                 self::PAYMENT_STATUS_NOT_REQUIRED,
@@ -170,6 +189,10 @@ class PrintOrder extends Model
     {
         if ($this->isPaymentSettled()) {
             return null;
+        }
+
+        if ((string) ($this->payment_provider ?? '') === self::PAYMENT_PROVIDER_REMITTANCE) {
+            return 'No se puede avanzar: falta confirmar el cargo en remesa.';
         }
 
         if ($this->requiresOnlinePayment()) {

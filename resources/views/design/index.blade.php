@@ -43,6 +43,11 @@
                             </div>
 
                             <a href="{{url('design/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                            @if(auth()->user()->isEntity())
+                                <a href="{{ route('design.approvals.index') }}" style="border-radius: 30px;" class="btn btn-md btn-outline-primary float-end me-2">
+                                    <i class="ri-checkbox-circle-line"></i> Aprobaciones
+                                </a>
+                            @endif
 
                         </h4>
 
@@ -93,8 +98,13 @@
                                 <td>{{ $design->entity ? $design->entity->province : '-' }}</td>
                                 <td>{{ $design->entity ? $design->entity->city : '-' }}</td>
                                 <td>
+                                    @php
+                                        $approvalCtx = $approvalContextByDesignId[$design->id] ?? null;
+                                    @endphp
                                     @if(!empty($printLockCtx['locked']))
                                         <label class="badge bg-info text-dark rounded-pill">En imprenta</label>
+                                    @elseif(!empty($approvalCtx['requires_approval']) && in_array($approvalCtx['status'] ?? '', ['pending_approval', 'rejected', 'draft'], true))
+                                        <label class="badge bg-warning text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
                                     @elseif($isLocked)
                                         <label class="badge bg-secondary rounded-pill">Bloqueado</label>
                                     @else

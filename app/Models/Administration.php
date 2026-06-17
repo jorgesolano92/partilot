@@ -33,6 +33,11 @@ class Administration extends Model
         "prepago_api_key",
         "prepago_use_partilot_default",
         "prepago_integration_enabled",
+        "stripe_customer_id",
+        "billing_payment_mode",
+        "billing_remittance_frequency",
+        "billing_sepa_mandate_id",
+        "billing_sepa_mandate_signed_at",
     ];
 
     protected $casts = [
@@ -40,6 +45,7 @@ class Administration extends Model
         'prepago_api_key' => 'encrypted',
         'prepago_use_partilot_default' => 'boolean',
         'prepago_integration_enabled' => 'boolean',
+        'billing_sepa_mandate_signed_at' => 'date',
     ];
 
     protected $hidden = [
@@ -52,6 +58,33 @@ class Administration extends Model
     public function entities()
     {
         return $this->hasMany(Entity::class);
+    }
+
+    public function billingCharges()
+    {
+        return $this->hasMany(BillingCharge::class);
+    }
+
+    public function billingDirectDebitOrders()
+    {
+        return $this->hasMany(BillingDirectDebitOrder::class);
+    }
+
+    public function debtorIban(): string
+    {
+        $digits = preg_replace('/\D/', '', (string) ($this->account ?? ''));
+
+        return strlen($digits) === 22 ? 'ES'.$digits : '';
+    }
+
+    public function sepaMandateId(): string
+    {
+        $configured = trim((string) ($this->billing_sepa_mandate_id ?? ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        return 'PARTILOT-ADM-'.$this->id;
     }
 
     public function manager()

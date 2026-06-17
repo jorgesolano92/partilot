@@ -20,6 +20,160 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::create('billing_direct_debit_orders', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('administration_id')->constrained('administrations')->cascadeOnDelete();
+            $table->string('message_id', 35)->unique();
+            $table->string('payment_info_id', 35);
+            $table->dateTime('creation_date');
+            $table->date('collection_date');
+            $table->unsignedInteger('number_of_transactions')->default(0);
+            $table->decimal('control_sum', 12, 2)->default(0);
+            $table->string('creditor_name');
+            $table->string('creditor_nif_cif', 20)->nullable();
+            $table->string('creditor_iban', 34);
+            $table->string('creditor_scheme_id', 35)->nullable();
+            $table->string('debtor_name');
+            $table->string('debtor_nif_cif', 20)->nullable();
+            $table->string('debtor_iban', 34);
+            $table->string('debtor_mandate_id', 35);
+            $table->date('debtor_mandate_signed_at');
+            $table->string('sequence_type', 4)->default('RCUR');
+            $table->string('xml_filename')->nullable();
+            $table->string('status', 20)->default('draft');
+            $table->text('notes')->nullable();
+            $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('exported_at')->nullable();
+            $table->timestamp('collected_at')->nullable();
+            $table->timestamps();
+
+            $table->index(['administration_id', 'status']);
+        });
+
+        Schema::table('billing_charges', function (Blueprint $table) {
+            $table->foreignId('billing_direct_debit_order_id')->nullable()->after('collected_at')->constrained('billing_direct_debit_orders')->nullOnDelete();
+        });
+        
+        Schema::table('print_orders', function (Blueprint $table) {
+            $table->foreignId('billing_charge_id')->nullable()->after('paid_at')->constrained('billing_charges')->nullOnDelete();
+        });
+
+        Schema::table('administrations', function (Blueprint $table) {
+            $table->string('billing_sepa_mandate_id', 35)->nullable()->after('billing_remittance_frequency');
+            $table->date('billing_sepa_mandate_signed_at')->nullable()->after('billing_sepa_mandate_id');
+        });
+
+        Schema::table('partilot_billing_settings', function (Blueprint $table) {
+            $table->string('sepa_creditor_id', 35)->nullable()->after('bank_account');
+        });
+
+        Schema::create('billing_charges', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('administration_id')->nullable()->constrained('administrations')->nullOnDelete();
+            $table->foreignId('entity_id')->nullable()->constrained('entities')->nullOnDelete();
+            $table->foreignId('set_id')->nullable()->constrained('sets')->nullOnDelete();
+            $table->string('payer_type', 20);
+            $table->string('concept', 30);
+            $table->string('source_type', 30);
+            $table->unsignedBigInteger('source_id');
+            $table->decimal('amount', 10, 2);
+            $table->string('currency', 3)->default('EUR');
+            $table->string('description')->nullable();
+            $table->string('status', 20)->default('pending');
+            $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('collected_at')->nullable();
+            $table->timestamps();
+
+            $table->index(['administration_id', 'status']);
+            $table->index(['set_id', 'concept', 'status']);
+            $table->index(['source_type', 'source_id']);
+        });
+
+        Schema::table('sets', function (Blueprint $table) {
+            $table->foreignId('management_fee_billing_charge_id')->nullable()->after('management_fee_payment_provider')->constrained('billing_charges')->nullOnDelete();
+        });
+        
+        Schema::table('administrations', function (Blueprint $table) {
+            $table->string('billing_payment_mode', 20)->default('card')->after('stripe_customer_id');
+            $table->string('billing_remittance_frequency', 20)->nullable()->after('billing_payment_mode');
+        });
+
+        Schema::table('design_formats', function (Blueprint $table) {
+            $table->string('designer_type', 20)->nullable()->after('snapshot_path');
+            $table->string('approval_status', 30)->nullable()->after('designer_type');
+            $table->timestamp('submitted_for_approval_at')->nullable()->after('approval_status');
+            $table->timestamp('approval_decided_at')->nullable()->after('submitted_for_approval_at');
+            $table->foreignId('approved_by_user_id')->nullable()->after('approval_decided_at')->constrained('users')->nullOnDelete();
+            $table->text('approval_rejection_reason')->nullable()->after('approved_by_user_id');
+        });
+
+        Schema::table('partilot_billing_settings', function (Blueprint $table) {
+            $table->string('stripe_publishable_key')->nullable()->after('bank_account');
+            $table->text('stripe_secret_key')->nullable()->after('stripe_publishable_key');
+            $table->text('stripe_webhook_secret')->nullable()->after('stripe_secret_key');
+        });
+
+        Schema::table('sets', function (Blueprint $table) {
+            $table->string('management_fee_stripe_payment_intent_id')->nullable()->after('management_fee_paid_by_user_id');
+            $table->string('management_fee_payment_provider', 20)->nullable()->after('management_fee_stripe_payment_intent_id');
+        });
+
+        Schema::table('entities', function (Blueprint $table) {
+            $table->string('stripe_customer_id')->nullable()->after('entity_pays_print_fee');
+        });
+
+        Schema::table('administrations', function (Blueprint $table) {
+            $table->string('stripe_customer_id')->nullable()->after('prepago_integration_enabled');
+        });
+
+        Schema::create('partilot_billing_settings', function (Blueprint $table) {
+            $table->id();
+            $table->string('company_name')->nullable();
+            $table->string('nif_cif', 50)->nullable();
+            $table->string('address')->nullable();
+            $table->string('postal_code', 20)->nullable();
+            $table->string('province', 120)->nullable();
+            $table->string('city', 120)->nullable();
+            $table->string('phone', 50)->nullable();
+            $table->string('email')->nullable();
+            $table->decimal('fee_per_participation_1000', 8, 4)->default(0.05);
+            $table->decimal('fee_per_participation_5000', 8, 4)->default(0.04);
+            $table->decimal('fee_per_participation_10000', 8, 4)->default(0.03);
+            $table->decimal('fee_administration_per_participation', 8, 4)->default(0.03);
+            $table->decimal('payment_management_commission', 8, 4)->default(0.03);
+            $table->string('bank_account', 80)->nullable();
+            $table->timestamps();
+        });
+
+        DB::table('partilot_billing_settings')->insert([
+            'company_name' => 'El Búho Lotero',
+            'nif_cif' => '16600600A',
+            'address' => 'Avd. Club Deportivo 28',
+            'postal_code' => '26007',
+            'province' => 'La Rioja',
+            'city' => 'Logroño',
+            'phone' => '941 900 900',
+            'email' => 'administracion@ejemplo.es',
+            'fee_per_participation_1000' => 0.05,
+            'fee_per_participation_5000' => 0.04,
+            'fee_per_participation_10000' => 0.03,
+            'fee_administration_per_participation' => 0.03,
+            'payment_management_commission' => 0.03,
+            'bank_account' => '1234 - 1234 - 1234 - 12 - 1234567890',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Schema::table('sets', function (Blueprint $table) {
+            $table->string('management_fee_status', 20)->nullable()->after('status');
+            $table->decimal('management_fee_amount', 10, 2)->nullable()->after('management_fee_status');
+            $table->decimal('management_fee_unit_price', 8, 4)->nullable()->after('management_fee_amount');
+            $table->unsignedInteger('management_fee_participation_count')->nullable()->after('management_fee_unit_price');
+            $table->string('management_fee_payer', 20)->nullable()->after('management_fee_participation_count');
+            $table->timestamp('management_fee_paid_at')->nullable()->after('management_fee_payer');
+            $table->foreignId('management_fee_paid_by_user_id')->nullable()->after('management_fee_paid_at')->constrained('users')->nullOnDelete();
+        });
+
         Schema::create('lottery_deadline_admin_decisions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('entity_id')->constrained()->cascadeOnDelete();

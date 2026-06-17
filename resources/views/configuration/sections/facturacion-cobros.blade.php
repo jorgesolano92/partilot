@@ -204,13 +204,11 @@
             </div>
         </form>
     </div>
+@elseif(!empty($showBillingRemittancePanel))
+    @include('configuration.sections.partials.facturacion-cobros-remesas')
 @else
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h4 class="mb-0">Facturación y Cobros</h4>
-</div>
-
-<div class="alert alert-info">
+<div class="alert alert-info mb-0">
     <i class="fe-info me-2"></i>
-    Esta sección está en desarrollo. Próximamente podrás gestionar la facturación y cobros.
+    No hay opciones de facturación disponibles para su perfil en esta sección.
 </div>
 @endif
