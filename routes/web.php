@@ -26,6 +26,7 @@ use App\Http\Controllers\CommunicationEmailController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\SepaPaymentOrderController;
 use App\Http\Controllers\BackgroundTaskController;
+use App\Http\Controllers\LegalController;
 use App\Models\Administration;
 use App\Models\User;
 /*
@@ -132,6 +133,12 @@ Route::post('/registro-comprador/sms-code', [\App\Http\Controllers\PhoneVerifica
 Route::get('/registro-regalo/{token}', [\App\Http\Controllers\GiftRecipientRegistrationController::class, 'show'])->name('gift-recipient.register');
 Route::post('/registro-regalo/{token}', [\App\Http\Controllers\GiftRecipientRegistrationController::class, 'store'])->name('gift-recipient.register.store');
 Route::post('/registro-regalo/sms-code', [\App\Http\Controllers\PhoneVerificationController::class, 'sendCode'])->name('gift-recipient.sms-code');
+
+// Páginas legales (públicas, sin autenticación)
+Route::get('/aviso-legal', [LegalController::class, 'avisoLegal'])->name('legal.aviso-legal');
+Route::get('/politica-de-privacidad', [LegalController::class, 'politicaDePrivacidad'])->name('legal.politica-de-privacidad');
+Route::get('/politica-de-cookies', [LegalController::class, 'politicaDeCookies'])->name('legal.politica-de-cookies');
+Route::get('/terminos-y-condiciones', [LegalController::class, 'terminosYCondiciones'])->name('legal.terminos-y-condiciones');
 
 // Diseño externo por invitación (público, sin login; acceso solo por enlace)
 Route::get('/design/external/invite/{token}', [\App\Http\Controllers\DesignController::class, 'externalInviteByToken'])->name('design.external.invite');
