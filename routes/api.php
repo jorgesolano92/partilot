@@ -13,6 +13,7 @@ use App\Http\Controllers\LotteryController;
 use App\Http\Controllers\DevolutionsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\EntityLotteryPrizeSettingsController;
 use App\Http\Controllers\ManagerController;
 use App\Http\Controllers\ScrutinyController;
 use App\Http\Controllers\StripeWebhookController;
@@ -456,6 +457,8 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('entities')->group(function () {
         Route::get('/', [EntityController::class, 'apiIndex']);
+        Route::get('/{entity}/lottery/{lottery}/prize-settings', [EntityLotteryPrizeSettingsController::class, 'apiShow']);
+        Route::put('/{entity}/lottery/{lottery}/prize-settings/contact', [EntityLotteryPrizeSettingsController::class, 'apiUpdatePresencialContact']);
         Route::get('/{id}', [EntityController::class, 'apiShow']);
         Route::get('/{id}/lotteries', [EntityController::class, 'apiGetLotteries']);
         Route::get('/{id}/sellers', [EntityController::class, 'apiGetSellers']);

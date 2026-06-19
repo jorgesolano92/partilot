@@ -8,6 +8,7 @@ use App\Models\Administration;
 use App\Models\Entity;
 use App\Models\Reserve;
 use App\Models\AdministrationLotteryScrutiny;
+use App\Services\EntityLotteryPrizePaymentService;
 use App\Models\ScrutinyEntityResult;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -1525,6 +1526,8 @@ class LotteryScrutinyController extends Controller
                 'saved_at' => now(),
                 'saved_by' => Auth::id()
             ]);
+
+            app(EntityLotteryPrizePaymentService::class)->syncAfterScrutinySaved($scrutiny);
 
             return redirect()->route('lottery.show-administration-scrutiny', [$lotteryId, $administrationId])
                 ->with('success', 'Escrutinio guardado exitosamente');

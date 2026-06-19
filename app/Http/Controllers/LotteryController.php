@@ -124,6 +124,9 @@ class LotteryController extends Controller
             $entityResults = $scrutiny?->detailedResults ?? collect();
             $totalEntityPrize = $entityResults->sum(fn ($result) => $entityPrizeService->recalculateDecimos($result, $lottery)['premio_total']);
 
+            $prizeSetting = app(\App\Services\EntityLotteryPrizePaymentService::class)
+                ->getSettings((int) $entity->id, (int) $lottery->id);
+
             return view('lottery.show_entity_prizes', compact(
                 'lottery',
                 'entity',
@@ -131,7 +134,8 @@ class LotteryController extends Controller
                 'participationStats',
                 'entityResults',
                 'totalEntityPrize',
-                'entityPrizeService'
+                'entityPrizeService',
+                'prizeSetting'
             ));
         }
 

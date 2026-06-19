@@ -19,6 +19,7 @@ use App\Jobs\ProcessDevolutionTask;
 use App\Models\BackgroundTask;
 use App\Services\CommunicationEmailService;
 use App\Services\BackgroundTaskService;
+use App\Services\EntityLotteryPrizePaymentService;
 use App\Services\SellerLiquidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -424,9 +425,21 @@ class DevolutionsController extends Controller
                 'liquidacion.pagos.*.amount' => 'required_with:liquidacion.pagos.*|numeric',
                 'liquidacion.special_prize' => 'nullable|array',
                 'liquidacion.special_prize.assignments' => 'nullable|array',
+                'prize_payment_mode' => 'nullable|in:presencial,online',
             ]);
 
             $soloDevolucion = !empty($data['solo_devolucion']);
+            $tipoDevolucionEarly = (string) $request->input('tipo_devolucion', 'administracion');
+            $requiresPrizePaymentMode = ! $soloDevolucion && $tipoDevolucionEarly !== 'vendedor';
+
+            if ($requiresPrizePaymentMode && empty($data['prize_payment_mode'])) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Debes seleccionar la modalidad de pago de premios (presencial u online) antes de liquidar.',
+                ], 422);
+            }
 
             if ($soloDevolucion) {
                 $devolver = $data['liquidacion']['devolver'] ?? $data['participations'] ?? [];
@@ -986,6 +999,15 @@ class DevolutionsController extends Controller
                         'payment_date' => $now
                     ]);
                 }
+            }
+
+            if ($requiresPrizePaymentMode && ! empty($data['prize_payment_mode'])) {
+                app(EntityLotteryPrizePaymentService::class)->lockModeFromDevolution(
+                    (int) $data['entity_id'],
+                    (int) $data['lottery_id'],
+                    (string) $data['prize_payment_mode'],
+                    (int) $userId
+                );
             }
 
             DB::commit();

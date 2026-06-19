@@ -26,6 +26,8 @@ use App\Http\Controllers\CommunicationEmailController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\SepaPaymentOrderController;
 use App\Http\Controllers\BillingDirectDebitController;
+use App\Http\Controllers\PrizePaymentSuperAdminController;
+use App\Http\Controllers\EntityLotteryPrizeSettingsController;
 use App\Http\Controllers\BackgroundTaskController;
 use App\Http\Controllers\LegalController;
 use App\Models\Administration;
@@ -123,6 +125,8 @@ Route::get('/entity-managers/confirm/reject/{token}', [EntityController::class, 
 
 // Confirmación doble opt-in cobro por transferencia (sin autenticación)
 Route::get('/cobro-transferencia/confirmar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'confirm'])->name('transfer-collection.confirm');
+Route::get('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'show'])->name('prize-contract.sign');
+Route::post('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'store'])->name('prize-contract.sign.submit');
 Route::get('/cobro-transferencia/cancelar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'cancel'])->name('transfer-collection.cancel');
 
 // Registro web comprador (venta digital pendiente)
@@ -231,6 +235,19 @@ Route::group(['prefix' => 'billing-direct-debits', 'middleware' => 'role:super_a
     Route::get('/{billingDirectDebit}/generate-xml', [BillingDirectDebitController::class, 'generateXml'])->name('billing-direct-debits.generate-xml');
 });
 
+Route::group(['prefix' => 'prize-payments', 'middleware' => 'role:super_admin', 'as' => 'prize-payments.'], function () {
+    Route::get('/', [PrizePaymentSuperAdminController::class, 'index'])->name('index');
+    Route::get('/{prizePayment}', [PrizePaymentSuperAdminController::class, 'show'])->name('show');
+    Route::post('/{prizePayment}/confirm-funds', [PrizePaymentSuperAdminController::class, 'confirmFunds'])->name('confirm-funds');
+    Route::post('/{prizePayment}/mark-contract-signed', [PrizePaymentSuperAdminController::class, 'markContractSigned'])->name('mark-contract-signed');
+    Route::post('/{prizePayment}/activate-online', [PrizePaymentSuperAdminController::class, 'activateOnline'])->name('activate-online');
+    Route::post('/{prizePayment}/activate-presencial', [PrizePaymentSuperAdminController::class, 'activatePresencial'])->name('activate-presencial');
+    Route::put('/{prizePayment}/messages', [PrizePaymentSuperAdminController::class, 'updateMessages'])->name('update-messages');
+    Route::post('/{prizePayment}/send-contract', [PrizePaymentSuperAdminController::class, 'sendContract'])->name('send-contract');
+    Route::put('/{prizePayment}/change-mode', [PrizePaymentSuperAdminController::class, 'changeMode'])->name('change-mode');
+    Route::post('/{prizePayment}/block-payments', [PrizePaymentSuperAdminController::class, 'blockPayments'])->name('block-payments');
+});
+
 Route::group(['prefix' => 'entities'], function() {
     //
     Route::get('/', [EntityController::class, 'index'])->name('entities.index');
@@ -335,6 +352,8 @@ Route::group(['prefix' => 'lottery'], function() {
     Route::get('/add', [LotteryController::class, 'create'])->name('lotteries.create');
     Route::post('/store', [LotteryController::class, 'store'])->name('lotteries.store');
     Route::get('/view/{lottery}', [LotteryController::class, 'show'])->name('lotteries.show');
+    Route::put('/view/{lottery}/prize-presencial-contact', [EntityLotteryPrizeSettingsController::class, 'updatePresencialContactWeb'])
+        ->name('lotteries.update-prize-presencial-contact');
     Route::get('/edit/{lottery}', [LotteryController::class, 'edit'])->name('lotteries.edit');
     Route::put('/update/{lottery}', [LotteryController::class, 'update'])->name('lotteries.update');
     Route::delete('/destroy/{lottery}', [LotteryController::class, 'destroy'])->name('lotteries.destroy');

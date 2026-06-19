@@ -733,6 +733,15 @@
                                     @php $selected = null; @endphp
                                 </a>
                             </li>
+                            <li class="menu-item @if (Request::is('prize-payments/*') || Request::is('prize-payments')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{ route('prize-payments.index') }}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <i class="ri-money-euro-circle-line" style="font-size: 18px; position: relative; top: 3px;"></i>
+                                    </span>
+                                    <span class="menu-text"> Cobro de premios </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
                         @endif
 
                         @if($canSeeEntitiesMenu)

@@ -7,7 +7,7 @@
 
 <p>Versión 10.0 | Entrada en vigor: [FECHA DE PUBLICACIÓN]</p>
 
-<p>Este documento forma parte del marco legal integral de PARTILOT, junto con la <a href="{{ url('/politica-de-privacidad') }}">Política de Privacidad</a>, la <a href="{{ url('/politica-de-cookies') }}">Política de Cookies</a> y el <a href="/acuerdo-de-tratamiento-de-datos">Acuerdo de Tratamiento de Datos</a>.</p>
+<p>Este documento forma parte del marco legal integral de PARTILOT, junto con la <a href="https://partilot.es/politica-de-privacidad">Política de Privacidad</a>, la <a href="https://partilot.es/politica-de-cookies">Política de Cookies</a> y el <a href="https://partilot.es/acuerdo-de-tratamiento-de-datos">Acuerdo de Tratamiento de Datos</a>.</p>
 
 
 <h2>Preámbulo e identificación del titular</h2>

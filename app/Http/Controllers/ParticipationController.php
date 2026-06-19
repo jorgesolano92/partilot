@@ -31,6 +31,8 @@ use App\Services\ParticipationGiftService;
 use App\Support\ParticipationTicketReference;
 use App\Services\ParticipationOwnerService;
 use App\Services\ParticipationWalletValidityService;
+use App\Services\EntityLotteryPrizePaymentService;
+use App\Models\EntityLotteryPrizeActivationLog;
 
 class ParticipationController extends Controller
 {
@@ -1614,6 +1616,7 @@ class ParticipationController extends Controller
             }
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
+            $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
             if (! empty($item['wallet_expired'])) {
                 continue;
@@ -1654,6 +1657,7 @@ class ParticipationController extends Controller
             $item['gifted_to_email'] = null;
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
+            $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
             if (! empty($item['wallet_expired'])) {
                 continue;
@@ -1708,6 +1712,11 @@ class ParticipationController extends Controller
             }
             $item = $this->formatParticipationForWallet($p, $ref);
             $item['premio'] = $prizeInfo['prize_amount'];
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection($p, (float) $prizeInfo['prize_amount']);
+            if (! $gate['cobrable']) {
+                continue;
+            }
+            $item = array_merge($item, $gate);
             $items[] = $item;
             $addedIds[$p->id] = true;
         }
@@ -1740,6 +1749,11 @@ class ParticipationController extends Controller
             $item = $this->formatParticipationForWallet($p, $ref);
             $item['premio'] = $prizeInfo['prize_amount'];
             $item['recibida_regalo'] = true;
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection($p, (float) $prizeInfo['prize_amount']);
+            if (! $gate['cobrable']) {
+                continue;
+            }
+            $item = array_merge($item, $gate);
             $items[] = $item;
             $addedIds[$p->id] = true;
         }
@@ -1790,11 +1804,29 @@ class ParticipationController extends Controller
             }
         }
 
-        // Todas las participaciones deben ser de la misma entidad
+        // Multientidad: permitido solo si todas las entidades están habilitadas para cobro online
         $participations->load('set.entity');
-        $entityIds = $participations->map(fn ($p) => $p->set?->entity_id ?? $p->entity_id)->filter()->unique()->values();
-        if ($entityIds->count() > 1) {
-            return response()->json(['success' => false, 'message' => 'Solo puedes cobrar participaciones de la misma entidad.'], 422);
+        $multiCheck = $this->prizePaymentService()->canGroupMultientityTransfer(
+            $participations->pluck('id')->all()
+        );
+        if (! $multiCheck['allowed']) {
+            return response()->json(['success' => false, 'message' => $multiCheck['message']], 422);
+        }
+
+        $apiController = app(ApiController::class);
+        foreach ($participations as $p) {
+            $ref = $this->getReferenceFromParticipation($p);
+            $prizeInfo = $apiController->getPrizeInfoForReference($ref);
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection(
+                $p,
+                (float) ($prizeInfo['prize_amount'] ?? 0)
+            );
+            if (! $gate['cobrable']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $gate['user_message'] ?? 'El cobro online no está habilitado para esta participación.',
+                ], 422);
+            }
         }
 
         // Usar el importe total enviado desde el frontend
@@ -1819,11 +1851,16 @@ class ParticipationController extends Controller
 
         // Reservar participaciones (sin marcar collected_at hasta confirmar email)
         $participationIds = $participations->pluck('id')->toArray();
-        foreach ($participationIds as $pid) {
-            ParticipationCollectionItem::create([
+        foreach ($participations as $p) {
+            $ref = $this->getReferenceFromParticipation($p);
+            $prizeInfo = $apiController->getPrizeInfoForReference($ref);
+            $itemData = [
                 'collection_id' => $collection->id,
-                'participation_id' => $pid,
-            ]);
+                'participation_id' => $p->id,
+                'entity_id' => $p->set?->entity_id ?? $p->entity_id,
+                'amount' => (float) ($prizeInfo['prize_amount'] ?? 0),
+            ];
+            ParticipationCollectionItem::create($itemData);
         }
 
         // Email con enlace de confirmación / cancelación
@@ -1900,6 +1937,22 @@ class ParticipationController extends Controller
         $entityIds = $participations->map(fn ($p) => $p->set?->entity_id ?? $p->entity_id)->filter()->unique()->values();
         if ($entityIds->count() > 1) {
             return response()->json(['success' => false, 'message' => 'Solo puedes donar participaciones de la misma entidad.'], 422);
+        }
+
+        $apiController = app(ApiController::class);
+        foreach ($participations as $p) {
+            $ref = $this->getReferenceFromParticipation($p);
+            $prizeInfo = $apiController->getPrizeInfoForReference($ref);
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection(
+                $p,
+                (float) ($prizeInfo['prize_amount'] ?? 0)
+            );
+            if (! $gate['cobrable']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $gate['user_message'] ?? 'El cobro online no está habilitado para esta participación.',
+                ], 422);
+            }
         }
 
         $importeDonacion = (float) $request->importe_donacion;
@@ -2835,6 +2888,7 @@ class ParticipationController extends Controller
 
         $entityId = (int) $data['entity_id'];
         $out = [];
+        $rejected = [];
         foreach ($participations as $item) {
             $id = $item['id'] ?? null;
             if (!$id) {
@@ -2847,11 +2901,33 @@ class ParticipationController extends Controller
                 ->where('status', '!=', 'pagada')
                 ->first();
             if (!$p) {
+                $rejected[] = [
+                    'participation_code' => $item['participation_code'] ?? $item['code'] ?? null,
+                    'reason' => 'not_found',
+                    'message' => 'Participación no encontrada o sin permisos.',
+                ];
                 continue;
             }
             $ref = $this->getReferenceFromParticipation($p);
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             if (!($prizeInfo['has_won'] && $prizeInfo['prize_amount'] > 0)) {
+                $rejected[] = [
+                    'participation_code' => $p->display_participation_code,
+                    'reason' => 'no_prize',
+                    'message' => 'La participación no tiene premio.',
+                ];
+                continue;
+            }
+            $presencialGate = $this->prizePaymentService()->evaluatePresencialPayment(
+                $p,
+                (float) $prizeInfo['prize_amount']
+            );
+            if (! $presencialGate['allowed']) {
+                $rejected[] = [
+                    'participation_code' => $p->display_participation_code,
+                    'reason' => $presencialGate['reason'],
+                    'message' => $presencialGate['message'],
+                ];
                 continue;
             }
             $out[] = [
@@ -2867,7 +2943,11 @@ class ParticipationController extends Controller
             ];
         }
 
-        return response()->json(['success' => true, 'participations' => $out]);
+        return response()->json([
+            'success' => true,
+            'participations' => $out,
+            'rejected' => $rejected,
+        ]);
     }
 
     /**
@@ -2883,6 +2963,7 @@ class ParticipationController extends Controller
         $user = auth()->user();
         $apiController = app(ApiController::class);
         $valid = [];
+        $firstBlockMessage = null;
         foreach ($request->participation_ids as $id) {
             $p = Participation::with('set.entity')
                 ->forUser($user)
@@ -2890,11 +2971,21 @@ class ParticipationController extends Controller
                 ->where('status', '!=', 'pagada')
                 ->first();
             if (!$p || !$user->canAccessEntity((int) $p->entity_id)) {
+                $firstBlockMessage = $firstBlockMessage ?? 'Una o más participaciones no son válidas para tu entidad.';
                 continue;
             }
             $ref = $this->getReferenceFromParticipation($p);
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             if (!$prizeInfo['has_won'] || $prizeInfo['prize_amount'] <= 0) {
+                $firstBlockMessage = $firstBlockMessage ?? 'Una o más participaciones no tienen premio.';
+                continue;
+            }
+            $presencialGate = $this->prizePaymentService()->evaluatePresencialPayment(
+                $p,
+                (float) $prizeInfo['prize_amount']
+            );
+            if (! $presencialGate['allowed']) {
+                $firstBlockMessage = $presencialGate['message'] ?? 'Pago presencial no permitido.';
                 continue;
             }
             $valid[] = $p;
@@ -2903,7 +2994,7 @@ class ParticipationController extends Controller
         if (empty($valid)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ninguna participación válida para pagar (deben tener premio y no estar ya pagadas).',
+                'message' => $firstBlockMessage ?? 'Ninguna participación válida para pagar (deben tener premio y no estar ya pagadas).',
             ], 422);
         }
 
@@ -2921,6 +3012,20 @@ class ParticipationController extends Controller
                 'new_status' => 'pagada',
                 'description' => 'Pago de premio registrado por el gestor.',
             ]);
+
+            $lotteryId = (int) ($p->set?->reserve?->lottery_id ?? 0);
+            $setting = $lotteryId
+                ? $this->prizePaymentService()->getSettings((int) $p->entity_id, $lotteryId)
+                : null;
+            if ($setting) {
+                EntityLotteryPrizeActivationLog::query()->create([
+                    'entity_lottery_prize_setting_id' => $setting->id,
+                    'event' => 'payment_registered_presencial',
+                    'payload' => ['participation_id' => $p->id],
+                    'user_id' => $user->id,
+                    'created_at' => now(),
+                ]);
+            }
         }
 
         return response()->json([
@@ -2945,6 +3050,42 @@ class ParticipationController extends Controller
         }
 
         return $item;
+    }
+
+    protected function applyPrizePaymentGateToWalletItem(
+        array $item,
+        Participation $participation,
+        ?float $prizeAmount
+    ): array {
+        if ($prizeAmount === null || $prizeAmount <= 0) {
+            $item['cobrable'] = false;
+            $item['payment_blocked'] = false;
+            $item['block_reason'] = null;
+            $item['user_message'] = null;
+
+            return $item;
+        }
+
+        $gate = $this->prizePaymentService()->evaluateOnlineCollection($participation, $prizeAmount);
+        $item = array_merge($item, $gate);
+
+        if ($prizeAmount > 0 && empty($item['is_digital'])) {
+            $entityId = (int) ($participation->entity_id ?? $participation->set?->entity_id ?? 0);
+            $lotteryId = (int) ($participation->set?->reserve?->lottery_id ?? 0);
+            if ($entityId && $lotteryId) {
+                $setting = $this->prizePaymentService()->getSettings($entityId, $lotteryId);
+                if ($setting && $setting->isModePresencial()) {
+                    $item['presencial_contact'] = $this->prizePaymentService()->presencialContactPayload($setting);
+                }
+            }
+        }
+
+        return $item;
+    }
+
+    protected function prizePaymentService(): EntityLotteryPrizePaymentService
+    {
+        return app(EntityLotteryPrizePaymentService::class);
     }
 
     protected function walletExpiredJsonResponse(): \Illuminate\Http\JsonResponse

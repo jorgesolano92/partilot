@@ -1,6 +1,6 @@
 @extends('layouts.layout')
 
-@section('title','Nueva Devolución')
+@section('title','Nueva Devoluci?n')
 
 @section('content')
 
@@ -39,7 +39,7 @@
         padding: 5px 15px;
     }
 
-    /* Animación para transiciones entre pasos */
+    /* Animaci?n para transiciones entre pasos */
     .devolucion-paso.fade-in {
         animation: fadeIn 0.3s ease-in;
     }
@@ -131,7 +131,7 @@
         gap: 15px;
     }
 
-    /* Estilos para el resumen de devolución */
+    /* Estilos para el resumen de devoluci?n */
     .resumen-devolucion {
         background: #f8f9fa;
         border-radius: 12px;
@@ -153,7 +153,7 @@
         font-size: 1.1em;
     }
 
-    /* Estilos para liquidación */
+    /* Estilos para liquidaci?n */
     .liquidacion-card {
         background: white;
         border: 1px solid #e0e0e0;
@@ -284,7 +284,7 @@
                 <div class="page-title-right">
                     <ol class="breadcrumb m-0">
                         <li class="breadcrumb-item"><a href="{{ route('devolutions.index') }}">Devoluciones</a></li>
-                        <li class="breadcrumb-item active">Nueva Devolución</li>
+                        <li class="breadcrumb-item active">Nueva Devoluci?n</li>
                     </ol>
                 </div>
                 <h4 class="page-title">Devoluciones</h4>
@@ -298,14 +298,14 @@
                 <div class="card-body">
 
                     <h4 class="header-title">
-                        Nueva Devolución de Entidad
+                        Nueva Devoluci?n de Entidad
                     </h4>
 
                     <br>
 
                     <div class="row">
                         <div class="col-md-3" style="position: relative;">
-                            <!-- Pasos del proceso (dinámicos según tipo de devolución) -->
+                            <!-- Pasos del proceso (din?micos seg?n tipo de devoluci?n) -->
                             <ul class="form-card bs mb-3 nav" id="wizard-steps">
                                 <li class="nav-item">
                                     <div class="form-wizard-element active" id="step-1">
@@ -318,13 +318,13 @@
                                     <div class="form-wizard-element" id="step-2">
                                         <span>&nbsp;&nbsp;</span>
                                         <img src="{{url('icons_/usuarios.svg')}}" alt="">
-                                        <label>Selec. Opción</label>
+                                        <label>Selec. Opci?n</label>
                                     </div>
                                 </li>
-                                <!-- Los pasos siguientes se cargarán dinámicamente -->
+                                <!-- Los pasos siguientes se cargar?n din?micamente -->
                             </ul>
 
-                            <!-- Información de la entidad seleccionada -->
+                            <!-- Informaci?n de la entidad seleccionada -->
                             <div class="form-card bs mb-3" id="entity-info" style="display: none;">
                                 <div class="row">
                                     <div class="col-4">
@@ -334,14 +334,14 @@
                                     </div>
                                     <div class="col-8 text-center mt-2">
                                         <h3 class="mt-2 mb-0" id="entity-name">Entidad</h3>
-                                        <i class="ri-map-pin-line"></i> <span id="entity-location">Ubicación</span>
+                                        <i class="ri-map-pin-line"></i> <span id="entity-location">Ubicaci?n</span>
                                     </div>
                                 </div>
                             </div>
 
                             <a href="{{ route('devolutions.index') }}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
                                 <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> 
-                                <span style="display: block; margin-left: 16px;">Atrás</span>
+                                <span style="display: block; margin-left: 16px;">Atr?s</span>
                             </a>
                         </div>
 
@@ -349,13 +349,13 @@
                             <div class="tabbable">
                                 <div class="tab-content p-0">
                                     
-                                    <!-- Paso 1: Selección de Entidad -->
+                                    <!-- Paso 1: Selecci?n de Entidad -->
                                     <div class="tab-pane fade active show" id="paso-entidad">
                                         <div class="form-card bs" style="min-height: 658px;">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <h4 class="mb-0 mt-1">Seleccionar Entidad</h4>
-                                                    <small><i>Elige la entidad para la devolución</i></small>
+                                                    <small><i>Elige la entidad para la devoluci?n</i></small>
                                                 </div>
                                             </div>
 
@@ -370,13 +370,13 @@
                                                             <th>Entidad</th>
                                                             <th>Provincia</th>
                                                             <th>Localidad</th>
-                                                            <th>Administración</th>
+                                                            <th>Administraci?n</th>
                                                             <th>Estado</th>
                                                             <th class="d-none">Seleccionar</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        <!-- Los datos se cargarán dinámicamente -->
+                                                        <!-- Los datos se cargar?n din?micamente -->
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -392,13 +392,13 @@
                                         </div>
                                     </div>
 
-                                    <!-- Paso 2: Selección de Opción -->
+                                    <!-- Paso 2: Selecci?n de Opci?n -->
                                     <div class="tab-pane fade" id="paso-opcion">
                                         <div class="form-card bs" style="min-height: 658px;">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
-                                                    <h4 class="mb-0 mt-1">Seleccionar Tipo de Devolución</h4>
-                                                    <small><i>Elige el tipo de devolución a realizar</i></small>
+                                                    <h4 class="mb-0 mt-1">Seleccionar Tipo de Devoluci?n</h4>
+                                                    <small><i>Elige el tipo de devoluci?n a realizar</i></small>
                                                 </div>
                                                 <div id="back-to-option-buttons">
                                                     <button type="button" class="btn btn-secondary btn-sm" id="back-option-button" style="border-radius: 30px;">
@@ -409,7 +409,7 @@
 
                                             <br>
 
-                                            <!-- Mostrar información de la entidad -->
+                                            <!-- Mostrar informaci?n de la entidad -->
                                             <div class="form-group mt-2 mb-3 admin-box">
                                                 <div class="row">
                                                     <div class="col-1">
@@ -421,12 +421,12 @@
                                                     <div class="col-4 text-center mt-3">
                                                         <h4 class="mt-0 mb-0" id="opcion-entity-name">Entidad</h4>
                                                         <small id="opcion-entity-province">Provincia</small> <br>
-                                                        <small id="opcion-entity-admin">Administración</small>
+                                                        <small id="opcion-entity-admin">Administraci?n</small>
                                                     </div>
                                                     <div class="col-3">
                                                         <div class="mt-3">
                                                             <span>Provincia: <span id="opcion-entity-province-2">N/A</span></span> <br>
-                                                            <span>Dirección: <span id="opcion-entity-address">N/A</span></span>
+                                                            <span>Direcci?n: <span id="opcion-entity-address">N/A</span></span>
                                                         </div>
                                                     </div>
                                                     <div class="col-3">
@@ -440,25 +440,25 @@
 
                                             <br>
 
-                                            <!-- Opciones de tipo de devolución -->
+                                            <!-- Opciones de tipo de devoluci?n -->
                                             <div id="all-options-devolution">
                                                 <div class="mt-4 text-center">
                                                     <div id="devolution-type-buttons">
                                                         <button class="btn btn-light btn-xl text-center m-2 bs" id="btn-devolucion-vendedor" style="border: 1px solid #f0f0f0; padding: 16px; width: 160px; border-radius: 16px;">
                                                             <img class="mt-2 mb-1" src="{{url('assets/vendedor.svg')}}" alt="" width="60%">
-                                                            <h4 class="mb-0">Devolución <br> Vendedor</h4>
+                                                            <h4 class="mb-0">Devoluci?n <br> Vendedor</h4>
                                                         </button>
 
                                                         <button class="btn btn-light btn-xl text-center m-2 bs" id="btn-devolucion-administracion" style="border: 1px solid #f0f0f0; padding: 16px; width: 180px; border-radius: 16px; position: relative;">
                                                             {{-- <img class="mt-2 mb-1" src="{{url('assets/admin.svg')}}" alt="" width="60%"> --}}
                                                             <img class="mt-2 mb-1" src="{{url('assets/vendedor.svg')}}" alt="" width="60%">
-                                                            <h4 class="mb-0">Devolución <br> Administración</h4>
+                                                            <h4 class="mb-0">Devoluci?n <br> Administraci?n</h4>
                                                         </button>
 
                                                         <button class="btn btn-light btn-xl text-center m-2 bs" id="btn-anulacion-participaciones" style="border: 1px solid #f0f0f0; padding: 16px; width: 180px; border-radius: 16px; position: relative;">
                                                             {{-- <img class="mt-2 mb-1" src="{{url('assets/cancel.svg')}}" alt="" width="60%"> --}}
                                                             <img class="mt-2 mb-1" src="{{url('assets/vendedor.svg')}}" alt="" width="60%">
-                                                            <h4 class="mb-0">Anulación <br> Participaciones</h4>
+                                                            <h4 class="mb-0">Anulaci?n <br> Participaciones</h4>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -466,13 +466,13 @@
                                         </div>
                                     </div>
 
-                                    <!-- Paso 3 (Vendedor): Selección de Vendedor -->
+                                    <!-- Paso 3 (Vendedor): Selecci?n de Vendedor -->
                                     <div class="tab-pane fade" id="paso-vendedor">
                                         <div class="form-card bs" style="min-height: 658px;">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <h4 class="mb-0 mt-1">Seleccionar Vendedor</h4>
-                                                    <small><i>Elige el vendedor para la devolución</i></small>
+                                                    <small><i>Elige el vendedor para la devoluci?n</i></small>
                                                 </div>
                                                 <button id="btn-volver-opcion" class="btn btn-secondary btn-sm">
                                                     <i class="ri-arrow-left-line"></i> Volver a Opciones
@@ -488,13 +488,13 @@
                                                             <th>ID</th>
                                                             <th>Nombre</th>
                                                             <th>Email</th>
-                                                            <th>Teléfono</th>
+                                                            <th>Tel?fono</th>
                                                             <th>Estado</th>
                                                             <th class="d-none">Seleccionar</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        <!-- Los datos se cargarán dinámicamente -->
+                                                        <!-- Los datos se cargar?n din?micamente -->
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -510,13 +510,13 @@
                                         </div>
                                     </div>
 
-                                    <!-- Paso: Selección de Sorteo -->
+                                    <!-- Paso: Selecci?n de Sorteo -->
                                     <div class="tab-pane fade" id="paso-sorteo">
                                         <div class="form-card bs" style="min-height: 658px;">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <h4 class="mb-0 mt-1">Seleccionar Sorteo</h4>
-                                                    <small><i>Elige el sorteo para la devolución</i></small>
+                                                    <small><i>Elige el sorteo para la devoluci?n</i></small>
                                                 </div>
                                                 <button id="btn-volver-desde-sorteo" class="btn btn-secondary btn-sm">
                                                     <i class="ri-arrow-left-line"></i> <span id="btn-volver-desde-sorteo-text">Volver a Opciones</span>
@@ -532,12 +532,12 @@
                                                             <th>ID</th>
                                                             <th>Nombre Sorteo</th>
                                                             <th>Fecha Sorteo</th>
-                                                            <th>Descripción</th>
+                                                            <th>Descripci?n</th>
                                                             <th class="d-none">Seleccionar</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        <!-- Los datos se cargarán dinámicamente -->
+                                                        <!-- Los datos se cargar?n din?micamente -->
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -553,7 +553,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- Paso 3: Asignación de Participaciones -->
+                                    <!-- Paso 3: Asignaci?n de Participaciones -->
                                     <div class="tab-pane fade" id="paso-participaciones">
                                         <div class="form-card bs" style="min-height: 658px;">
                                             <div class="d-flex justify-content-between align-items-center">
@@ -569,7 +569,7 @@
                                             <br>
 
                                             <div class="row">
-                                                <!-- Sección: Selección de Reserva (si hay más de una se muestra el selector) -->
+                                                <!-- Secci?n: Selecci?n de Reserva (si hay m?s de una se muestra el selector) -->
                                                 <div class="col-md-12 mb-3" id="wrapper-seleccion-reserva">
                                                     <div class="form-card bs">
                                                         <div class="d-flex align-items-center p-3">
@@ -580,7 +580,7 @@
                                                                 <h4 class="m-0 fw-bold">Seleccionar Reserva</h4>
                                                                 <small class="text-muted">Elige la reserva de participaciones</small>
                                                                 <br>
-                                                                <small class="text-info"><i class="ri-information-line"></i> Si solo hay una reserva se selecciona automáticamente</small>
+                                                                <small class="text-info"><i class="ri-information-line"></i> Si solo hay una reserva se selecciona autom?ticamente</small>
                                                             </div>
                                                             <div style="width: 40%;" id="contenedor-selector-reserva">
                                                                 <label class="form-label small mb-1">Reserva</label>
@@ -607,21 +607,21 @@
                                                                 <div class="mt-2">
                                                                     <span id="disponibles-devolver-total" class="fw-bold fs-5 text-primary">0</span>
                                                                     <span class="text-muted" id="disponibles-devolver-etiqueta-total"> total</span>
-                                                                    <span class="ms-2 text-muted" id="disponibles-devolver-desglose">(<span id="disponibles-devolver-fisicas">0</span> físicas, <span id="disponibles-devolver-digitales">0</span> digitales)</span>
+                                                                    <span class="ms-2 text-muted" id="disponibles-devolver-desglose">(<span id="disponibles-devolver-fisicas">0</span> f?sicas, <span id="disponibles-devolver-digitales">0</span> digitales)</span>
                                                                 </div>
                                                                 <small class="text-muted d-block mt-1" id="nota-disponibles-devolver">No se pueden devolver las ya vendidas.</small>
                                                                 <div class="alert alert-info py-2 mt-2 mb-0 small" id="mensaje-digitales-entidad" style="display: none;">
                                                                     Las participaciones <strong>digitales</strong> no se asignan a vendedores (pool de la entidad).
-                                                                    Al confirmar la devolución a administración, las digitales <strong>no vendidas</strong> de esta reserva se marcarán automáticamente como devueltas.
-                                                                    Las digitales <strong>ya vendidas</strong> se incluirán en la liquidación.
-                                                                    En este paso solo seleccionas manualmente las <strong>físicas</strong> a devolver.
+                                                                    Al confirmar la devoluci?n a administraci?n, las digitales <strong>no vendidas</strong> de esta reserva se marcar?n autom?ticamente como devueltas.
+                                                                    Las digitales <strong>ya vendidas</strong> se incluir?n en la liquidaci?n.
+                                                                    En este paso solo seleccionas manualmente las <strong>f?sicas</strong> a devolver.
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <!-- Sección: Participaciones Por Rango -->
+                                                <!-- Secci?n: Participaciones Por Rango -->
                                                 <div class="col-md-12 mb-3">
                                                     <div class="form-card bs">
                                                         <div class="d-flex align-items-center p-3">
@@ -636,13 +636,13 @@
                                                                 <div class="flex-fill">
                                                                     <label class="form-label small mb-1">Desde</label>
                                                                     <div class="input-group input-group-merge group-form">
-                                                                        <input type="number" class="form-control" id="rango-desde" placeholder="Número inicial" style="border-radius: 30px;">
+                                                                        <input type="number" class="form-control" id="rango-desde" placeholder="N?mero inicial" style="border-radius: 30px;">
                                                                     </div>
                                                                 </div>
                                                                 <div class="flex-fill">
                                                                     <label class="form-label small mb-1">Hasta</label>
                                                                     <div class="input-group input-group-merge group-form">
-                                                                        <input type="number" class="form-control" id="rango-hasta" placeholder="Número final" style="border-radius: 30px;">
+                                                                        <input type="number" class="form-control" id="rango-hasta" placeholder="N?mero final" style="border-radius: 30px;">
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -652,14 +652,14 @@
                                                                 <img src="{{url('icons_/participaciones.svg')}}" alt="" width="40px">
                                                             </div>
                                                             <div class="flex-grow-1">
-                                                                <h4 class="m-0 fw-bold">Participación</h4>
-                                                                <small class="text-muted">Participación Unidad</small>
+                                                                <h4 class="m-0 fw-bold">Participaci?n</h4>
+                                                                <small class="text-muted">Participaci?n Unidad</small>
                                                             </div>
                                                             <div class="d-flex gap-2 align-items-end" style="width: 70%;">
                                                                 <div style="width: 50%;">
-                                                                    <label class="form-label small mb-1">Participación</label>
+                                                                    <label class="form-label small mb-1">Participaci?n</label>
                                                                     <div class="input-group input-group-merge group-form">
-                                                                        <input type="number" class="form-control" id="participacion-unidad" placeholder="Número de participación" style="border-radius: 30px;">
+                                                                        <input type="number" class="form-control" id="participacion-unidad" placeholder="N?mero de participaci?n" style="border-radius: 30px;">
                                                                     </div>
                                                                 </div>
                                                                 <div style="width: 50%;">
@@ -676,14 +676,14 @@
                                             <div id="resumen-asignacion" style="display: block;">
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <div>
-                                                        <h4 class="mb-0 mt-1">Resumen Asignación</h4>
-                                                        <small><i>comprueba que la asignación sea la correcta</i></small>
+                                                        <h4 class="mb-0 mt-1">Resumen Asignaci?n</h4>
+                                                        <small><i>comprueba que la asignaci?n sea la correcta</i></small>
                                                     </div>
                                                 </div>
                                                 
                                                 <br>
                                                 
-                                                <!-- Estado vacío -->
+                                                <!-- Estado vac?o -->
                                                 <div id="estado-vacio-resumen" class="d-flex align-items-center gap-1">
                                                     <div class="empty-tables">
                                                         <div>
@@ -698,7 +698,7 @@
                                                 <div id="lista-participaciones-asignadas" style="display: none;">
                                                     <div class="form-card bs" style="max-height: 400px; overflow-y: auto;">
                                                         <div class="grid-participaciones" id="grid-participaciones">
-                                                            <!-- Las participaciones se cargarán dinámicamente aquí -->
+                                                            <!-- Las participaciones se cargar?n din?micamente aqu? -->
                                                         </div>
                                                     </div>
                                                     
@@ -725,7 +725,7 @@
                                     </div>
                                                 </div>
 
-                                                <!-- Botón para continuar sin participaciones -->
+                                                <!-- Bot?n para continuar sin participaciones -->
                                                 <div id="btn-continuar-sin-participaciones-container" class="text-end mt-3" style="display: none;">
                                                     <button type="button" class="btn btn-info" id="btn-continuar-sin-participaciones" style="border-radius: 30px; font-weight: bold; padding: 10px 30px;">
                                                         <i class="ri-arrow-right-line"></i> Continuar sin participaciones
@@ -735,12 +735,12 @@
                                         </div>
                                     </div>
 
-                                    <!-- Paso: Anulación -->
+                                    <!-- Paso: Anulaci?n -->
                                     <div class="tab-pane fade" id="paso-anulacion">
                                         <div class="form-card bs" style="min-height: 658px;">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
-                                                    <h4 class="mb-0 mt-1">Confirmar Anulación</h4>
+                                                    <h4 class="mb-0 mt-1">Confirmar Anulaci?n</h4>
                                                     <small><i>Revisa las participaciones a anular</i></small>
                                                 </div>
                                                 <button id="btn-volver-anulacion" class="btn btn-secondary btn-sm">
@@ -755,17 +755,17 @@
                                                 <div class="col-12">
                                                     <h5>Participaciones Seleccionadas para Anular</h5>
                                                     <div id="anulacion-resumen-participaciones">
-                                                        <!-- Se llenará dinámicamente -->
+                                                        <!-- Se llenar? din?micamente -->
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <!-- Información de la Anulación -->
+                                            <!-- Informaci?n de la Anulaci?n -->
                                             <div class="row mb-4">
                                                 <div class="col-md-6">
                                                     <div class="card">
                                                         <div class="card-header">
-                                                            <h6 class="mb-0">Información de la Anulación</h6>
+                                                            <h6 class="mb-0">Informaci?n de la Anulaci?n</h6>
                                                         </div>
                                                         <div class="card-body">
                                                             <p><strong>Entidad:</strong> <span id="anulacion-entidad-nombre">-</span></p>
@@ -781,43 +781,43 @@
                                                             <h6 class="mb-0">Impacto en la Reserva</h6>
                                                         </div>
                                                         <div class="card-body">
-                                                            <p><strong>Monto Liberado:</strong> <span id="anulacion-monto-liberado" class="text-success fw-bold">0.00€</span></p>
-                                                            <p><strong>Crédito Disponible:</strong> <span id="anulacion-credito-disponible" class="text-info fw-bold">0.00€</span></p>
-                                                            <small class="text-muted">Este monto podrá ser utilizado para crear nuevos sets</small>
+                                                            <p><strong>Monto Liberado:</strong> <span id="anulacion-monto-liberado" class="text-success fw-bold">0.00���</span></p>
+                                                            <p><strong>Cr?dito Disponible:</strong> <span id="anulacion-credito-disponible" class="text-info fw-bold">0.00���</span></p>
+                                                            <small class="text-muted">Este monto podr? ser utilizado para crear nuevos sets</small>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <!-- Motivo de Anulación -->
+                                            <!-- Motivo de Anulaci?n -->
                                             <div class="row mb-4">
                                                 <div class="col-12">
-                                                    <label class="form-label fw-bold">Motivo de la Anulación</label>
-                                                    <textarea class="form-control" id="anulacion-motivo" rows="3" placeholder="Describe el motivo de la anulación de estas participaciones..."></textarea>
+                                                    <label class="form-label fw-bold">Motivo de la Anulaci?n</label>
+                                                    <textarea class="form-control" id="anulacion-motivo" rows="3" placeholder="Describe el motivo de la anulaci?n de estas participaciones..."></textarea>
                                                 </div>
                                             </div>
 
-                                            <!-- Botones de Acción -->
+                                            <!-- Botones de Acci?n -->
                                             <div class="row">
                                                 <div class="col-12 text-end">
                                                     <button id="btn-cancelar-anulacion" class="btn btn-secondary me-2">
                                                         <i class="ri-close-line"></i> Cancelar
                                                     </button>
                                                     <button id="btn-confirmar-anulacion" class="btn btn-danger">
-                                                        <i class="ri-check-line"></i> Confirmar Anulación
+                                                        <i class="ri-check-line"></i> Confirmar Anulaci?n
                                                     </button>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Paso: Liquidación -->
+                                    <!-- Paso: Liquidaci?n -->
                                     <div class="tab-pane fade" id="paso-liquidacion">
                                         <div class="form-card bs" style="min-height: 658px;">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
-                                                    <h4 class="mb-0 mt-1" id="liquidacion-titulo">Liquidación</h4>
-                                                    <small id="liquidacion-subtitulo"><i>Procesa la liquidación</i></small>
+                                                    <h4 class="mb-0 mt-1" id="liquidacion-titulo">Liquidaci?n</h4>
+                                                    <small id="liquidacion-subtitulo"><i>Procesa la liquidaci?n</i></small>
                                                 </div>
                                                 <button id="btn-volver-participaciones-final" class="btn btn-secondary btn-sm">
                                                     <i class="ri-arrow-left-line"></i> <span id="btn-volver-text">Volver</span>
@@ -826,7 +826,7 @@
 
                                             <hr>
 
-                                            <!-- Contenedor para liquidación de VENDEDOR -->
+                                            <!-- Contenedor para liquidaci?n de VENDEDOR -->
                                             <div id="liquidacion-vendedor-container" style="display: none;">
                                                 
                                                 <!-- Selector de Sorteo -->
@@ -839,7 +839,7 @@
                                                     </div>
                                                 </div>
 
-                                                <!-- Resumen de Liquidación -->
+                                                <!-- Resumen de Liquidaci?n -->
                                                 <div id="vendedor-resumen-liquidacion-container" style="display: none;">
                                                 <div class="row">
                                                     <div class="col-md-6">
@@ -847,18 +847,18 @@
                                                             <div class="card-header">Resumen de Participaciones</div>
                                                             <div class="card-body">
                                                                 <p><strong>Total Participaciones Asignadas:</strong> <span id="vendedor-settlement-total-participations" class="fw-bold fs-4">0</span></p>
-                                                                <p><strong>Precio por Participación:</strong> <span id="vendedor-settlement-price-per-participation">0.00€</span></p>
-                                                                <p><strong>Total a Liquidar:</strong> <span id="vendedor-settlement-total-amount" class="text-danger fw-bold">0.00€</span></p>
+                                                                <p><strong>Precio por Participaci?n:</strong> <span id="vendedor-settlement-price-per-participation">0.00���</span></p>
+                                                                <p><strong>Total a Liquidar:</strong> <span id="vendedor-settlement-total-amount" class="text-danger fw-bold">0.00���</span></p>
                                                 </div>
                                                 </div>
                                                     </div>
                                                     <div class="col-md-6">
                                                         <div class="card">
-                                                            <div class="card-header">Liquidación Actual</div>
+                                                            <div class="card-header">Liquidaci?n Actual</div>
                                                             <div class="card-body">
-                                                                <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00€</span></p>
+                                                                <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00���</span></p>
                                                                 <p><strong>Participaciones Liquidadas:</strong> <span id="vendedor-settlement-liquidated-participations">0</span></p>
-                                                                <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00€</span></p>
+                                                                <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00���</span></p>
                                                                 <p><strong>Participaciones Pendientes:</strong> <span id="vendedor-settlement-pending-participations">0</span></p>
                                                             </div>
                                                         </div>
@@ -869,7 +869,7 @@
                                                 <div class="card mt-3">
                                                     <div class="card-body">
                                                         <h5 class="card-title">Registrar Pagos</h5>
-                                                        <small class="text-muted">Puedes registrar múltiples formas de pago</small>
+                                                        <small class="text-muted">Puedes registrar m?ltiples formas de pago</small>
                                                         
                                                         <div class="row mt-3">
                                                             <div class="col-8">
@@ -917,18 +917,18 @@
                                                                 <div class="text-center">
                                                                     <div class="border rounded p-3 mb-3 bg-light">
                                                                         <small class="text-muted">Pendiente a Pagar</small>
-                                                                        <div class="text-danger h4" id="vendedor-settlement-pendiente-display">0,00€</div>
+                                                                        <div class="text-danger h4" id="vendedor-settlement-pendiente-display">0,00���</div>
                                                                     </div>
                                                                     <div class="border rounded p-3 mb-3 bg-success bg-opacity-10">
                                                                         <small class="text-muted">A Pagar Ahora</small>
-                                                                        <div class="text-success h4" id="vendedor-settlement-pagar-ahora">0,00€</div>
+                                                                        <div class="text-success h4" id="vendedor-settlement-pagar-ahora">0,00���</div>
                                                                     </div>
                                                                     <div class="border rounded p-3 mb-3" id="vendedor-settlement-quedara-pendiente-container">
-                                                                        <small class="text-muted">Quedará Pendiente</small>
-                                                                        <div class="h5" id="vendedor-settlement-quedara-pendiente">0,00€</div>
+                                                                        <small class="text-muted">Quedar? Pendiente</small>
+                                                                        <div class="h5" id="vendedor-settlement-quedara-pendiente">0,00���</div>
                                                                     </div>
                                                                     <button type="button" class="btn btn-warning" id="btn-registrar-liquidacion-vendedor" style="border-radius: 30px; width: 100%;">
-                                                                        <i class="ri-add-line"></i> Registrar Liquidación
+                                                                        <i class="ri-add-line"></i> Registrar Liquidaci?n
                                                 </button>
                                                                 </div>
                                                             </div>
@@ -950,16 +950,16 @@
                                                 </div> <!-- Cierre vendedor-resumen-liquidacion-container -->
                                             </div> <!-- Cierre liquidacion-vendedor-container -->
 
-                                            <!-- Contenedor para liquidación de ADMINISTRACIÓN -->
+                                            <!-- Contenedor para liquidaci?n de ADMINISTRACI��N -->
                                             <div id="liquidacion-administracion-container" style="display: none;">
-                                                    <!-- Resumen Devolución -->
+                                                    <!-- Resumen Devoluci?n -->
                                                     <div class="card mb-3">
                                                         <div class="card-body">
-                                                            <h5 class="card-title">Resumen Devolución</h5>
-                                                            <small class="text-muted" id="liquidacion-resumen-subtitulo">Resumen Devolución Administración</small>
+                                                            <h5 class="card-title">Resumen Devoluci?n</h5>
+                                                            <small class="text-muted" id="liquidacion-resumen-subtitulo">Resumen Devoluci?n Administraci?n</small>
                                                             <div class="alert alert-info py-2 mt-2 mb-0 small">
-                                                                <strong>Digitales (pool de la entidad):</strong> las no vendidas de la reserva se devuelven automáticamente a administración al confirmar.
-                                                                Las vendidas entran en la liquidación. Las físicas no devueltas se liquidan como vendidas.
+                                                                <strong>Digitales (pool de la entidad):</strong> las no vendidas de la reserva se devuelven autom?ticamente a administraci?n al confirmar.
+                                                                Las vendidas entran en la liquidaci?n. Las f?sicas no devueltas se liquidan como vendidas.
                                                             </div>
                                                             
                                                             <div class="text-center my-3">
@@ -987,54 +987,54 @@
                                                                         <small class="text-muted d-block" id="liquidacion-devueltas-detalle"></small>
                                                                     </div>
                                                                     <div class="mb-2">
-                                                                        <strong>Físicas pendientes:</strong>
+                                                                        <strong>F?sicas pendientes:</strong>
                                                                         <span id="liquidacion-disponibles">0</span>
-                                                                        <small class="text-muted d-block">Solo físicas; las digitales del pool van en devueltas</small>
+                                                                        <small class="text-muted d-block">Solo f?sicas; las digitales del pool van en devueltas</small>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <!-- Liquidación Actual -->
+                                                    <!-- Liquidaci?n Actual -->
                                                     <div class="card mb-3">
                                                         <div class="card-body">
-                                                            <h5 class="card-title">Liquidación Actual</h5>
+                                                            <h5 class="card-title">Liquidaci?n Actual</h5>
                                                             <div class="row">
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
-                                                                        <strong>Total Liquidación:</strong>
-                                                                        <span id="liquidacion-total-liquidacion">0,00€</span>
+                                                                        <strong>Total Liquidaci?n:</strong>
+                                                                        <span id="liquidacion-total-liquidacion">0,00���</span>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
                                                                         <strong>Pagos Registrados:</strong>
-                                                                        <span id="liquidacion-pagos-registrados">0,00€</span>
+                                                                        <span id="liquidacion-pagos-registrados">0,00���</span>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
                                                                         <strong>Total a Pagar:</strong>
-                                                                        <span id="liquidacion-total-pagar">0,00€</span>
+                                                                        <span id="liquidacion-total-pagar">0,00���</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <!-- Asignación obligatoria para premio especial -->
+                                                    <!-- Asignaci?n obligatoria para premio especial -->
                                                     <div class="card mb-3 special-prize-card" id="bloque-premio-especial" style="display:none;">
                                                         <div class="card-body">
                                                             <div class="d-flex justify-content-between align-items-start mb-2">
                                                                 <div>
-                                                                    <h5 class="card-title mb-1">Premio especial: Serie y fracción</h5>
-                                                                    <small class="text-muted" id="special-prize-resumen-text">Debes registrar series/fracciones vendidas para poder cerrar la liquidación.</small>
+                                                                    <h5 class="card-title mb-1">Premio especial: Serie y fracci?n</h5>
+                                                                    <small class="text-muted" id="special-prize-resumen-text">Debes registrar series/fracciones vendidas para poder cerrar la liquidaci?n.</small>
                                                                 </div>
                                                                 <span class="badge bg-warning text-dark" id="special-prize-badge">Opcional</span>
                                                             </div>
                                                             <div class="alert alert-info py-2 mb-3" id="special-prize-requirement-alert">
-                                                                Puedes registrar esta información de forma opcional en este sorteo.
+                                                                Puedes registrar esta informaci?n de forma opcional en este sorteo.
                                                             </div>
 
                                                             <div class="row g-3">
@@ -1051,11 +1051,11 @@
                                                                             <div class="d-flex gap-2" style="width:70%;">
                                                                                 <div class="flex-fill">
                                                                                     <label class="form-label small mb-1">Desde</label>
-                                                                                    <input type="number" min="1" class="form-control" id="special-serie-rango-desde" placeholder="Número inicial" style="border-radius: 30px;">
+                                                                                    <input type="number" min="1" class="form-control" id="special-serie-rango-desde" placeholder="N?mero inicial" style="border-radius: 30px;">
                                                                                 </div>
                                                                                 <div class="flex-fill">
                                                                                     <label class="form-label small mb-1">Hasta</label>
-                                                                                    <input type="number" min="1" class="form-control" id="special-serie-rango-hasta" placeholder="Número final" style="border-radius: 30px;">
+                                                                                    <input type="number" min="1" class="form-control" id="special-serie-rango-hasta" placeholder="N?mero final" style="border-radius: 30px;">
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -1070,7 +1070,7 @@
                                                                             <div class="d-flex gap-2 align-items-end" style="width:70%;">
                                                                                 <div style="width:50%;">
                                                                                     <label class="form-label small mb-1">Serie</label>
-                                                                                    <input type="number" min="1" class="form-control" id="special-serie-unidad" placeholder="Número de serie" style="border-radius: 30px;">
+                                                                                    <input type="number" min="1" class="form-control" id="special-serie-unidad" placeholder="N?mero de serie" style="border-radius: 30px;">
                                                                                 </div>
                                                                                 <div style="width:50%;">
                                                                                     <button type="button" class="btn btn-warning w-100" id="btn-special-add-serie-unidad" style="border-radius: 30px; background-color: #e78307; color: #333; font-weight: bold;">Asignar</button>
@@ -1091,11 +1091,11 @@
                                                                             <div class="d-flex gap-2" style="width:70%;">
                                                                                 <div class="flex-fill">
                                                                                     <label class="form-label small mb-1">Desde</label>
-                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-rango-desde" placeholder="Número inicial" style="border-radius: 30px;">
+                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-rango-desde" placeholder="N?mero inicial" style="border-radius: 30px;">
                                                                                 </div>
                                                                                 <div class="flex-fill">
                                                                                     <label class="form-label small mb-1">Hasta</label>
-                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-rango-hasta" placeholder="Número final" style="border-radius: 30px;">
+                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-rango-hasta" placeholder="N?mero final" style="border-radius: 30px;">
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -1104,13 +1104,13 @@
                                                                                 <img src="{{url('icons_/participaciones.svg')}}" alt="" width="28px">
                                                                             </div>
                                                                             <div class="flex-grow-1">
-                                                                                <h5 class="m-0 fw-bold">Fracción</h5>
+                                                                                <h5 class="m-0 fw-bold">Fracci?n</h5>
                                                                                 <small class="text-muted">Por Unidad</small>
                                                                             </div>
                                                                             <div class="d-flex gap-2 align-items-end" style="width:70%;">
                                                                                 <div style="width:50%;">
-                                                                                    <label class="form-label small mb-1">Fracción</label>
-                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-unidad" placeholder="Número de fracción" style="border-radius: 30px;">
+                                                                                    <label class="form-label small mb-1">Fracci?n</label>
+                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-unidad" placeholder="N?mero de fracci?n" style="border-radius: 30px;">
                                                                                 </div>
                                                                                 <div style="width:50%;">
                                                                                     <button type="button" class="btn btn-warning w-100" id="btn-special-add-fraccion-unidad" style="border-radius: 30px; background-color: #e78307; color: #333; font-weight: bold;">Asignar</button>
@@ -1141,12 +1141,12 @@
                                                                         <div class="form-card bs" style="background:#f8f8f8;">
                                                                             <div class="text-center fw-bold mb-2">RESTANTE</div>
                                                                             <div class="d-flex justify-content-between">
-                                                                                <small class="text-muted">DÉCIMOS</small>
+                                                                                <small class="text-muted">D��CIMOS</small>
                                                                                 <small class="text-muted">IMPORTE RESTANTE</small>
                                                                             </div>
                                                                             <div class="d-flex justify-content-between align-items-center">
                                                                                 <div id="special-prize-restante-decimos" class="fw-bold fs-5 text-dark">0</div>
-                                                                                <div id="special-prize-restante-importe" class="fw-bold fs-4 text-success">0,00€</div>
+                                                                                <div id="special-prize-restante-importe" class="fw-bold fs-4 text-success">0,00���</div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -1165,7 +1165,7 @@
                                                     <div class="card">
                                                         <div class="card-body">
                                                             <h5 class="card-title">Formas de Pago</h5>
-                                                            <small class="text-muted">Puedes registrar múltiples formas de pago</small>
+                                                            <small class="text-muted">Puedes registrar m?ltiples formas de pago</small>
                                                             
                                                             <div class="row mt-3">
                                                                 <div class="col-8">
@@ -1213,19 +1213,19 @@
                                                                     <div class="text-center">
                                                                         <div class="border rounded p-3 mb-3 bg-light">
                                                                             <small class="text-muted">Total a Pagar</small>
-                                                                            <div class="text-danger h4" id="liquidacion-importe-total">0,00€</div>
+                                                                            <div class="text-danger h4" id="liquidacion-importe-total">0,00���</div>
                                                                         </div>
                                                                         <div class="border rounded p-3 mb-3 bg-success bg-opacity-10">
                                                                             <small class="text-muted">Total Pagado</small>
-                                                                            <div class="text-success h4" id="total-pagado">0,00€</div>
+                                                                            <div class="text-success h4" id="total-pagado">0,00���</div>
                                                                         </div>
                                                                         <div class="border rounded p-3 mb-3" id="pendiente-container" style="display: none;">
                                                                             <small class="text-muted">Pendiente</small>
-                                                                            <div class="h5" id="total-pendiente">0,00€</div>
+                                                                            <div class="h5" id="total-pendiente">0,00���</div>
                                                                         </div>
                                                                         <div class="d-flex gap-2 justify-content-center flex-wrap">
                                                                             <button type="button" class="btn btn-warning" id="btn-aceptar-liquidacion" style="border-radius: 30px;">
-                                                                                Aceptar Liquidación
+                                                                                Aceptar Liquidaci?n
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -1253,14 +1253,60 @@
         <div class="modal-content">
             <div class="modal-body text-center p-4">
                 <div class="alert alert-danger mb-3">
-                    <h5 class="mb-0" id="modal-premio-especial-obligatorio-label">Atención: se requiere serie y fracción</h5>
+                    <h5 class="mb-0" id="modal-premio-especial-obligatorio-label">Atenci?n: se requiere serie y fracci?n</h5>
                 </div>
-                <p class="mb-2">Este sorteo incluye un premio especial único y la información de series/fracciones vendidas es obligatoria.</p>
-                <p class="mb-0">Completa la asignación para poder cerrar la liquidación.</p>
+                <p class="mb-2">Este sorteo incluye un premio especial ?nico y la informaci?n de series/fracciones vendidas es obligatoria.</p>
+                <p class="mb-0">Completa la asignaci?n para poder cerrar la liquidaci?n.</p>
                 <div class="d-flex justify-content-center gap-2 mt-4">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                     <button type="button" class="btn btn-warning" id="btn-modal-premio-especial-gestionar">Gestionar</button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modal-modalidad-pago-premios" tabindex="-1" aria-labelledby="modal-modalidad-pago-premios-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-modalidad-pago-premios-label">Modalidad de pago de premios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Selecciona c?mo se gestionar?n los premios de las participaciones vendidas tras el escrutinio. Esta elecci?n no podr? modificarse por la entidad una vez confirmada la devoluci?n.</p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-presencial" value="presencial">
+                                <span class="form-check-label fw-semibold">Opci?n A ? Pago presencial</span>
+                            </div>
+                            <small class="text-muted d-block mt-2">La entidad paga en sus instalaciones (app gestor). Sin ingreso en PARTILOT salvo participaciones digitales vendidas.</small>
+                        </label>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online" value="online">
+                                <span class="form-check-label fw-semibold">Opci?n B ? Pago online</span>
+                            </div>
+                            <small class="text-muted d-block mt-2">PARTILOT gestiona la remesa. Requiere ingreso del 100% del importe premiado y activaci?n por superadministrador.</small>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="prize-payment-mode-confirm">
+                    <label class="form-check-label" for="prize-payment-mode-confirm">
+                        Confirmo la modalidad seleccionada para el cobro de premios de este sorteo.
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="btn-confirmar-modalidad-pago" disabled>Aceptar y liquidar</button>
             </div>
         </div>
     </div>
@@ -1276,7 +1322,7 @@ function manejarAdvertenciaLiquidacionVendedores(xhr, payload, reenviarFn) {
     if (xhr.status === 409 && data && data.requires_confirmation
         && data.warning_code === 'seller_liquidation_pending'
         && !payload.acknowledge_seller_liquidation_warning) {
-        if (window.confirm((data.message || 'Hay vendedores con liquidación pendiente.') + '\n\n¿Deseas continuar de todas formas?')) {
+        if (window.confirm((data.message || 'Hay vendedores con liquidaci?n pendiente.') + '\n\n?Deseas continuar de todas formas?')) {
             payload.acknowledge_seller_liquidation_warning = true;
             reenviarFn(payload);
         }
@@ -1290,7 +1336,7 @@ $(document).ready(function() {
     let entidadSeleccionada = null;
     let sorteoSeleccionado = null;
     let setSeleccionado = null; // legacy / anulacion
-    let reservaSeleccionada = null; // para asignación/devolución por reserva
+    let reservaSeleccionada = null; // para asignaci?n/devoluci?n por reserva
     let participacionesAsignadas = [];
     let tipoDevolucion = null; // 'vendedor' o 'administracion'
     let vendedorSeleccionado = null;
@@ -1299,22 +1345,23 @@ $(document).ready(function() {
     let specialPrizeRequirementKey = null;
     let specialPrizeAssignments = {};
     let specialPrizeIntroShown = false;
+    let pendingLiquidacionData = null;
     
     // DataTables
     let tablaEntidades = null;
     let tablaSorteos = null;
     let tablaVendedores = null;
 
-    // Asegurar que el primer paso esté activo al cargar
+    // Asegurar que el primer paso est? activo al cargar
     $('#step-1').addClass('active');
     
-    // Inicializar DataTable de entidades al cargar la página
+    // Inicializar DataTable de entidades al cargar la p?gina
     inicializarDataTableEntidades();
 
     // Variable global para rastrear el paso actual
     let pasoActualGlobal = 'paso-entidad';
     
-    // Función para construir dinámicamente los pasos del wizard
+    // Funci?n para construir din?micamente los pasos del wizard
     function construirWizardPasos() {
         const wizardSteps = $('#wizard-steps');
         
@@ -1323,7 +1370,7 @@ $(document).ready(function() {
         wizardSteps.find('li:gt(1)').remove();
         
         if (tipoDevolucion === 'vendedor') {
-            // Flujo: Entidad -> Opción -> Vendedor -> Sorteo -> Participaciones -> Liquidación
+            // Flujo: Entidad -> Opci?n -> Vendedor -> Sorteo -> Participaciones -> Liquidaci?n
             wizardSteps.append(`
                 <li class="nav-item">
                     <div class="form-wizard-element" id="step-3">
@@ -1350,12 +1397,12 @@ $(document).ready(function() {
                     <div class="form-wizard-element" id="step-6">
                         <span>&nbsp;&nbsp;</span>
                         <img src="{{url('icons_/dinero.svg')}}" alt="">
-                        <label>Liquidación</label>
+                        <label>Liquidaci?n</label>
                     </div>
                 </li>
             `);
         } else if (tipoDevolucion === 'administracion') {
-            // Flujo: Entidad -> Opción -> Sorteo -> Participaciones -> Liquidación
+            // Flujo: Entidad -> Opci?n -> Sorteo -> Participaciones -> Liquidaci?n
             wizardSteps.append(`
                 <li class="nav-item">
                     <div class="form-wizard-element" id="step-3">
@@ -1375,12 +1422,12 @@ $(document).ready(function() {
                     <div class="form-wizard-element" id="step-5">
                         <span>&nbsp;&nbsp;</span>
                         <img src="{{url('icons_/usuarios.svg')}}" alt="">
-                        <label>Liquidación</label>
+                        <label>Liquidaci?n</label>
                     </div>
                 </li>
             `);
         } else if (tipoDevolucion === 'anulacion') {
-            // Flujo: Entidad -> Opción -> Sorteo -> Participaciones -> Confirmar Anulación
+            // Flujo: Entidad -> Opci?n -> Sorteo -> Participaciones -> Confirmar Anulaci?n
             wizardSteps.append(`
                 <li class="nav-item">
                     <div class="form-wizard-element" id="step-3">
@@ -1400,14 +1447,14 @@ $(document).ready(function() {
                     <div class="form-wizard-element" id="step-5">
                         <span>&nbsp;&nbsp;</span>
                         <img src="{{url('icons_/cancel.svg')}}" alt="">
-                        <label>Confirmar Anulación</label>
+                        <label>Confirmar Anulaci?n</label>
                     </div>
                 </li>
             `);
         }
     }
 
-    // Función para mostrar un paso específico
+    // Funci?n para mostrar un paso espec?fico
     function mostrarPaso(pasoId) {
         console.log('=== MOSTRAR PASO ===');
         console.log('Paso solicitado:', pasoId);
@@ -1420,10 +1467,10 @@ $(document).ready(function() {
         pasoActualGlobal = pasoId;
         console.log('pasoActualGlobal actualizado a:', pasoActualGlobal);
         
-        // Actualizar indicadores de pasos con lógica de progreso
+        // Actualizar indicadores de pasos con l?gica de progreso
         actualizarIndicadoresPasos(pasoId);
         
-        // En paso sorteo: texto del botón volver según tipo (Vendedor → Vendedores, Administración/Anulación → Opciones)
+        // En paso sorteo: texto del bot?n volver seg?n tipo (Vendedor ��� Vendedores, Administraci?n/Anulaci?n ��� Opciones)
         if (pasoId === 'paso-sorteo') {
             const textoVolver = tipoDevolucion === 'vendedor' ? 'Volver a Vendedores' : 'Volver a Opciones';
             $('#btn-volver-desde-sorteo-text').text(textoVolver);
@@ -1433,7 +1480,7 @@ $(document).ready(function() {
             actualizarDisponiblesParaDevolver();
         }
         
-        // Inicializar DataTables según el paso
+        // Inicializar DataTables seg?n el paso
         if (pasoId === 'paso-entidad' && !tablaEntidades) {
             inicializarDataTableEntidades();
         }
@@ -1441,16 +1488,16 @@ $(document).ready(function() {
         console.log('=== FIN MOSTRAR PASO ===');
     }
 
-    // Función para actualizar los indicadores de pasos (dinámico según tipo de devolución)
+    // Funci?n para actualizar los indicadores de pasos (din?mico seg?n tipo de devoluci?n)
     function actualizarIndicadoresPasos(pasoActual) {
         console.log('=== ACTUALIZANDO INDICADORES ===');
         console.log('Paso actual recibido:', pasoActual);
-        console.log('Tipo devolución:', tipoDevolucion);
+        console.log('Tipo devoluci?n:', tipoDevolucion);
         
         let pasosOrden = [];
         
         if (tipoDevolucion === 'vendedor') {
-            // Flujo con vendedor: Entidad -> Opción -> Vendedor -> Sorteo -> Participaciones -> Liquidación
+            // Flujo con vendedor: Entidad -> Opci?n -> Vendedor -> Sorteo -> Participaciones -> Liquidaci?n
             pasosOrden = [
                 'paso-entidad',
                 'paso-opcion',
@@ -1460,7 +1507,7 @@ $(document).ready(function() {
                 'paso-liquidacion'
             ];
         } else if (tipoDevolucion === 'administracion') {
-            // Flujo sin vendedor: Entidad -> Opción -> Sorteo -> Participaciones -> Liquidación
+            // Flujo sin vendedor: Entidad -> Opci?n -> Sorteo -> Participaciones -> Liquidaci?n
             pasosOrden = [
                 'paso-entidad',
                 'paso-opcion',
@@ -1469,7 +1516,7 @@ $(document).ready(function() {
                 'paso-liquidacion'
             ];
         } else if (tipoDevolucion === 'anulacion') {
-            // Flujo anulación: Entidad -> Opción -> Sorteo -> Participaciones -> Confirmar Anulación
+            // Flujo anulaci?n: Entidad -> Opci?n -> Sorteo -> Participaciones -> Confirmar Anulaci?n
             pasosOrden = [
                 'paso-entidad',
                 'paso-opcion',
@@ -1478,16 +1525,16 @@ $(document).ready(function() {
                 'paso-anulacion'
             ];
         } else {
-            // Flujo inicial (solo mostrar entidad y opción)
+            // Flujo inicial (solo mostrar entidad y opci?n)
             pasosOrden = [
                 'paso-entidad',
                 'paso-opcion'
             ];
         }
         
-        // Encontrar el índice del paso actual
+        // Encontrar el ?ndice del paso actual
         const indiceActual = pasosOrden.indexOf(pasoActual);
-        console.log('Índice encontrado:', indiceActual);
+        console.log('��ndice encontrado:', indiceActual);
         
         if (indiceActual === -1) {
             console.error('Paso no encontrado:', pasoActual);
@@ -1507,11 +1554,11 @@ $(document).ready(function() {
             elemento.addClass('active');
         }
         
-        console.log('=== FIN ACTUALIZACIÓN ===');
+        console.log('=== FIN ACTUALIZACI��N ===');
     }
 
 
-    // Función para inicializar DataTable de entidades
+    // Funci?n para inicializar DataTable de entidades
     function inicializarDataTableEntidades() {
         if (tablaEntidades) return;
         
@@ -1660,7 +1707,7 @@ $(document).ready(function() {
         });
     }
 
-    // Función para inicializar DataTable de vendedores
+    // Funci?n para inicializar DataTable de vendedores
     function inicializarDataTableVendedores() {
         if (tablaVendedores) {
             tablaVendedores.ajax.reload();
@@ -1761,7 +1808,7 @@ $(document).ready(function() {
         
         entidadSeleccionada = entityData;
         
-        // Mostrar información de la entidad en varias secciones
+        // Mostrar informaci?n de la entidad en varias secciones
         $('#entity-name').text(entityData.name);
         $('#entity-location').text(`${entityData.province}, ${entityData.city}`);
         const $imgDiv = $('#entity-info-image');
@@ -1774,7 +1821,7 @@ $(document).ready(function() {
         }
         $('#entity-info').show();
         
-        // También en la sección de opciones
+        // Tambi?n en la secci?n de opciones
         $('#opcion-entity-name').text(entityData.name);
         $('#opcion-entity-province').text(entityData.province);
         $('#opcion-entity-admin').text(entityData.administration);
@@ -1827,14 +1874,14 @@ $(document).ready(function() {
         }
     });
 
-    // Navegación entre pasos
+    // Navegaci?n entre pasos
     $('#btn-siguiente-entidad').click(function() {
         if (entidadSeleccionada) {
             mostrarPaso('paso-opcion');
         }
     });
 
-    // Botones de selección de tipo de devolución
+    // Botones de selecci?n de tipo de devoluci?n
     $('#btn-devolucion-vendedor').click(function() {
         // Resetear participaciones seleccionadas al cambiar tipo
         participacionesAsignadas = [];
@@ -1870,7 +1917,7 @@ $(document).ready(function() {
 
     $('#btn-siguiente-vendedor').click(function() {
         if (vendedorSeleccionado) {
-            // Para vendedor, después de seleccionar vendedor pasamos a sorteo
+            // Para vendedor, despu?s de seleccionar vendedor pasamos a sorteo
             mostrarPaso('paso-sorteo');
             inicializarDataTableSorteos();
         }
@@ -1879,7 +1926,7 @@ $(document).ready(function() {
     $('#btn-siguiente-sorteo').click(function() {
         if (sorteoSeleccionado) {
             mostrarPaso('paso-participaciones');
-            // Cargar sets según el tipo de devolución
+            // Cargar sets seg?n el tipo de devoluci?n
             if (tipoDevolucion === 'vendedor') {
                 cargarReservasVendedor();
             } else {
@@ -1893,7 +1940,7 @@ $(document).ready(function() {
         mostrarPaso('paso-entidad');
     });
 
-    // Desde paso sorteo: volver a vendedores (si tipo vendedor) o a opciones (si administración/anulación)
+    // Desde paso sorteo: volver a vendedores (si tipo vendedor) o a opciones (si administraci?n/anulaci?n)
     $('#btn-volver-desde-sorteo').click(function() {
         if (tipoDevolucion === 'vendedor') {
             mostrarPaso('paso-vendedor');
@@ -1915,7 +1962,7 @@ $(document).ready(function() {
     });
 
     $('#btn-volver-participaciones-final').click(function() {
-        // Siempre volver a participaciones (vendedor) o a opciones (administración), según el texto del botón
+        // Siempre volver a participaciones (vendedor) o a opciones (administraci?n), seg?n el texto del bot?n
         if ($('#btn-volver-text').text().indexOf('Opciones') !== -1) {
             mostrarPaso('paso-opcion');
         } else {
@@ -1923,7 +1970,7 @@ $(document).ready(function() {
         }
     });
 
-    // Funcionalidad de asignación de participaciones
+    // Funcionalidad de asignaci?n de participaciones
     function actualizarResumenAsignacion() {
         $('#resumen-asignacion').show();
         $('#estado-vacio-resumen').addClass('d-none');
@@ -1931,7 +1978,7 @@ $(document).ready(function() {
         if (participacionesAsignadas.length === 0) {
             $('#estado-vacio-resumen').removeClass('d-none');
             $('#lista-participaciones-asignadas').hide();
-            // Mostrar botón para continuar sin participaciones si hay reserva o set seleccionado
+            // Mostrar bot?n para continuar sin participaciones si hay reserva o set seleccionado
             if (reservaSeleccionada || setSeleccionado) {
                 $('#btn-continuar-sin-participaciones-container').show();
             } else {
@@ -1943,11 +1990,11 @@ $(document).ready(function() {
             $('#btn-continuar-sin-participaciones-container').hide();
             $('#total-asignadas').text(participacionesAsignadas.length);
             
-            // Calcular cuántos sets diferentes se han seleccionado
+            // Calcular cu?ntos sets diferentes se han seleccionado
             const setsUnicos = [...new Set(participacionesAsignadas.map(p => p.set_id))];
             $('#total-sets').text(setsUnicos.length);
             
-            // Actualizar resumen de liquidación
+            // Actualizar resumen de liquidaci?n
             actualizarResumenLiquidacion();
             
             // Generar grid de participaciones
@@ -1986,31 +2033,31 @@ $(document).ready(function() {
         }
     }
 
-    // Función para eliminar participación
+    // Funci?n para eliminar participaci?n
     window.eliminarParticipacion = function(codigo) {
         participacionesAsignadas = participacionesAsignadas.filter(p => p.participation_code !== codigo);
         actualizarResumenAsignacion();
     };
 
-    // Función para actualizar el resumen de liquidación
+    // Funci?n para actualizar el resumen de liquidaci?n
     function actualizarResumenLiquidacion() {
-        console.log('=== ACTUALIZANDO RESUMEN LIQUIDACIÓN ===');
+        console.log('=== ACTUALIZANDO RESUMEN LIQUIDACI��N ===');
         console.log('entidadSeleccionada:', entidadSeleccionada);
         console.log('sorteoSeleccionado:', sorteoSeleccionado);
         console.log('participacionesAsignadas:', participacionesAsignadas);
         
-        // Validar solo que haya entidad y sorteo seleccionados (las participaciones pueden estar vacías)
+        // Validar solo que haya entidad y sorteo seleccionados (las participaciones pueden estar vac?as)
         if (!entidadSeleccionada || !sorteoSeleccionado) {
             console.log('Limpiando resumen - no hay entidad o sorteo seleccionado');
-            // Limpiar resumen si no hay datos básicos
+            // Limpiar resumen si no hay datos b?sicos
             $('#liquidacion-total-participaciones').text('0');
             $('#liquidacion-ventas-registradas').text('0');
             $('#liquidacion-participaciones-devueltas').text('0');
             $('#liquidacion-disponibles').text('0');
-            $('#liquidacion-total-liquidacion').text('0,00€');
-            $('#liquidacion-pagos-registrados').text('0,00€');
-            $('#liquidacion-total-pagar').text('0,00€');
-            $('#liquidacion-importe-total').text('0,00€');
+            $('#liquidacion-total-liquidacion').text('0,00���');
+            $('#liquidacion-pagos-registrados').text('0,00���');
+            $('#liquidacion-total-pagar').text('0,00���');
+            $('#liquidacion-importe-total').text('0,00���');
             liquidacionSummaryActual = null;
             specialPrizeRequirement = { required: false, max_series: 0 };
             specialPrizeRequirementKey = null;
@@ -2034,7 +2081,7 @@ $(document).ready(function() {
             participations: participationIds
         };
 
-        // Agregar seller_id y tipo_devolucion si es devolución de vendedor (para cálculo correcto del resumen)
+        // Agregar seller_id y tipo_devolucion si es devoluci?n de vendedor (para c?lculo correcto del resumen)
         if (tipoDevolucion === 'vendedor' && vendedorSeleccionado) {
             datosResumen.seller_id = vendedorSeleccionado.id;
             datosResumen.tipo_devolucion = 'vendedor';
@@ -2059,21 +2106,21 @@ $(document).ready(function() {
                     if (tipoDevolucion !== 'vendedor' && (summary.returned_digitales_auto > 0 || summary.returned_fisicas_manual > 0)) {
                         const partes = [];
                         if (summary.returned_fisicas_manual > 0) {
-                            partes.push(summary.returned_fisicas_manual + ' físicas seleccionadas');
+                            partes.push(summary.returned_fisicas_manual + ' f?sicas seleccionadas');
                         }
                         if (summary.returned_digitales_auto > 0) {
-                            partes.push(summary.returned_digitales_auto + ' digitales automáticas (pool)');
+                            partes.push(summary.returned_digitales_auto + ' digitales autom?ticas (pool)');
                         }
-                        $('#liquidacion-devueltas-detalle').text(partes.join(' · '));
+                        $('#liquidacion-devueltas-detalle').text(partes.join(' ? '));
                     } else {
                         $('#liquidacion-devueltas-detalle').text('');
                     }
-                    $('#liquidacion-total-liquidacion').text(summary.total_liquidation.toFixed(2) + '€');
-                    $('#liquidacion-pagos-registrados').text(summary.registered_payments.toFixed(2) + '€');
-                    $('#liquidacion-total-pagar').text(summary.total_to_pay.toFixed(2) + '€');
-                    $('#liquidacion-importe-total').text(summary.total_to_pay.toFixed(2) + '€');
+                    $('#liquidacion-total-liquidacion').text(summary.total_liquidation.toFixed(2) + '���');
+                    $('#liquidacion-pagos-registrados').text(summary.registered_payments.toFixed(2) + '���');
+                    $('#liquidacion-total-pagar').text(summary.total_to_pay.toFixed(2) + '���');
+                    $('#liquidacion-importe-total').text(summary.total_to_pay.toFixed(2) + '���');
                     
-                    // Actualizar información del ticket
+                    // Actualizar informaci?n del ticket
                     $('#liquidacion-ticket-number').text('#' + summary.total_participations);
                     specialPrizeRequirement = summary.special_prize_requirement || { required: false, max_series: 0 };
                     const nextRequirementKey = JSON.stringify({
@@ -2100,13 +2147,13 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Error al cargar resumen de liquidación:', error);
+                console.error('Error al cargar resumen de liquidaci?n:', error);
                 console.error('Detalles del error:', xhr.responseText);
             }
         });
     }
 
-    // Función para cargar reservas de la entidad (asignación/devolución por reserva)
+    // Funci?n para cargar reservas de la entidad (asignaci?n/devoluci?n por reserva)
     function cargarReservasEntidad() {
         if (!entidadSeleccionada || !sorteoSeleccionado) return;
         
@@ -2149,7 +2196,7 @@ $(document).ready(function() {
         });
     }
 
-    // Función para cargar reservas del vendedor (devolución vendedor → entidad)
+    // Funci?n para cargar reservas del vendedor (devoluci?n vendedor ��� entidad)
     function cargarReservasVendedor() {
         if (!entidadSeleccionada || !sorteoSeleccionado || !vendedorSeleccionado) return;
         
@@ -2193,7 +2240,7 @@ $(document).ready(function() {
         });
     }
 
-    // Event listener para selección de reserva
+    // Event listener para selecci?n de reserva
     $('#selector-reserva').on('change', function() {
         const reserveId = $(this).val();
         const selectedOption = $(this).find('option:selected');
@@ -2234,8 +2281,8 @@ $(document).ready(function() {
         const esDevolucionVendedor = tipoDevolucion === 'vendedor';
         $('#texto-tipo-disponibles').text(
             esDevolucionVendedor
-                ? 'Solo físicas asignadas al vendedor (las digitales no se asignan)'
-                : 'Físicas seleccionables; digitales en pool de la entidad'
+                ? 'Solo f?sicas asignadas al vendedor (las digitales no se asignan)'
+                : 'F?sicas seleccionables; digitales en pool de la entidad'
         );
         $.ajax({
             url: "{{ route('devolutions.liquidation-summary') }}",
@@ -2269,7 +2316,7 @@ $(document).ready(function() {
         });
     }
 
-    // Función para validar participaciones (por reserva o por set legacy)
+    // Funci?n para validar participaciones (por reserva o por set legacy)
     function validarParticipacionesDisponibles(desde, hasta, participationId) {
         return new Promise((resolve, reject) => {
             const datosValidacion = {
@@ -2286,7 +2333,7 @@ $(document).ready(function() {
                 datosValidacion.set_id = setSeleccionado.id;
             }
 
-            // Agregar seller_id si es devolución de vendedor
+            // Agregar seller_id si es devoluci?n de vendedor
             if (tipoDevolucion === 'vendedor' && vendedorSeleccionado) {
                 datosValidacion.seller_id = vendedorSeleccionado.id;
             }
@@ -2303,7 +2350,7 @@ $(document).ready(function() {
                     }
                 },
                 error: function(xhr, status, error) {
-                    reject('Error de conexión: ' + error);
+                    reject('Error de conexi?n: ' + error);
                 }
             });
         });
@@ -2373,12 +2420,12 @@ $(document).ready(function() {
                                 assigned_at: new Date().toISOString()
                             });
                             actualizarResumenAsignacion();
-                            mostrarMensaje('Participación asignada correctamente', 'success');
+                            mostrarMensaje('Participaci?n asignada correctamente', 'success');
                         } else {
-                            mostrarMensaje('Esta participación ya está asignada', 'warning');
+                            mostrarMensaje('Esta participaci?n ya est? asignada', 'warning');
                         }
                     } else {
-                        mostrarMensaje('La participación no está disponible', 'warning');
+                        mostrarMensaje('La participaci?n no est? disponible', 'warning');
                     }
                 })
                 .catch(error => {
@@ -2389,39 +2436,39 @@ $(document).ready(function() {
                     $('#participacion-unidad').val('');
                 });
         } else {
-            alert('Debes especificar un rango o una participación individual');
+            alert('Debes especificar un rango o una participaci?n individual');
         }
     });
 
-    // Event listener para terminar asignación (ir directo a liquidación)
+    // Event listener para terminar asignaci?n (ir directo a liquidaci?n)
     $('#btn-terminar-asignacion').click(function() {
-        // Para anulación, ir al paso de anulación
+        // Para anulaci?n, ir al paso de anulaci?n
         if (tipoDevolucion === 'anulacion') {
             mostrarPaso('paso-anulacion');
             return;
         }
         
-        // Para devolución de vendedor, no se requieren participaciones específicas
+        // Para devoluci?n de vendedor, no se requieren participaciones espec?ficas
         if (tipoDevolucion === 'vendedor') {
             mostrarPaso('paso-liquidacion');
             configurarLiquidacionPorTipo();
             return;
         }
 
-        // Para devolución de administración, permitir continuar sin participaciones
+        // Para devoluci?n de administraci?n, permitir continuar sin participaciones
         if (participacionesAsignadas.length === 0) {
-            const confirmContinue = confirm('No has seleccionado participaciones para devolver. ¿Deseas continuar solo para registrar una liquidación?');
+            const confirmContinue = confirm('No has seleccionado participaciones para devolver. ?Deseas continuar solo para registrar una liquidaci?n?');
             if (!confirmContinue) {
                 return;
             }
         }
 
-        // Ir directo a liquidación
+        // Ir directo a liquidaci?n
         mostrarPaso('paso-liquidacion');
         configurarLiquidacionPorTipo();
     });
 
-    // Event listener para continuar sin participaciones (ir directo a liquidación)
+    // Event listener para continuar sin participaciones (ir directo a liquidaci?n)
     $('#btn-continuar-sin-participaciones').click(function() {
         if (tipoDevolucion === 'vendedor') {
             mostrarPaso('paso-liquidacion');
@@ -2429,33 +2476,33 @@ $(document).ready(function() {
             return;
         }
 
-        const confirmContinue = confirm('¿Deseas continuar sin seleccionar participaciones? Solo podrás registrar un pago de liquidación.');
+        const confirmContinue = confirm('?Deseas continuar sin seleccionar participaciones? Solo podr?s registrar un pago de liquidaci?n.');
         if (!confirmContinue) {
             return;
         }
 
-        // Ir directo a liquidación
+        // Ir directo a liquidaci?n
         mostrarPaso('paso-liquidacion');
         configurarLiquidacionPorTipo();
     });
 
-    // Función para configurar la liquidación según el tipo
+    // Funci?n para configurar la liquidaci?n seg?n el tipo
     function configurarLiquidacionPorTipo() {
         if (tipoDevolucion === 'vendedor') {
-            // Devolución vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 × 6€ = 540€)
-            $('#liquidacion-titulo').text('Liquidación de Vendedor');
+            // Devoluci?n vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 �� 6��� = 540���)
+            $('#liquidacion-titulo').text('Liquidaci?n de Vendedor');
             $('#liquidacion-subtitulo').html('<i>Registra pagos por las participaciones que siguen asignadas al vendedor</i>');
-            $('#liquidacion-resumen-subtitulo').text('Resumen Devolución Vendedor');
+            $('#liquidacion-resumen-subtitulo').text('Resumen Devoluci?n Vendedor');
             $('#btn-volver-text').text('Volver a Participaciones');
             $('#liquidacion-vendedor-container').hide();
             $('#liquidacion-administracion-container').show();
             cargarParticipacionesParaLiquidacion();
             actualizarResumenLiquidacion();
         } else {
-            // Liquidación de administración: volver a participaciones (igual que vendedor)
-            $('#liquidacion-titulo').text('Liquidación de Administración');
-            $('#liquidacion-subtitulo').html('<i>Procesa la liquidación de participaciones</i>');
-            $('#liquidacion-resumen-subtitulo').text('Resumen Devolución Administración');
+            // Liquidaci?n de administraci?n: volver a participaciones (igual que vendedor)
+            $('#liquidacion-titulo').text('Liquidaci?n de Administraci?n');
+            $('#liquidacion-subtitulo').html('<i>Procesa la liquidaci?n de participaciones</i>');
+            $('#liquidacion-resumen-subtitulo').text('Resumen Devoluci?n Administraci?n');
             $('#btn-volver-text').text('Volver a Participaciones');
             $('#liquidacion-vendedor-container').hide();
             $('#liquidacion-administracion-container').show();
@@ -2464,7 +2511,7 @@ $(document).ready(function() {
         }
     }
 
-    // Función para cargar participaciones para liquidación
+    // Funci?n para cargar participaciones para liquidaci?n
     function cargarParticipacionesParaLiquidacion() {
         let html = '';
         
@@ -2472,7 +2519,7 @@ $(document).ready(function() {
             html = `
                 <div class="alert alert-info" role="alert">
                     <i class="ri-information-line me-2"></i>
-                    No hay participaciones seleccionadas. Puedes continuar para registrar solo un pago de liquidación.
+                    No hay participaciones seleccionadas. Puedes continuar para registrar solo un pago de liquidaci?n.
                 </div>
             `;
         } else {
@@ -2485,12 +2532,12 @@ $(document).ready(function() {
                             </div>
                             <div class="liquidacion-info">
                                 <h5>${participation.participation_code}</h5>
-                                <small>Participación #${participation.number}</small>
+                                <small>Participaci?n #${participation.number}</small>
                             </div>
                         </div>
                         <div class="liquidacion-stats">
                             <div class="stat-item">
-                                <div class="stat-number">5€</div>
+                                <div class="stat-number">5���</div>
                                 <div class="stat-label">Valor</div>
                             </div>
                         </div>
@@ -2516,9 +2563,9 @@ $(document).ready(function() {
         $('#liquidacion-participaciones').html(html);
     }
 
-    // Event listener para procesar liquidación
+    // Event listener para procesar liquidaci?n
     $('#btn-procesar-liquidacion').click(function() {
-        // Permitir procesar liquidación sin participaciones (solo para registrar pago)
+        // Permitir procesar liquidaci?n sin participaciones (solo para registrar pago)
         $('#btn-procesar-liquidacion').prop('disabled', true).text('Procesando...');
 
         const liquidacion = {
@@ -2540,13 +2587,13 @@ $(document).ready(function() {
             entity_id: entidadSeleccionada.id,
             lottery_id: sorteoSeleccionado.id,
             participations: participacionesAsignadas.map(p => p.id),
-            return_reason: 'Devolución de entidad a administración',
+            return_reason: 'Devoluci?n de entidad a administraci?n',
             tipo_devolucion: tipoDevolucion || 'administracion',
             liquidacion: liquidacion,
             _token: '{{ csrf_token() }}'
         };
         if (reservaSeleccionada) payload.reserve_id = reservaSeleccionada.id;
-        // El backend exige liquidacion.pagos con al menos un pago con importe; si no hay, enviar array vacío y el backend puede rechazar
+        // El backend exige liquidacion.pagos con al menos un pago con importe; si no hay, enviar array vac?o y el backend puede rechazar
         if (!payload.liquidacion.pagos) payload.liquidacion.pagos = [];
         function enviarLiquidacionEntidad(payloadData) {
             $.ajax({
@@ -2557,8 +2604,8 @@ $(document).ready(function() {
                     if (response.queued && response.success) {
                         try {
                             sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
-                                title: 'Tramitación en segundo plano',
-                                text: 'La operación está en cola. Puedes seguir navegando; al terminar verás un aviso y el listado se actualizará.',
+                                title: 'Tramitaci?n en segundo plano',
+                                text: 'La operaci?n est? en cola. Puedes seguir navegando; al terminar ver?s un aviso y el listado se actualizar?.',
                                 type: 'notice'
                             }));
                         } catch (e) {}
@@ -2566,29 +2613,29 @@ $(document).ready(function() {
                         return;
                     }
                     if (response.success) {
-                        mostrarMensaje('Liquidación procesada correctamente', 'success');
+                        mostrarMensaje('Liquidaci?n procesada correctamente', 'success');
                         setTimeout(() => {
                             window.location.href = "{{ route('devolutions.index') }}";
                         }, 2000);
                     } else {
-                        mostrarMensaje(response.message || 'Error al procesar la liquidación', 'error');
+                        mostrarMensaje(response.message || 'Error al procesar la liquidaci?n', 'error');
                     }
                 },
                 error: function(xhr, status, error) {
                     if (manejarAdvertenciaLiquidacionVendedores(xhr, payloadData, enviarLiquidacionEntidad)) {
                         return;
                     }
-                    mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error de conexión al procesar la liquidación', 'error');
+                    mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error de conexi?n al procesar la liquidaci?n', 'error');
                 },
                 complete: function() {
-                    $('#btn-procesar-liquidacion').prop('disabled', false).text('Procesar Liquidación');
+                    $('#btn-procesar-liquidacion').prop('disabled', false).text('Procesar Liquidaci?n');
                 }
             });
         }
         enviarLiquidacionEntidad(payload);
     });
 
-    // Función para mostrar mensajes
+    // Funci?n para mostrar mensajes
     function mostrarMensaje(mensaje, tipo) {
         const alertClass = tipo === 'success' ? 'alert-success' : 
                           tipo === 'warning' ? 'alert-warning' : 
@@ -2630,24 +2677,24 @@ $(document).ready(function() {
         }
     });
 
-    // Función para actualizar el total pagado
+    // Funci?n para actualizar el total pagado
     function actualizarTotalPagado() {
         const efectivoMonto = parseFloat($('#pago-efectivo-monto').val()) || 0;
         const bizumMonto = parseFloat($('#pago-bizum-monto').val()) || 0;
         const transferenciaMonto = parseFloat($('#pago-transferencia-monto').val()) || 0;
         
         const totalPagado = efectivoMonto + bizumMonto + transferenciaMonto;
-        $('#total-pagado').text(totalPagado.toFixed(2) + '€');
+        $('#total-pagado').text(totalPagado.toFixed(2) + '���');
         
         // Calcular pendiente
-        const totalAPagar = parseFloat($('#liquidacion-total-pagar').text().replace('€', '').replace(',', '.')) || 0;
+        const totalAPagar = parseFloat($('#liquidacion-total-pagar').text().replace('���', '').replace(',', '.')) || 0;
         const pendiente = totalAPagar - totalPagado;
         
-        $('#total-pendiente').text(pendiente.toFixed(2) + '€');
+        $('#total-pendiente').text(pendiente.toFixed(2) + '���');
         
         if (totalPagado > 0) {
             $('#pendiente-container').show();
-            // Cambiar color según si está completo o no
+            // Cambiar color seg?n si est? completo o no
             if (pendiente <= 0) {
                 $('#total-pendiente').removeClass('text-warning').addClass('text-success');
             } else {
@@ -2723,18 +2770,18 @@ $(document).ready(function() {
             $('#special-prize-requirement-alert')
                 .removeClass('alert-info')
                 .addClass('alert-warning')
-                .text(`Debes completar ${objetivo} décimos para cerrar la liquidación. Premio especial ${specialPrizeRequirement.premio_especial_numero || '-'} · Serie ${specialPrizeRequirement.premio_especial_serie || '-'} · Fracción ${specialPrizeRequirement.premio_especial_fraccion || '-'} · Series válidas: 1-${maxSeries}`);
-            $('#special-prize-resumen-text').text('Este sorteo requiere informar serie/fracción para completar la liquidación.');
+                .text(`Debes completar ${objetivo} d?cimos para cerrar la liquidaci?n. Premio especial ${specialPrizeRequirement.premio_especial_numero || '-'} ? Serie ${specialPrizeRequirement.premio_especial_serie || '-'} ? Fracci?n ${specialPrizeRequirement.premio_especial_fraccion || '-'} ? Series v?lidas: 1-${maxSeries}`);
+            $('#special-prize-resumen-text').text('Este sorteo requiere informar serie/fracci?n para completar la liquidaci?n.');
         } else {
             $('#special-prize-badge').removeClass('bg-danger bg-info').addClass('bg-warning text-dark').text('Opcional');
             $('#special-prize-requirement-alert')
                 .removeClass('alert-warning')
                 .addClass('alert-info')
-                .text('Puedes completar esta asignación de forma opcional en este sorteo.');
+                .text('Puedes completar esta asignaci?n de forma opcional en este sorteo.');
             $('#special-prize-resumen-text').text(`Rango de series permitido: 1-${maxSeries > 0 ? maxSeries : 'N/A'}.`);
         }
         $('#special-prize-restante-decimos').text(restantes);
-        $('#special-prize-restante-importe').text(importeRestante.toFixed(2).replace('.', ',') + '€');
+        $('#special-prize-restante-importe').text(importeRestante.toFixed(2).replace('.', ',') + '���');
 
         renderSpecialPrizeTable();
 
@@ -2750,7 +2797,7 @@ $(document).ready(function() {
     function agregarFraccionesASerie(serie, fracciones) {
         const maxSeries = parseInt(specialPrizeRequirement.max_series || 0, 10);
         if (serie < 1 || serie > maxSeries) {
-            mostrarMensaje(`La serie ${serie} no es válida. Debe estar entre 1 y ${maxSeries}.`, 'warning');
+            mostrarMensaje(`La serie ${serie} no es v?lida. Debe estar entre 1 y ${maxSeries}.`, 'warning');
             return false;
         }
 
@@ -2760,11 +2807,11 @@ $(document).ready(function() {
 
         for (const fraccion of fracciones) {
             if (fraccion < 1 || fraccion > 10) {
-                mostrarMensaje(`La fracción ${fraccion} no es válida. Debe estar entre 1 y 10.`, 'warning');
+                mostrarMensaje(`La fracci?n ${fraccion} no es v?lida. Debe estar entre 1 y 10.`, 'warning');
                 return false;
             }
             if (specialPrizeAssignments[serie].has(fraccion)) {
-                mostrarMensaje(`La serie ${serie}, fracción ${fraccion}, ya fue asignada.`, 'warning');
+                mostrarMensaje(`La serie ${serie}, fracci?n ${fraccion}, ya fue asignada.`, 'warning');
                 return false;
             }
         }
@@ -2772,7 +2819,7 @@ $(document).ready(function() {
         const objetivo = obtenerTotalDecimosObjetivo();
         const asignados = obtenerDecimosAsignados();
         if ((asignados + fracciones.length) > objetivo) {
-            mostrarMensaje(`No puedes superar los ${objetivo} décimos requeridos.`, 'warning');
+            mostrarMensaje(`No puedes superar los ${objetivo} d?cimos requeridos.`, 'warning');
             return false;
         }
 
@@ -2814,7 +2861,7 @@ $(document).ready(function() {
         const hasta = parseInt($('#special-serie-rango-hasta').val(), 10);
         if (desde || hasta) {
             if (!desde || !hasta || hasta < desde) {
-                mostrarMensaje('Indica un rango de series válido.', 'warning');
+                mostrarMensaje('Indica un rango de series v?lido.', 'warning');
                 return;
             }
             for (let s = desde; s <= hasta; s++) {
@@ -2829,7 +2876,7 @@ $(document).ready(function() {
 
         const serie = parseInt($('#special-serie-unidad').val(), 10);
         if (!serie) {
-            mostrarMensaje('Indica una serie válida.', 'warning');
+            mostrarMensaje('Indica una serie v?lida.', 'warning');
             return;
         }
         if (agregarFraccionesASerie(serie, [1,2,3,4,5,6,7,8,9,10])) {
@@ -2843,7 +2890,7 @@ $(document).ready(function() {
         let fracciones = [];
         if (desde || hasta) {
             if (!desde || !hasta || hasta < desde || desde < 1 || hasta > 10) {
-                mostrarMensaje('Indica un rango de fracciones válido (1 a 10).', 'warning');
+                mostrarMensaje('Indica un rango de fracciones v?lido (1 a 10).', 'warning');
                 return;
             }
             for (let f = desde; f <= hasta; f++) fracciones.push(f);
@@ -2852,7 +2899,7 @@ $(document).ready(function() {
         } else {
             const unidad = parseInt($('#special-fraccion-unidad').val(), 10);
             if (!unidad || unidad < 1 || unidad > 10) {
-                mostrarMensaje('Indica una fracción válida (1 a 10).', 'warning');
+                mostrarMensaje('Indica una fracci?n v?lida (1 a 10).', 'warning');
                 return;
             }
             fracciones = [unidad];
@@ -2860,10 +2907,10 @@ $(document).ready(function() {
         }
 
         const textoFracciones = fracciones.join('-');
-        const seriePrompt = window.prompt(`¿A qué serie pertenecen las fracciones ${textoFracciones}?`);
+        const seriePrompt = window.prompt(`?A qu? serie pertenecen las fracciones ${textoFracciones}?`);
         const serie = parseInt(seriePrompt, 10);
         if (!serie) {
-            mostrarMensaje('Debes indicar una serie válida para asignar fracciones.', 'warning');
+            mostrarMensaje('Debes indicar una serie v?lida para asignar fracciones.', 'warning');
             return;
         }
         agregarFraccionesASerie(serie, fracciones);
@@ -2882,16 +2929,16 @@ $(document).ready(function() {
         $('html, body').animate({ scrollTop: $('#bloque-premio-especial').offset().top - 120 }, 250);
     });
 
-    // Event listener para solo devolución (sin liquidar) — botón "Aceptar" #333
+    // Event listener para solo devoluci?n (sin liquidar) ��� bot?n "Aceptar" #333
     $('#btn-aceptar-solo-devolucion').click(function() {
         if (participacionesAsignadas.length === 0) {
-            mostrarMensaje('Selecciona al menos una participación para devolver', 'warning');
+            mostrarMensaje('Selecciona al menos una participaci?n para devolver', 'warning');
             return;
         }
         const liquidacionData = {
             entity_id: entidadSeleccionada.id,
             lottery_id: sorteoSeleccionado.id,
-            return_reason: tipoDevolucion === 'vendedor' ? 'Devolución de vendedor a entidad' : 'Devolución de entidad a administración',
+            return_reason: tipoDevolucion === 'vendedor' ? 'Devoluci?n de vendedor a entidad' : 'Devoluci?n de entidad a administraci?n',
             tipo_devolucion: tipoDevolucion,
             solo_devolucion: true,
             liquidacion: {
@@ -2914,8 +2961,8 @@ $(document).ready(function() {
                     if (response.queued && response.success) {
                         try {
                             sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
-                                title: 'Tramitación en segundo plano',
-                                text: 'La operación está en cola. Te llevamos al listado; al terminar verás un aviso.',
+                                title: 'Tramitaci?n en segundo plano',
+                                text: 'La operaci?n est? en cola. Te llevamos al listado; al terminar ver?s un aviso.',
                                 type: 'notice'
                             }));
                         } catch (e) {}
@@ -2923,22 +2970,22 @@ $(document).ready(function() {
                         return;
                     }
                     if (response.success) {
-                        mostrarMensaje('Devolución registrada correctamente (sin liquidar)', 'success');
+                        mostrarMensaje('Devoluci?n registrada correctamente (sin liquidar)', 'success');
                         if (response.devolution_id) {
                             window.location.href = "{{ route('devolutions.index') }}/" + response.devolution_id;
                         } else {
                             setTimeout(() => { window.location.href = "{{ route('devolutions.index') }}"; }, 1500);
                         }
                     } else {
-                        mostrarMensaje(response.message || 'Error al registrar la devolución', 'error');
+                        mostrarMensaje(response.message || 'Error al registrar la devoluci?n', 'error');
                     }
                 },
                 error: function(xhr, status, error) {
                     if (manejarAdvertenciaLiquidacionVendedores(xhr, payloadData, enviarSoloDevolucion)) {
                         return;
                     }
-                    console.error('Error en solo devolución:', error);
-                    mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error al registrar la devolución', 'error');
+                    console.error('Error en solo devoluci?n:', error);
+                    mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error al registrar la devoluci?n', 'error');
                 },
                 complete: function() {
                     $('#btn-aceptar-solo-devolucion').prop('disabled', false).text('Aceptar');
@@ -2948,14 +2995,14 @@ $(document).ready(function() {
         enviarSoloDevolucion(liquidacionData);
     });
 
-    // Event listener para aceptar liquidación
+    // Event listener para aceptar liquidaci?n
     $('#btn-aceptar-liquidacion').click(function() {
         if (specialPrizeRequirement?.required && !validarPremioEspecialCompleto()) {
             const modalEl = document.getElementById('modal-premio-especial-obligatorio');
             if (modalEl && window.bootstrap) {
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
-            mostrarMensaje('Debes completar la asignación de serie/fracción del premio especial antes de aceptar la liquidación.', 'warning');
+            mostrarMensaje('Debes completar la asignaci?n de serie/fracci?n del premio especial antes de aceptar la liquidaci?n.', 'warning');
             return;
         }
 
@@ -2995,13 +3042,13 @@ $(document).ready(function() {
             return;
         }
 
-        // Preparar datos para la liquidación: liquidacion.devolver con las IDs a devolver; reserve_id si hay reserva
+        // Preparar datos para la liquidaci?n: liquidacion.devolver con las IDs a devolver; reserve_id si hay reserva
         const liquidacionData = {
             entity_id: entidadSeleccionada.id,
             lottery_id: sorteoSeleccionado.id,
             set_id: reservaSeleccionada ? null : (setSeleccionado ? setSeleccionado.id : null),
             reserve_id: reservaSeleccionada ? reservaSeleccionada.id : null,
-            return_reason: tipoDevolucion === 'vendedor' ? 'Devolución de vendedor a entidad' : 'Devolución de entidad a administración',
+            return_reason: tipoDevolucion === 'vendedor' ? 'Devoluci?n de vendedor a entidad' : 'Devoluci?n de entidad a administraci?n',
             tipo_devolucion: tipoDevolucion,
             participations: participacionesAsignadas.map(p => p.id),
             liquidacion: {
@@ -3013,64 +3060,110 @@ $(document).ready(function() {
             _token: '{{ csrf_token() }}'
         };
 
-        // Agregar seller_id si es devolución de vendedor
+        // Agregar seller_id si es devoluci?n de vendedor
         if (tipoDevolucion === 'vendedor' && vendedorSeleccionado) {
             liquidacionData.seller_id = vendedorSeleccionado.id;
         }
 
-        $(this).prop('disabled', true).text('Procesando...');
-
-        function enviarLiquidacionCompleta(payloadData) {
-            $.ajax({
-                url: "{{ route('devolutions.store') }}",
-                method: 'POST',
-                data: payloadData,
-                success: function(response) {
-                    if (response.queued && response.success) {
-                        try {
-                            sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
-                                title: 'Tramitación en segundo plano',
-                                text: 'La operación está en cola. Te llevamos al listado; al terminar verás un aviso.',
-                                type: 'notice'
-                            }));
-                        } catch (e) {}
-                        window.location.href = "{{ route('devolutions.index') }}";
-                        return;
-                    }
-                    if (response.success) {
-                        mostrarMensaje('Liquidación procesada correctamente', 'success');
-                        setTimeout(() => {
-                            window.location.href = "{{ route('devolutions.index') }}";
-                        }, 2000);
-                    } else {
-                        mostrarMensaje(response.message || 'Error al procesar la liquidación', 'error');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    if (manejarAdvertenciaLiquidacionVendedores(xhr, payloadData, enviarLiquidacionCompleta)) {
-                        return;
-                    }
-                    console.error('Error en liquidación:', error);
-                    mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error al procesar la liquidación', 'error');
-                },
-                complete: function() {
-                    $('#btn-aceptar-liquidacion').prop('disabled', false).text('Aceptar');
-                }
-            });
+        if (tipoDevolucion === 'administracion') {
+            pendingLiquidacionData = liquidacionData;
+            $('input[name="prize_payment_mode"]').prop('checked', false);
+            $('#prize-payment-mode-confirm').prop('checked', false);
+            $('#btn-confirmar-modalidad-pago').prop('disabled', true);
+            const modalEl = document.getElementById('modal-modalidad-pago-premios');
+            if (modalEl && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            } else {
+                mostrarMensaje('No se pudo abrir el selector de modalidad de pago.', 'error');
+            }
+            return;
         }
-        enviarLiquidacionCompleta(liquidacionData);
+
+        $(this).prop('disabled', true).text('Procesando...');
+        enviarLiquidacionCompleta(liquidacionData, $(this));
     });
 
-    // Event listener para cerrar liquidación
+    function actualizarBotonModalidadPago() {
+        const modo = $('input[name="prize_payment_mode"]:checked').val();
+        const confirmado = $('#prize-payment-mode-confirm').is(':checked');
+        $('#btn-confirmar-modalidad-pago').prop('disabled', !(modo && confirmado));
+    }
+
+    $(document).on('change', 'input[name="prize_payment_mode"], #prize-payment-mode-confirm', actualizarBotonModalidadPago);
+
+    $('#btn-confirmar-modalidad-pago').click(function() {
+        if (!pendingLiquidacionData) {
+            return;
+        }
+        const modo = $('input[name="prize_payment_mode"]:checked').val();
+        if (!modo || !$('#prize-payment-mode-confirm').is(':checked')) {
+            mostrarMensaje('Debes seleccionar la modalidad de pago y confirmarla.', 'warning');
+            return;
+        }
+        pendingLiquidacionData.prize_payment_mode = modo;
+        const modalEl = document.getElementById('modal-modalidad-pago-premios');
+        if (modalEl && window.bootstrap) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+        const $btn = $('#btn-aceptar-liquidacion');
+        $btn.prop('disabled', true).text('Procesando...');
+        enviarLiquidacionCompleta(pendingLiquidacionData, $btn);
+        pendingLiquidacionData = null;
+    });
+
+    function enviarLiquidacionCompleta(payloadData, $triggerBtn) {
+        $.ajax({
+            url: "{{ route('devolutions.store') }}",
+            method: 'POST',
+            data: payloadData,
+            success: function(response) {
+                if (response.queued && response.success) {
+                    try {
+                        sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
+                            title: 'Tramitacion en segundo plano',
+                            text: 'La operacion esta en cola. Te llevamos al listado; al terminar veras un aviso.',
+                            type: 'notice'
+                        }));
+                    } catch (e) {}
+                    window.location.href = "{{ route('devolutions.index') }}";
+                    return;
+                }
+                if (response.success) {
+                    mostrarMensaje('Liquidacion procesada correctamente', 'success');
+                    setTimeout(() => {
+                        window.location.href = "{{ route('devolutions.index') }}";
+                    }, 2000);
+                } else {
+                    mostrarMensaje(response.message || 'Error al procesar la liquidacion', 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                if (manejarAdvertenciaLiquidacionVendedores(xhr, payloadData, function (p) {
+                    enviarLiquidacionCompleta(p, $triggerBtn);
+                })) {
+                    return;
+                }
+                console.error('Error en liquidacion:', error);
+                mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error al procesar la liquidacion', 'error');
+            },
+            complete: function() {
+                if ($triggerBtn && $triggerBtn.length) {
+                    $triggerBtn.prop('disabled', false).text('Aceptar Liquidacion');
+                }
+            }
+        });
+    }
+
+    // Event listener para cerrar liquidaci?n
     $('#btn-cerrar-liquidacion').click(function() {
         window.location.href = "{{ route('devolutions.index') }}";
     });
 
-    // ==================== LIQUIDACIÓN DE VENDEDOR ====================
+    // ==================== LIQUIDACI��N DE VENDEDOR ====================
     
     let sorteoSeleccionadoLiquidacionVendedor = null;
 
-    // Función para cargar sorteos disponibles del vendedor
+    // Funci?n para cargar sorteos disponibles del vendedor
     function cargarSorteosVendedor() {
         if (!vendedorSeleccionado || !entidadSeleccionada) {
             console.error('Falta vendedor o entidad seleccionada');
@@ -3103,7 +3196,7 @@ $(document).ready(function() {
         });
     }
 
-    // Event listener para cambio de sorteo en liquidación de vendedor
+    // Event listener para cambio de sorteo en liquidaci?n de vendedor
     $('#vendedor-selector-sorteo-liquidacion').on('change', function() {
         const lotteryId = $(this).val();
         
@@ -3118,7 +3211,7 @@ $(document).ready(function() {
         }
     });
 
-    // Función para cargar resumen de liquidación de vendedor (COPIA EXACTA DE SELLERS)
+    // Funci?n para cargar resumen de liquidaci?n de vendedor (COPIA EXACTA DE SELLERS)
     function cargarResumenLiquidacionVendedor() {
         if (!sorteoSeleccionadoLiquidacionVendedor) return;
 
@@ -3137,7 +3230,7 @@ $(document).ready(function() {
                     const summary = response.summary;
                     console.log('Summary:', summary);
                     
-                    // Parsear valores a números
+                    // Parsear valores a n?meros
                     const pricePerParticipation = parseFloat(summary.price_per_participation) || 0;
                     const totalAmount = parseFloat(summary.total_amount) || 0;
                     const totalPaid = parseFloat(summary.total_paid) || 0;
@@ -3146,13 +3239,13 @@ $(document).ready(function() {
                     const pendingParticipations = parseFloat(summary.pending_participations) || 0;
                     
                     $('#vendedor-settlement-total-participations').text(summary.total_participations);
-                    $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '€');
-                    $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + '€');
-                    $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + '€');
+                    $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '���');
+                    $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + '���');
+                    $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + '���');
                     $('#vendedor-settlement-liquidated-participations').text(liquidatedParticipations.toFixed(2));
-                    $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + '€');
+                    $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + '���');
                     $('#vendedor-settlement-pending-participations').text(pendingParticipations.toFixed(2));
-                    $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + '€');
+                    $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + '���');
                     
                     console.log('Datos actualizados en la vista');
                     
@@ -3164,24 +3257,24 @@ $(document).ready(function() {
             },
             error: function(xhr, status, error) {
                 console.error('Error al cargar resumen:', error);
-                mostrarMensaje('Error al cargar el resumen de liquidación', 'error');
+                mostrarMensaje('Error al cargar el resumen de liquidaci?n', 'error');
             }
         });
     }
 
-    // Función para actualizar total a pagar ahora (COPIA EXACTA DE SELLERS)
+    // Funci?n para actualizar total a pagar ahora (COPIA EXACTA DE SELLERS)
     function actualizarTotalPagarAhoraSettlementVendedor() {
         const efectivo = parseFloat($('#vendedor-settlement-pago-efectivo').val()) || 0;
         const bizum = parseFloat($('#vendedor-settlement-pago-bizum').val()) || 0;
         const transferencia = parseFloat($('#vendedor-settlement-pago-transferencia').val()) || 0;
         
         const totalPagarAhora = efectivo + bizum + transferencia;
-        $('#vendedor-settlement-pagar-ahora').text(totalPagarAhora.toFixed(2) + '€');
+        $('#vendedor-settlement-pagar-ahora').text(totalPagarAhora.toFixed(2) + '���');
         
-        const pendiente = parseFloat($('#vendedor-settlement-pending-amount').text().replace('€', '').replace(',', '.')) || 0;
+        const pendiente = parseFloat($('#vendedor-settlement-pending-amount').text().replace('���', '').replace(',', '.')) || 0;
         const quedaraPendiente = pendiente - totalPagarAhora;
         
-        $('#vendedor-settlement-quedara-pendiente').text(quedaraPendiente.toFixed(2) + '€');
+        $('#vendedor-settlement-quedara-pendiente').text(quedaraPendiente.toFixed(2) + '���');
         
         if (quedaraPendiente <= 0 && totalPagarAhora > 0) {
             $('#vendedor-settlement-quedara-pendiente').removeClass('text-warning').addClass('text-success');
@@ -3195,7 +3288,7 @@ $(document).ready(function() {
     // Event listeners para actualizar totales
     $('.vendedor-settlement-payment-input').on('input', actualizarTotalPagarAhoraSettlementVendedor);
 
-    // Botón para registrar liquidación (COPIA EXACTA DE SELLERS)
+    // Bot?n para registrar liquidaci?n (COPIA EXACTA DE SELLERS)
     $('#btn-registrar-liquidacion-vendedor').on('click', function() {
         if (!sorteoSeleccionadoLiquidacionVendedor) {
             mostrarMensaje('Debes seleccionar un sorteo primero', 'warning');
@@ -3225,7 +3318,7 @@ $(document).ready(function() {
             return;
         }
 
-        // Deshabilitar botón
+        // Deshabilitar bot?n
         $(this).prop('disabled', true).text('Procesando...');
 
         $.ajax({
@@ -3239,7 +3332,7 @@ $(document).ready(function() {
             },
             success: function(response) {
                 if (response.success) {
-                    mostrarMensaje('Liquidación registrada correctamente', 'success');
+                    mostrarMensaje('Liquidaci?n registrada correctamente', 'success');
                     
                     // Limpiar campos de pago
                     $('#vendedor-settlement-pago-efectivo, #vendedor-settlement-pago-bizum, #vendedor-settlement-pago-transferencia').val('');
@@ -3250,20 +3343,20 @@ $(document).ready(function() {
                         cargarHistorialLiquidacionesVendedor();
                     }, 1000);
                 } else {
-                    mostrarMensaje(response.message || 'Error al registrar liquidación', 'error');
+                    mostrarMensaje(response.message || 'Error al registrar liquidaci?n', 'error');
                 }
             },
             error: function(xhr, status, error) {
                 console.error('Error:', error);
-                mostrarMensaje('Error al registrar la liquidación', 'error');
+                mostrarMensaje('Error al registrar la liquidaci?n', 'error');
             },
             complete: function() {
-                $('#btn-registrar-liquidacion-vendedor').prop('disabled', false).html('<i class="ri-add-line"></i> Registrar Liquidación');
+                $('#btn-registrar-liquidacion-vendedor').prop('disabled', false).html('<i class="ri-add-line"></i> Registrar Liquidaci?n');
             }
         });
     });
 
-    // Función para cargar historial de liquidaciones (COPIA EXACTA DE SELLERS)
+    // Funci?n para cargar historial de liquidaciones (COPIA EXACTA DE SELLERS)
     function cargarHistorialLiquidacionesVendedor() {
         if (!sorteoSeleccionadoLiquidacionVendedor) return;
 
@@ -3276,7 +3369,7 @@ $(document).ready(function() {
             },
             success: function(response) {
                 if (response.success && response.settlements.length > 0) {
-                    let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Participaciones Liquidadas</th><th>Monto Pagado</th><th>Métodos de Pago</th></tr></thead><tbody>';
+                    let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Participaciones Liquidadas</th><th>Monto Pagado</th><th>M?todos de Pago</th></tr></thead><tbody>';
                     
                     response.settlements.forEach(settlement => {
                         const fecha = new Date(settlement.settlement_date).toLocaleDateString('es-ES');
@@ -3292,7 +3385,7 @@ $(document).ready(function() {
                                 icono = '<i class="ri-bank-line text-primary"></i>';
                             }
                             const paymentAmount = parseFloat(payment.amount) || 0;
-                            metodos.push(`${icono} ${paymentAmount.toFixed(2)}€`);
+                            metodos.push(`${icono} ${paymentAmount.toFixed(2)}���`);
                         });
                         
                         const calculatedParts = parseFloat(settlement.calculated_participations) || 0;
@@ -3302,7 +3395,7 @@ $(document).ready(function() {
                             <tr>
                                 <td>${fecha}</td>
                                 <td>${calculatedParts.toFixed(2)}</td>
-                                <td class="fw-bold text-success">${paidAmount.toFixed(2)}€</td>
+                                <td class="fw-bold text-success">${paidAmount.toFixed(2)}���</td>
                                 <td>${metodos.join(', ')}</td>
                             </tr>
                         `;
@@ -3321,15 +3414,15 @@ $(document).ready(function() {
         });
     }
 
-    // ===== PASO DE ANULACIÓN =====
+    // ===== PASO DE ANULACI��N =====
     
-    // Event listeners para el paso de anulación
+    // Event listeners para el paso de anulaci?n
     $('#btn-volver-anulacion').click(function() {
         mostrarPaso('paso-participaciones');
     });
 
     $('#btn-cancelar-anulacion').click(function() {
-        if (confirm('¿Estás seguro de que quieres cancelar la anulación?')) {
+        if (confirm('?Est?s seguro de que quieres cancelar la anulaci?n?')) {
             mostrarPaso('paso-entidad');
             // Resetear variables
             participacionesAsignadas = [];
@@ -3348,18 +3441,18 @@ $(document).ready(function() {
 
         const motivo = $('#anulacion-motivo').val().trim();
         if (!motivo) {
-            alert('Debes especificar un motivo para la anulación');
+            alert('Debes especificar un motivo para la anulaci?n');
             return;
         }
 
-        if (!confirm(`¿Estás seguro de que quieres anular ${participacionesAsignadas.length} participaciones? Esta acción no se puede deshacer.`)) {
+        if (!confirm(`?Est?s seguro de que quieres anular ${participacionesAsignadas.length} participaciones? Esta acci?n no se puede deshacer.`)) {
             return;
         }
 
         // Mostrar loading
         $('#btn-confirmar-anulacion').prop('disabled', true).html('<i class="ri-loader-4-line ri-spin"></i> Procesando...');
 
-        // Enviar datos de anulación
+        // Enviar datos de anulaci?n
         const datosAnulacion = {
             entity_id: entidadSeleccionada.id,
             lottery_id: sorteoSeleccionado.id,
@@ -3376,7 +3469,7 @@ $(document).ready(function() {
             data: datosAnulacion,
             success: function(response) {
                 if (response.success) {
-                    alert('Anulación procesada correctamente');
+                    alert('Anulaci?n procesada correctamente');
                     // Redirigir o resetear
                     window.location.href = '{{ route("devolutions.index") }}';
                 } else {
@@ -3384,16 +3477,16 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Error en anulación:', error);
-                alert('Error al procesar la anulación');
+                console.error('Error en anulaci?n:', error);
+                alert('Error al procesar la anulaci?n');
             },
             complete: function() {
-                $('#btn-confirmar-anulacion').prop('disabled', false).html('<i class="ri-check-line"></i> Confirmar Anulación');
+                $('#btn-confirmar-anulacion').prop('disabled', false).html('<i class="ri-check-line"></i> Confirmar Anulaci?n');
             }
         });
     });
 
-    // Función para obtener el precio de un set desde el backend
+    // Funci?n para obtener el precio de un set desde el backend
     function obtenerPrecioSet(setId, callback) {
         $.ajax({
             url: '{{ route("sets.get-price") }}',
@@ -3401,7 +3494,7 @@ $(document).ready(function() {
             data: { set_id: setId },
             success: function(response) {
                 if (response.success) {
-                    // Precio para liquidación = total_participation_amount (jugado + donación)
+                    // Precio para liquidaci?n = total_participation_amount (jugado + donaci?n)
                     callback(parseFloat(response.total_participation_amount) || parseFloat(response.played_amount) || 0);
                 } else {
                     callback(0);
@@ -3413,21 +3506,21 @@ $(document).ready(function() {
         });
     }
 
-    // Función para configurar el paso de anulación
+    // Funci?n para configurar el paso de anulaci?n
     function configurarPasoAnulacion() {
-        console.log('=== CONFIGURANDO PASO DE ANULACIÓN ===');
+        console.log('=== CONFIGURANDO PASO DE ANULACI��N ===');
         console.log('Entidad seleccionada:', entidadSeleccionada);
         console.log('Sorteo seleccionado:', sorteoSeleccionado);
         console.log('Set seleccionado:', setSeleccionado);
         console.log('Participaciones asignadas:', participacionesAsignadas);
         
-        // Llenar información básica
+        // Llenar informaci?n b?sica
         $('#anulacion-entidad-nombre').text(entidadSeleccionada ? entidadSeleccionada.name : '-');
         $('#anulacion-sorteo-nombre').text(sorteoSeleccionado ? (sorteoSeleccionado.lottery_name || sorteoSeleccionado.name || '-') : '-');
         $('#anulacion-set-nombre').text(setSeleccionado ? `Set #${setSeleccionado.id}` : '-');
         $('#anulacion-total-participaciones').text(participacionesAsignadas.length);
 
-        // Precio para liquidación = total_participation_amount (jugado + donación)
+        // Precio para liquidaci?n = total_participation_amount (jugado + donaci?n)
         let precioPorParticipacion = 0;
         if (setSeleccionado) {
             precioPorParticipacion = parseFloat(setSeleccionado.total_participation_amount) || (parseFloat(setSeleccionado.played_amount) + parseFloat(setSeleccionado.donation_amount || 0)) || 0;
@@ -3435,42 +3528,42 @@ $(document).ready(function() {
         
         // Si no tenemos precio, intentar obtenerlo del backend
         if (precioPorParticipacion === 0 && participacionesAsignadas.length > 0 && setSeleccionado) {
-            console.log('No se encontró precio en setSeleccionado, obteniendo del backend...');
+            console.log('No se encontr? precio en setSeleccionado, obteniendo del backend...');
             obtenerPrecioSet(setSeleccionado.id, function(precio) {
                 if (precio > 0) {
                     const montoLiberado = participacionesAsignadas.length * precio;
                     console.log('Precio obtenido del backend:', precio);
                     console.log('Monto liberado recalculado:', montoLiberado);
                     
-                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '€');
-                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '€');
+                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '���');
+                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '���');
                 } else {
                     console.log('No se pudo obtener precio del backend, usando valor por defecto');
                     const montoLiberado = participacionesAsignadas.length * 5;
-                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '€');
-                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '€');
+                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '���');
+                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '���');
                 }
             });
         }
         
         const montoLiberado = participacionesAsignadas.length * precioPorParticipacion;
         
-        console.log('Precio por participación final:', precioPorParticipacion);
-        console.log('Número de participaciones:', participacionesAsignadas.length);
+        console.log('Precio por participaci?n final:', precioPorParticipacion);
+        console.log('N?mero de participaciones:', participacionesAsignadas.length);
         console.log('Monto liberado calculado:', montoLiberado);
         
-        $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '€');
-        $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '€');
+        $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '���');
+        $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '���');
 
         // Generar resumen de participaciones
-        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Número</th><th>Código</th><th>Estado</th></tr></thead><tbody>';
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>N?mero</th><th>C?digo</th><th>Estado</th></tr></thead><tbody>';
         
         participacionesAsignadas.forEach(participation => {
             html += `
                 <tr>
                     <td>${participation.number || participation.participation_number}</td>
                     <td>${participation.participation_code}</td>
-                    <td><span class="badge bg-warning">Se anulará</span></td>
+                    <td><span class="badge bg-warning">Se anular?</span></td>
                 </tr>
             `;
         });
@@ -3479,7 +3572,7 @@ $(document).ready(function() {
         $('#anulacion-resumen-participaciones').html(html);
     }
 
-    // Modificar la función mostrarPaso para incluir anulación
+    // Modificar la funci?n mostrarPaso para incluir anulaci?n
     const mostrarPasoOriginal = mostrarPaso;
     mostrarPaso = function(pasoId) {
         if (pasoId === 'paso-anulacion') {

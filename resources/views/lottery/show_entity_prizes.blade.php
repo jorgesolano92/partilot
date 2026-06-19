@@ -151,6 +151,60 @@
                         </div>
                     @endif
 
+                    @if($prizeSetting && $prizeSetting->isModePresencial())
+                        <div class="form-card bs mt-3">
+                            <h4 class="mb-2 mt-1">Contacto para cobro presencial</h4>
+                            <p class="text-muted small mb-3">Este texto verán los titulares de participaciones físicas premiadas en la app.</p>
+
+                            @if(session('success'))
+                                <div class="alert alert-success">{{ session('success') }}</div>
+                            @endif
+                            @if(session('error'))
+                                <div class="alert alert-danger">{{ session('error') }}</div>
+                            @endif
+
+                            <form method="POST" action="{{ route('lotteries.update-prize-presencial-contact', $lottery->id) }}">
+                                @csrf
+                                @method('PUT')
+                                <div class="mb-3">
+                                    <label class="form-label">Texto informativo</label>
+                                    <textarea name="presencial_contact_text" class="form-control" rows="3" placeholder="Indique horario y lugar de cobro...">{{ old('presencial_contact_text', $prizeSetting->presencial_contact_text) }}</textarea>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Dirección</label>
+                                        <input type="text" name="presencial_contact_address" class="form-control" value="{{ old('presencial_contact_address', $prizeSetting->presencial_contact_address) }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Ciudad</label>
+                                        <input type="text" name="presencial_contact_city" class="form-control" value="{{ old('presencial_contact_city', $prizeSetting->presencial_contact_city) }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Provincia</label>
+                                        <input type="text" name="presencial_contact_province" class="form-control" value="{{ old('presencial_contact_province', $prizeSetting->presencial_contact_province) }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Horario</label>
+                                        <input type="text" name="presencial_contact_schedule" class="form-control" value="{{ old('presencial_contact_schedule', $prizeSetting->presencial_contact_schedule) }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Teléfono</label>
+                                        <input type="text" name="presencial_contact_phone" class="form-control" value="{{ old('presencial_contact_phone', $prizeSetting->presencial_contact_phone) }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" name="presencial_contact_email" class="form-control" value="{{ old('presencial_contact_email', $prizeSetting->presencial_contact_email) }}">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Notas adicionales</label>
+                                        <textarea name="presencial_contact_notes" class="form-control" rows="2">{{ old('presencial_contact_notes', $prizeSetting->presencial_contact_notes) }}</textarea>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary mt-3">Guardar contacto</button>
+                            </form>
+                        </div>
+                    @endif
+
                     <div class="mt-3">
                         <a href="{{ route('lotteries.index') }}" class="btn btn-md btn-dark" style="border-radius: 30px;">
                             <i class="ri-arrow-left-line me-1"></i> Volver a sorteos

@@ -24,6 +24,7 @@ use App\Models\EmailCommunicationLog;
 use App\Models\PartilotBillingSetting;
 use App\Models\BillingDirectDebitOrder;
 use App\Services\AdministrationBillingService;
+use App\Services\EntityLotteryPrizePaymentService;
 use App\Support\ContactEmailRegistry;
 use App\Support\PanelSelectionResolver;
 use Illuminate\Support\Facades\Hash;
@@ -1024,6 +1025,15 @@ class ConfigurationController extends Controller
                 ->with('error', 'No hay peticiones de cobro para generar la orden SEPA.');
         }
 
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        foreach ($collections as $col) {
+            $solvency = $prizePaymentService->validateCollectionForSepaExport($col);
+            if (! $solvency['allowed']) {
+                return redirect()->route('configuration.index', ['section' => 'ordenes-pago-entidades', 'step' => 3, 'entity_id' => $entity->id])
+                    ->with('error', $solvency['message']);
+            }
+        }
+
         $administration = $entity->administration;
         $debtorName = $administration ? $administration->name : $entity->name;
         $debtorNif = $administration ? $administration->nif_cif : $entity->nif_cif ?? null;
@@ -1168,6 +1178,22 @@ class ConfigurationController extends Controller
             $v = \Validator::make(['iban' => $creditorIban], ['iban' => [new \App\Rules\SpanishIban]]);
             if ($v->fails()) {
                 return back()->withErrors(["beneficiaries.{$index}.creditor_iban" => 'El IBAN del beneficiario no es válido.'])->withInput();
+            }
+        }
+
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        foreach ($validated['beneficiaries'] as $beneficiary) {
+            $collectionId = ! empty($beneficiary['collection_id']) ? (int) $beneficiary['collection_id'] : null;
+            if (! $collectionId) {
+                continue;
+            }
+            $col = ParticipationCollection::with(['items.participation.set.reserve', 'items.participation.entity'])
+                ->find($collectionId);
+            if ($col) {
+                $solvency = $prizePaymentService->validateCollectionForSepaExport($col);
+                if (! $solvency['allowed']) {
+                    return back()->withInput()->withErrors(['error' => $solvency['message']]);
+                }
             }
         }
 
