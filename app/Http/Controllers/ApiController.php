@@ -184,19 +184,24 @@ class ApiController extends Controller
         //     $table->foreignId('billing_charge_id')->nullable()->after('paid_at')->constrained('billing_charges')->nullOnDelete();
         // });
 
-        Schema::table('sets', function (Blueprint $table) {
-            $table->string('management_fee_status', 20)->nullable()->after('status');
-            $table->decimal('management_fee_amount', 10, 2)->nullable()->after('management_fee_status');
-            $table->decimal('management_fee_unit_price', 8, 4)->nullable()->after('management_fee_amount');
-            $table->unsignedInteger('management_fee_participation_count')->nullable()->after('management_fee_unit_price');
-            $table->string('management_fee_payer', 20)->nullable()->after('management_fee_participation_count');
-            $table->timestamp('management_fee_paid_at')->nullable()->after('management_fee_payer');
-            $table->foreignId('management_fee_paid_by_user_id')->nullable()->after('management_fee_paid_at')->constrained('users')->nullOnDelete();
-        });
+        // Schema::table('sets', function (Blueprint $table) {
+        //     $table->string('management_fee_status', 20)->nullable()->after('status');
+        //     $table->decimal('management_fee_amount', 10, 2)->nullable()->after('management_fee_status');
+        //     $table->decimal('management_fee_unit_price', 8, 4)->nullable()->after('management_fee_amount');
+        //     $table->unsignedInteger('management_fee_participation_count')->nullable()->after('management_fee_unit_price');
+        //     $table->string('management_fee_payer', 20)->nullable()->after('management_fee_participation_count');
+        //     $table->timestamp('management_fee_paid_at')->nullable()->after('management_fee_payer');
+        //     $table->foreignId('management_fee_paid_by_user_id')->nullable()->after('management_fee_paid_at')->constrained('users')->nullOnDelete();
+        // });
 
-        Schema::table('sets', function (Blueprint $table) {
-            $table->string('management_fee_stripe_payment_intent_id')->nullable()->after('management_fee_paid_by_user_id');
-            $table->string('management_fee_payment_provider', 20)->nullable()->after('management_fee_stripe_payment_intent_id');
+        // Schema::table('sets', function (Blueprint $table) {
+        //     $table->string('management_fee_stripe_payment_intent_id')->nullable()->after('management_fee_paid_by_user_id');
+        //     $table->string('management_fee_payment_provider', 20)->nullable()->after('management_fee_stripe_payment_intent_id');
+        // });
+
+        Schema::table('entities', function (Blueprint $table) {
+            $table->boolean('entity_pays_management_fee')->default(false)->after('billing_iban');
+            $table->boolean('entity_pays_print_fee')->default(false)->after('entity_pays_management_fee');
         });
 
         Schema::table('entities', function (Blueprint $table) {
