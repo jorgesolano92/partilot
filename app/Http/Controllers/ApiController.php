@@ -185,6 +185,16 @@ class ApiController extends Controller
         // });
 
         Schema::table('sets', function (Blueprint $table) {
+            $table->string('management_fee_status', 20)->nullable()->after('status');
+            $table->decimal('management_fee_amount', 10, 2)->nullable()->after('management_fee_status');
+            $table->decimal('management_fee_unit_price', 8, 4)->nullable()->after('management_fee_amount');
+            $table->unsignedInteger('management_fee_participation_count')->nullable()->after('management_fee_unit_price');
+            $table->string('management_fee_payer', 20)->nullable()->after('management_fee_participation_count');
+            $table->timestamp('management_fee_paid_at')->nullable()->after('management_fee_payer');
+            $table->foreignId('management_fee_paid_by_user_id')->nullable()->after('management_fee_paid_at')->constrained('users')->nullOnDelete();
+        });
+
+        Schema::table('sets', function (Blueprint $table) {
             $table->string('management_fee_stripe_payment_intent_id')->nullable()->after('management_fee_paid_by_user_id');
             $table->string('management_fee_payment_provider', 20)->nullable()->after('management_fee_stripe_payment_intent_id');
         });
@@ -267,16 +277,6 @@ class ApiController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-
-        Schema::table('sets', function (Blueprint $table) {
-            $table->string('management_fee_status', 20)->nullable()->after('status');
-            $table->decimal('management_fee_amount', 10, 2)->nullable()->after('management_fee_status');
-            $table->decimal('management_fee_unit_price', 8, 4)->nullable()->after('management_fee_amount');
-            $table->unsignedInteger('management_fee_participation_count')->nullable()->after('management_fee_unit_price');
-            $table->string('management_fee_payer', 20)->nullable()->after('management_fee_participation_count');
-            $table->timestamp('management_fee_paid_at')->nullable()->after('management_fee_payer');
-            $table->foreignId('management_fee_paid_by_user_id')->nullable()->after('management_fee_paid_at')->constrained('users')->nullOnDelete();
-        });
 
         Schema::create('lottery_deadline_admin_decisions', function (Blueprint $table) {
             $table->id();
