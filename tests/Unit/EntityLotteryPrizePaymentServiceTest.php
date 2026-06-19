@@ -116,4 +116,35 @@ class EntityLotteryPrizePaymentServiceTest extends TestCase
         $this->assertFalse($result['cobrable']);
         $this->assertSame('not_activated', $result['block_reason']);
     }
+
+    public function test_online_entity_payer_allowed_without_partilot_gates(): void
+    {
+        $setting = new EntityLotteryPrizeSetting([
+            'prize_payment_mode' => EntityLotteryPrizeSetting::MODE_ONLINE,
+            'online_payer' => EntityLotteryPrizeSetting::PAYER_ENTITY,
+            'online_payments_enabled' => true,
+            'funds_status' => EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED,
+            'contract_status' => EntityLotteryPrizeSetting::CONTRACT_NOT_REQUIRED,
+            'unlocked_user_message' => EntityLotteryPrizeSetting::DEFAULT_UNLOCKED_MESSAGE,
+        ]);
+
+        $participation = Mockery::mock(Participation::class)->makePartial();
+        $participation->id = 4;
+        $participation->entity_id = 40;
+        $participation->collected_at = null;
+        $participation->donated_at = null;
+        $participation->status = 'vendida';
+        $participation->participation_code = '2D/PHYS';
+
+        $service = Mockery::mock(EntityLotteryPrizePaymentService::class)->makePartial();
+        $service->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('resolveLotteryId')->andReturn(5);
+        $service->shouldReceive('getSettings')->with(40, 5)->andReturn($setting);
+        $service->shouldReceive('isCollectedOrReservedOnline')->andReturn(false);
+
+        $result = $service->evaluateOnlineCollection($participation, 50.0);
+
+        $this->assertTrue($result['cobrable']);
+        $this->assertFalse($result['payment_blocked']);
+    }
 }

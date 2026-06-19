@@ -152,13 +152,17 @@ class PrizePaymentSuperAdminController extends Controller
 
         $data = $request->validate([
             'prize_payment_mode' => 'required|in:presencial,online',
+            'online_payer' => 'nullable|in:partilot,entity',
         ]);
 
         try {
             $this->prizePaymentService->changeModeBySuperAdmin(
                 $prizePayment,
                 $data['prize_payment_mode'],
-                (int) auth()->id()
+                (int) auth()->id(),
+                ($data['prize_payment_mode'] ?? '') === 'online'
+                    ? ($data['online_payer'] ?? EntityLotteryPrizeSetting::PAYER_PARTILOT)
+                    : null
             );
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());

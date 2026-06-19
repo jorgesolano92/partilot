@@ -1565,6 +1565,11 @@ class ParticipationController extends Controller
             'snapshot_path' => $snapshotPath,
             'is_digital' => $isDigital,
             'esDigital' => $isDigital,
+            'wallet_mode' => $participation->wallet_mode ?? ($participation->buyerNameIsWalletUserId() ? Participation::WALLET_MODE_DIGITAL : null),
+            'is_storage' => $participation->isWalletStorage(),
+            'storage_message' => $participation->isWalletStorage()
+                ? \App\Services\LotteryDigitalizationService::STORAGE_WALLET_MESSAGE
+                : null,
             'setLabel' => $this->setHistorialLabel($set),
             'set_number' => $set->set_number ?? null,
         ];
@@ -1699,6 +1704,9 @@ class ParticipationController extends Controller
             ->get();
 
         foreach ($participations as $p) {
+            if ($p->isWalletStorage()) {
+                continue;
+            }
             if ($p->relationLoaded('gift') && $p->gift && in_array($p->gift->status, [ParticipationGift::STATUS_PENDING, ParticipationGift::STATUS_ACCEPTED], true)) {
                 continue; // regalada pendiente o aceptada por el destinatario
             }
@@ -1736,6 +1744,9 @@ class ParticipationController extends Controller
                 continue;
             }
             if ($p->collected_at || $p->donated_at) {
+                continue;
+            }
+            if ($p->isWalletStorage()) {
                 continue;
             }
             if (app(ParticipationWalletValidityService::class)->isParticipationWalletExpired($p)) {
@@ -1801,6 +1812,12 @@ class ParticipationController extends Controller
         foreach ($participations as $p) {
             if ($walletValidity->isParticipationWalletExpired($p)) {
                 return $this->walletExpiredJsonResponse();
+            }
+            if ($p->isWalletStorage()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Las participaciones en almacén no se pueden cobrar online.',
+                ], 422);
             }
         }
 
@@ -1929,6 +1946,12 @@ class ParticipationController extends Controller
         foreach ($participations as $p) {
             if ($walletValidity->isParticipationWalletExpired($p)) {
                 return $this->walletExpiredJsonResponse();
+            }
+            if ($p->isWalletStorage()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Las participaciones en almacén no se pueden donar.',
+                ], 422);
             }
         }
 
@@ -2515,6 +2538,9 @@ class ParticipationController extends Controller
             ], 422);
         }
         $currentBuyer = $participation->buyer_name;
+        $lottery = $participation->set?->reserve?->lottery;
+        $digitalizationService = app(\App\Services\LotteryDigitalizationService::class);
+        $walletOptions = $digitalizationService->walletRegistrationOptions($participation, $lottery);
         if ($currentBuyer !== null && $currentBuyer !== '') {
             if ($currentBuyer === $userId) {
                 return response()->json([
@@ -2522,6 +2548,9 @@ class ParticipationController extends Controller
                     'status' => 'already_mine',
                     'message' => 'Ya la posees en tu cartera.',
                     'participation' => $this->formatParticipationForWallet($participation, $request->referencia),
+                    'wallet_options' => $walletOptions,
+                    'digitalization_notice' => \App\Services\LotteryDigitalizationService::IRREVERSIBLE_NOTICE,
+                    'storage_notice' => \App\Services\LotteryDigitalizationService::STORAGE_NOTICE,
                 ]);
             }
             return response()->json([
@@ -2530,10 +2559,27 @@ class ParticipationController extends Controller
                 'message' => 'La participación no se puede vincular porque ya se encuentra leída por otro usuario.',
             ], 422);
         }
+        if (! $walletOptions['can_digitalize'] && ! $walletOptions['can_store_in_warehouse']) {
+            $message = $walletOptions['notice']
+                ?? 'Esta participación no se puede registrar en la app.';
+            if (! $digitalizationService->isPhysicalParticipation($participation)) {
+                $message = 'Las participaciones digitales nativas no se digitalizan desde este flujo.';
+            }
+
+            return response()->json([
+                'success' => false,
+                'status' => 'not_linkable',
+                'message' => $message,
+                'wallet_options' => $walletOptions,
+            ], 422);
+        }
         return response()->json([
             'success' => true,
             'status' => 'can_link',
             'participation' => $this->formatParticipationForWallet($participation, $request->referencia),
+            'wallet_options' => $walletOptions,
+            'digitalization_notice' => \App\Services\LotteryDigitalizationService::IRREVERSIBLE_NOTICE,
+            'storage_notice' => \App\Services\LotteryDigitalizationService::STORAGE_NOTICE,
         ]);
     }
 
@@ -2581,7 +2627,24 @@ class ParticipationController extends Controller
                 'message' => 'La participación no se puede vincular porque ya se encuentra leída por otro usuario.',
             ], 422);
         }
+
+        $participation->load('set.reserve.lottery');
+        $lottery = $participation->set?->reserve?->lottery;
+        $digitalizationService = app(\App\Services\LotteryDigitalizationService::class);
+
+        try {
+            if ($lottery) {
+                $digitalizationService->assertCanRegisterInWallet($lottery);
+            }
+            if (! $digitalizationService->isPhysicalParticipation($participation)) {
+                throw new \InvalidArgumentException('Solo se pueden digitalizar participaciones físicas.');
+            }
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
         \App\Services\ParticipationOwnerService::assignOwner($participation, $user);
+        $participation->wallet_mode = Participation::WALLET_MODE_DIGITAL;
         $participation->save();
 
         try {
@@ -2598,6 +2661,80 @@ class ParticipationController extends Controller
             'success' => true,
             'message' => 'Participación añadida a tu cartera.',
             'participation' => $this->formatParticipationForWallet($participation->load(['set.reserve.lottery', 'set.entity', 'set.designFormats']), $request->referencia),
+        ]);
+    }
+
+    /**
+     * API: Guardar participación física en almacén (solo consulta, sin digitalizar).
+     */
+    public function apiStoreInWarehouse(Request $request)
+    {
+        $request->validate(['referencia' => 'required|string']);
+        $user = $request->user();
+        if (! $user->isClient() && ! $user->isSeller()) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+        $userId = (string) $user->id;
+        $found = $this->findSetAndParticipationNumberByReference($request->referencia);
+        if (! $found) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encuentra la participación.',
+            ], 404);
+        }
+        $participation = Participation::where('set_id', $found['set']->id)
+            ->where('participation_number', $found['participation_number'])
+            ->first();
+        if (! $participation) {
+            return response()->json(['success' => false, 'message' => 'No se encuentra la participación.'], 404);
+        }
+        if (! in_array($participation->status, ['disponible', 'asignada', 'vendida'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta participación no se puede guardar en almacén.',
+            ], 422);
+        }
+        if ($participation->buyer_name !== null && $participation->buyer_name !== '') {
+            if ($participation->buyer_name === $userId) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Ya la tienes en tu almacén.',
+                    'participation' => $this->formatParticipationForWallet($participation->load('set'), $request->referencia),
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'La participación ya está registrada por otro usuario.',
+            ], 422);
+        }
+
+        $participation->load('set.reserve.lottery');
+        $lottery = $participation->set?->reserve?->lottery;
+        $digitalizationService = app(\App\Services\LotteryDigitalizationService::class);
+
+        try {
+            if ($lottery) {
+                $digitalizationService->assertCanRegisterInWallet($lottery);
+            }
+            if (! $digitalizationService->isPhysicalParticipation($participation)) {
+                throw new \InvalidArgumentException('Solo se pueden guardar participaciones físicas en almacén.');
+            }
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        \App\Services\ParticipationOwnerService::assignOwner($participation, $user);
+        $participation->wallet_mode = Participation::WALLET_MODE_STORAGE;
+        $participation->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Participación guardada en almacén.',
+            'participation' => $this->formatParticipationForWallet(
+                $participation->load(['set.reserve.lottery', 'set.entity', 'set.designFormats']),
+                $request->referencia
+            ),
         ]);
     }
 
@@ -2672,6 +2809,9 @@ class ParticipationController extends Controller
         }
         if ($participation->donated_at) {
             return response()->json(['success' => false, 'message' => 'No se puede regalar una participación ya donada.'], 422);
+        }
+        if ($participation->isWalletStorage()) {
+            return response()->json(['success' => false, 'message' => 'Las participaciones en almacén no se pueden regalar.'], 422);
         }
         if (app(ParticipationWalletValidityService::class)->isParticipationWalletExpired($participation)) {
             return $this->walletExpiredJsonResponse();
@@ -3057,6 +3197,27 @@ class ParticipationController extends Controller
         Participation $participation,
         ?float $prizeAmount
     ): array {
+        if ($participation->isWalletStorage()) {
+            $item['cobrable'] = false;
+            $item['payment_blocked'] = false;
+            $item['block_reason'] = 'storage';
+            $item['user_message'] = null;
+            $item['storage_message'] = \App\Services\LotteryDigitalizationService::STORAGE_WALLET_MESSAGE;
+            if ($prizeAmount !== null && $prizeAmount > 0) {
+                $item['presencial_orientative_prize'] = $prizeAmount;
+                $entityId = (int) ($participation->entity_id ?? $participation->set?->entity_id ?? 0);
+                $lotteryId = (int) ($participation->set?->reserve?->lottery_id ?? 0);
+                if ($entityId && $lotteryId) {
+                    $setting = $this->prizePaymentService()->getSettings($entityId, $lotteryId);
+                    if ($setting && $setting->isModePresencial()) {
+                        $item['presencial_contact'] = $this->prizePaymentService()->presencialContactPayload($setting);
+                    }
+                }
+            }
+
+            return $item;
+        }
+
         if ($prizeAmount === null || $prizeAmount <= 0) {
             $item['cobrable'] = false;
             $item['payment_blocked'] = false;

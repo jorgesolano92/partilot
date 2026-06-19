@@ -106,6 +106,24 @@ class ApiController extends Controller
             }
         });
 
+        if (Schema::hasTable('entity_lottery_prize_settings') && ! Schema::hasColumn('entity_lottery_prize_settings', 'online_payer')) {
+            Schema::table('entity_lottery_prize_settings', function (Blueprint $table) {
+                $table->string('online_payer', 20)->nullable()->after('prize_payment_mode');
+            });
+        }
+
+        if (Schema::hasTable('participations') && ! Schema::hasColumn('participations', 'wallet_mode')) {
+            Schema::table('participations', function (Blueprint $table) {
+                $table->string('wallet_mode', 20)->nullable()->after('buyer_name');
+            });
+        }
+
+        if (Schema::hasTable('lotteries') && ! Schema::hasColumn('lotteries', 'digitalization_closed_at')) {
+            Schema::table('lotteries', function (Blueprint $table) {
+                $table->timestamp('digitalization_closed_at')->nullable()->after('deadline_date');
+            });
+        }
+
         Schema::create('billing_direct_debit_orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('administration_id')->constrained('administrations')->cascadeOnDelete();

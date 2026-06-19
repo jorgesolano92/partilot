@@ -20,10 +20,19 @@ class EntityLotteryPrizePaymentService
         int $entityId,
         int $lotteryId,
         string $mode,
-        int $userId
+        int $userId,
+        ?string $onlinePayer = null
     ): EntityLotteryPrizeSetting {
         if (! in_array($mode, [EntityLotteryPrizeSetting::MODE_PRESENCIAL, EntityLotteryPrizeSetting::MODE_ONLINE], true)) {
             throw new \InvalidArgumentException('Modalidad de pago de premios no válida.');
+        }
+
+        $resolvedPayer = $mode === EntityLotteryPrizeSetting::MODE_ONLINE
+            ? ($onlinePayer ?? EntityLotteryPrizeSetting::PAYER_PARTILOT)
+            : null;
+
+        if ($resolvedPayer !== null && ! in_array($resolvedPayer, [EntityLotteryPrizeSetting::PAYER_PARTILOT, EntityLotteryPrizeSetting::PAYER_ENTITY], true)) {
+            throw new \InvalidArgumentException('Pagador online no válido.');
         }
 
         $entity = Entity::query()->findOrFail($entityId);
@@ -34,7 +43,9 @@ class EntityLotteryPrizePaymentService
         $onlineEnabled = false;
         $presencialEnabled = false;
 
-        if ($mode === EntityLotteryPrizeSetting::MODE_ONLINE) {
+        if ($mode === EntityLotteryPrizeSetting::MODE_ONLINE && $resolvedPayer === EntityLotteryPrizeSetting::PAYER_ENTITY) {
+            // Legacy: la entidad paga online desde su panel; sin bloqueo PARTILOT.
+        } elseif ($mode === EntityLotteryPrizeSetting::MODE_ONLINE) {
             $fundsStatus = EntityLotteryPrizeSetting::FUNDS_PENDING;
             $contractStatus = EntityLotteryPrizeSetting::CONTRACT_PENDING;
         } elseif ($hasSoldDigital) {
@@ -51,6 +62,7 @@ class EntityLotteryPrizePaymentService
             ],
             array_merge($defaults, [
                 'prize_payment_mode' => $mode,
+                'online_payer' => $resolvedPayer,
                 'mode_locked_at' => now(),
                 'mode_locked_by_user_id' => $userId,
                 'has_sold_digital_participations' => $hasSoldDigital,
@@ -65,6 +77,7 @@ class EntityLotteryPrizePaymentService
 
         $this->log($setting, 'mode_selected', [
             'mode' => $mode,
+            'online_payer' => $resolvedPayer,
             'has_sold_digital_participations' => $hasSoldDigital,
         ], $userId);
 
@@ -84,6 +97,8 @@ class EntityLotteryPrizePaymentService
         foreach ($settings as $setting) {
             $this->syncSettingAfterScrutiny($setting, $scrutiny);
         }
+
+        \App\Jobs\NotifyWalletStorageAfterScrutinyJob::dispatch($scrutiny->id);
     }
 
     public function getSettings(int $entityId, int $lotteryId): ?EntityLotteryPrizeSetting
@@ -121,6 +136,19 @@ class EntityLotteryPrizePaymentService
             }
 
             return $this->blocked('mode_presencial', $this->presencialContactMessage($setting), $prizeAmount);
+        }
+
+        if ($setting->isOnlinePayerEntity()) {
+            if (! $setting->online_payments_enabled) {
+                return $this->blocked('awaiting_scrutiny', $setting->blocked_user_message, $prizeAmount);
+            }
+
+            return [
+                'cobrable' => true,
+                'payment_blocked' => false,
+                'block_reason' => null,
+                'user_message' => $this->formatUserMessage($setting->unlocked_user_message, $prizeAmount),
+            ];
         }
 
         if (! $setting->online_payments_enabled) {
@@ -322,6 +350,10 @@ class EntityLotteryPrizePaymentService
         }
 
         if ($setting->isModeOnline()) {
+            if ($setting->isOnlinePayerEntity()) {
+                return $setting->online_payments_enabled;
+            }
+
             return $setting->online_payments_enabled
                 && $setting->fundsAreConfirmed()
                 && $setting->contractIsSatisfied();
@@ -366,10 +398,14 @@ class EntityLotteryPrizePaymentService
 
             if (! $this->entityCanFundOnlinePayout($entityId, $lotteryId)) {
                 $entityName = $participation->entity?->name ?? 'Entidad';
+                $setting = $this->getSettings($entityId, $lotteryId);
+                $message = $setting && $setting->isOnlinePayerEntity()
+                    ? "«{$entityName}» aún no tiene habilitado el cobro online para este sorteo."
+                    : "«{$entityName}» no tiene fondos confirmados y cobro online activo para este sorteo.";
 
                 return [
                     'allowed' => false,
-                    'message' => "«{$entityName}» no tiene fondos confirmados y cobro online activo para este sorteo.",
+                    'message' => $message,
                 ];
             }
 
@@ -439,6 +475,10 @@ class EntityLotteryPrizePaymentService
     ): EntityLotteryPrizeSetting {
         if (! $setting->isModeOnline()) {
             throw new \InvalidArgumentException('La modalidad configurada no es pago online.');
+        }
+
+        if ($setting->isOnlinePayerEntity()) {
+            throw new \InvalidArgumentException('El cobro online lo gestiona la entidad; no requiere activación PARTILOT.');
         }
 
         if ($setting->funds_status === EntityLotteryPrizeSetting::FUNDS_PENDING) {
@@ -578,11 +618,16 @@ class EntityLotteryPrizePaymentService
     public function changeModeBySuperAdmin(
         EntityLotteryPrizeSetting $setting,
         string $mode,
-        int $userId
+        int $userId,
+        ?string $onlinePayer = null
     ): EntityLotteryPrizeSetting {
         if (! in_array($mode, [EntityLotteryPrizeSetting::MODE_PRESENCIAL, EntityLotteryPrizeSetting::MODE_ONLINE], true)) {
             throw new \InvalidArgumentException('Modalidad no válida.');
         }
+
+        $resolvedPayer = $mode === EntityLotteryPrizeSetting::MODE_ONLINE
+            ? ($onlinePayer ?? EntityLotteryPrizeSetting::PAYER_PARTILOT)
+            : null;
 
         $previous = $setting->prize_payment_mode;
         $hasDigital = $setting->has_sold_digital_participations;
@@ -590,7 +635,9 @@ class EntityLotteryPrizePaymentService
         $fundsStatus = EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
         $contractStatus = EntityLotteryPrizeSetting::CONTRACT_NOT_REQUIRED;
 
-        if ($mode === EntityLotteryPrizeSetting::MODE_ONLINE) {
+        if ($mode === EntityLotteryPrizeSetting::MODE_ONLINE && $resolvedPayer === EntityLotteryPrizeSetting::PAYER_ENTITY) {
+            // Sin requisitos PARTILOT.
+        } elseif ($mode === EntityLotteryPrizeSetting::MODE_ONLINE) {
             $fundsStatus = EntityLotteryPrizeSetting::FUNDS_PENDING;
             $contractStatus = EntityLotteryPrizeSetting::CONTRACT_PENDING;
         } elseif ($hasDigital) {
@@ -600,6 +647,7 @@ class EntityLotteryPrizePaymentService
 
         $setting->update([
             'prize_payment_mode' => $mode,
+            'online_payer' => $resolvedPayer,
             'funds_status' => $fundsStatus,
             'contract_status' => $contractStatus,
             'online_payments_enabled' => false,
@@ -611,6 +659,7 @@ class EntityLotteryPrizePaymentService
         $this->log($setting, 'mode_changed_by_superadmin', [
             'from' => $previous,
             'to' => $mode,
+            'online_payer' => $resolvedPayer,
         ], $userId);
 
         return $setting->fresh();
@@ -757,14 +806,20 @@ class EntityLotteryPrizePaymentService
     protected function syncSettingAfterScrutiny(EntityLotteryPrizeSetting $setting, AdministrationLotteryScrutiny $scrutiny): void
     {
         $fundsRequired = $this->calculateFundsRequiredAmount($setting, $scrutiny);
+        $wasOnlineEnabled = $setting->online_payments_enabled;
         $onlineEnabled = false;
         $presencialEnabled = false;
         $fundsStatus = $setting->funds_status;
 
         if ($setting->isModeOnline()) {
-            $fundsStatus = $fundsRequired > 0
-                ? EntityLotteryPrizeSetting::FUNDS_PENDING
-                : EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+            if ($setting->isOnlinePayerEntity()) {
+                $fundsStatus = EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+                $onlineEnabled = true;
+            } else {
+                $fundsStatus = $fundsRequired > 0
+                    ? EntityLotteryPrizeSetting::FUNDS_PENDING
+                    : EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+            }
         } elseif ($setting->isModePresencial()) {
             if ($setting->has_sold_digital_participations) {
                 $fundsStatus = $fundsRequired > 0
@@ -783,9 +838,14 @@ class EntityLotteryPrizePaymentService
             'presencial_payments_enabled' => $presencialEnabled,
         ]);
 
+        if ($setting->isOnlinePayerEntity() && $onlineEnabled && ! $wasOnlineEnabled) {
+            $this->notifyUsersPrizePaymentsUnlocked($setting->fresh(), 'online');
+        }
+
         $this->log($setting, 'sync_after_scrutiny', [
             'funds_required_amount' => $fundsRequired,
             'funds_status' => $fundsStatus,
+            'online_payments_enabled' => $onlineEnabled,
             'presencial_payments_enabled' => $presencialEnabled,
         ]);
     }
@@ -799,6 +859,10 @@ class EntityLotteryPrizePaymentService
             ->where('entity_id', $setting->entity_id);
 
         if ($setting->isModeOnline()) {
+            if ($setting->isOnlinePayerEntity()) {
+                return 0.0;
+            }
+
             return (float) $query->sum('premio_total');
         }
 

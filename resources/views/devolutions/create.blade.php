@@ -1277,22 +1277,31 @@
                 <p class="text-muted">Selecciona c?mo se gestionar?n los premios de las participaciones vendidas tras el escrutinio. Esta elecci?n no podr? modificarse por la entidad una vez confirmada la devoluci?n.</p>
 
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-presencial" value="presencial">
-                                <span class="form-check-label fw-semibold">Opci?n A ? Pago presencial</span>
+                                <span class="form-check-label fw-semibold">Opción A — Pago presencial</span>
                             </div>
                             <small class="text-muted d-block mt-2">La entidad paga en sus instalaciones (app gestor). Sin ingreso en PARTILOT salvo participaciones digitales vendidas.</small>
                         </label>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online" value="online">
-                                <span class="form-check-label fw-semibold">Opci?n B ? Pago online</span>
+                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online" value="online" data-online-payer="partilot">
+                                <span class="form-check-label fw-semibold">Opción B — Pago online (PARTILOT)</span>
                             </div>
-                            <small class="text-muted d-block mt-2">PARTILOT gestiona la remesa. Requiere ingreso del 100% del importe premiado y activaci?n por superadministrador.</small>
+                            <small class="text-muted d-block mt-2">PARTILOT gestiona la remesa. Requiere ingreso del 100% del importe premiado, contrato y activación por superadministrador.</small>
+                        </label>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online-entity" value="online" data-online-payer="entity">
+                                <span class="form-check-label fw-semibold">Opción C — Pago online (entidad)</span>
+                            </div>
+                            <small class="text-muted d-block mt-2">La entidad gestiona sus remesas desde su panel. Los usuarios cobran online tras el escrutinio, sin bloqueo PARTILOT.</small>
                         </label>
                     </div>
                 </div>
@@ -3101,6 +3110,11 @@ $(document).ready(function() {
             return;
         }
         pendingLiquidacionData.prize_payment_mode = modo;
+        const $checked = $('input[name="prize_payment_mode"]:checked');
+        const onlinePayer = $checked.data('online-payer');
+        if (modo === 'online' && onlinePayer) {
+            pendingLiquidacionData.online_payer = onlinePayer;
+        }
         const modalEl = document.getElementById('modal-modalidad-pago-premios');
         if (modalEl && window.bootstrap) {
             bootstrap.Modal.getOrCreateInstance(modalEl).hide();

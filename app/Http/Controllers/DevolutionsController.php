@@ -12,6 +12,7 @@ use App\Models\Set;
 use App\Models\Devolution;
 use App\Models\DevolutionDetail;
 use App\Models\DevolutionPayment;
+use App\Models\EntityLotteryPrizeSetting;
 use App\Mail\DevolutionReturnedToAdministrationMail;
 use App\Mail\DevolutionReturnedToEntityManagerMail;
 use App\Jobs\ProcessDevolutionDeleteTask;
@@ -426,6 +427,7 @@ class DevolutionsController extends Controller
                 'liquidacion.special_prize' => 'nullable|array',
                 'liquidacion.special_prize.assignments' => 'nullable|array',
                 'prize_payment_mode' => 'nullable|in:presencial,online',
+                'online_payer' => 'nullable|in:partilot,entity',
             ]);
 
             $soloDevolucion = !empty($data['solo_devolucion']);
@@ -1002,11 +1004,16 @@ class DevolutionsController extends Controller
             }
 
             if ($requiresPrizePaymentMode && ! empty($data['prize_payment_mode'])) {
+                $onlinePayer = ($data['prize_payment_mode'] ?? '') === 'online'
+                    ? ($data['online_payer'] ?? EntityLotteryPrizeSetting::PAYER_PARTILOT)
+                    : null;
+
                 app(EntityLotteryPrizePaymentService::class)->lockModeFromDevolution(
                     (int) $data['entity_id'],
                     (int) $data['lottery_id'],
                     (string) $data['prize_payment_mode'],
-                    (int) $userId
+                    (int) $userId,
+                    $onlinePayer
                 );
             }
 

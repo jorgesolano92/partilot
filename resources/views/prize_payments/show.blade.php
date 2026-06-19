@@ -112,12 +112,21 @@
                         @method('PUT')
                         <label class="form-label">Cambiar modalidad</label>
                         <div class="input-group">
-                            <select name="prize_payment_mode" class="form-select">
-                                <option value="online" @selected($setting->prize_payment_mode === 'online')>Online (PARTILOT)</option>
+                            <select name="prize_payment_mode" class="form-select" id="prize-mode-select">
+                                <option value="online" data-online-payer="partilot" @selected($setting->prize_payment_mode === 'online' && $setting->isOnlinePayerPartilot())>Online (PARTILOT)</option>
+                                <option value="online" data-online-payer="entity" @selected($setting->prize_payment_mode === 'online' && $setting->isOnlinePayerEntity())>Online (entidad)</option>
                                 <option value="presencial" @selected($setting->prize_payment_mode === 'presencial')>Presencial</option>
                             </select>
+                            <input type="hidden" name="online_payer" id="prize-online-payer" value="{{ $setting->online_payer ?? 'partilot' }}">
                             <button type="submit" class="btn btn-outline-danger" onclick="return confirm('¿Cambiar modalidad? Se desactivarán los cobros hasta reactivarlos.');">Aplicar</button>
                         </div>
+                        <script>
+                            document.getElementById('prize-mode-select')?.addEventListener('change', function () {
+                                const opt = this.options[this.selectedIndex];
+                                const payer = opt.getAttribute('data-online-payer');
+                                document.getElementById('prize-online-payer').value = payer || 'partilot';
+                            });
+                        </script>
                     </form>
                     <form method="POST" action="{{ route('prize-payments.block-payments', $setting->id) }}" onsubmit="return confirm('¿Bloquear todos los cobros para esta entidad y sorteo?');">
                         @csrf
@@ -126,7 +135,7 @@
                 </div>
             </div>
 
-            @if($setting->isModeOnline() && ! $setting->online_payments_enabled)
+            @if($setting->isModeOnline() && $setting->isOnlinePayerPartilot() && ! $setting->online_payments_enabled)
                 <div class="card mb-3 border-warning">
                     <div class="card-body">
                         <h5 class="card-title">Activar cobro online</h5>

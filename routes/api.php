@@ -368,6 +368,7 @@ Route::middleware('auth.api')->group(function () {
         Route::get('/participations/check', [ParticipationController::class, 'apiCheckByReference']);
         // Vincular participación a la cartera (guardar user id en buyer_name)
         Route::post('/participations/link', [ParticipationController::class, 'apiLinkToWallet']);
+        Route::post('/participations/store-warehouse', [ParticipationController::class, 'apiStoreInWarehouse']);
         // Vincular venta digital pendiente por código (email erróneo o registro tardío)
         Route::post('/digital-pending/claim', [ParticipationController::class, 'apiClaimPendingDigitalByCode']);
         // Regalar participación a otro usuario (por email)

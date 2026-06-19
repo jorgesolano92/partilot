@@ -12,6 +12,10 @@ class EntityLotteryPrizeSetting extends Model
 
     public const MODE_ONLINE = 'online';
 
+    public const PAYER_PARTILOT = 'partilot';
+
+    public const PAYER_ENTITY = 'entity';
+
     public const FUNDS_NOT_REQUIRED = 'not_required';
 
     public const FUNDS_PENDING = 'pending';
@@ -35,6 +39,7 @@ class EntityLotteryPrizeSetting extends Model
         'entity_id',
         'lottery_id',
         'prize_payment_mode',
+        'online_payer',
         'mode_locked_at',
         'mode_locked_by_user_id',
         'has_sold_digital_participations',
@@ -110,6 +115,17 @@ class EntityLotteryPrizeSetting extends Model
         return $this->prize_payment_mode === self::MODE_ONLINE;
     }
 
+    public function isOnlinePayerPartilot(): bool
+    {
+        return $this->isModeOnline()
+            && ($this->online_payer === null || $this->online_payer === self::PAYER_PARTILOT);
+    }
+
+    public function isOnlinePayerEntity(): bool
+    {
+        return $this->isModeOnline() && $this->online_payer === self::PAYER_ENTITY;
+    }
+
     public function fundsAreConfirmed(): bool
     {
         return $this->funds_status === self::FUNDS_CONFIRMED
@@ -133,7 +149,9 @@ class EntityLotteryPrizeSetting extends Model
     public function modeLabel(): string
     {
         return match ($this->prize_payment_mode) {
-            self::MODE_ONLINE => 'Online (PARTILOT)',
+            self::MODE_ONLINE => $this->isOnlinePayerEntity()
+                ? 'Online (entidad)'
+                : 'Online (PARTILOT)',
             self::MODE_PRESENCIAL => 'Presencial',
             default => '—',
         };

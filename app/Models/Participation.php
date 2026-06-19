@@ -9,6 +9,10 @@ class Participation extends Model
 {
     use HasFactory;
 
+    public const WALLET_MODE_DIGITAL = 'digital';
+
+    public const WALLET_MODE_STORAGE = 'storage';
+
     protected $fillable = [
         'entity_id',
         'set_id',
@@ -23,6 +27,7 @@ class Participation extends Model
         'sale_amount',
         'payment_method',
         'buyer_name',
+        'wallet_mode',
         'buyer_phone',
         'buyer_email',
         'buyer_nif',
@@ -85,6 +90,17 @@ class Participation extends Model
         $key = trim((string) ($this->buyer_name ?? ''));
 
         return $key !== '' && ctype_digit($key);
+    }
+
+    public function isWalletStorage(): bool
+    {
+        return $this->wallet_mode === self::WALLET_MODE_STORAGE;
+    }
+
+    public function isWalletDigital(): bool
+    {
+        return $this->wallet_mode === self::WALLET_MODE_DIGITAL
+            || ($this->buyerNameIsWalletUserId() && $this->wallet_mode === null);
     }
 
     public function returnedBy()

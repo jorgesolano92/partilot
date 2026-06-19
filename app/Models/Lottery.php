@@ -17,6 +17,7 @@ class Lottery extends Model
         'draw_date',
         'draw_time',
         'deadline_date',
+        'digitalization_closed_at',
         'ticket_price',
         'total_tickets',
         'sold_tickets',
@@ -32,6 +33,7 @@ class Lottery extends Model
     protected $casts = [
         'draw_date' => 'date',
         'deadline_date' => 'date',
+        'digitalization_closed_at' => 'datetime',
         'draw_time' => 'datetime',
         'ticket_price' => 'decimal:2',
         'prize_value' => 'decimal:2',
