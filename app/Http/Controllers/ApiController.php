@@ -199,51 +199,28 @@ class ApiController extends Controller
         //     $table->string('management_fee_payment_provider', 20)->nullable()->after('management_fee_stripe_payment_intent_id');
         // });
 
-        Schema::table('entities', function (Blueprint $table) {
-            $table->boolean('entity_pays_management_fee')->default(false)->after('billing_iban');
-            $table->boolean('entity_pays_print_fee')->default(false)->after('entity_pays_management_fee');
-        });
+        // Schema::table('entities', function (Blueprint $table) {
+        //     $table->boolean('entity_pays_management_fee')->default(false)->after('billing_iban');
+        //     $table->boolean('entity_pays_print_fee')->default(false)->after('entity_pays_management_fee');
+        // });
 
-        Schema::table('entities', function (Blueprint $table) {
-            $table->string('stripe_customer_id')->nullable()->after('entity_pays_print_fee');
-        });
+        // Schema::table('entities', function (Blueprint $table) {
+        //     $table->string('stripe_customer_id')->nullable()->after('entity_pays_print_fee');
+        // });
 
-        Schema::table('administrations', function (Blueprint $table) {
-            $table->string('stripe_customer_id')->nullable()->after('prepago_integration_enabled');
-        });
+        // Schema::table('administrations', function (Blueprint $table) {
+        //     $table->string('stripe_customer_id')->nullable()->after('prepago_integration_enabled');
+        // });
 
-        Schema::table('administrations', function (Blueprint $table) {
-            $table->string('billing_payment_mode', 20)->default('card')->after('stripe_customer_id');
-            $table->string('billing_remittance_frequency', 20)->nullable()->after('billing_payment_mode');
-        });
+        // Schema::table('administrations', function (Blueprint $table) {
+        //     $table->string('billing_payment_mode', 20)->default('card')->after('stripe_customer_id');
+        //     $table->string('billing_remittance_frequency', 20)->nullable()->after('billing_payment_mode');
+        // });
 
-        Schema::table('administrations', function (Blueprint $table) {
-            $table->string('billing_sepa_mandate_id', 35)->nullable()->after('billing_remittance_frequency');
-            $table->date('billing_sepa_mandate_signed_at')->nullable()->after('billing_sepa_mandate_id');
-        });
-
-        Schema::table('partilot_billing_settings', function (Blueprint $table) {
-            $table->string('sepa_creditor_id', 35)->nullable()->after('bank_account');
-        });
-
-        Schema::table('sets', function (Blueprint $table) {
-            $table->foreignId('management_fee_billing_charge_id')->nullable()->after('management_fee_payment_provider')->constrained('billing_charges')->nullOnDelete();
-        });
-
-        Schema::table('design_formats', function (Blueprint $table) {
-            $table->string('designer_type', 20)->nullable()->after('snapshot_path');
-            $table->string('approval_status', 30)->nullable()->after('designer_type');
-            $table->timestamp('submitted_for_approval_at')->nullable()->after('approval_status');
-            $table->timestamp('approval_decided_at')->nullable()->after('submitted_for_approval_at');
-            $table->foreignId('approved_by_user_id')->nullable()->after('approval_decided_at')->constrained('users')->nullOnDelete();
-            $table->text('approval_rejection_reason')->nullable()->after('approved_by_user_id');
-        });
-
-        Schema::table('partilot_billing_settings', function (Blueprint $table) {
-            $table->string('stripe_publishable_key')->nullable()->after('bank_account');
-            $table->text('stripe_secret_key')->nullable()->after('stripe_publishable_key');
-            $table->text('stripe_webhook_secret')->nullable()->after('stripe_secret_key');
-        });
+        // Schema::table('administrations', function (Blueprint $table) {
+        //     $table->string('billing_sepa_mandate_id', 35)->nullable()->after('billing_remittance_frequency');
+        //     $table->date('billing_sepa_mandate_signed_at')->nullable()->after('billing_sepa_mandate_id');
+        // });
 
         Schema::create('partilot_billing_settings', function (Blueprint $table) {
             $table->id();
@@ -264,6 +241,12 @@ class ApiController extends Controller
             $table->timestamps();
         });
 
+        Schema::table('partilot_billing_settings', function (Blueprint $table) {
+            $table->string('stripe_publishable_key')->nullable()->after('bank_account');
+            $table->text('stripe_secret_key')->nullable()->after('stripe_publishable_key');
+            $table->text('stripe_webhook_secret')->nullable()->after('stripe_secret_key');
+        });
+
         DB::table('partilot_billing_settings')->insert([
             'company_name' => 'El Búho Lotero',
             'nif_cif' => '16600600A',
@@ -282,6 +265,23 @@ class ApiController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        Schema::table('partilot_billing_settings', function (Blueprint $table) {
+            $table->string('sepa_creditor_id', 35)->nullable()->after('bank_account');
+        });
+
+        Schema::table('sets', function (Blueprint $table) {
+            $table->foreignId('management_fee_billing_charge_id')->nullable()->after('management_fee_payment_provider')->constrained('billing_charges')->nullOnDelete();
+        });
+
+        Schema::table('design_formats', function (Blueprint $table) {
+            $table->string('designer_type', 20)->nullable()->after('snapshot_path');
+            $table->string('approval_status', 30)->nullable()->after('designer_type');
+            $table->timestamp('submitted_for_approval_at')->nullable()->after('approval_status');
+            $table->timestamp('approval_decided_at')->nullable()->after('submitted_for_approval_at');
+            $table->foreignId('approved_by_user_id')->nullable()->after('approval_decided_at')->constrained('users')->nullOnDelete();
+            $table->text('approval_rejection_reason')->nullable()->after('approved_by_user_id');
+        });
 
         Schema::create('lottery_deadline_admin_decisions', function (Blueprint $table) {
             $table->id();
