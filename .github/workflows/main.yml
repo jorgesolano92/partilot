@@ -20,6 +20,7 @@ jobs:
           # ${{secrets.CLAVESSH}}
           script: |
             cd /var/www/vhosts/partilot.es/panel.partilot.es/
+            git fetch origin
             git checkout feat/entity-billing-switches
             git pull origin feat/entity-billing-switches --no-rebase
             composer install
