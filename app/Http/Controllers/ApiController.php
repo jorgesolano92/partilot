@@ -222,66 +222,66 @@ class ApiController extends Controller
         //     $table->date('billing_sepa_mandate_signed_at')->nullable()->after('billing_sepa_mandate_id');
         // });
 
-        Schema::create('partilot_billing_settings', function (Blueprint $table) {
-            $table->id();
-            $table->string('company_name')->nullable();
-            $table->string('nif_cif', 50)->nullable();
-            $table->string('address')->nullable();
-            $table->string('postal_code', 20)->nullable();
-            $table->string('province', 120)->nullable();
-            $table->string('city', 120)->nullable();
-            $table->string('phone', 50)->nullable();
-            $table->string('email')->nullable();
-            $table->decimal('fee_per_participation_1000', 8, 4)->default(0.05);
-            $table->decimal('fee_per_participation_5000', 8, 4)->default(0.04);
-            $table->decimal('fee_per_participation_10000', 8, 4)->default(0.03);
-            $table->decimal('fee_administration_per_participation', 8, 4)->default(0.03);
-            $table->decimal('payment_management_commission', 8, 4)->default(0.03);
-            $table->string('bank_account', 80)->nullable();
-            $table->timestamps();
-        });
+        // Schema::create('partilot_billing_settings', function (Blueprint $table) {
+        //     $table->id();
+        //     $table->string('company_name')->nullable();
+        //     $table->string('nif_cif', 50)->nullable();
+        //     $table->string('address')->nullable();
+        //     $table->string('postal_code', 20)->nullable();
+        //     $table->string('province', 120)->nullable();
+        //     $table->string('city', 120)->nullable();
+        //     $table->string('phone', 50)->nullable();
+        //     $table->string('email')->nullable();
+        //     $table->decimal('fee_per_participation_1000', 8, 4)->default(0.05);
+        //     $table->decimal('fee_per_participation_5000', 8, 4)->default(0.04);
+        //     $table->decimal('fee_per_participation_10000', 8, 4)->default(0.03);
+        //     $table->decimal('fee_administration_per_participation', 8, 4)->default(0.03);
+        //     $table->decimal('payment_management_commission', 8, 4)->default(0.03);
+        //     $table->string('bank_account', 80)->nullable();
+        //     $table->timestamps();
+        // });
 
-        Schema::table('partilot_billing_settings', function (Blueprint $table) {
-            $table->string('stripe_publishable_key')->nullable()->after('bank_account');
-            $table->text('stripe_secret_key')->nullable()->after('stripe_publishable_key');
-            $table->text('stripe_webhook_secret')->nullable()->after('stripe_secret_key');
-        });
+        // Schema::table('partilot_billing_settings', function (Blueprint $table) {
+        //     $table->string('stripe_publishable_key')->nullable()->after('bank_account');
+        //     $table->text('stripe_secret_key')->nullable()->after('stripe_publishable_key');
+        //     $table->text('stripe_webhook_secret')->nullable()->after('stripe_secret_key');
+        // });
 
-        DB::table('partilot_billing_settings')->insert([
-            'company_name' => 'El Búho Lotero',
-            'nif_cif' => '16600600A',
-            'address' => 'Avd. Club Deportivo 28',
-            'postal_code' => '26007',
-            'province' => 'La Rioja',
-            'city' => 'Logroño',
-            'phone' => '941 900 900',
-            'email' => 'administracion@ejemplo.es',
-            'fee_per_participation_1000' => 0.05,
-            'fee_per_participation_5000' => 0.04,
-            'fee_per_participation_10000' => 0.03,
-            'fee_administration_per_participation' => 0.03,
-            'payment_management_commission' => 0.03,
-            'bank_account' => '1234 - 1234 - 1234 - 12 - 1234567890',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // DB::table('partilot_billing_settings')->insert([
+        //     'company_name' => 'El Búho Lotero',
+        //     'nif_cif' => '16600600A',
+        //     'address' => 'Avd. Club Deportivo 28',
+        //     'postal_code' => '26007',
+        //     'province' => 'La Rioja',
+        //     'city' => 'Logroño',
+        //     'phone' => '941 900 900',
+        //     'email' => 'administracion@ejemplo.es',
+        //     'fee_per_participation_1000' => 0.05,
+        //     'fee_per_participation_5000' => 0.04,
+        //     'fee_per_participation_10000' => 0.03,
+        //     'fee_administration_per_participation' => 0.03,
+        //     'payment_management_commission' => 0.03,
+        //     'bank_account' => '1234 - 1234 - 1234 - 12 - 1234567890',
+        //     'created_at' => now(),
+        //     'updated_at' => now(),
+        // ]);
 
-        Schema::table('partilot_billing_settings', function (Blueprint $table) {
-            $table->string('sepa_creditor_id', 35)->nullable()->after('bank_account');
-        });
+        // Schema::table('partilot_billing_settings', function (Blueprint $table) {
+        //     $table->string('sepa_creditor_id', 35)->nullable()->after('bank_account');
+        // });
 
-        Schema::table('sets', function (Blueprint $table) {
-            $table->foreignId('management_fee_billing_charge_id')->nullable()->after('management_fee_payment_provider')->constrained('billing_charges')->nullOnDelete();
-        });
+        // Schema::table('sets', function (Blueprint $table) {
+        //     $table->foreignId('management_fee_billing_charge_id')->nullable()->after('management_fee_payment_provider')->constrained('billing_charges')->nullOnDelete();
+        // });
 
-        Schema::table('design_formats', function (Blueprint $table) {
-            $table->string('designer_type', 20)->nullable()->after('snapshot_path');
-            $table->string('approval_status', 30)->nullable()->after('designer_type');
-            $table->timestamp('submitted_for_approval_at')->nullable()->after('approval_status');
-            $table->timestamp('approval_decided_at')->nullable()->after('submitted_for_approval_at');
-            $table->foreignId('approved_by_user_id')->nullable()->after('approval_decided_at')->constrained('users')->nullOnDelete();
-            $table->text('approval_rejection_reason')->nullable()->after('approved_by_user_id');
-        });
+        // Schema::table('design_formats', function (Blueprint $table) {
+        //     $table->string('designer_type', 20)->nullable()->after('snapshot_path');
+        //     $table->string('approval_status', 30)->nullable()->after('designer_type');
+        //     $table->timestamp('submitted_for_approval_at')->nullable()->after('approval_status');
+        //     $table->timestamp('approval_decided_at')->nullable()->after('submitted_for_approval_at');
+        //     $table->foreignId('approved_by_user_id')->nullable()->after('approval_decided_at')->constrained('users')->nullOnDelete();
+        //     $table->text('approval_rejection_reason')->nullable()->after('approved_by_user_id');
+        // });
 
         Schema::create('lottery_deadline_admin_decisions', function (Blueprint $table) {
             $table->id();

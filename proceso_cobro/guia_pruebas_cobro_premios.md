@@ -360,4 +360,54 @@ Comentarios finales:
 
 ---
 
+## J. Automatización (terminal)
+
+Puedes ejecutar gran parte de esta guía **sin abrir la web**, usando los scripts incluidos en el proyecto.
+
+### Comando Artisan (recomendado en local/staging)
+
+Crea datos temporales (`QA_PRIZE_*`), ejecuta checks de las secciones A, B, D y Anexo, y los elimina al terminar:
+
+```powershell
+cd H:\xampp3\htdocs\sipart
+php artisan qa:prize-payments --bootstrap --with-phpunit
+```
+
+Genera informe en `proceso_cobro/resultados_qa_cobro_premios.md` (ruta personalizable con `--report=ruta.md`).
+
+Con datos ya preparados en el entorno (sección A manual):
+
+```powershell
+php artisan qa:prize-payments --entity=ID_ENTIDAD --lottery=ID_SORTEO --user=ID_USUARIO_CARTERA
+```
+
+Salida esperada: líneas `[OK]` / `[FAIL]` por check. Exit code `0` = todo OK, `1` = hay fallos.
+
+**Requisitos:** MySQL en marcha (XAMPP), migraciones aplicadas, `APP_URL` coherente con el entorno.
+
+### PHPUnit (CI / regresión)
+
+```powershell
+php artisan test --testsuite=PrizePayment
+```
+
+Incluye tests unitarios del servicio de gates y tests Feature de API cartera.
+
+**Nota:** SQLite no es compatible con todas las migraciones del proyecto; los tests Feature usan la misma BD MySQL configurada en `.env`.
+
+### Qué cubren los scripts vs. qué sigue manual
+
+| Cubierto por scripts | Sigue siendo manual |
+|----------------------|---------------------|
+| Schema / migraciones (A) | Modales visuales web/app |
+| Gates API cartera (B.4) | Push/email en dispositivo |
+| lockMode / online entidad (B, anexo) | Flujos G.1–G.6 completos con email doble opt-in |
+| LOPD / nativa digital (D.3) | Panel superadmin UI (C.1) |
+| Almacén / digitalización (anexo) | SEPA con banco real (E.3) |
+| | Firma contrato email real (F.1) |
+
+Implementación: `app/Services/Qa/PrizePaymentQaRunner.php`, `app/Console/Commands/QaPrizePaymentsCommand.php`, `tests/Feature/PrizePayment/`.
+
+---
+
 *Documento vivo. Actualizar si se añaden escenarios o cambia el alcance funcional.*
