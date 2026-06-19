@@ -154,34 +154,39 @@ class ApiController extends Controller
         //     $table->index(['administration_id', 'status']);
         // });
 
-        Schema::create('billing_charges', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('administration_id')->nullable()->constrained('administrations')->nullOnDelete();
-            $table->foreignId('entity_id')->nullable()->constrained('entities')->nullOnDelete();
-            $table->foreignId('set_id')->nullable()->constrained('sets')->nullOnDelete();
-            $table->string('payer_type', 20);
-            $table->string('concept', 30);
-            $table->string('source_type', 30);
-            $table->unsignedBigInteger('source_id');
-            $table->decimal('amount', 10, 2);
-            $table->string('currency', 3)->default('EUR');
-            $table->string('description')->nullable();
-            $table->string('status', 20)->default('pending');
-            $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('collected_at')->nullable();
-            $table->timestamps();
+        // Schema::create('billing_charges', function (Blueprint $table) {
+        //     $table->id();
+        //     $table->foreignId('administration_id')->nullable()->constrained('administrations')->nullOnDelete();
+        //     $table->foreignId('entity_id')->nullable()->constrained('entities')->nullOnDelete();
+        //     $table->foreignId('set_id')->nullable()->constrained('sets')->nullOnDelete();
+        //     $table->string('payer_type', 20);
+        //     $table->string('concept', 30);
+        //     $table->string('source_type', 30);
+        //     $table->unsignedBigInteger('source_id');
+        //     $table->decimal('amount', 10, 2);
+        //     $table->string('currency', 3)->default('EUR');
+        //     $table->string('description')->nullable();
+        //     $table->string('status', 20)->default('pending');
+        //     $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+        //     $table->timestamp('collected_at')->nullable();
+        //     $table->timestamps();
 
-            $table->index(['administration_id', 'status']);
-            $table->index(['set_id', 'concept', 'status']);
-            $table->index(['source_type', 'source_id']);
-        });
+        //     $table->index(['administration_id', 'status']);
+        //     $table->index(['set_id', 'concept', 'status']);
+        //     $table->index(['source_type', 'source_id']);
+        // });
 
-        Schema::table('billing_charges', function (Blueprint $table) {
-            $table->foreignId('billing_direct_debit_order_id')->nullable()->after('collected_at')->constrained('billing_direct_debit_orders')->nullOnDelete();
-        });
+        // Schema::table('billing_charges', function (Blueprint $table) {
+        //     $table->foreignId('billing_direct_debit_order_id')->nullable()->after('collected_at')->constrained('billing_direct_debit_orders')->nullOnDelete();
+        // });
         
-        Schema::table('print_orders', function (Blueprint $table) {
-            $table->foreignId('billing_charge_id')->nullable()->after('paid_at')->constrained('billing_charges')->nullOnDelete();
+        // Schema::table('print_orders', function (Blueprint $table) {
+        //     $table->foreignId('billing_charge_id')->nullable()->after('paid_at')->constrained('billing_charges')->nullOnDelete();
+        // });
+
+        Schema::table('administrations', function (Blueprint $table) {
+            $table->string('billing_payment_mode', 20)->default('card')->after('stripe_customer_id');
+            $table->string('billing_remittance_frequency', 20)->nullable()->after('billing_payment_mode');
         });
 
         Schema::table('administrations', function (Blueprint $table) {
@@ -195,11 +200,6 @@ class ApiController extends Controller
 
         Schema::table('sets', function (Blueprint $table) {
             $table->foreignId('management_fee_billing_charge_id')->nullable()->after('management_fee_payment_provider')->constrained('billing_charges')->nullOnDelete();
-        });
-        
-        Schema::table('administrations', function (Blueprint $table) {
-            $table->string('billing_payment_mode', 20)->default('card')->after('stripe_customer_id');
-            $table->string('billing_remittance_frequency', 20)->nullable()->after('billing_payment_mode');
         });
 
         Schema::table('design_formats', function (Blueprint $table) {
