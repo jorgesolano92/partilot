@@ -1265,7 +1265,7 @@ class ParticipationController extends Controller
 
         $pendingHistorial = PendingDigitalSale::where('seller_id', $seller->id)
             ->pendingNotExpired()
-            ->with(['entity', 'lottery.lotteryType', 'set'])
+            ->with(['entity', 'lottery.lotteryType', 'set', 'participations.set'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get()
@@ -1273,18 +1273,23 @@ class ParticipationController extends Controller
                 $smsNotify = app(\App\Services\DigitalSaleSmsService::class);
                 $entity = $p->entity;
                 $lottery = $p->lottery;
-                if (! $lottery && $p->set) {
-                    $p->set->loadMissing('reserve.lottery.lotteryType');
-                    $lottery = $p->set->reserve?->lottery;
+                $set = $p->set;
+                if (! $set && $p->participations->isNotEmpty()) {
+                    $set = $p->participations->first()->set;
+                }
+                if (! $lottery && $set) {
+                    $set->loadMissing('reserve.lottery.lotteryType');
+                    $lottery = $set->reserve?->lottery;
                 }
                 $entidadNombre = $entity ? $entity->name : '—';
                 $fechaSorteo = $lottery && $lottery->draw_date
                     ? $lottery->draw_date->format('d/m/y')
                     : '—';
                 $qty = (int) $p->quantity;
-                $importeTotal = (float) $p->sale_amount;
-                $importeJugado = $qty > 0 ? round($importeTotal / $qty, 2) : $importeTotal;
-                $setLabel = $this->setHistorialLabel($p->set);
+                $importeJugado = (float) ($set->played_amount ?? 0);
+                $donativo = (float) ($set->donation_amount ?? 0);
+                $importeTotal = round(($importeJugado + $donativo) * max(1, $qty), 2);
+                $setLabel = $this->setHistorialLabel($set);
                 $sorteoLabel = $this->lotteryHistorialLabel($lottery);
 
                 return [
@@ -1313,6 +1318,7 @@ class ParticipationController extends Controller
                         'numero' => $qty . ' dig.',
                         'fechaSorteo' => $fechaSorteo,
                         'importeJugado' => $importeJugado,
+                        'donativo' => $donativo > 0 ? $donativo : null,
                         'importeTotal' => $importeTotal,
                         'clienteContactoEnmascarado' => $p->maskedBuyerContact(),
                         'notify_channel' => $p->notify_channel,
@@ -1320,7 +1326,7 @@ class ParticipationController extends Controller
                         'validUntil' => $p->valid_until?->format('d/m/Y'),
                         'esDigital' => true,
                         'setLabel' => $setLabel,
-                        'set_number' => $p->set?->set_number,
+                        'set_number' => $set?->set_number,
                         'buyer_registration_url' => $p->registrationUrlForShare(),
                     ],
                 ];
