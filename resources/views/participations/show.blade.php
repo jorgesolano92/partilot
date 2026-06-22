@@ -403,7 +403,7 @@
 			                    					
 			                    					<div class="col-4">
 			                    						<div class="form-group mt-2 mb-3">
-			                    							<label class="label-control">Nombre completo</label>
+			                    							<label class="label-control">Nombre</label>
 
 							                    			<div class="input-group input-group-merge group-form">
 
@@ -411,7 +411,7 @@
 							                                      	<img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
 
-                                            <input readonly="" value="{{ $participationSeller->full_name }}" class="form-control" type="text" placeholder="Nombre completo" style="border-radius: 0 30px 30px 0;">
+                                            <input readonly="" value="{{ $participationSeller->first_name }}" class="form-control" type="text" placeholder="Nombre completo" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
