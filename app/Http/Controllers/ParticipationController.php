@@ -711,6 +711,8 @@ class ParticipationController extends Controller
             'lottery_id' => 'nullable|integer|exists:lotteries,id',
             'quantity' => 'required|integer|min:1',
             'buyer_email' => 'nullable|email',
+            'buyer_phone' => 'nullable|string|max:20',
+            'notify_channel' => 'nullable|string|in:email,sms,whatsapp',
             'payment_method' => 'nullable|string|in:efectivo,bizum,transferencia,omitir,otro',
         ]);
 
@@ -725,6 +727,16 @@ class ParticipationController extends Controller
         }
 
         $buyerEmail = trim((string) $request->input('buyer_email', ''));
+        $buyerPhone = trim((string) $request->input('buyer_phone', ''));
+        $notifyChannel = $request->input('notify_channel');
+
+        if ($buyerEmail === '' && $buyerPhone === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes indicar el email o el teléfono del comprador.',
+            ], 422);
+        }
+
         if ($buyerEmail !== '' && User::where('email', $buyerEmail)->exists()) {
             return response()->json([
                 'success' => false,
@@ -742,20 +754,33 @@ class ParticipationController extends Controller
                 $request->set_id ? (int) $request->set_id : null,
                 $request->entity_id ? (int) $request->entity_id : null,
                 $request->lottery_id ? (int) $request->lottery_id : null,
+                $buyerPhone !== '' ? $buyerPhone : null,
+                $notifyChannel,
             );
 
-            $codeOnly = $buyerEmail === '';
+            $initialSmsSent = false;
+            try {
+                $initialSmsSent = $pendingService->sendInitialSmsIfNeeded($pending);
+                $pending->refresh();
+            } catch (\Throwable $e) {
+                \Log::warning('SMS inicial venta digital #'.$pending->id.': '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => $codeOnly
-                    ? 'Venta reservada. Envía el WhatsApp al comprador desde la pantalla de confirmación.'
-                    : 'Se ha enviado un correo al comprador para completar el registro.',
+                'message' => $pending->usesEmailChannel()
+                    ? 'Se ha enviado un correo al comprador para completar el registro.'
+                    : ($initialSmsSent
+                        ? 'Venta registrada y SMS enviado al comprador.'
+                        : 'Venta registrada. Envía el mensaje al comprador desde la pantalla de confirmación.'),
                 'pending_id' => $pending->id,
                 'buyer_registration_url' => $pending->registrationUrlForShare(),
                 'valid_until' => $pending->valid_until?->toIso8601String(),
                 'quantity' => $pending->quantity,
-                'code_only' => $codeOnly,
+                'notify_channel' => $pending->notify_channel,
+                'masked_buyer_contact' => $pending->maskedBuyerContact(),
+                'initial_notify_sent' => $pending->usesEmailChannel() || $initialSmsSent,
+                'buyer_sms_sent_count' => (int) ($pending->buyer_sms_sent_count ?? 0),
             ]);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -1271,11 +1296,14 @@ class ParticipationController extends Controller
                     'quantity' => $qty,
                     'descripcion' => 'Venta digital ' . $entidadNombre . ' · Pendiente de registro',
                     'pendienteRegistro' => true,
+                    'notify_channel' => $p->notify_channel,
+                    'masked_buyer_contact' => $p->maskedBuyerContact(),
                     'valid_until' => $p->valid_until?->toIso8601String(),
                     'buyer_registration_url' => $p->registrationUrlForShare(),
                     'buyer_sms_sent_count' => (int) ($p->buyer_sms_sent_count ?? 0),
-                    'buyer_sms_can_send' => $smsNotify->isEnabled() && $smsNotify->canSendToBuyer($p),
-                    'buyer_sms_sends_remaining' => $smsNotify->sendsRemaining($p),
+                    'buyer_sms_can_send' => $p->usesPhoneChannel() && $smsNotify->isEnabled() && $smsNotify->canSendToBuyer($p),
+                    'buyer_sms_sends_remaining' => $p->usesPhoneChannel() ? $smsNotify->sendsRemaining($p) : 0,
+                    'can_resend_email' => $p->usesEmailChannel() && $p->email && $p->isStillValid(),
                     'setLabel' => $setLabel,
                     'sorteo' => $sorteoLabel,
                     'fechaSorteo' => $fechaSorteo,
@@ -1286,7 +1314,8 @@ class ParticipationController extends Controller
                         'fechaSorteo' => $fechaSorteo,
                         'importeJugado' => $importeJugado,
                         'importeTotal' => $importeTotal,
-                        'clienteEmail' => $p->email,
+                        'clienteContactoEnmascarado' => $p->maskedBuyerContact(),
+                        'notify_channel' => $p->notify_channel,
                         'pendienteRegistro' => true,
                         'validUntil' => $p->valid_until?->format('d/m/Y'),
                         'esDigital' => true,
@@ -1329,6 +1358,93 @@ class ParticipationController extends Controller
     }
 
     /**
+     * Reenvía el correo de registro al email fijado en la venta pendiente.
+     */
+    public function apiResendPendingDigitalEmail(Request $request, int $pendingId, PendingDigitalSaleService $pendingService)
+    {
+        $user = $request->user();
+        if (! $user->isSeller()) {
+            return response()->json(['success' => false, 'message' => 'No tienes permisos para esta acción.'], 403);
+        }
+
+        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Vendedor no encontrado.'], 403);
+        }
+
+        $pending = PendingDigitalSale::query()
+            ->where('seller_id', $seller->id)
+            ->where('id', $pendingId)
+            ->pendingNotExpired()
+            ->first();
+
+        if (! $pending) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Venta pendiente no encontrada o caducada.',
+            ], 422);
+        }
+
+        try {
+            $pendingService->resendRegistrationEmail($pending);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Correo reenviado al comprador.',
+                'masked_buyer_contact' => $pending->maskedBuyerContact(),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            \Log::error('apiResendPendingDigitalEmail: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo reenviar el correo.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Enlace wa.me para reenvío manual (teléfono fijado en la venta; no editable).
+     */
+    public function apiGetPendingDigitalWhatsAppLink(Request $request, int $pendingId)
+    {
+        $user = $request->user();
+        if (! $user->isSeller()) {
+            return response()->json(['success' => false, 'message' => 'No tienes permisos.'], 403);
+        }
+
+        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Vendedor no encontrado.'], 403);
+        }
+
+        $pending = PendingDigitalSale::query()
+            ->where('seller_id', $seller->id)
+            ->where('id', $pendingId)
+            ->pendingNotExpired()
+            ->first();
+
+        if (! $pending || ! $pending->buyer_phone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Venta pendiente no encontrada o sin teléfono registrado.',
+            ], 422);
+        }
+
+        $digits = ltrim((string) $pending->buyer_phone, '+');
+        $message = \App\Services\DigitalSaleBuyerMessageBuilder::build($pending);
+        $url = 'https://wa.me/'.$digits.'?text='.rawurlencode($message);
+
+        return response()->json([
+            'success' => true,
+            'whatsapp_url' => $url,
+            'masked_buyer_contact' => $pending->maskedBuyerContact(),
+        ]);
+    }
+
+    /**
      * @deprecated Usar apiSendPendingDigitalNotify (alias histórico).
      */
     public function apiSendPendingDigitalWhatsApp(Request $request, int $pendingId)
@@ -1349,9 +1465,7 @@ class ParticipationController extends Controller
         }
 
         $request->validate([
-            'phone' => 'required|string|max:20',
-        ], [
-            'phone.required' => 'Introduce el teléfono del comprador.',
+            'phone' => 'nullable|string|max:20',
         ]);
 
         $notify = app(\App\Services\DigitalSaleBuyerNotifyService::class);
@@ -1363,7 +1477,26 @@ class ParticipationController extends Controller
         }
 
         try {
-            $result = $notify->sendToBuyer($seller, $pendingId, (string) $request->phone);
+            $pending = $notify->findPendingForSeller($seller, $pendingId);
+            if (! $pending) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Venta pendiente no encontrada, caducada o ya reclamada.',
+                ], 422);
+            }
+
+            $phone = trim((string) $request->input('phone', ''));
+            if ($phone === '') {
+                $phone = (string) ($pending->buyer_phone ?? '');
+            }
+            if ($phone === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta venta no tiene teléfono de comprador registrado.',
+                ], 422);
+            }
+
+            $result = $notify->sendToBuyer($seller, $pendingId, $phone);
 
             return response()->json([
                 'success' => true,

@@ -20,6 +20,13 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('pending_digital_sales', function (Blueprint $table) {
+            $table->string('buyer_phone', 20)->nullable()->after('email');
+            $table->string('notify_channel', 20)->nullable()->after('buyer_phone');
+        });
+
+        return "ok";
+        
         // Schema::table('participation_collection_items', function (Blueprint $table) {
         //     if (! Schema::hasColumn('participation_collection_items', 'entity_id')) {
         //         $table->foreignId('entity_id')->nullable()->after('participation_id')

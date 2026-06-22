@@ -92,11 +92,45 @@ class PendingDigitalSaleService
         ?string $paymentMethod,
         ?int $setId,
         ?int $entityId,
-        ?int $lotteryId
+        ?int $lotteryId,
+        ?string $buyerPhone = null,
+        ?string $notifyChannel = null
     ): PendingDigitalSale {
         $rawEmail = trim((string) ($buyerEmail ?? ''));
-        $sendInviteEmail = $rawEmail !== '';
+        $rawPhone = trim((string) ($buyerPhone ?? ''));
 
+        if ($rawEmail !== '' && $rawPhone !== '') {
+            throw new \InvalidArgumentException('Indica solo email o teléfono del comprador, no ambos.');
+        }
+
+        if ($rawEmail === '' && $rawPhone === '') {
+            throw new \InvalidArgumentException('Debes indicar el email o el teléfono del comprador para enviar la venta.');
+        }
+
+        $channel = $notifyChannel ?? ($rawEmail !== '' ? 'email' : 'sms');
+        if (! in_array($channel, ['email', 'sms', 'whatsapp'], true)) {
+            throw new \InvalidArgumentException('Canal de notificación no válido.');
+        }
+
+        if ($channel === 'email' && $rawEmail === '') {
+            throw new \InvalidArgumentException('Indica el email del comprador.');
+        }
+
+        if (in_array($channel, ['sms', 'whatsapp'], true) && $rawPhone === '') {
+            throw new \InvalidArgumentException('Indica el teléfono del comprador.');
+        }
+
+        $smsService = app(DigitalSaleSmsService::class);
+        $normalizedPhone = null;
+        if ($rawPhone !== '') {
+            $normalizedPhone = $smsService->normalizeSmsAddress($rawPhone);
+            if (! $normalizedPhone) {
+                throw new \InvalidArgumentException('Teléfono no válido. Usa prefijo internacional (ej. 34600111222).');
+            }
+            $normalizedPhone = ltrim($normalizedPhone, '+');
+        }
+
+        $sendInviteEmail = $channel === 'email';
         if ($sendInviteEmail) {
             $email = PendingDigitalSale::normalizeEmail($rawEmail);
             if (User::where('email', $email)->exists()) {
@@ -131,10 +165,14 @@ class PendingDigitalSaleService
             $lotteryId,
             $saleAmount,
             $set,
-            $resolvedLotteryId
+            $resolvedLotteryId,
+            $normalizedPhone,
+            $channel
         ) {
             $pending = PendingDigitalSale::create([
                 'email' => $email,
+                'buyer_phone' => $normalizedPhone,
+                'notify_channel' => $channel,
                 'seller_id' => $seller->id,
                 'entity_id' => $entityId ?? $set->entity_id ?? $participations->first()->entity_id,
                 'lottery_id' => $lotteryId ?? $set->reserve->lottery_id,
@@ -172,6 +210,51 @@ class PendingDigitalSaleService
 
             return $pending->fresh(['entity', 'lottery', 'seller']);
         });
+    }
+
+    /**
+     * Envía el SMS inicial tras crear la venta (canal sms con httpSMS activo).
+     */
+    public function sendInitialSmsIfNeeded(PendingDigitalSale $pending): bool
+    {
+        if ($pending->notify_channel !== 'sms') {
+            return false;
+        }
+
+        $sms = app(DigitalSaleSmsService::class);
+        if (! $sms->isEnabled() || ! $pending->buyer_phone) {
+            return false;
+        }
+
+        $sms->sendToBuyer($pending, $pending->buyer_phone);
+
+        return true;
+    }
+
+    /**
+     * Reenvía el correo de registro al email fijado en la venta.
+     */
+    public function resendRegistrationEmail(PendingDigitalSale $pending): void
+    {
+        if (! $pending->email || ! $pending->usesEmailChannel()) {
+            throw new \InvalidArgumentException('Esta venta no tiene un email de comprador registrado.');
+        }
+
+        if (! $pending->isStillValid()) {
+            throw new \InvalidArgumentException('Esta venta pendiente ya no está disponible o ha caducado.');
+        }
+
+        $pending->ensureLinkCode();
+        app(CommunicationEmailService::class)->sendAndLog(
+            recipientEmail: $pending->email,
+            recipientRole: 'usuario',
+            recipientUser: null,
+            messageType: 'digital_sale_registration_invite',
+            templateKey: null,
+            mailClass: DigitalSaleRegistrationInviteMail::class,
+            mailPayload: ['pending_digital_sale_id' => $pending->id],
+            context: ['pending_digital_sale_id' => $pending->id, 'seller_id' => $pending->seller_id, 'resend' => true],
+        );
     }
 
     /**
