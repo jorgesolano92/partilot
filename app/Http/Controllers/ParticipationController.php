@@ -225,6 +225,7 @@ class ParticipationController extends Controller
         if ($user && $user->canViewPendingDigitalLinkCode()) {
             $pending = $participation->activePendingDigitalSale();
             if ($pending) {
+                $pending->load('seller');
                 $pending->ensureLinkCode();
                 $pendingDigitalSaleForLinkCode = $pending;
             }

@@ -17,7 +17,9 @@ class ParticipationActivityLogController extends Controller
     public function getParticipationHistory($participationId)
     {
         try {
-            $participation = Participation::forUser(auth()->user())->findOrFail($participationId);
+            $participation = Participation::with(['seller', 'pendingDigitalSales.seller'])
+                ->forUser(auth()->user())
+                ->findOrFail($participationId);
             
             $activitiesQuery = ParticipationActivityLog::with(['user', 'seller', 'entity', 'oldSeller', 'newSeller'])
                 ->forParticipation($participationId)
@@ -32,8 +34,8 @@ class ParticipationActivityLogController extends Controller
                         'activity_type_text' => $activity->activity_type_text,
                         'activity_badge' => $activity->activity_badge,
                         'description' => $activity->description,
-                        'user' => $activity->user ? $activity->user->name : 'Sistema',
-                        'seller' => $activity->seller ? $activity->seller->full_name : null,
+                        'user' => $this->resolveActivityUserName($activity),
+                        'seller' => $this->resolveActivitySellerName($activity, $participation),
                         'entity' => $activity->entity ? $activity->entity->name : null,
                         'old_status' => $activity->old_status,
                         'new_status' => $activity->new_status,
@@ -273,7 +275,7 @@ class ParticipationActivityLogController extends Controller
                         'activity_badge' => $activity->activity_badge,
                         'description' => $activity->description,
                         'participation_code' => $activity->participation ? $activity->participation->participation_code : null,
-                        'user' => $activity->user ? $activity->user->name : 'Sistema',
+                        'user' => $this->resolveActivityUserName($activity),
                         'seller' => $activity->seller ? $activity->seller->full_name : null,
                         'entity' => $activity->entity ? $activity->entity->name : null,
                         'created_at' => $activity->created_at->format('d/m/Y H:i:s'),
@@ -362,5 +364,60 @@ class ParticipationActivityLogController extends Controller
         }
 
         return $metadata;
+    }
+
+    private function resolveActivityUserName(ParticipationActivityLog $activity): string
+    {
+        if (! $activity->user) {
+            return 'Sistema';
+        }
+
+        return trim($activity->user->full_name) !== ''
+            ? $activity->user->full_name
+            : $activity->user->name;
+    }
+
+    private function resolveActivitySellerName(
+        ParticipationActivityLog $activity,
+        Participation $participation
+    ): ?string {
+        foreach ([$activity->seller, $activity->newSeller, $activity->oldSeller] as $seller) {
+            if ($seller) {
+                return $seller->full_name;
+            }
+        }
+
+        $metadata = $activity->metadata ?? [];
+        foreach (['seller_id', 'new_seller_id', 'old_seller_id'] as $key) {
+            $sellerId = $metadata[$key] ?? ($metadata['changes'][$key] ?? null);
+            if ($sellerId) {
+                $seller = Seller::find($sellerId);
+                if ($seller) {
+                    return $seller->full_name;
+                }
+            }
+        }
+
+        $statuses = array_filter([$activity->new_status, $activity->old_status]);
+        $sellerRelevant = ! empty(array_intersect(
+            $statuses,
+            ['reserva_venta_digital', 'vendida', 'pagada', 'asignada']
+        ));
+
+        if ($sellerRelevant) {
+            if ($participation->relationLoaded('seller') && $participation->seller) {
+                return $participation->seller->full_name;
+            }
+
+            $pendingSale = $participation->relationLoaded('pendingDigitalSales')
+                ? $participation->pendingDigitalSales->sortByDesc('id')->first()
+                : $participation->pendingDigitalSales()->with('seller')->orderByDesc('pending_digital_sales.id')->first();
+
+            if ($pendingSale?->seller) {
+                return $pendingSale->seller->full_name;
+            }
+        }
+
+        return null;
     }
 }
