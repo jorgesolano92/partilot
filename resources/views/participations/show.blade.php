@@ -411,7 +411,7 @@
 							                                      	<img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
 
-                                            <input readonly="" value="{{ $participationSeller->first_name }}" class="form-control" type="text" placeholder="Nombre completo" style="border-radius: 0 30px 30px 0;">
+                                            <input readonly="" value="{{ $participationSeller->name }}" class="form-control" type="text" placeholder="Nombre completo" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
