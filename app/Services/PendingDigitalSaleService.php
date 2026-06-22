@@ -149,7 +149,10 @@ class PendingDigitalSaleService
             ]);
 
             foreach ($participations as $p) {
-                $p->update(['status' => 'reserva_venta_digital']);
+                $p->update([
+                    'status' => 'reserva_venta_digital',
+                    'seller_id' => $seller->id,
+                ]);
                 $pending->participations()->attach($p->id);
             }
 
@@ -299,7 +302,12 @@ class PendingDigitalSaleService
             $restoreStatus = $pending->set_id ? 'asignada' : 'disponible';
             foreach ($pending->participations as $p) {
                 if ($p->status === 'reserva_venta_digital') {
-                    $p->update(['status' => $restoreStatus]);
+                    Participation::withoutEvents(function () use ($p, $restoreStatus) {
+                        $p->update([
+                            'status' => $restoreStatus,
+                            'seller_id' => null,
+                        ]);
+                    });
                 }
             }
             $pending->update(['status' => $status]);
