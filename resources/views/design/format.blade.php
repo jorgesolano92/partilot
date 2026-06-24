@@ -2401,7 +2401,8 @@ $('#format').change(function (e) {
     actualElement = $(this).closest('.elements.text');
     
     // Obtener el contenido del span (sin el botón de editar)
-    var contenidoHTML = $(actualElement).find('span').html() || '';
+    var $wrapper = getTextContentWrapper($(actualElement));
+    var contenidoHTML = $wrapper.html() || '';
 
     // Destruir instancia previa si existe
     if (editor && CKEDITOR.instances['editor']) {
@@ -2490,7 +2491,11 @@ $('#format').change(function (e) {
         var data = CKEDITOR.instances['editor'].getData();
         // Limpiar párrafos vacíos
         data = data.replace(/<p>&nbsp;<\/p>/gi, '').replace(/<p><\/p>/gi, '');
-        $(actualElement).find('span').html(data);
+        var $element = $(actualElement);
+        var $wrapper = getTextContentWrapper($element);
+        var detectedAlign = detectAlignmentFromHtml(data) || getTextElementAlignment($element);
+        $wrapper.html(data);
+        syncTextElementAlignment($element, detectedAlign || 'left');
         CKEDITOR.instances['editor'].destroy(true);
     }
     $('#ckeditor-modal').modal('hide');
@@ -2743,23 +2748,147 @@ $('#format').change(function (e) {
     if (typeof saveHistoryState === 'function') saveHistoryState();
   });
 
+  function getTextContentWrapper($element) {
+    if (!$element || !$element.length) {
+      return $element;
+    }
+    var $wrapper = $element.children('span').first();
+    if (!$wrapper.length) {
+      $wrapper = $element.find('> span').first();
+    }
+    return $wrapper.length ? $wrapper : $element;
+  }
+
+  function normalizeAlignValue(ta) {
+    ta = String(ta || '').toLowerCase();
+    if (!ta || ta === 'start') {
+      return 'left';
+    }
+    if (ta === 'end') {
+      return 'right';
+    }
+    if (ta.indexOf('left') >= 0) {
+      return 'left';
+    }
+    if (ta.indexOf('right') >= 0) {
+      return 'right';
+    }
+    if (ta.indexOf('center') >= 0) {
+      return 'center';
+    }
+    return null;
+  }
+
+  function detectAlignmentFromHtml(html) {
+    if (!html) {
+      return null;
+    }
+    var $tmp = $('<div>').html(html);
+    var $block = $tmp.children('h1, h2, h3, h4, h5, h6, p, div').first();
+    if (!$block.length) {
+      $block = $tmp.find('h1, h2, h3, h4, h5, h6, p, div').first();
+    }
+    if ($block.length) {
+      var blockAlign = normalizeAlignValue($block.css('text-align') || $block.attr('align'));
+      if (blockAlign) {
+        return blockAlign;
+      }
+    }
+    var styleMatch = html.match(/text-align\s*:\s*(left|right|center|start|end)/i);
+    if (styleMatch) {
+      return normalizeAlignValue(styleMatch[1]);
+    }
+    var alignMatch = html.match(/\balign\s*=\s*["']?(left|right|center)\b/i);
+    if (alignMatch) {
+      return normalizeAlignValue(alignMatch[1]);
+    }
+    return null;
+  }
+
+  function stripInlineTextAlign($root) {
+    if (!$root || !$root.length) {
+      return;
+    }
+    $root.add($root.find('*')).each(function() {
+      if (this.style && this.style.textAlign) {
+        this.style.removeProperty('text-align');
+        if (!this.getAttribute('style') || !this.getAttribute('style').trim()) {
+          this.removeAttribute('style');
+        }
+      }
+      if (this.hasAttribute('align')) {
+        this.removeAttribute('align');
+      }
+    });
+  }
+
+  function detectAlignmentFromContent($wrapper) {
+    if (!$wrapper || !$wrapper.length) {
+      return null;
+    }
+    var $block = $wrapper.children('h1, h2, h3, h4, h5, h6, p, div').first();
+    if (!$block.length) {
+      $block = $wrapper.find('h1, h2, h3, h4, h5, h6, p, div').first();
+    }
+    if ($block.length) {
+      var fromBlock = normalizeAlignValue($block.css('text-align') || $block.attr('align'));
+      if (fromBlock) {
+        return fromBlock;
+      }
+    }
+    return normalizeAlignValue($wrapper.css('text-align') || $wrapper.attr('align'));
+  }
+
+  function getTextElementAlignment($element) {
+    if (!$element || !$element.length) {
+      return null;
+    }
+    if ($element.hasClass('text-left')) {
+      return 'left';
+    }
+    if ($element.hasClass('text-right')) {
+      return 'right';
+    }
+    if ($element.hasClass('text-center')) {
+      return 'center';
+    }
+    return detectAlignmentFromContent(getTextContentWrapper($element));
+  }
+
+  function syncTextElementAlignment($element, align) {
+    if (!$element || !$element.length || !$element.hasClass('text')) {
+      return;
+    }
+
+    align = normalizeAlignValue(align) || 'left';
+    $element.removeClass('text-left text-center text-right');
+    if (align === 'left') {
+      $element.addClass('text-left');
+    } else if (align === 'center') {
+      $element.addClass('text-center');
+    } else if (align === 'right') {
+      $element.addClass('text-right');
+    }
+
+    var $wrapper = getTextContentWrapper($element);
+    stripInlineTextAlign($wrapper);
+
+    var $blocks = $wrapper.children('h1, h2, h3, h4, h5, h6, p, div');
+    if (!$blocks.length) {
+      $blocks = $wrapper.find('h1, h2, h3, h4, h5, h6, p, div');
+    }
+    if ($blocks.length) {
+      $blocks.css('text-align', align);
+    } else {
+      $wrapper.css('text-align', align);
+    }
+  }
+
   function applyTextElementAlignment(align) {
     if (!selectedElement || !selectedElement.hasClass('text')) {
       return;
     }
-    selectedElement.removeClass('text-left text-center text-right');
-    if (align === 'left') {
-      selectedElement.addClass('text-left');
-    } else if (align === 'center') {
-      selectedElement.addClass('text-center');
-    } else if (align === 'right') {
-      selectedElement.addClass('text-right');
-    }
-
-    // Los diseños guardados suelen traer text-align inline en h1-h6/p; eso pisa las clases del contenedor.
-    selectedElement.find('h1, h2, h3, h4, h5, h6, p').css('text-align', align);
-    selectedElement.children('span').css('text-align', align);
-
+    syncTextElementAlignment(selectedElement, align);
     markDesignDirty();
     if (typeof saveHistoryState === 'function') {
       saveHistoryState();
