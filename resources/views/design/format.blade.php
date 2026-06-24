@@ -261,23 +261,6 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
             </div>
         </div>
     </div>
-    <div class="modal fade" id="design-conflict-modal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Conflicto de edición</h5>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-2" id="design-conflict-message">Se detectó una versión más reciente del diseño.</p>
-                    <p class="mb-0 text-muted small">Para evitar sobreescritura, recarga el editor antes de guardar de nuevo.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" id="btn-conflict-keep-editing">Seguir revisando</button>
-                    <button type="button" class="btn btn-warning" id="btn-conflict-reload">Recargar editor</button>
-                </div>
-            </div>
-        </div>
-    </div>
     
     <div class="row">
         <div class="col-12">
@@ -1647,7 +1630,6 @@ $('#format').change(function (e) {
   var designDirty = false;
   var autosaveInFlight = false;
   var autosaveIntervalMs = 30000;
-  var designConflictDetected = false;
   var draftPersistTimer = null;
   var pendingPersistentDraft = null;
   var restoredDraftStep = null;
@@ -2761,6 +2743,29 @@ $('#format').change(function (e) {
     if (typeof saveHistoryState === 'function') saveHistoryState();
   });
 
+  function applyTextElementAlignment(align) {
+    if (!selectedElement || !selectedElement.hasClass('text')) {
+      return;
+    }
+    selectedElement.removeClass('text-left text-center text-right');
+    if (align === 'left') {
+      selectedElement.addClass('text-left');
+    } else if (align === 'center') {
+      selectedElement.addClass('text-center');
+    } else if (align === 'right') {
+      selectedElement.addClass('text-right');
+    }
+
+    // Los diseños guardados suelen traer text-align inline en h1-h6/p; eso pisa las clases del contenedor.
+    selectedElement.find('h1, h2, h3, h4, h5, h6, p').css('text-align', align);
+    selectedElement.children('span').css('text-align', align);
+
+    markDesignDirty();
+    if (typeof saveHistoryState === 'function') {
+      saveHistoryState();
+    }
+  }
+
   // Event listeners for text style buttons
   $('.bold-btn').click(function(e) {
     e.preventDefault();
@@ -2788,21 +2793,15 @@ $('#format').change(function (e) {
   });
   $('.align-left-btn').click(function(e) {
     e.preventDefault();
-    if (selectedElement && selectedElement.hasClass('text')) {
-      selectedElement.removeClass('text-center text-right').addClass('text-left');
-    }
+    applyTextElementAlignment('left');
   });
   $('.align-center-btn').click(function(e) {
     e.preventDefault();
-    if (selectedElement && selectedElement.hasClass('text')) {
-      selectedElement.removeClass('text-left text-right').addClass('text-center');
-    }
+    applyTextElementAlignment('center');
   });
   $('.align-right-btn').click(function(e) {
     e.preventDefault();
-    if (selectedElement && selectedElement.hasClass('text')) {
-      selectedElement.removeClass('text-left text-center').addClass('text-right');
-    }
+    applyTextElementAlignment('right');
   });
   $('.font-size-up-btn').click(function(e) {
     e.preventDefault();
@@ -2924,26 +2923,10 @@ $('#format').change(function (e) {
     $('#save-step').addClass('d-none');
   }
 
-  function showDesignConflictModal(message) {
-    var text = message || 'Se detectó una versión más reciente del diseño.';
-    $('#design-conflict-message').text(text);
-
-    if (typeof bootstrap !== 'undefined' && document.getElementById('design-conflict-modal')) {
-      const modalEl = document.getElementById('design-conflict-modal');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.show();
-    } else {
-      alert(text + ' Recarga el editor antes de guardar.');
-    }
-  }
-
   function persistDesignToServer(options) {
     options = options || {};
     if (window.__designLocked) {
       if (options.showLoader) hideDesignLoading();
-      return Promise.resolve(false);
-    }
-    if (designConflictDetected && options.reason === 'autosave') {
       return Promise.resolve(false);
     }
     const data = collectDesignData();
@@ -2986,10 +2969,7 @@ $('#format').change(function (e) {
         return true;
       }
 
-      if (status === 409 && result.code === 'DESIGN_CONFLICT') {
-        designConflictDetected = true;
-        showDesignConflictModal(result.message || 'Otro usuario guardó una versión más reciente. Recarga para evitar sobreescritura.');
-      } else if (status === 422 && result.code === 'SET_DESIGN_LOCKED') {
+      if (status === 422 && result.code === 'SET_DESIGN_LOCKED') {
         alert(result.message || 'Diseño bloqueado por estado operativo del set.');
       } else if (options.reason === 'manual-save' || options.redirectOnSuccess) {
         alert(result.message || 'Error al guardar el diseño.');
@@ -3038,16 +3018,6 @@ $('#format').change(function (e) {
   }
 
   setupDesignAutosave();
-  $('#btn-conflict-reload').off('click').on('click', function() {
-    window.location.reload();
-  });
-  $('#btn-conflict-keep-editing').off('click').on('click', function() {
-    if (typeof bootstrap !== 'undefined' && document.getElementById('design-conflict-modal')) {
-      const modalEl = document.getElementById('design-conflict-modal');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.hide();
-    }
-  });
   window.addEventListener('beforeunload', function() {
     if (!window.__designLocked && designDirty) {
       persistDraftLocally();

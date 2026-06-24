@@ -2218,25 +2218,41 @@ $(document).ready(function() {
       }
     });
     
+    function applyTextElementAlignment(align) {
+      if (!selectedElement || !selectedElement.hasClass('text')) {
+        return;
+      }
+      selectedElement.removeClass('text-left text-center text-right');
+      if (align === 'left') {
+        selectedElement.addClass('text-left');
+      } else if (align === 'center') {
+        selectedElement.addClass('text-center');
+      } else if (align === 'right') {
+        selectedElement.addClass('text-right');
+      }
+      selectedElement.find('h1, h2, h3, h4, h5, h6, p').css('text-align', align);
+      selectedElement.children('span').css('text-align', align);
+      if (typeof markDesignDirty === 'function') {
+        markDesignDirty();
+      }
+      if (typeof saveHistoryState === 'function') {
+        saveHistoryState();
+      }
+    }
+
     $('.align-left-btn').off('click').on('click', function(e) {
       e.preventDefault();
-      if (selectedElement && selectedElement.hasClass('text')) {
-        selectedElement.removeClass('text-center text-right').addClass('text-left');
-      }
+      applyTextElementAlignment('left');
     });
     
     $('.align-center-btn').off('click').on('click', function(e) {
       e.preventDefault();
-      if (selectedElement && selectedElement.hasClass('text')) {
-        selectedElement.removeClass('text-left text-right').addClass('text-center');
-      }
+      applyTextElementAlignment('center');
     });
     
     $('.align-right-btn').off('click').on('click', function(e) {
       e.preventDefault();
-      if (selectedElement && selectedElement.hasClass('text')) {
-        selectedElement.removeClass('text-left text-center').addClass('text-right');
-      }
+      applyTextElementAlignment('right');
     });
     
     $('.font-size-up-btn').off('click').on('click', function(e) {

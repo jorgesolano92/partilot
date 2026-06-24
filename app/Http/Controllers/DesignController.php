@@ -1187,19 +1187,19 @@ class DesignController extends Controller
 
     private function designFormatConflictResponse(DesignFormat $existing, ?string $expectedUpdatedAt): ?\Illuminate\Http\JsonResponse
     {
-        if (! $expectedUpdatedAt) {
-            return null;
-        }
+        // if (! $expectedUpdatedAt) {
+        //     return null;
+        // }
 
-        $currentUpdatedAt = optional($existing->updated_at)->toISOString();
-        if ($currentUpdatedAt && $currentUpdatedAt !== $expectedUpdatedAt) {
-            return response()->json([
-                'success' => false,
-                'code' => 'DESIGN_CONFLICT',
-                'message' => 'El diseño fue actualizado desde otra sesión. Recarga antes de continuar para evitar sobreescritura.',
-                'current_updated_at' => $currentUpdatedAt,
-            ], 409);
-        }
+        // $currentUpdatedAt = optional($existing->updated_at)->toISOString();
+        // if ($currentUpdatedAt && $currentUpdatedAt !== $expectedUpdatedAt) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'code' => 'DESIGN_CONFLICT',
+        //         'message' => 'El diseño fue actualizado desde otra sesión. Recarga antes de continuar para evitar sobreescritura.',
+        //         'current_updated_at' => $currentUpdatedAt,
+        //     ], 409);
+        // }
 
         return null;
     }
