@@ -99,7 +99,7 @@
                                         </div>
                                         <div class="col-lg-2 col-md-4 partilot-field">
                                             <div class="partilot-field-label">Importe Total Participación</div>
-                                            <div class="partilot-field-value"><i class="ri-money-euro-circle-line"></i>{{ number_format((float)($set->total_amount ?? 0), 2, ',', '.') }}€</div>
+                                            <div class="partilot-field-value"><i class="ri-money-euro-circle-line"></i>{{ number_format((float)($set->total_participation_amount ?? (($set->played_amount ?? 0) + ($set->donation_amount ?? 0))), 2, ',', '.') }}€</div>
                                         </div>
                                         <div class="col-lg-2 col-md-4 partilot-field">
                                             <div class="partilot-field-label">Cantidad Participaciones</div>

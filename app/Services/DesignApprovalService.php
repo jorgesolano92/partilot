@@ -34,13 +34,15 @@ class DesignApprovalService
         return $this->resolveDesignerType($user) === self::DESIGNER_ENTITY;
     }
 
-    public function assignDesignerTypeIfMissing(DesignFormat $design, User $user): void
+    public function assignDesignerTypeIfMissing(DesignFormat $design, ?User $user = null): void
     {
         if ($design->designer_type) {
             return;
         }
 
-        $designerType = $this->resolveDesignerType($user);
+        $designerType = $user
+            ? $this->resolveDesignerType($user)
+            : self::DESIGNER_ADMINISTRATION;
         $design->designer_type = $designerType;
         if ($designerType === self::DESIGNER_ADMINISTRATION && ! $design->approval_status) {
             $design->approval_status = self::STATUS_DRAFT;

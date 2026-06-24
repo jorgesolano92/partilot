@@ -110,6 +110,15 @@
                     <div class="card-body">
                         <h5 class="mb-1">Set seleccionado</h5>
                         <p class="text-muted small mb-3">Comprueba que los datos del set sean correctos</p>
+                        @php
+                            $participations = (int) ($set->total_participations ?? 0);
+                            $playedPerParticipation = (float) ($set->played_amount ?? 0);
+                            $donationPerParticipation = (float) ($set->donation_amount ?? 0);
+                            $amountPerParticipation = (float) ($set->total_participation_amount ?? ($playedPerParticipation + $donationPerParticipation));
+                            $lotteryTotal = $playedPerParticipation * $participations;
+                            $donationTotal = $donationPerParticipation * $participations;
+                            $grandTotal = $lotteryTotal + $donationTotal;
+                        @endphp
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
                                 <thead class="table-light">
@@ -130,7 +139,7 @@
                                         <td>{{ $numbersText }}</td>
                                         <td>{{ number_format((float) ($set->played_amount ?? 0), 2, ',', '.') }}€</td>
                                         <td>{{ number_format((float) ($set->donation_amount ?? 0), 2, ',', '.') }}€</td>
-                                        <td>{{ number_format((float) ($set->total_amount ?? 0), 2, ',', '.') }}€</td>
+                                        <td>{{ number_format($amountPerParticipation, 2, ',', '.') }}€</td>
                                         <td>{{ number_format((int) ($set->total_participations ?? 0), 0, ',', '.') }}</td>
                                     </tr>
                                 </tbody>
@@ -139,9 +148,9 @@
                         <div class="row g-2 mt-2">
                             <div class="col-md-2"><div class="small text-muted">Participaciones físicas</div><div class="fw-semibold">{{ (int) ($set->physical_participations ?? 0) }}</div></div>
                             <div class="col-md-2"><div class="small text-muted">Participaciones digitales</div><div class="fw-semibold">{{ (int) ($set->digital_participations ?? 0) }}</div></div>
-                            <div class="col-md-3"><div class="small text-muted">Importe lotería TOTAL</div><div class="fw-semibold">{{ number_format((float) (($set->played_amount ?? 0) * ($set->total_participations ?? 0)), 2, ',', '.') }}€</div></div>
-                            <div class="col-md-2"><div class="small text-muted">Importe Donativo TOTAL</div><div class="fw-semibold">{{ number_format((float) (($set->donation_amount ?? 0) * ($set->total_participations ?? 0)), 2, ',', '.') }}€</div></div>
-                            <div class="col-md-3"><div class="small text-muted">Lotería + Donativo TOTAL</div><div class="fw-semibold">{{ number_format((float) ($set->total_amount ?? 0) * (float) ($set->total_participations ?? 0), 2, ',', '.') }}€</div></div>
+                            <div class="col-md-3"><div class="small text-muted">Importe lotería TOTAL</div><div class="fw-semibold">{{ number_format($lotteryTotal, 2, ',', '.') }}€</div></div>
+                            <div class="col-md-2"><div class="small text-muted">Importe Donativo TOTAL</div><div class="fw-semibold">{{ number_format($donationTotal, 2, ',', '.') }}€</div></div>
+                            <div class="col-md-3"><div class="small text-muted">Lotería + Donativo TOTAL</div><div class="fw-semibold">{{ number_format($grandTotal, 2, ',', '.') }}€</div></div>
                         </div>
                     </div>
                 </div>

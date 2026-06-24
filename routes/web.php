@@ -481,6 +481,7 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::post('/choose-type', [\App\Http\Controllers\DesignController::class, 'chooseType'])->name('design.chooseType');
     Route::get('/choose-type', [\App\Http\Controllers\DesignController::class, 'showChooseType'])->name('design.showChooseType');
     Route::post('/add/format', [\App\Http\Controllers\DesignController::class, 'format'])->name('design.format');
+    Route::post('/save-format', [\App\Http\Controllers\DesignController::class, 'saveFormat'])->name('design.saveFormat');
     Route::get('/list-formats', [\App\Http\Controllers\DesignController::class, 'listFormats'])->name('design.listFormats');
     Route::get('/digital/participation-image/{id}', [\App\Http\Controllers\DesignController::class, 'digitalParticipationImage'])->name('design.digitalParticipationImage');
 

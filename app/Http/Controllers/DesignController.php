@@ -14,6 +14,7 @@ use App\Models\DesignExternalInvitation;
 use App\Models\DesignExternalInvitationFile;
 use App\Models\PrintConfiguration;
 use App\Models\PrintOrder;
+use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -932,7 +933,18 @@ class DesignController extends Controller
         }
         $designLock = $this->getSetDesignLockContext($set);
         $forceFreshDraft = $forceFreshDraft ?? (bool) $request->filled('new_design');
-        return view('design.format', compact('entity', 'lottery', 'set', 'reservation_numbers', 'isDigitalSet', 'design', 'designFormatId', 'designLock', 'forceFreshDraft'));
+        return view('design.format', [
+            'entity' => $entity,
+            'lottery' => $lottery,
+            'set' => $set,
+            'reservation_numbers' => $reservation_numbers,
+            'isDigitalSet' => $isDigitalSet,
+            'design' => $design,
+            'designFormatId' => $designFormatId,
+            'designLock' => $designLock,
+            'forceFreshDraft' => $forceFreshDraft,
+            'save_format_url' => route('design.saveFormat'),
+        ]);
     }
 
     // Tarea 8: listado de diseños de la entidad para reutilizar
@@ -1123,7 +1135,7 @@ class DesignController extends Controller
             }
 
             $this->fillDesignFormatFromSaveData($existing, $data);
-            app(DesignApprovalService::class)->assignDesignerTypeIfMissing($existing, auth()->user());
+            app(DesignApprovalService::class)->assignDesignerTypeIfMissing($existing, $this->resolveDesignSaveUser());
             $existing->save();
             if (in_array($request->input('save_reason'), ['manual-save', 'final-save'], true)) {
                 app(DesignApprovalService::class)->invalidateApprovalAfterEdit($existing->refresh());
@@ -1138,7 +1150,7 @@ class DesignController extends Controller
         }
 
         $designFormat = DesignFormat::create($data);
-        app(DesignApprovalService::class)->assignDesignerTypeIfMissing($designFormat, auth()->user());
+        app(DesignApprovalService::class)->assignDesignerTypeIfMissing($designFormat, $this->resolveDesignSaveUser());
         $this->linkInvitationToDesignIfNeeded($designFormat->id);
         return response()->json([
             'success' => true,
@@ -1206,6 +1218,28 @@ class DesignController extends Controller
         $existing->backgrounds = $data['backgrounds'];
         $existing->output = $data['output'];
         $existing->snapshot_path = $data['snapshot_path'];
+    }
+
+    /**
+     * Usuario que guarda el diseño: sesión web, o quien creó la invitación externa.
+     */
+    private function resolveDesignSaveUser(): ?User
+    {
+        $user = auth()->user();
+        if ($user instanceof User) {
+            return $user;
+        }
+
+        $invitationId = session('design_external_invitation_id');
+        if (! $invitationId) {
+            return null;
+        }
+
+        $invitation = DesignExternalInvitation::find($invitationId);
+
+        return $invitation?->created_by_user_id
+            ? User::find($invitation->created_by_user_id)
+            : null;
     }
 
     /**
@@ -3149,7 +3183,7 @@ class DesignController extends Controller
                 $format->save();
 
                 if (isset($data['from_step_5']) && $data['from_step_5'] === true) {
-                    app(DesignApprovalService::class)->assignDesignerTypeIfMissing($format, auth()->user());
+                    app(DesignApprovalService::class)->assignDesignerTypeIfMissing($format, $this->resolveDesignSaveUser());
                 } else {
                     app(DesignApprovalService::class)->invalidateApprovalAfterEdit($format->refresh());
                 }
