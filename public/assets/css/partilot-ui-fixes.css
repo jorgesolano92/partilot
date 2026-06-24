@@ -125,7 +125,9 @@ small.text-muted,
 .ui-pnotify.partilot-notify-error,
 .ui-pnotify.partilot-notify-error .alert {
     background-color: #f8d7da !important;
-    border: 2px solid #dc3545 !important;
+    /* border: 2px solid #dc3545 !important;
+     0*/
+     border-radius: 50px !important;
     color: #842029 !important;
     font-size: 1rem !important;
     font-weight: 600 !important;
