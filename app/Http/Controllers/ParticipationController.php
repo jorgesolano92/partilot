@@ -579,6 +579,7 @@ class ParticipationController extends Controller
             'set_id' => 'nullable|integer|exists:sets,id',
             'entity_id' => 'nullable|integer|exists:entities,id',
             'lottery_id' => 'nullable|integer|exists:lotteries,id',
+            'reserve_id' => 'nullable|integer|exists:reserves,id',
             'quantity' => 'required|integer|min:1',
             'buyer_email' => 'required|email',
             'payment_method' => 'nullable|string|in:efectivo,bizum,transferencia,omitir,otro',
@@ -604,6 +605,7 @@ class ParticipationController extends Controller
 
         $pendingService = app(PendingDigitalSaleService::class);
         $usePool = $request->filled('entity_id') && $request->filled('lottery_id');
+        $reserveId = $request->filled('reserve_id') ? (int) $request->reserve_id : null;
         $pendingService->releaseExpiredForDigitalContext(
             $usePool ? (int) $request->entity_id : null,
             $usePool ? (int) $request->lottery_id : null,
@@ -614,20 +616,24 @@ class ParticipationController extends Controller
             if (!$seller->entities()->where('entities.id', $request->entity_id)->exists()) {
                 return response()->json(['success' => false, 'message' => 'No tienes acceso a esta entidad.'], 403);
             }
-            $ids = Participation::query()
-                ->join('sets', 'participations.set_id', '=', 'sets.id')
-                ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
-                ->where('participations.entity_id', $request->entity_id)
-                ->where('reserves.lottery_id', $request->lottery_id)
-                ->where('sets.physical_participations', '<=', 0)
-                ->whereRaw('sets.digital_participations > 0')
-                ->whereRaw("participations.participation_code LIKE '1D/%'")
-                ->where('participations.status', 'disponible')
-                ->select('participations.id')
-                ->orderBy('participations.id')
-                ->limit($request->quantity)
-                ->pluck('participations.id');
-            $participations = Participation::with('set.reserve')->whereIn('id', $ids)->orderBy('id')->get();
+            if ($reserveId) {
+                $reserveOk = \App\Models\Reserve::query()
+                    ->where('id', $reserveId)
+                    ->where('entity_id', $request->entity_id)
+                    ->where('lottery_id', $request->lottery_id)
+                    ->exists();
+                if (! $reserveOk) {
+                    return response()->json(['success' => false, 'message' => 'La reserva no pertenece a esta entidad y sorteo.'], 422);
+                }
+            }
+            $participations = $pendingService->selectDigitalParticipations(
+                $seller,
+                (int) $request->quantity,
+                null,
+                (int) $request->entity_id,
+                (int) $request->lottery_id,
+                $reserveId
+            );
         } else {
             if (!$request->filled('set_id')) {
                 return response()->json(['success' => false, 'message' => 'Indica set_id o entity_id + lottery_id.'], 422);
@@ -709,6 +715,7 @@ class ParticipationController extends Controller
             'set_id' => 'nullable|integer|exists:sets,id',
             'entity_id' => 'nullable|integer|exists:entities,id',
             'lottery_id' => 'nullable|integer|exists:lotteries,id',
+            'reserve_id' => 'nullable|integer|exists:reserves,id',
             'quantity' => 'required|integer|min:1',
             'buyer_email' => 'nullable|email',
             'buyer_phone' => 'nullable|string|max:20',
@@ -756,6 +763,7 @@ class ParticipationController extends Controller
                 $request->lottery_id ? (int) $request->lottery_id : null,
                 $buyerPhone !== '' ? $buyerPhone : null,
                 $notifyChannel,
+                $request->filled('reserve_id') ? (int) $request->reserve_id : null,
             );
 
             $initialSmsSent = false;

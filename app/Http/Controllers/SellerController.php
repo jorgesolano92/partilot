@@ -600,6 +600,7 @@ class SellerController extends Controller
         $request->validate([
             'entity_id' => 'nullable|integer|exists:entities,id',
             'lottery_id' => 'nullable|integer|exists:lotteries,id',
+            'reserve_id' => 'nullable|integer|exists:reserves,id',
             'set_id' => 'nullable|integer|exists:sets,id',
         ]);
 
@@ -627,23 +628,35 @@ class SellerController extends Controller
             (int) $request->lottery_id,
         );
 
-        $total = Participation::query()
-            ->join('sets', 'participations.set_id', '=', 'sets.id')
-            ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
-            ->where('participations.entity_id', $request->entity_id)
-            ->where('reserves.lottery_id', $request->lottery_id)
-            ->where('sets.physical_participations', '<=', 0)
-            ->whereRaw('sets.digital_participations > 0')
-            ->whereRaw("participations.participation_code LIKE '1D/%'")
-            ->where('participations.status', 'disponible')
-            ->count();
+        $pendingService = app(\App\Services\PendingDigitalSaleService::class);
+        $reserveId = $request->filled('reserve_id') ? (int) $request->reserve_id : null;
+        if ($reserveId) {
+            $reserveOk = \App\Models\Reserve::query()
+                ->where('id', $reserveId)
+                ->where('entity_id', $request->entity_id)
+                ->where('lottery_id', $request->lottery_id)
+                ->exists();
+            if (! $reserveOk) {
+                return response()->json(['success' => false, 'message' => 'La reserva no pertenece a esta entidad y sorteo.'], 422);
+            }
+        }
 
-        $priceSet = Set::query()
+        $total = $pendingService->countDigitalDisponibleForPool(
+            (int) $request->entity_id,
+            (int) $request->lottery_id,
+            $reserveId
+        );
+
+        $priceSetQuery = Set::query()
             ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
             ->where('reserves.entity_id', $request->entity_id)
             ->where('reserves.lottery_id', $request->lottery_id)
             ->where('sets.physical_participations', '<=', 0)
-            ->whereRaw('sets.digital_participations > 0')
+            ->whereRaw('sets.digital_participations > 0');
+        if ($reserveId) {
+            $priceSetQuery->where('sets.reserve_id', $reserveId);
+        }
+        $priceSet = $priceSetQuery
             ->select('sets.total_participation_amount as played_amount')
             ->first();
 

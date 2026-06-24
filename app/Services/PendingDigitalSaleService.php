@@ -40,7 +40,8 @@ class PendingDigitalSaleService
         int $quantity,
         ?int $setId,
         ?int $entityId,
-        ?int $lotteryId
+        ?int $lotteryId,
+        ?int $reserveId = null
     ) {
         $this->releaseExpiredForDigitalContext($entityId, $lotteryId, $setId);
 
@@ -67,7 +68,25 @@ class PendingDigitalSaleService
             throw new \InvalidArgumentException('No tienes acceso a esta entidad.');
         }
 
-        $ids = Participation::query()
+        $ids = $this->queryDigitalDisponiblePool($entityId, $lotteryId, $reserveId)
+            ->select('participations.id')
+            ->orderBy('participations.id')
+            ->limit($quantity)
+            ->pluck('participations.id');
+
+        return Participation::with('set.reserve')->whereIn('id', $ids)->orderBy('id')->get();
+    }
+
+    public function countDigitalDisponibleForPool(int $entityId, int $lotteryId, ?int $reserveId = null): int
+    {
+        $this->releaseExpiredForDigitalContext($entityId, $lotteryId, null);
+
+        return $this->queryDigitalDisponiblePool($entityId, $lotteryId, $reserveId)->count();
+    }
+
+    protected function queryDigitalDisponiblePool(int $entityId, int $lotteryId, ?int $reserveId = null)
+    {
+        $query = Participation::query()
             ->join('sets', 'participations.set_id', '=', 'sets.id')
             ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
             ->where('participations.entity_id', $entityId)
@@ -75,13 +94,13 @@ class PendingDigitalSaleService
             ->where('sets.physical_participations', '<=', 0)
             ->whereRaw('sets.digital_participations > 0')
             ->whereRaw("participations.participation_code LIKE '1D/%'")
-            ->where('participations.status', 'disponible')
-            ->select('participations.id')
-            ->orderBy('participations.id')
-            ->limit($quantity)
-            ->pluck('participations.id');
+            ->where('participations.status', 'disponible');
 
-        return Participation::with('set.reserve')->whereIn('id', $ids)->orderBy('id')->get();
+        if ($reserveId) {
+            $query->where('sets.reserve_id', $reserveId);
+        }
+
+        return $query;
     }
 
     public function createPendingSale(
@@ -94,7 +113,8 @@ class PendingDigitalSaleService
         ?int $entityId,
         ?int $lotteryId,
         ?string $buyerPhone = null,
-        ?string $notifyChannel = null
+        ?string $notifyChannel = null,
+        ?int $reserveId = null
     ): PendingDigitalSale {
         $rawEmail = trim((string) ($buyerEmail ?? ''));
         $rawPhone = trim((string) ($buyerPhone ?? ''));
@@ -140,7 +160,7 @@ class PendingDigitalSaleService
             $email = null;
         }
 
-        $participations = $this->selectDigitalParticipations($seller, $quantity, $setId, $entityId, $lotteryId);
+        $participations = $this->selectDigitalParticipations($seller, $quantity, $setId, $entityId, $lotteryId, $reserveId);
         if ($participations->count() < $quantity) {
             throw new \InvalidArgumentException(
                 'No hay suficientes participaciones digitales disponibles. Disponibles: '.$participations->count()
