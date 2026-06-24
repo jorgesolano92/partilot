@@ -484,6 +484,7 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::post('/save-format', [\App\Http\Controllers\DesignController::class, 'saveFormat'])->name('design.saveFormat');
     Route::get('/list-formats', [\App\Http\Controllers\DesignController::class, 'listFormats'])->name('design.listFormats');
     Route::get('/digital/participation-image/{id}', [\App\Http\Controllers\DesignController::class, 'digitalParticipationImage'])->name('design.digitalParticipationImage');
+    Route::get('/marketing/participation-image/{id}', [\App\Http\Controllers\DesignController::class, 'marketingParticipationImage'])->name('design.marketingParticipationImage');
 
     // Diseño e impresión externo (tarea 9)
     Route::get('/external/step1', [\App\Http\Controllers\DesignController::class, 'externalStep1'])->name('design.external.step1');

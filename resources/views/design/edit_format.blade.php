@@ -4,6 +4,8 @@
 
 @section('content')
 
+<link rel="stylesheet" href="{{ asset('assets/css/design-editor-ui.css') }}">
+
 @php
     if (!function_exists('getNumberFontSize')) {
         function getNumberFontSize($numbers) {
@@ -167,7 +169,7 @@
     }
 </style>
 
-<div class="container-fluid">
+<div class="container-fluid design-editor-page">
     <div class="row">
         <div class="col-12">
             <div class="page-title-box">
@@ -369,6 +371,11 @@
                                     </div>
                                 </div>
                             <div class="form-card fade bs d-none" id="step-2" style="min-height: 658px;">
+                                @if($isDigitalSet ?? false)
+                                <div class="design-digital-banner alert alert-info py-2 px-3 mx-auto" style="max-width: 270mm;">
+                                    <strong>Set digital.</strong> Solo se diseña la participación; la venta usa imagen PNG (sin portada ni trasera).
+                                </div>
+                                @endif
                                 <h4 class="mb-0 mt-1">Diseñar Participación</h4>
                                 <small><i>Edita el diseño de la participación</i></small>
                                 <br>
@@ -381,6 +388,7 @@
                                         <button title="Agregar texto" class="btn btn-sm btn-dark add-text" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-edit-line"></i></button>
                                         <button title="Agregar imagen" class="btn btn-sm btn-dark add-image" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-image-line"></i></button>
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
+                                        <button title="Solo campos obligatorios" class="btn btn-sm btn-outline-dark reset-mandatory-canvas" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-grid-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -418,15 +426,25 @@
                             @if($isDigitalSet ?? false)
                             <div class="row mt-3 mb-3">
                                 <div class="col-6 text-start">
-                                    <a href="javascript:;" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 prev-step">
-                                        <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
+                                    <a href="javascript:;" class="btn btn-md btn-light mt-2 prev-step design-wizard-nav-btn design-wizard-nav-btn--dark">
+                                        <i class="ri-arrow-left-circle-line" aria-hidden="true"></i>
+                                        <span>Atrás</span>
+                                    </a>
                                 </div>
                                 <div class="col-6 text-end">
-                                    <div class="d-inline-block position-relative" style="min-width: 200px; min-height: 46px;">
-                                        <button type="button" id="step-edit-next" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 next-step">Siguiente
-                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i></button>
-                                        <button type="button" id="save-step" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: absolute; left: 0; top: 8px;" class="btn btn-md btn-light mt-2 d-none">Guardar
-                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
+                                    <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
+                                        <button type="button" id="step-edit-next" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                            <span>Siguiente</span>
+                                            <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="save-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                            <span>Guardar</span>
+                                            <i class="ri-save-line" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="save-continue-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--continue">
+                                            <span>Guardar y continuar</span>
+                                            <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -475,6 +493,10 @@
                                 <div class="mt-2 p-2 small text-muted border-top" id="dimensions-info-step3"></div>
                             </div>
                                 <div class="form-card fade bs d-none" id="step-4" style="min-height: 658px;">
+                                    <div class="design-skip-back-banner alert py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                        <span class="mb-0"><strong>¿No necesitas diseñar la trasera?</strong> Puedes omitir este paso.</span>
+                                        <button type="button" class="btn btn-dark btn-sm rounded-pill px-3" id="btn-skip-back-design"><i class="ri-skip-forward-line me-1"></i> Omitir trasera</button>
+                                    </div>
                                     <h4 class="mb-0 mt-1">Diseñar Trasera</h4>
                                     <small><i>Edita el diseño de la trasera</i></small>
                                     <br>
@@ -608,14 +630,26 @@
 
                                 <div class="row">
                                   <div class="col-6 text-start">
-                                      <a href="javascript:;" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 prev-step">
-                                          <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
+                                      <a href="javascript:;" class="btn btn-md btn-light mt-2 prev-step design-wizard-nav-btn design-wizard-nav-btn--dark">
+                                          <i class="ri-arrow-left-circle-line" aria-hidden="true"></i>
+                                          <span>Atrás</span>
+                                      </a>
                                   </div>
                                   <div class="col-6 text-end">
-                                      <button id="step" type="button" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 next-step">Siguiente
-                                          <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i></button>
-                                      <button id="save-step" type="button" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 d-none">Guardar
-                                          <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
+                                      <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions-main" style="min-width: 200px;">
+                                      <button id="step" type="button" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                          <span>Siguiente</span>
+                                          <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                      </button>
+                                      <button id="save-step" type="button" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                          <span>Guardar</span>
+                                          <i class="ri-save-line" aria-hidden="true"></i>
+                                      </button>
+                                      <button id="save-continue-step" type="button" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--continue">
+                                          <span>Guardar y continuar</span>
+                                          <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                      </button>
+                                      </div>
                                   </div>
                               </div>
                             </div>
@@ -767,7 +801,7 @@
         <div class="mb-3">
           <button class="btn btn-secondary" id="remove-bg-image">Quitar imagen de fondo</button>
         </div>
-        <div id="bg-preview" style="width:100%;height:80px;border:1px solid #ccc;background-size:cover;background-position:center;"></div>
+        <div id="bg-preview" class="design-bg-preview"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -925,6 +959,7 @@ function editelements(event) {
         event.stopPropagation();
     }
     actualElement = $(this).closest('.elements.text');
+    selectDesignElement(actualElement);
     
     // Obtener el contenido del span (sin el botón de editar)
     var $wrapper = getTextContentWrapper($(actualElement));
@@ -938,26 +973,8 @@ function editelements(event) {
     // Limpiar el contenido del div
     $('#editor').html('');
 
-    addEventsElement();
-
     // Inicializar CKEditor
-    editor = CKEDITOR.replace('editor', {
-        enterMode: CKEDITOR.ENTER_BR,
-        shiftEnterMode: CKEDITOR.ENTER_P,
-        // Toolbar básico
-        toolbar: [
-            { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
-            { name: 'paragraph', items: [ 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
-            { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
-            { name: 'styles', items: [ 'FontSize' ] }
-        ],
-        on: {
-            instanceReady: function() {
-                // Establecer el contenido cuando CKEditor esté listo
-                this.setData(contenidoHTML);
-            }
-        }
-    });
+    editor = CKEDITOR.replace('editor', buildCKEditorConfig(contenidoHTML));
 
     $('#ckeditor-modal').modal('show');
     return false;
@@ -974,8 +991,7 @@ function deleteElements(event) {
     }
     if (confirm('¿Desea eliminar el elemento seleccionado?')) {
         element.remove();
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         saveHistoryState();
         updateUndoRedoButtons();
@@ -1167,6 +1183,9 @@ $('#format').change(function (e) {
 
 var step = 1;
 var isDigitalSet = {{ ($isDigitalSet ?? false) ? 'true' : 'false' }};
+window.__backSkipped = @json((bool)($format->back_skipped ?? false));
+window.__defaultDesignName = @json($format->design_name ?: ('Diseño ' . ($set->set_name ?? ('Set ' . $set->id)) . ' ' . now()->format('d/m/Y')));
+window.__pendingDesignName = null;
 var editor;
 var actualElement;
 var selectedElement = null;
@@ -1180,10 +1199,90 @@ function applyDigitalFormatBoxStep2() {
   $fb.css({ position: 'absolute', right: '0', top: '0', margin: '0' });
 }
 
+var designDirty = false;
+var historyByStep = {};
+var historyIndexByStep = {};
+var designEditorFonts = 'Arial/Arial, Helvetica, sans-serif;Georgia/Georgia, serif;Times New Roman/Times New Roman, Times, serif;Verdana/Verdana, Geneva, sans-serif;Courier New/Courier New, Courier, monospace;Tahoma/Tahoma, Geneva, sans-serif;Trebuchet MS/Trebuchet MS, Helvetica, sans-serif';
+
+function syncCurrentStepToLocalStorage() {
+  if (step >= 2 && step <= 4 && $('#containment-wrapper' + step).length) {
+    localStorage.setItem('step' + step, $('#containment-wrapper' + step).html());
+  }
+}
+
+function updateDesignActionButtons() {
+  if (designDirty) {
+    $('#step, #step-edit-next').addClass('d-none');
+    $('#save-step, #save-continue-step').removeClass('d-none');
+  } else {
+    $('#step, #step-edit-next').removeClass('d-none');
+    $('#save-step, #save-continue-step').addClass('d-none');
+  }
+}
+
+function markDesignDirty() {
+  designDirty = true;
+  updateDesignActionButtons();
+}
+
+function markDesignSaved() {
+  designDirty = false;
+  updateDesignActionButtons();
+}
+
+function confirmLeaveWithUnsaved(callback) {
+  if (!designDirty) {
+    callback();
+    return;
+  }
+  if (confirm('Tienes cambios sin guardar en este paso. ¿Quieres continuar sin guardar?')) {
+    callback();
+  }
+}
+
+function stashStepHistory(stepNum) {
+  if (stepNum < 2) return;
+  historyByStep[stepNum] = historyStates.slice();
+  historyIndexByStep[stepNum] = currentHistoryIndex;
+}
+
+function loadStepHistory(stepNum) {
+  historyStates = (historyByStep[stepNum] || []).slice();
+  currentHistoryIndex = typeof historyIndexByStep[stepNum] === 'number' ? historyIndexByStep[stepNum] : -1;
+  updateUndoRedoButtons();
+}
+
+function ensureStepHistoryInitialized() {
+  if (step < 2 || !$('#containment-wrapper' + step).length) return;
+  if (!historyByStep[step] || historyByStep[step].length === 0) {
+    saveHistoryState();
+  }
+}
+
+function buildCKEditorConfig(contenidoHTML) {
+  return {
+    enterMode: CKEDITOR.ENTER_BR,
+    shiftEnterMode: CKEDITOR.ENTER_P,
+    allowedContent: true,
+    font_names: designEditorFonts,
+    toolbar: [
+      { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
+      { name: 'paragraph', items: [ 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
+      { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
+      { name: 'styles', items: [ 'Font', 'FontSize' ] }
+    ],
+    on: {
+      instanceReady: function() {
+        this.setData(contenidoHTML);
+      }
+    }
+  };
+}
+
 // Sistema de Undo/Redo limitado
 var historyStates = [];
 var currentHistoryIndex = -1;
-var maxHistoryStates = 10;
+var maxHistoryStates = 30;
 var isRestoringState = false;
 var resizeTimeout;
 
@@ -1250,6 +1349,8 @@ function saveHistoryState() {
     historyStates.shift();
     currentHistoryIndex--;
   }
+  historyByStep[step] = historyStates.slice();
+  historyIndexByStep[step] = currentHistoryIndex;
   updateUndoRedoButtons();
 }
 
@@ -1261,6 +1362,8 @@ function restoreHistoryState(targetIndex) {
     $('#containment-wrapper' + step).html(targetState.html);
     reapplyElementEvents();
     currentHistoryIndex = targetIndex;
+    historyByStep[step] = historyStates.slice();
+    historyIndexByStep[step] = currentHistoryIndex;
     updateUndoRedoButtons();
   }
   isRestoringState = false;
@@ -1361,8 +1464,7 @@ function uploadImage(file) {
       $('#imagen-modal').modal('hide');
       const input = document.getElementById('imageInput');
       if (input) input.value = null;
-      $('#step').addClass('d-none');
-      $('#save-step').removeClass('d-none');
+      markDesignDirty();
       $('#step-edit-next').addClass('d-none');
       saveHistoryState();
       updateUndoRedoButtons();
@@ -1385,12 +1487,9 @@ function showStep(newStep) {
     $('.form-wizard-element').removeClass('active');
     $(`#bc-step-${newStep}`).addClass('active');
     if (newStep === 5) {
-        {{-- $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none'); --}}
+        {{-- paso final --}}
     } else {
-        $('#step').removeClass('d-none');
-        $('#save-step').addClass('d-none');
-        $('#step-edit-next').removeClass('d-none');
+        updateDesignActionButtons();
     }
     // Aplicar zoom al cambiar de paso
     if (typeof applyDesignZoom === 'function') {
@@ -1416,36 +1515,41 @@ function showStep(newStep) {
     }
 }
 
-function addEventsElement() {
-    $('.elements').unbind('contextmenu',changePositionElement);
-    $('.elements').contextmenu(changePositionElement);
-    $('.elements').unbind('click.select');
-    $('.elements').bind('click.select', function(e) {
-      e.stopPropagation();
-      $('.elements').removeClass('selected');
-      $(this).addClass('selected');
-      selectedElement = $(this);
-      actualElement = $(this); // Mantener compatibilidad
-      $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
-      if ($(this).hasClass('text')) {
+function selectDesignElement($el) {
+    if (!$el || !$el.length) return;
+    $el = $($el).closest('.elements');
+    if (!$el.length) return;
+    $('.elements').removeClass('selected');
+    $el.addClass('selected');
+    selectedElement = $el;
+    actualElement = $el;
+    $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
+    if ($el.hasClass('text')) {
         $('.text-style-btn').prop('disabled', false);
-      } else {
+    } else {
         $('.text-style-btn').prop('disabled', true);
-      }
-      updateUndoRedoButtons();
+    }
+    if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
+}
+
+function addEventsElement() {
+    $(document).off('mousedown.designSelect', '.elements');
+    $(document).on('mousedown.designSelect', '.elements', function(e) {
+      if (e.which !== 1) return;
+      if ($(e.target).closest('.edit-btn').length) return;
+      selectDesignElement($(this));
     });
+    $(document).off('contextmenu.designElement', '.elements');
+    $(document).on('contextmenu.designElement', '.elements', changePositionElement);
     
     // Deseleccionar al hacer clic fuera (pero no si el modal está abierto)
-    $('body').unbind('click.deselect');
-    $('body').bind('click.deselect', function(e) {
-      // No deseleccionar si algún modal está abierto
+    $('body').off('click.deselect').on('click.deselect', function(e) {
       if ($('#imagen-modal').hasClass('show') || $('#ckeditor-modal').hasClass('show') || $('#qr-modal').hasClass('show') || $('#position-modal').hasClass('show') || $('#bar-options-modal').hasClass('show')) {
         return;
       }
       if (!$(e.target).closest('.elements').length && !$(e.target).closest('.up-layer, .down-layer, .text-style-btn, .delete-element-btn, .undo-btn, #bar-options-modal').length) {
         $('.elements').removeClass('selected');
         selectedElement = null;
-        // Solo limpiar actualElement si no hay un elemento guardado en el modal
         if (!$('#imagen-modal').data('imageElement')) {
           actualElement = null;
         }
@@ -1526,80 +1630,166 @@ function changePositionElement(event) {
 }); --}}
 
 var snapshot_path = null;
-  $('#save-step').click(function(event) {
 
-    if (step != 1) {
-
-        let guardarSnapshotTriggered = false;
-        
-        if(step == 2 && !guardarSnapshotTriggered) {
-            guardarSnapshotTriggered = true;
-            html2canvas(document.querySelector('#step-2 .format-box')).then(function(canvas) {
-                // Thumbnail solo zona participación (sin la matriz), igual que en format; set digital sin recorte
-                var isDigitalSet = {{ ($set->digital_participations > 0 && (int)($set->physical_participations ?? 0) === 0) ? 'true' : 'false' }};
-                if (!isDigitalSet) {
-                    var identationMm = parseFloat($('#identation').val()) || 2.5;
-                    var matrixMm = parseFloat($('#matrix-box').val()) || 40;
-                    var boxWidthMm = 200;
-                    var leftStripMm = identationMm + matrixMm;
-                    var cropRatio = Math.min(1, Math.max(0, leftStripMm / boxWidthMm));
-                    var cropX = Math.floor(canvas.width * cropRatio);
-                    var cropW = canvas.width - cropX;
-                    if (cropW > 0 && cropX < canvas.width) {
-                        var cropped = document.createElement('canvas');
-                        cropped.width = cropW;
-                        cropped.height = canvas.height;
-                        var ctx = cropped.getContext('2d');
-                        ctx.drawImage(canvas, cropX, 0, cropW, canvas.height, 0, 0, cropW, canvas.height);
-                        canvas = cropped;
-                    }
-                }
-                let imageData = canvas.toDataURL('image/png');
-                
-                var formData = new FormData();
-
-                formData.append('design_id', {{ $set->id }});
-                formData.append('snapshot', imageData);
-
-                $.ajax({
-                    type: "POST",
-                    url: "{{url('/')}}/api/design/save-snapshot",
-                    data: formData,
-                    contentType: false,
-                    processData: false,
-                    success: function (response) {
-                        
-                        snapshot_path = response.path;
-                        console.log(snapshot_path);
-
-                        guardarSnapshotTriggered = false;
-                        // Ahora sí avanza al submit normal/flujo de guardar! Activa el clic de nuevo.
-                        let html = $('#containment-wrapper'+step).html();
-
-                        localStorage.setItem('step'+step,html);
-
-                        $('#step').removeClass('d-none');
-                        $('#save-step').addClass('d-none');
-                        $('#step-edit-next').removeClass('d-none');
-                    },error: function (response) {
-                        console.log(response);
-                        guardarSnapshotTriggered = false;
-                        alert('Error al guardar snapshot');
-                    }
-                });
-            });
-        } else {
-            let html = $('#containment-wrapper'+step).html();
-
-            localStorage.setItem('step'+step,html);
-
-            $('#step').removeClass('d-none');
-            $('#save-step').addClass('d-none');
-            $('#step-edit-next').removeClass('d-none');
-        }
-
+function parseDesignApiResponse(response) {
+  return response.text().then(function(text) {
+    var trimmed = (text || '').trim();
+    if (!trimmed) return {};
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
+      var start = trimmed.indexOf('{');
+      var end = trimmed.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        try {
+          return JSON.parse(trimmed.slice(start, end + 1));
+        } catch (e2) {}
+      }
+      return {};
     }
   });
+}
+
+function isDesignApiSuccess(result) {
+  if (!result || typeof result !== 'object') return false;
+  return result.success === true || result.success === 1 || result.success === '1' || result.success === 'true';
+}
+
+function submitEditFormatToServer(options) {
+  options = options || {};
+  var data = collectDesignData();
+  if (options.fromStep5) {
+    data.from_step_5 = true;
+  }
+  var loadingMsg = (typeof step !== 'undefined' && step === 1) ? 'Guardando márgenes...' : 'Guardando diseño...';
+  showDesignLoading(loadingMsg);
+
+  return fetch($('#edit-format-form').attr('action'), {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    },
+    body: JSON.stringify(data)
+  })
+  .then(function(response) {
+    return parseDesignApiResponse(response).then(function(result) {
+      return { ok: response.ok, status: response.status, result: result };
+    });
+  })
+  .then(function(payload) {
+    var result = payload.result || {};
+    if (!isDesignApiSuccess(result)) {
+      console.error('Edit design save failed', payload);
+      alert(result.message || 'Error al guardar el diseño.');
+      return false;
+    }
+
+    markDesignSaved();
+
+    if (options.fromStep5 && result.redirect) {
+      window.location.href = result.redirect;
+      return true;
+    }
+
+    var msg = (typeof step !== 'undefined' && step === 1) ? 'Márgenes aplicados correctamente.' : 'Diseño guardado correctamente.';
+    if (!options.skipSuccessAlert) {
+      alert(msg);
+    }
+
+    if (typeof options.onSuccess === 'function') {
+      try {
+        options.onSuccess();
+      } catch (e) {
+        console.error('Post-save callback failed', e);
+      }
+    }
+    return true;
+  })
+  .catch(function(error) {
+    console.error('Edit design save request failed', error);
+    alert('Error al guardar el diseño.');
+    return false;
+  })
+  .finally(function() {
+    hideDesignLoading();
+  });
+}
+
+function performLocalStepSave(options) {
+  options = options || {};
+  if (step == 1) {
+    submitEditFormatToServer(options);
+    return;
+  }
+
+  syncCurrentStepToLocalStorage();
+
+  var finishSave = function() {
+    syncCurrentStepToLocalStorage();
+    submitEditFormatToServer($.extend({}, options, {
+      skipSuccessAlert: typeof options.onSuccess === 'function'
+    }));
+  };
+
+  if (step == 2) {
+    html2canvas(document.querySelector('#step-2 .format-box')).then(function(canvas) {
+      var isDigitalSetLocal = {{ ($set->digital_participations > 0 && (int)($set->physical_participations ?? 0) === 0) ? 'true' : 'false' }};
+      if (!isDigitalSetLocal) {
+        var identationMm = parseFloat($('#identation').val()) || 2.5;
+        var matrixMm = parseFloat($('#matrix-box').val()) || 40;
+        var boxWidthMm = 200;
+        var leftStripMm = identationMm + matrixMm;
+        var cropRatio = Math.min(1, Math.max(0, leftStripMm / boxWidthMm));
+        var cropX = Math.floor(canvas.width * cropRatio);
+        var cropW = canvas.width - cropX;
+        if (cropW > 0 && cropX < canvas.width) {
+          var cropped = document.createElement('canvas');
+          cropped.width = cropW;
+          cropped.height = canvas.height;
+          var ctx = cropped.getContext('2d');
+          ctx.drawImage(canvas, cropX, 0, cropW, canvas.height, 0, 0, cropW, canvas.height);
+          canvas = cropped;
+        }
+      }
+      var formData = new FormData();
+      formData.append('design_id', {{ $set->id }});
+      formData.append('snapshot', canvas.toDataURL('image/png'));
+      $.ajax({
+        type: 'POST',
+        url: "{{url('/')}}/api/design/save-snapshot",
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function(response) {
+          snapshot_path = response.path;
+          finishSave();
+        },
+        error: function() {
+          alert('Error al guardar snapshot');
+        }
+      });
+    });
+    return;
+  }
+
+  finishSave();
+}
+
+$('#save-step').click(function(event) {
+  performLocalStepSave();
+});
+
+$('#save-continue-step').click(function(event) {
+  performLocalStepSave({
+    onSuccess: function() {
+      $('.next-step').first().trigger('click');
+    }
+  });
+});
 
 /**/
 
@@ -1908,7 +2098,7 @@ function collectDesignData() {
 
   const participation_html = getFormatBoxHtmlForSave('#step-2 .format-box');
   const cover_html = getFormatBoxHtmlForSave('#step-3 .format-box');
-  const back_html = getFormatBoxHtmlForSave('#step-4 .format-box');
+  const back_html = window.__backSkipped ? '' : getFormatBoxHtmlForSave('#step-4 .format-box');
 
   // Fondos: leer del DOM (lo que ve el usuario) para guardar siempre los valores reales
   function getBackgroundFromDom(stepNum) {
@@ -1972,6 +2162,8 @@ function collectDesignData() {
     snapshot_path,
     cover_html,
     back_html,
+    back_skipped: !!window.__backSkipped,
+    design_name: window.__pendingDesignName || window.__defaultDesignName || null,
     backgrounds,
     output: {
       draw_guides,
@@ -1998,70 +2190,11 @@ function hideDesignLoading() {
 // --- Enviar datos al backend al guardar ---
 $('#edit-format-form').on('submit', function(e) {
   e.preventDefault();
-  const data = collectDesignData();
-  
-  // Si viene del paso 5, agregar el flag
-  const isFromStep5 = $(this).data('from-step-5') === true;
-  if (isFromStep5) {
-    data.from_step_5 = true;
-  }
-
-  var loadingMsg = (typeof step !== 'undefined' && step === 1) ? 'Guardando márgenes...' : 'Guardando diseño...';
-  showDesignLoading(loadingMsg);
-  fetch($(this).attr('action'), {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-    },
-    body: JSON.stringify(data)
-  })
-  .then(response => response.json())
-  .then(result => {
-    if(result.success) {
-      if (isFromStep5 && result.redirect) {
-        hideDesignLoading();
-        window.location.href = result.redirect;
-        return;
-      } else {
-        var msg = (typeof step !== 'undefined' && step === 1) ? 'Márgenes aplicados correctamente.' : 'Diseño guardado correctamente.';
-        alert(msg);
-        if (typeof step !== 'undefined' && step === 1) {
-          var $feedback = $('#ticket-info');
-          if ($feedback.length) {
-            $feedback.addClass('alert-success').removeClass('alert-info');
-            setTimeout(function() { $feedback.removeClass('alert-success').addClass('alert-info'); }, 2500);
-          }
-        }
-      }
-    } else {
-      alert('Error al guardar el diseño.');
-    }
-  })
-  .catch(() => alert('Error al guardar el diseño.'))
-  .finally(() => hideDesignLoading());
-
-  {{-- $.ajax({
-    url: $(this).attr('action'),
-    method: 'POST',
-    data: {
-      _token: $('input[name="_token"]').val(),
-      _method: 'PUT',
-      data: JSON.stringify(data)
-    },
-    success: function(resp) {
-      // Redirigir o mostrar mensaje
-        alert('Diseño guardado correctamente');
-      if(resp.success) {
-        window.location.href = resp.redirect || window.location.href;
-      } else {
-        alert('Error al guardar el diseño.');
-      }
-    },
-    error: function() {
-      alert('Error al guardar el diseño.');
-    }
-  }); --}}
+  var isFromStep5 = $(this).data('from-step-5') === true;
+  $(this).data('from-step-5', false);
+  submitEditFormatToServer({
+    fromStep5: isFromStep5
+  });
 });
 
 $(document).ready(function() {
@@ -2103,13 +2236,16 @@ $(document).ready(function() {
             return;
         }
         if (step < 5) {
+            syncCurrentStepToLocalStorage();
+            stashStepHistory(step);
             step++;
+            loadStepHistory(step);
             showStep(step);
             setTimeout(function() {
                 reapplyElementEvents();
                 if ($('#containment-wrapper'+step).length) {
-                    setTimeout(() => {
-                        saveHistoryState();
+                    setTimeout(function() {
+                        ensureStepHistoryInitialized();
                         updateUndoRedoButtons();
                     }, 100);
                 }
@@ -2148,28 +2284,36 @@ $(document).ready(function() {
                 $('#containment-wrapper4').css('padding-right', matrix+'mm');
             }
         }else{
-            // Marcar que viene del paso 5 antes de enviar
+            var name = prompt('Nombre del diseño:', window.__defaultDesignName || '');
+            if (name === null) return;
+            window.__pendingDesignName = (name || '').trim() || window.__defaultDesignName;
             $('#edit-format-form').data('from-step-5', true);
             $('#edit-format-form').submit();
         }
     });
     $('.prev-step').click(function(e) {
         e.preventDefault();
-        if (step > 1) {
-            step--;
-            showStep(step);
-            setTimeout(function() {
-                reapplyElementEvents();
-                if ($('#containment-wrapper'+step).length) {
-                    setTimeout(() => {
-                        saveHistoryState();
-                        updateUndoRedoButtons();
-                    }, 100);
-                }
-            }, 100);
-        }else{
-            window.open('{{url('design')}}','_self');
-        }
+        var navigateBack = function() {
+            if (step > 1) {
+                syncCurrentStepToLocalStorage();
+                stashStepHistory(step);
+                step--;
+                loadStepHistory(step);
+                showStep(step);
+                setTimeout(function() {
+                    reapplyElementEvents();
+                    if ($('#containment-wrapper'+step).length) {
+                        setTimeout(function() {
+                            ensureStepHistoryInitialized();
+                            updateUndoRedoButtons();
+                        }, 100);
+                    }
+                }, 100);
+            } else {
+                window.open('{{url('design')}}','_self');
+            }
+        };
+        confirmLeaveWithUnsaved(navigateBack);
     });
     $('.form-wizard-element').click(function() {
         const id = $(this).attr('id');
@@ -2210,11 +2354,41 @@ $(document).ready(function() {
     $('.add-text').off('click').on('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $('#containment-wrapper'+step).append(`<div class="elements text" style="padding: 10px; width: 200px; height: 120px; resize: both; overflow: hidden; position: absolute; top: 0"><button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button><span>Escribe aquí...</span></div>`);
+        var $box = $('#step-' + step + ' .format-box');
+        var boxW = $box.length ? $box.width() : 400;
+        var boxH = $box.length ? $box.height() : 300;
+        var left = Math.max(20, Math.round((boxW - 220) / 2));
+        var top = Math.max(20, Math.round((boxH - 100) / 2));
+        var $newEl = $(`<div class="elements text text-placeholder-new selected" style="padding: 12px; width: 220px; height: 100px; resize: both; overflow: hidden; position: absolute; top: ${top}px; left: ${left}px; z-index: 5000;"><button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button><span><strong>Escribe aquí...</strong></span></div>`);
+        $('#containment-wrapper'+step).append($newEl);
+        $('.elements').removeClass('selected');
+        selectedElement = $newEl;
+        $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
+        $('.text-style-btn').prop('disabled', false);
         reapplyElementEvents();
+        markDesignDirty();
         saveHistoryState();
         updateUndoRedoButtons();
         return false;
+    });
+    $('.reset-mandatory-canvas').off('click').on('click', function (e) {
+        e.preventDefault();
+        if (!confirm('¿Eliminar todos los elementos opcionales y dejar solo los campos obligatorios?')) return;
+        $('#containment-wrapper' + step + ' .elements').not('.element-critical').remove();
+        reapplyElementEvents();
+        markDesignDirty();
+        saveHistoryState();
+        updateUndoRedoButtons();
+    });
+    $('#btn-skip-back-design').off('click').on('click', function (e) {
+        e.preventDefault();
+        if (!confirm('¿Omitir el diseño de trasera? No podrá descargar PDF de traseras.')) return;
+        window.__backSkipped = true;
+        $('#containment-wrapper4 .elements').remove();
+        markDesignDirty();
+        step = 5;
+        showStep(step);
+        reapplyElementEvents();
     });
     $('.add-image').off('click').on('click', function (e) {
         e.preventDefault();
@@ -2318,8 +2492,7 @@ $(document).ready(function() {
         selectedElement.remove();
         selectedElement = null;
         $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-        $('#save-step').removeClass('d-none');
-        $('#step').addClass('d-none');
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         saveHistoryState();
         updateUndoRedoButtons();
@@ -2423,8 +2596,7 @@ $(document).ready(function() {
         }
         if (confirm('¿Desea eliminar el elemento seleccionado?')) {
             if (actualElement) actualElement.remove();
-            $('#step').addClass('d-none');
-            $('#save-step').removeClass('d-none');
+            markDesignDirty();
             $('#step-edit-next').addClass('d-none');
         }
     });
@@ -2444,8 +2616,7 @@ $(document).ready(function() {
             selectedElement = null;
             actualElement = null;
             $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-            $('#step').addClass('d-none');
-            $('#save-step').removeClass('d-none');
+            markDesignDirty();
             $('#step-edit-next').addClass('d-none');
             saveHistoryState();
             updateUndoRedoButtons();
@@ -2463,8 +2634,7 @@ $(document).ready(function() {
             CKEDITOR.instances['editor'].destroy(true);
         }
         $('#ckeditor-modal').modal('hide');
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         saveHistoryState();
         updateUndoRedoButtons();
@@ -2512,8 +2682,7 @@ $(document).ready(function() {
                 $(actualElement).find('img').attr('src', data.url);
                 $('#qr-modal').modal('hide');
                 $('#qr-text').val("");
-                $('#step').addClass('d-none');
-                $('#save-step').removeClass('d-none');
+                markDesignDirty();
                 $('#step-edit-next').addClass('d-none');
             }
         })
@@ -2546,8 +2715,8 @@ function reapplyElementEvents() {
       containment: "#containment-wrapper"+step, 
       scroll: false, 
       start: function(event, ui){
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        selectDesignElement($(this));
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         if (typeof designZoom !== 'undefined' && designZoom !== 1) {
           var el = ui.helper[0];

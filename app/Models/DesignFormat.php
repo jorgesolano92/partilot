@@ -17,6 +17,7 @@ class DesignFormat extends Model
         'entity_id',
         'lottery_id',
         'set_id',
+        'design_name',
         'format',
         'page',
         'rows',
@@ -46,6 +47,7 @@ class DesignFormat extends Model
         'margin_custom',
         'cover_html',
         'back_html',
+        'back_skipped',
         'backgrounds',
         'margins',
         'output',
@@ -64,6 +66,7 @@ class DesignFormat extends Model
         'backgrounds' => 'array',
         'output' => 'array',
         'margins' => 'array',
+        'back_skipped' => 'boolean',
         'submitted_for_approval_at' => 'datetime',
         'approval_decided_at' => 'datetime',
     ];
@@ -81,6 +84,11 @@ class DesignFormat extends Model
     public function set()
     {
         return $this->belongsTo(Set::class);
+    }
+
+    public function hasBackDesign(): bool
+    {
+        return ! $this->back_skipped && ! empty(trim((string) ($this->back_html ?? '')));
     }
 
     public function participations()

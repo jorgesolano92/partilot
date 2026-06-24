@@ -39,7 +39,9 @@
                             <table class="table table-hover table-striped">
                                 <thead>
                                     <tr>
+                                        <th style="width: 90px;">Vista previa</th>
                                         <th>Id</th>
+                                        <th>Nombre diseño</th>
                                         <th>Nombre set</th>
                                         <th>Nº reserva</th>
                                         <th>Fecha creación diseño</th>
@@ -49,7 +51,15 @@
                                 <tbody>
                                     @foreach($designs as $d)
                                         <tr>
+                                            <td class="align-middle text-center">
+                                                @if($d->snapshot_path)
+                                                    <img src="{{ asset('storage/' . $d->snapshot_path) }}" alt="Vista previa diseño {{ $d->id }}" class="rounded border" style="max-width: 72px; max-height: 48px; object-fit: contain; background: #f5f5f5;">
+                                                @else
+                                                    <span class="text-muted small">Sin imagen</span>
+                                                @endif
+                                            </td>
                                             <td>{{ $d->id }}</td>
+                                            <td>{{ $d->design_name ?: '—' }}</td>
                                             <td>
                                                 @if($d->set)
                                                     {{ $d->set->set_name ?: 'Set ' . $d->set->id }}

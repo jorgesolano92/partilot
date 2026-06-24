@@ -933,6 +933,10 @@ class DesignController extends Controller
         }
         $designLock = $this->getSetDesignLockContext($set);
         $forceFreshDraft = $forceFreshDraft ?? (bool) $request->filled('new_design');
+        $loadedFromPicker = $request->filled('design_id');
+        if ($loadedFromPicker && $design) {
+            $forceFreshDraft = false;
+        }
         return view('design.format', [
             'entity' => $entity,
             'lottery' => $lottery,
@@ -943,6 +947,7 @@ class DesignController extends Controller
             'designFormatId' => $designFormatId,
             'designLock' => $designLock,
             'forceFreshDraft' => $forceFreshDraft,
+            'loadedFromPicker' => $loadedFromPicker,
             'save_format_url' => route('design.saveFormat'),
         ]);
     }
@@ -1074,6 +1079,8 @@ class DesignController extends Controller
             'participation_html' => 'nullable|string',
             'cover_html' => 'nullable|string',
             'back_html' => 'nullable|string',
+            'back_skipped' => 'nullable|boolean',
+            'design_name' => 'nullable|string|max:120',
             'backgrounds' => 'nullable|array',
             'output' => 'nullable|array',
             'snapshot_path' => 'nullable|string',
@@ -1215,6 +1222,10 @@ class DesignController extends Controller
         $existing->participation_html = $data['participation_html'];
         $existing->cover_html = $data['cover_html'];
         $existing->back_html = $data['back_html'];
+        $existing->back_skipped = (bool) ($data['back_skipped'] ?? false);
+        if (array_key_exists('design_name', $data) && $data['design_name'] !== null && $data['design_name'] !== '') {
+            $existing->design_name = $data['design_name'];
+        }
         $existing->backgrounds = $data['backgrounds'];
         $existing->output = $data['output'];
         $existing->snapshot_path = $data['snapshot_path'];
@@ -2387,10 +2398,6 @@ class DesignController extends Controller
         return $html;
     }
 
-    /**
-     * Vista para sets digitales: renderiza el HTML de la participación y permite descargarlo como imagen.
-     * (Solo aplica a sets digitales; para físicos se usa PDF.)
-     */
     public function digitalParticipationImage($id)
     {
         $design = DesignFormat::with(['set.entity', 'lottery', 'entity'])->findOrFail($id);
@@ -2409,6 +2416,28 @@ class DesignController extends Controller
         $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
 
         return view('design.digital_participation_image', [
+            'design' => $design,
+            'set' => $set,
+            'reservation_numbers' => $reservation_numbers,
+            'html' => $html,
+        ]);
+    }
+
+    /**
+     * Imagen de participación para marketing (sin QR, referencia ni nº de participación).
+     */
+    public function marketingParticipationImage($id)
+    {
+        $design = DesignFormat::with(['set.entity', 'lottery', 'entity'])->findOrFail($id);
+        if (! auth()->user()->canAccessEntity((int) $design->entity_id)) {
+            abort(403, 'No tienes permisos para ver este diseño.');
+        }
+
+        $set = $design->set;
+        $reservation_numbers = $set && $set->reserve ? $set->reserve->reservation_numbers : [];
+        $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+
+        return view('design.marketing_participation_image', [
             'design' => $design,
             'set' => $set,
             'reservation_numbers' => $reservation_numbers,
@@ -3166,6 +3195,12 @@ class DesignController extends Controller
                 $format->participation_html = $data['participation_html'] ?? $format->participation_html;
                 $format->cover_html = $data['cover_html'] ?? $format->cover_html;
                 $format->back_html = $data['back_html'] ?? $format->back_html;
+                if (array_key_exists('back_skipped', $data)) {
+                    $format->back_skipped = (bool) $data['back_skipped'];
+                }
+                if (! empty($data['design_name'])) {
+                    $format->design_name = $data['design_name'];
+                }
                 $format->snapshot_path = $data['snapshot_path'] ?? $format->snapshot_path;
                 // Guardar los campos JSON como string si corresponde
                 if (isset($data['margins'])) $format->margins = $data['margins'];
@@ -3198,8 +3233,11 @@ class DesignController extends Controller
                 
                 return response()->json(['success' => true, 'redirect' => route('design.editFormat', $id)]);
             }
-        // }
-        // return response()->json(['success' => false], 200);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'No se recibieron datos válidos para guardar el diseño.',
+        ], 422);
     }
 
 

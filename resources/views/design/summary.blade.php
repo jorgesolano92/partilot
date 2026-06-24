@@ -143,7 +143,7 @@
                             && ($design->set->digital_participations ?? 0) > 0
                             && (int) ($design->set->physical_participations ?? 0) === 0;
                         $hasCover = !empty($design->cover_html);
-                        $hasBack = !empty($design->back_html);
+                        $hasBack = $design->hasBackDesign();
                         $blocksQrExport = !empty($managementFee['blocks_export']);
                     @endphp
                     <div class="d-flex flex-wrap justify-content-center gap-3 mb-4">
@@ -172,6 +172,11 @@
                             <i class="ri-file-pdf-line me-1"></i> Descargar PDF participaciones
                         </button>
                         @endif
+                        @endif
+                        @if(!$isDigitalSet && !empty($design->participation_html))
+                        <a href="{{ route('design.marketingParticipationImage', $design->id) }}" class="btn btn-outline-success" target="_blank">
+                            <i class="ri-share-line me-1"></i> Imagen redes (sin QR)
+                        </a>
                         @endif
                         @if(!$isDigitalSet && $hasCover)
                         <button type="button"

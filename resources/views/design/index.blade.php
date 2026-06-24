@@ -119,8 +119,9 @@
                                     @endif
                                     @php
                                         $hasCover = !empty($design->cover_html);
-                                        $hasBack = !empty($design->back_html);
+                                        $hasBack = $design->hasBackDesign();
                                     @endphp
+                                    <a href="{{ route('design.marketingParticipationImage', $design->id) }}" class="btn btn-sm btn-light" title="Imagen para redes (sin QR)" target="_blank"><i class="ri-share-line"></i></a>
                                     @if($hasCover)
                                     <button type="button"
                                         class="btn btn-sm btn-light js-design-pdf-async"

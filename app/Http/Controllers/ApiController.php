@@ -20,12 +20,17 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('design_formats', function (Blueprint $table) {
+            $table->string('design_name', 120)->nullable()->after('set_id');
+            $table->boolean('back_skipped')->default(false)->after('back_html');
+        });
+
+        return "ok";
+
         Schema::table('pending_digital_sales', function (Blueprint $table) {
             $table->string('buyer_phone', 20)->nullable()->after('email');
             $table->string('notify_channel', 20)->nullable()->after('buyer_phone');
         });
-
-        return "ok";
         
         // Schema::table('participation_collection_items', function (Blueprint $table) {
         //     if (! Schema::hasColumn('participation_collection_items', 'entity_id')) {
