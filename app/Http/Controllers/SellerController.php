@@ -476,7 +476,16 @@ class SellerController extends Controller
             ->whereHas('sets', $setFilterForSeller)
             ->with(['sets' => function ($q) use ($setFilterForSeller) {
                 $setFilterForSeller($q);
-                $q->select('sets.id', 'sets.reserve_id', 'sets.set_name', 'sets.total_participations', 'sets.total_participation_amount as played_amount', 'sets.physical_participations', 'sets.digital_participations');
+                $q->select(
+                    'sets.id',
+                    'sets.reserve_id',
+                    'sets.set_number',
+                    'sets.set_name',
+                    'sets.total_participations',
+                    'sets.total_participation_amount as played_amount',
+                    'sets.physical_participations',
+                    'sets.digital_participations'
+                );
             }])
             ->orderBy('reservation_date', 'desc')
             ->get();
