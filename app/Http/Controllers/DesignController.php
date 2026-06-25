@@ -20,7 +20,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Mail\DesignExternalInvitationMail;
+use App\Mail\ManagementFeePaymentRequestMail;
 use App\Models\EmailCommunicationLog;
+use App\Models\Manager;
 use App\Services\CommunicationEmailService;
 use App\Support\FpdiPdfMerge;
 use App\Support\GeneratedPdfCatalog;
@@ -67,6 +69,9 @@ class DesignController extends Controller
         }
 
         $entity = Entity::forUser(auth()->user())->findOrFail($entity_id);
+        if ($redirect = $this->redirectIfEntityCannotDesign($entity)) {
+            return $redirect;
+        }
         
         // Mostrar solo sorteos que tienen sets asociados para esta entidad
         $lotteries = \App\Models\Lottery::whereHas('reserves', function($query) use ($entity_id) {
@@ -90,6 +95,9 @@ class DesignController extends Controller
         $lottery_id = session('design_lottery_id');
 
         $entity = Entity::forUser(auth()->user())->findOrFail($entity_id);
+        if ($redirect = $this->redirectIfEntityCannotDesign($entity)) {
+            return $redirect;
+        }
         $lottery = \App\Models\Lottery::findOrFail($lottery_id);
         // Buscar todos los sets de la entidad y sorteo (a través de la reserva)
         $sets = Set::forUser(auth()->user())
@@ -98,13 +106,15 @@ class DesignController extends Controller
                 $q->where('lottery_id', $lottery_id);
             })
             ->get();
-        $setLocksBySetId = $this->batchDesignLockContextsForSetIds($sets->pluck('id')->all());
+        $setIds = $sets->pluck('id')->all();
+        $setLocksBySetId = $this->batchDesignLockContextsForSetIds($setIds);
+        $setAvailabilityBySetId = $this->batchSetDesignAvailabilityForSetIds($setIds, $sets);
         // Obtener la reserva principal (opcional, para la vista)
         $reserve = \App\Models\Reserve::forUser(auth()->user())
             ->where('entity_id', $entity_id)
             ->where('lottery_id', $lottery_id)
             ->first();
-        return view('design.add_set', compact('entity', 'lottery', 'sets', 'reserve', 'setLocksBySetId'));
+        return view('design.add_set', compact('entity', 'lottery', 'sets', 'reserve', 'setLocksBySetId', 'setAvailabilityBySetId'));
     }
 
     /**
@@ -119,6 +129,10 @@ class DesignController extends Controller
             abort(403, 'No tienes permisos para gestionar esta entidad.');
         }
         session(['design_set_id' => $request->set_id]);
+        $entity = Entity::forUser(auth()->user())->findOrFail($entity_id);
+        if ($redirect = $this->redirectIfEntityCannotDesign($entity)) {
+            return $redirect;
+        }
         return redirect()->route('design.showChooseType');
     }
 
@@ -137,6 +151,9 @@ class DesignController extends Controller
             abort(403, 'No tienes permisos para gestionar esta entidad.');
         }
         $entity = Entity::forUser(auth()->user())->findOrFail($entity_id);
+        if ($redirect = $this->redirectIfEntityCannotDesign($entity)) {
+            return $redirect;
+        }
         $lottery = Lottery::findOrFail($lottery_id);
         $set = Set::forUser(auth()->user())->findOrFail($set_id);
         $designLock = $this->getSetDesignLockContext($set);
@@ -467,14 +484,22 @@ class DesignController extends Controller
                         return;
                     }
 
-                    $design = DesignFormat::create([
-                        'entity_id' => (int) $invitation->entity_id,
-                        'lottery_id' => (int) $invitation->lottery_id,
-                        'set_id' => (int) $invitation->set_id,
-                        'output' => [
-                            'participations_per_book' => (int) ($invitation->participations_per_book ?? 50),
-                        ],
-                    ]);
+                    $design = DesignFormat::query()
+                        ->where('entity_id', (int) $invitation->entity_id)
+                        ->where('set_id', (int) $invitation->set_id)
+                        ->orderByDesc('id')
+                        ->first();
+
+                    if (! $design) {
+                        $design = DesignFormat::create([
+                            'entity_id' => (int) $invitation->entity_id,
+                            'lottery_id' => (int) $invitation->lottery_id,
+                            'set_id' => (int) $invitation->set_id,
+                            'output' => [
+                                'participations_per_book' => (int) ($invitation->participations_per_book ?? 50),
+                            ],
+                        ]);
+                    }
 
                     $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
                     $order = PrintOrder::create([
@@ -724,22 +749,7 @@ class DesignController extends Controller
                 ->first();
         }
         if ($design) {
-            $blocks = is_array($design->blocks ?? null) ? $design->blocks : [];
-            if (empty($design->participation_html) && !empty($blocks['participation_html'])) {
-                $design->participation_html = $blocks['participation_html'];
-            }
-            if (empty($design->cover_html) && !empty($blocks['cover_html'])) {
-                $design->cover_html = $blocks['cover_html'];
-            }
-            if (empty($design->back_html) && !empty($blocks['back_html'])) {
-                $design->back_html = $blocks['back_html'];
-            }
-            $design->participation_html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
-            $design->cover_html = $this->ensureAbsoluteUrlsInHtml($design->cover_html ?? '');
-            $design->back_html = $this->ensureAbsoluteUrlsInHtml($design->back_html ?? '');
-            if (empty($design->backgrounds) && !empty($blocks['backgrounds']) && is_array($blocks['backgrounds'])) {
-                $design->backgrounds = $blocks['backgrounds'];
-            }
+            $design = $this->hydrateDesignHtmlFromBlocks($design);
         }
 
         return view('design.format', [
@@ -819,8 +829,94 @@ class DesignController extends Controller
      */
     public function externalThankYou()
     {
-        session()->forget(['design_entity_id', 'design_lottery_id', 'design_set_id', 'design_external_invitation_id']);
+        session()->forget(['design_entity_id', 'design_lottery_id', 'design_set_id', 'design_external_invitation_id', 'print_shop_order_id']);
         return view('design.external_thank_you');
+    }
+
+    /**
+     * Abre el editor de diseño desde el panel de imprenta.
+     */
+    public function printShopOpenDesign(Request $request, PrintOrder $printOrder)
+    {
+        $printOrder->loadMissing(['design', 'set.reserve', 'entity', 'lottery']);
+        $this->assertPrintShopMayDesignOrder($printOrder);
+
+        session([
+            'print_shop_order_id' => $printOrder->id,
+            'design_entity_id' => $printOrder->entity_id,
+            'design_lottery_id' => $printOrder->lottery_id,
+            'design_set_id' => $printOrder->set_id,
+        ]);
+
+        $design = $printOrder->design;
+        if (! $design) {
+            return redirect()->route('print-shop.orders.show', $printOrder->id)
+                ->with('error', 'Esta orden no tiene un diseño vinculado.');
+        }
+
+        $approvalService = app(DesignApprovalService::class);
+        if (! $approvalService->designHasParticipationContent($design)) {
+            $subRequest = Request::create(route('design.format'), 'POST', [
+                'set_id' => $printOrder->set_id,
+                'new_design' => 1,
+            ]);
+            $subRequest->setLaravelSession(session());
+
+            return $this->format($subRequest);
+        }
+
+        $format = $this->hydrateDesignHtmlFromBlocks($design);
+        $set = $printOrder->set;
+        $reservation_numbers = $set && $set->reserve ? $set->reserve->reservation_numbers : [];
+        $isDigitalSet = $set && $set->digital_participations > 0 && (int) ($set->physical_participations ?? 0) === 0;
+        $printShopOrder = $printOrder;
+        $update_format_url = route('print-shop.orders.update-design', $printOrder->id);
+
+        return view('design.edit_format', compact(
+            'format',
+            'set',
+            'reservation_numbers',
+            'isDigitalSet',
+            'printShopOrder',
+            'update_format_url'
+        ));
+    }
+
+    public function printShopSaveFormat(Request $request, PrintOrder $printOrder)
+    {
+        $printOrder->loadMissing('design');
+        $this->assertPrintShopMayDesignOrder($printOrder);
+
+        session([
+            'print_shop_order_id' => $printOrder->id,
+            'design_entity_id' => $printOrder->entity_id,
+            'design_lottery_id' => $printOrder->lottery_id,
+            'design_set_id' => $printOrder->set_id,
+        ]);
+
+        $request->merge([
+            'design_entity_id' => $printOrder->entity_id,
+            'design_lottery_id' => $printOrder->lottery_id,
+            'set_id' => $printOrder->set_id,
+            'design_id' => $printOrder->design_format_id,
+        ]);
+
+        return $this->saveFormat($request);
+    }
+
+    public function printShopUpdateFormat(Request $request, PrintOrder $printOrder)
+    {
+        $printOrder->loadMissing('design');
+        $this->assertPrintShopMayDesignOrder($printOrder);
+
+        session(['print_shop_order_id' => $printOrder->id]);
+
+        $design = $printOrder->design;
+        if (! $design) {
+            abort(404, 'Diseño no encontrado para esta orden.');
+        }
+
+        return $this->updateFormat($request, $design->id);
     }
 
     private function ensureDesignSession()
@@ -835,8 +931,19 @@ class DesignController extends Controller
     {
         $entityId = session('design_entity_id');
         $byInvitation = (bool) session('design_external_invitation_id');
+        $printShopOrder = $this->resolveAuthorizedPrintShopOrder();
+        $byPrintShop = $printShopOrder !== null;
 
-        if ($byInvitation) {
+        if ($byPrintShop) {
+            $entity = Entity::findOrFail($printShopOrder->entity_id);
+            $set = Set::findOrFail($printShopOrder->set_id);
+            $entityId = (int) $printShopOrder->entity_id;
+            session([
+                'design_entity_id' => $printShopOrder->entity_id,
+                'design_lottery_id' => $printShopOrder->lottery_id,
+                'design_set_id' => $printShopOrder->set_id,
+            ]);
+        } elseif ($byInvitation) {
             $invitation = DesignExternalInvitation::find(session('design_external_invitation_id'));
             if (!$invitation || $invitation->entity_id != $entityId || $invitation->set_id != (int) $request->set_id) {
                 abort(403, 'Invitación no válida para este diseño.');
@@ -851,15 +958,37 @@ class DesignController extends Controller
             $set = Set::forUser(auth()->user())->findOrFail($request->set_id);
         }
 
-        if (! $byInvitation) {
-            $prePayRedirect = $this->redirectIfEntityDesignerMustPayManagementFee($set);
-            if ($prePayRedirect) {
-                return $prePayRedirect;
+        if (! $byInvitation && ! $byPrintShop) {
+            if ($redirect = $this->redirectIfEntityCannotDesign($entity)) {
+                return $redirect;
+            }
+
+            $approvalService = app(DesignApprovalService::class);
+            $feeService = app(ManagementFeeService::class);
+            if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
+                $lottery = Lottery::findOrFail(session('design_lottery_id'));
+                $placeholder = $this->ensurePlaceholderDesign($set, $entity, (int) $lottery->id);
+
+                if ($approvalService->isAdministrationSideUser(auth()->user())) {
+                    if ($approvalService->entityDesignEnabled($entity)) {
+                        return redirect()->route('design.summary', $placeholder->id)
+                            ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+                    }
+
+                    $this->notifyEntityManagementFeePaymentRequired($placeholder);
+
+                    return redirect()->route('design.summary', $placeholder->id)
+                        ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de que la administración pueda continuar con el diseño.');
+                }
+
+                return redirect()->route('design.managementFee.pay', $set->id)
+                    ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
             }
         }
 
         if (
             ! $byInvitation
+            && ! $byPrintShop
             && $request->boolean('new_design')
             && $this->getSetDesignLockContext($set)['locked']
         ) {
@@ -894,7 +1023,7 @@ class DesignController extends Controller
             if ($existingForSet) {
                 $design = $existingForSet;
                 $designFormatId = $existingForSet->id;
-                $forceFreshDraft = false;
+                $forceFreshDraft = ! app(DesignApprovalService::class)->designHasParticipationContent($existingForSet);
             } else {
                 $forceFreshDraft = true;
             }
@@ -911,25 +1040,8 @@ class DesignController extends Controller
                     ->first();
             }
         }
-        // Al cargar un diseño (propio o desde list-formats): usar blocks si las columnas HTML están vacías y normalizar URLs
         if ($design) {
-            $blocks = is_array($design->blocks ?? null) ? $design->blocks : [];
-            if (empty($design->participation_html) && !empty($blocks['participation_html'])) {
-                $design->participation_html = $blocks['participation_html'];
-            }
-            if (empty($design->cover_html) && !empty($blocks['cover_html'])) {
-                $design->cover_html = $blocks['cover_html'];
-            }
-            if (empty($design->back_html) && !empty($blocks['back_html'])) {
-                $design->back_html = $blocks['back_html'];
-            }
-            $design->participation_html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
-            $design->cover_html = $this->ensureAbsoluteUrlsInHtml($design->cover_html ?? '');
-            $design->back_html = $this->ensureAbsoluteUrlsInHtml($design->back_html ?? '');
-            // Usar blocks.backgrounds si la columna backgrounds está vacía
-            if (empty($design->backgrounds) && ! empty($blocks['backgrounds']) && is_array($blocks['backgrounds'])) {
-                $design->backgrounds = $blocks['backgrounds'];
-            }
+            $design = $this->hydrateDesignHtmlFromBlocks($design);
         }
         $designLock = $this->getSetDesignLockContext($set);
         $forceFreshDraft = $forceFreshDraft ?? (bool) $request->filled('new_design');
@@ -937,6 +1049,20 @@ class DesignController extends Controller
         if ($loadedFromPicker && $design) {
             $forceFreshDraft = false;
         }
+
+        $externalInvitation = null;
+        if ($byPrintShop) {
+            $externalInvitation = DesignExternalInvitation::query()
+                ->where('set_id', $printShopOrder->set_id)
+                ->where('entity_id', $printShopOrder->entity_id)
+                ->when($printShopOrder->print_configuration_id, function ($query) use ($printShopOrder) {
+                    $query->where('print_configuration_id', $printShopOrder->print_configuration_id);
+                })
+                ->with('files')
+                ->orderByDesc('id')
+                ->first();
+        }
+
         return view('design.format', [
             'entity' => $entity,
             'lottery' => $lottery,
@@ -948,7 +1074,14 @@ class DesignController extends Controller
             'designLock' => $designLock,
             'forceFreshDraft' => $forceFreshDraft,
             'loadedFromPicker' => $loadedFromPicker,
-            'save_format_url' => route('design.saveFormat'),
+            'save_format_url' => $byPrintShop
+                ? route('print-shop.orders.save-design', $printShopOrder->id)
+                : route('design.saveFormat'),
+            'redirect_after_save' => $byPrintShop
+                ? route('print-shop.orders.show', $printShopOrder->id)
+                : null,
+            'printShopOrder' => $byPrintShop ? $printShopOrder : null,
+            'externalInvitation' => $externalInvitation,
         ]);
     }
 
@@ -1090,7 +1223,21 @@ class DesignController extends Controller
         $data['entity_id'] = $request->design_entity_id ?? 1;
         $data['lottery_id'] = $request->design_lottery_id ?? 1;
 
-        // Asegurar backgrounds desde el request (validación puede devolver array asociativo)
+        $entityForSave = Entity::query()->find((int) $data['entity_id']);
+        $approvalService = app(DesignApprovalService::class);
+        $saveUser = auth()->user();
+        if ($entityForSave && $saveUser
+            && $saveUser->isEntity()
+            && ! $approvalService->isAdministrationSideUser($saveUser)
+            && $approvalService->administrationDesignOnly($entityForSave)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Para esta entidad el diseño lo realiza la administración.',
+                'code' => 'ENTITY_DESIGN_DISABLED',
+            ], 403);
+        }
+
+        // Asegurar backgrounds desde el request
         $requestBackgrounds = $request->input('backgrounds');
         if (is_array($requestBackgrounds) && ! empty($requestBackgrounds)) {
             $data['backgrounds'] = $requestBackgrounds;
@@ -1115,12 +1262,28 @@ class DesignController extends Controller
 
         $set = Set::find($data['set_id'] ?? null);
         if ($set) {
+            $set->loadMissing('entity');
+            if (app(ManagementFeeService::class)->blocksAdminDesignUntilEntityPays($set)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La cuota de gestión PARTILOT debe confirmarse antes de guardar el diseño.',
+                    'code' => 'MANAGEMENT_FEE_REQUIRED',
+                ], 402);
+            }
+
             $set->loadMissing('reserve.lottery');
             if ($response = $this->jsonIfLotteryDrawDateBlocked($set->reserve?->lottery)) {
                 return $response;
             }
             $designLock = $this->getSetDesignLockContext($set);
-            if ($designLock['locked']) {
+            $existingForLock = $this->resolveDesignFormatForSave($data, $request->input('design_id'));
+            $lockApplies = $designLock['locked']
+                && (! $existingForLock || app(DesignApprovalService::class)->operationalDesignLockApplies(
+                    auth()->user(),
+                    $existingForLock,
+                    $designLock
+                ));
+            if ($lockApplies) {
                 $this->logDesignLockAudit($set, 'save_format_blocked', $designLock);
                 return response()->json([
                     'success' => false,
@@ -1142,6 +1305,13 @@ class DesignController extends Controller
             }
 
             $this->fillDesignFormatFromSaveData($existing, $data);
+            if (! app(DesignApprovalService::class)->canEntityEditDesign(auth()->user(), $existing)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Este diseño fue creado por la administración. La entidad solo puede aprobarlo o rechazarlo.',
+                    'code' => 'DESIGN_ENTITY_READ_ONLY',
+                ], 403);
+            }
             app(DesignApprovalService::class)->assignDesignerTypeIfMissing($existing, $this->resolveDesignSaveUser());
             $existing->save();
             if (in_array($request->input('save_reason'), ['manual-save', 'final-save'], true)) {
@@ -2454,28 +2624,43 @@ class DesignController extends Controller
         if (!auth()->user()->canAccessEntity((int) $format->entity_id)) {
             abort(403, 'No tienes permisos para editar este diseño.');
         }
+        $approvalService = app(DesignApprovalService::class);
+        if (! $approvalService->canEntityEditDesign(auth()->user(), $format)) {
+            if ($approvalService->canReviewApproval(auth()->user(), $format)) {
+                return redirect()->route('design.approval.review', $format->id);
+            }
+            if ($approvalService->isVisibleToEntityViewer($format)) {
+                return redirect()->route('design.summary', $format->id);
+            }
+
+            abort(403, 'Este diseño está en preparación por la administración.');
+        }
         $setForLock = $format->set_id ? Set::find($format->set_id) : null;
         if ($setForLock) {
-            $prePayRedirect = $this->redirectIfEntityDesignerMustPayManagementFee($setForLock, $format);
-            if ($prePayRedirect) {
-                return $prePayRedirect;
+            $feeService = app(ManagementFeeService::class);
+            if ($feeService->blocksAdminDesignUntilEntityPays($setForLock)) {
+                if (app(DesignApprovalService::class)->isAdministrationSideUser(auth()->user())) {
+                    return redirect()->route('design.summary', $format->id)
+                        ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de continuar con el diseño.');
+                }
+
+                return redirect()->route('design.managementFee.pay', $setForLock->id)
+                    ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
             }
         }
-        if ($setForLock && $this->getSetDesignLockContext($setForLock)['locked']) {
-            return redirect()->route('design.summary', $id)
-                ->with('warning', 'Este diseño está bloqueado por el estado operativo del set (ventas/asignaciones). Usa el resumen para revisar y descargar PDFs.');
-        }
         $printOrderLock = $this->getPrintOrderLockContext($format->id);
-        if ($printOrderLock['locked']) {
+        $setLock = $setForLock ? $this->getSetDesignLockContext($setForLock) : ['locked' => false];
+        if ($approvalService->operationalDesignLockApplies(auth()->user(), $format, $setLock, $printOrderLock)) {
+            $message = ! empty($printOrderLock['locked'])
+                ? ($printOrderLock['message'] ?? 'Este diseño tiene una orden de imprenta activa y no puede editarse. Puede visualizarlo desde el resumen.')
+                : ($setLock['message'] ?? 'Este diseño está bloqueado por el estado operativo del set (ventas/asignaciones).');
+
             return redirect()->route('design.summary', $id)
-                ->with('warning', $printOrderLock['message']);
+                ->with('warning', $message);
         }
-        $format->participation_html = $this->ensureAbsoluteUrlsInHtml($format->participation_html ?? '');
-        $format->cover_html = $this->ensureAbsoluteUrlsInHtml($format->cover_html ?? '');
-        $format->back_html = $this->ensureAbsoluteUrlsInHtml($format->back_html ?? '');
-        $blocks = is_array($format->blocks ?? null) ? $format->blocks : [];
-        if (empty($format->backgrounds) && ! empty($blocks['backgrounds']) && is_array($blocks['backgrounds'])) {
-            $format->backgrounds = $blocks['backgrounds'];
+        $format = $this->hydrateDesignHtmlFromBlocks($format);
+        if (! $approvalService->designHasParticipationContent($format)) {
+            return $this->redirectToFormatWizardForEmptyDesign($format);
         }
         $set = $format->set_id ? Set::find($format->set_id) : null;
         $reservation_numbers = $set && $set->reserve ? $set->reserve->reservation_numbers : [];
@@ -2492,6 +2677,18 @@ class DesignController extends Controller
         if (!auth()->user()->canAccessEntity((int) $design->entity_id)) {
             abort(403, 'No tienes permisos para ver este diseño.');
         }
+        $approvalService = app(DesignApprovalService::class);
+        if (auth()->user()->isEntity()
+            && ! auth()->user()->isAdministration()
+            && ! $approvalService->userActsAsAdministration(auth()->user())
+            && ! $approvalService->isVisibleToEntityViewer($design)) {
+            if ($this->entityAwaitingAdminDesignAfterFeePayment($design)) {
+                return redirect()->route('design.index')
+                    ->with('success', 'Cuota de gestión PARTILOT pagada. La administración continuará con el diseño y le avisará cuando pueda revisarlo.');
+            }
+
+            abort(403, 'Este diseño está en preparación por la administración. La entidad podrá revisarlo cuando se envíe a aprobación.');
+        }
         $latestPrintOrder = PrintOrder::where('design_format_id', $design->id)
             ->orderByDesc('id')
             ->first();
@@ -2500,9 +2697,21 @@ class DesignController extends Controller
         $managementFee = null;
         $designApproval = null;
         if ($design->set) {
+            $design->set->loadMissing('entity.administration');
             $managementFee = app(ManagementFeeService::class)->buildSummaryContext($design->set, auth()->user(), $design);
+            $design->set->refresh();
         }
         $designApproval = app(DesignApprovalService::class)->buildSummaryContext($design, auth()->user());
+        $awaitingEntityFeeBeforeDesign = app(DesignApprovalService::class)
+            ->isAwaitingEntityManagementFeeBeforeAdminDesign($design);
+        $hasDesignContent = app(DesignApprovalService::class)->designHasParticipationContent($design);
+        $blocksQrExport = app(DesignApprovalService::class)->blocksQrExport($design);
+        $sendToPrintBlockReason = $this->printOrderSubmissionBlockMessage($design);
+        $canSendToPrint = $sendToPrintBlockReason === null && ! $this->designSetIsDigitalOnly($design->set);
+        $setLock = $design->set ? $this->getSetDesignLockContext($design->set) : ['locked' => false];
+        $canOpenEditor = $approvalService->canOpenDesignEditor(auth()->user(), $design, $setLock['locked'], $printOrderLock['locked']);
+        $canPreviewDesign = $hasDesignContent;
+        $entityFeeDue = app(ManagementFeeService::class)->entityOwesManagementFee($design);
         [$stripePublishableKey, ] = app(ManagementFeePaymentService::class)->resolveStripeKeys();
         $stripePaymentEnabled = app(ManagementFeePaymentService::class)->hasStripeConfigured();
 
@@ -2512,6 +2721,14 @@ class DesignController extends Controller
             'printOrderLock',
             'managementFee',
             'designApproval',
+            'awaitingEntityFeeBeforeDesign',
+            'hasDesignContent',
+            'blocksQrExport',
+            'canSendToPrint',
+            'sendToPrintBlockReason',
+            'canOpenEditor',
+            'canPreviewDesign',
+            'entityFeeDue',
             'stripePublishableKey',
             'stripePaymentEnabled'
         ));
@@ -2538,7 +2755,32 @@ class DesignController extends Controller
             abort(403, 'No tienes permisos para revisar este diseño.');
         }
 
-        return view('design.approval_review', compact('design'));
+        $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+
+        return view('design.approval_review', compact('design', 'html'));
+    }
+
+    /**
+     * Vista previa de solo lectura (p. ej. diseño en imprenta o set bloqueado operativamente).
+     */
+    public function participationPreview($id)
+    {
+        $design = DesignFormat::with(['set.entity', 'lottery', 'entity'])->findOrFail($id);
+        if (! auth()->user()->canAccessEntity((int) $design->entity_id)) {
+            abort(403, 'No tienes permisos para ver este diseño.');
+        }
+
+        $approvalService = app(DesignApprovalService::class);
+        if (! $approvalService->designHasParticipationContent($design)) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('warning', 'El diseño de participación aún no tiene contenido para previsualizar.');
+        }
+
+        $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+        $printOrderLock = $this->getPrintOrderLockContext($design->id);
+        $latestPrintOrder = PrintOrder::where('design_format_id', $design->id)->orderByDesc('id')->first();
+
+        return view('design.participation_preview', compact('design', 'html', 'printOrderLock', 'latestPrintOrder'));
     }
 
     public function submitForApproval($id)
@@ -2557,7 +2799,13 @@ class DesignController extends Controller
     public function approveDesign($id)
     {
         $design = DesignFormat::with('set')->findOrFail($id);
-        app(DesignApprovalService::class)->approve($design, auth()->user());
+        $user = auth()->user();
+        app(DesignApprovalService::class)->approve($design, $user);
+
+        if ($user->isEntity() && ! $user->isAdministration()) {
+            return redirect()->route('design.index')
+                ->with('success', 'Diseño aprobado correctamente. La administración podrá continuar con el proceso.');
+        }
 
         return redirect()->route('design.summary', $design->id)
             ->with('success', 'Diseño aprobado. Puede procederse al pago de la cuota de gestión.');
@@ -2592,24 +2840,29 @@ class DesignController extends Controller
             return redirect()->route('design.index');
         }
 
-        if ($design && app(DesignApprovalService::class)->requiresEntityApproval($design)) {
-            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED) {
+        if ($feeService->managementFeePaymentBlockedByApproval($design, $set)) {
+            if ($design) {
                 return redirect()->route('design.summary', $design->id)
                     ->with('warning', 'El diseño debe ser aprobado por la entidad antes del pago.');
             }
+
+            return redirect()->route('design.index')
+                ->with('warning', 'El diseño debe ser aprobado por la entidad antes del pago.');
         }
 
         $feeService->ensureSnapshot($set, $design);
         $managementFee = $feeService->buildSummaryContext($set, auth()->user(), $design);
         [$stripePublishableKey, ] = app(ManagementFeePaymentService::class)->resolveStripeKeys();
         $stripePaymentEnabled = app(ManagementFeePaymentService::class)->hasStripeConfigured();
+        $paymentSuccessRedirectUrl = $this->managementFeePaymentSuccessUrl($set, $design);
 
         return view('design.pay_management_fee', compact(
             'set',
             'design',
             'managementFee',
             'stripePublishableKey',
-            'stripePaymentEnabled'
+            'stripePaymentEnabled',
+            'paymentSuccessRedirectUrl'
         ));
     }
 
@@ -2644,18 +2897,11 @@ class DesignController extends Controller
             $design
         );
 
-        if ($design) {
-            if (app(DesignApprovalService::class)->requiresPreEditorPayment(auth()->user())) {
-                return redirect()->route('design.editFormat', $design->id)
-                    ->with('success', 'Cuota de gestión PARTILOT pagada correctamente. Ya puede continuar con el diseño.');
-            }
-
-            return redirect()->route('design.summary', $design->id)
-                ->with('success', 'Cuota de gestión PARTILOT pagada correctamente. Ya puede generar los PDF con códigos QR.');
-        }
-
-        return redirect()->route('design.openEditor', $set->id)
-            ->with('success', 'Cuota de gestión PARTILOT pagada correctamente. Ya puede acceder al editor.');
+        return $this->redirectAfterManagementFeePayment(
+            $set->fresh(),
+            $design,
+            'Cuota de gestión PARTILOT pagada correctamente.'
+        );
     }
 
     public function confirmManagementFeeRemittance(Set $set)
@@ -2673,18 +2919,11 @@ class DesignController extends Controller
             $design
         );
 
-        if ($design) {
-            if (app(DesignApprovalService::class)->requiresPreEditorPayment(auth()->user())) {
-                return redirect()->route('design.editFormat', $design->id)
-                    ->with('success', 'Cuota de gestión registrada en remesa. Ya puede continuar con el diseño.');
-            }
-
-            return redirect()->route('design.summary', $design->id)
-                ->with('success', 'Cuota de gestión registrada en remesa. Ya puede generar los PDF con códigos QR.');
-        }
-
-        return redirect()->route('design.openEditor', $set->id)
-            ->with('success', 'Cuota de gestión registrada en remesa. Ya puede acceder al editor.');
+        return $this->redirectAfterManagementFeePayment(
+            $set->fresh(),
+            $design,
+            'Cuota de gestión registrada en remesa.'
+        );
     }
 
     public function openEditor(Set $set)
@@ -2693,13 +2932,27 @@ class DesignController extends Controller
             abort(403, 'No tienes permisos para esta operación.');
         }
 
-        $set->load('reserve');
+        $set->load(['reserve', 'entity']);
+        if ($redirect = $this->redirectIfEntityCannotDesign($set->entity)) {
+            return $redirect;
+        }
+
         $feeService = app(ManagementFeeService::class);
-        if (
-            app(DesignApprovalService::class)->requiresPreEditorPayment(auth()->user())
-            && ! $feeService->isManagementFeeSettled($set)
-        ) {
-            return redirect()->route('design.managementFee.pay', $set->id);
+        $approvalService = app(DesignApprovalService::class);
+        if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
+            $design = DesignFormat::query()->where('set_id', $set->id)->orderByDesc('id')->first();
+            if ($approvalService->isAdministrationSideUser(auth()->user())) {
+                if ($design) {
+                    return redirect()->route('design.summary', $design->id)
+                        ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+                }
+
+                return redirect()->route('design.index')
+                    ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+            }
+
+            return redirect()->route('design.managementFee.pay', $set->id)
+                ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
         }
 
         $lotteryId = $set->reserve?->lottery_id ?? session('design_lottery_id');
@@ -2735,12 +2988,11 @@ class DesignController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        if ($design) {
-            return redirect()->route('design.summary', $design->id)
-                ->with('success', 'Cuota de gestión PARTILOT confirmada. Ya puede generar los PDF con códigos QR.');
-        }
-
-        return back()->with('success', 'Cuota de gestión PARTILOT confirmada.');
+        return $this->redirectAfterManagementFeePayment(
+            $set->fresh(),
+            $design,
+            'Cuota de gestión PARTILOT confirmada.'
+        );
     }
 
     public function sendToPrint($id)
@@ -2748,6 +3000,9 @@ class DesignController extends Controller
         $design = DesignFormat::with(['set', 'lottery', 'entity'])->findOrFail($id);
         if (!auth()->user()->canAccessEntity((int) $design->entity_id)) {
             abort(403, 'No tienes permisos para esta operación.');
+        }
+        if ($redirect = $this->redirectIfPrintOrderSubmissionBlocked($design)) {
+            return $redirect;
         }
         if ($this->designSetIsDigitalOnly($design->set)) {
             return redirect()->route('design.summary', $design->id)
@@ -3075,10 +3330,109 @@ class DesignController extends Controller
         ];
     }
 
+    private function entityAwaitingAdminDesignAfterFeePayment(DesignFormat $design): bool
+    {
+        $design->loadMissing('set.entity');
+        if (! $design->set?->entity) {
+            return false;
+        }
+
+        $feeService = app(ManagementFeeService::class);
+        $approvalService = app(DesignApprovalService::class);
+
+        return $feeService->requiresEntityPaymentBeforeAdminDesign($design->set->entity)
+            && $feeService->isManagementFeeSettled($design->set)
+            && $approvalService->requiresEntityApproval($design)
+            && $approvalService->normalizedApprovalStatus($design->approval_status) === DesignApprovalService::STATUS_DRAFT;
+    }
+
+    private function managementFeePaymentSuccessUrl(Set $set, ?DesignFormat $design): string
+    {
+        $user = auth()->user();
+        $approvalService = app(DesignApprovalService::class);
+
+        if ($design && $user->isEntity()
+            && ! $approvalService->userActsAsAdministration($user)
+            && ! $approvalService->isVisibleToEntityViewer($design)) {
+            return route('design.index');
+        }
+
+        if ($design) {
+            return route('design.summary', $design->id);
+        }
+
+        return route('design.index');
+    }
+
+    /**
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    private function redirectAfterManagementFeePayment(Set $set, ?DesignFormat $design, string $baseMessage)
+    {
+        $user = auth()->user();
+        $approvalService = app(DesignApprovalService::class);
+        $feeService = app(ManagementFeeService::class);
+        $set->loadMissing('entity');
+
+        if ($design && $approvalService->userActsAsAdministration($user)) {
+            $entity = $set->entity;
+            if ($entity
+                && $feeService->requiresEntityPaymentBeforeAdminDesign($entity)
+                && $feeService->isManagementFeeSettled($set)
+                && $approvalService->canOpenDesignEditor($user, $design)) {
+                return redirect()->route('design.editFormat', $design->id)
+                    ->with('success', $baseMessage.' Ya puede continuar con el diseño.');
+            }
+        }
+
+        if ($design && $user->isEntity()
+            && ! $approvalService->userActsAsAdministration($user)
+            && ! $approvalService->isVisibleToEntityViewer($design)) {
+            return redirect()->route('design.index')
+                ->with('success', $baseMessage.' La administración continuará con el diseño y le avisará cuando pueda revisarlo.');
+        }
+
+        if ($feeService->isManagementFeeSettled($set)
+            && $approvalService->requiresPreEditorPayment($user, $set->entity)) {
+            if ($design) {
+                return redirect()->route('design.editFormat', $design->id)
+                    ->with('success', $baseMessage.' Ya puede continuar con el diseño.');
+            }
+
+            return redirect()->route('design.openEditor', $set->id)
+                ->with('success', $baseMessage.' Ya puede acceder al editor.');
+        }
+
+        if ($design) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('success', $baseMessage.' Ya puede generar los PDF con códigos QR.');
+        }
+
+        if ($approvalService->userActsAsAdministration($user)) {
+            return redirect()->route('design.openEditor', $set->id)
+                ->with('success', $baseMessage.' Ya puede acceder al editor.');
+        }
+
+        return redirect()->route('design.index')->with('success', $baseMessage);
+    }
+
     private function printOrderSubmissionBlockMessage(DesignFormat $design): ?string
     {
         if ($this->designSetIsDigitalOnly($design->set)) {
             return 'Los sets de participaciones digitales no se envían a imprenta.';
+        }
+
+        $approvalService = app(DesignApprovalService::class);
+        if ($approvalService->isAwaitingEntityManagementFeeBeforeAdminDesign($design)) {
+            return 'La entidad debe pagar la cuota de gestión PARTILOT antes de continuar con el diseño y el envío a imprenta.';
+        }
+
+        if (! $approvalService->designHasParticipationContent($design)) {
+            return 'El diseño de participación aún no está creado. Complete el diseño antes de enviar a imprenta.';
+        }
+
+        if ($approvalService->blocksQrExport($design)) {
+            return $approvalService->blockMessage($design);
         }
 
         $printOrderLock = $this->getPrintOrderLockContext($design->id);
@@ -3154,7 +3508,7 @@ class DesignController extends Controller
         // return $request->all();
 
         $format = DesignFormat::findOrFail($id);
-        if (!auth()->user()->canAccessEntity((int) $format->entity_id)) {
+        if (! $this->userCanAccessDesignFormat(auth()->user(), $format)) {
             abort(403, 'No tienes permisos para actualizar este diseño.');
         }
         if ($format->set) {
@@ -3227,11 +3581,18 @@ class DesignController extends Controller
                 if (isset($data['from_step_5']) && $data['from_step_5'] === true) {
                     return response()->json([
                         'success' => true,
-                        'redirect' => route('design.summary', $id)
+                        'redirect' => session('print_shop_order_id')
+                            ? route('print-shop.orders.show', session('print_shop_order_id'))
+                            : route('design.summary', $id),
                     ]);
                 }
-                
-                return response()->json(['success' => true, 'redirect' => route('design.editFormat', $id)]);
+
+                return response()->json([
+                    'success' => true,
+                    'redirect' => session('print_shop_order_id')
+                        ? route('print-shop.orders.show', session('print_shop_order_id'))
+                        : route('design.editFormat', $id),
+                ]);
             }
 
         return response()->json([
@@ -3614,23 +3975,38 @@ class DesignController extends Controller
         }
     }
 
-    private function redirectIfEntityDesignerMustPayManagementFee(Set $set, ?DesignFormat $design = null)
+    private function redirectIfEntityCannotDesign(Entity $entity)
     {
         $user = auth()->user();
-        if (! $user || ! app(DesignApprovalService::class)->requiresPreEditorPayment($user)) {
+        if (! $user) {
             return null;
         }
 
-        if ($design) {
-            app(DesignApprovalService::class)->assignDesignerTypeIfMissing($design, $user);
-            if ($design->designer_type === DesignApprovalService::DESIGNER_ADMINISTRATION) {
-                return null;
-            }
+        $approvalService = app(DesignApprovalService::class);
+        if ($user->isEntity()
+            && ! $user->isAdministration()
+            && $approvalService->administrationDesignOnly($entity)) {
+            return redirect()->route('design.index')
+                ->with('warning', 'Para esta entidad el diseño lo realiza la administración. Podrá revisarlo cuando se envíe a aprobación.');
         }
 
-        $set->loadMissing('entity');
+        return null;
+    }
+
+    private function redirectIfEntityDesignerMustPayManagementFee(Set $set, ?DesignFormat $design = null)
+    {
         $feeService = app(ManagementFeeService::class);
-        if ($feeService->isManagementFeeSettled($set)) {
+        if (! $feeService->blocksAdminDesignUntilEntityPays($set)) {
+            return null;
+        }
+
+        $approvalService = app(DesignApprovalService::class);
+        if ($approvalService->isAdministrationSideUser(auth()->user())) {
+            if ($design) {
+                return redirect()->route('design.summary', $design->id)
+                    ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de continuar con el diseño.');
+            }
+
             return null;
         }
 
@@ -3917,6 +4293,15 @@ class DesignController extends Controller
             ->whereIn('entity_id', $entityIds)
             ->orderByDesc('id')
             ->get();
+
+        $approvalService = app(DesignApprovalService::class);
+        $user = auth()->user();
+        if ($user->isEntity() && ! $user->isAdministration()) {
+            $designs = $designs
+                ->filter(fn (DesignFormat $design) => $approvalService->isVisibleToEntityViewer($design))
+                ->values();
+        }
+
         $lockBySetId = $this->batchDesignLockContextsForSetIds(
             $designs->pluck('set_id')->filter()->unique()->values()->all()
         );
@@ -3937,28 +4322,46 @@ class DesignController extends Controller
                 ->map(fn ($rows) => $rows->first());
 
             foreach ($latestOrdersByDesign as $designId => $order) {
-                if ($this->isPrintOrderBlockingStatus((string) $order->status)) {
-                    $printOrderLockByDesignId[(int) $designId] = [
-                        'locked' => true,
-                        'status' => (string) $order->status,
-                        'message' => 'Diseño bloqueado por estado de imprenta: ' . PrintOrder::statusLabel((string) $order->status) . '.',
-                        'order_code' => $order->order_code,
-                    ];
+                $ctx = $this->buildPrintOrderLockContext($order);
+                if ($ctx['locked'] || $ctx['completed']) {
+                    $printOrderLockByDesignId[(int) $designId] = $ctx;
                 }
             }
         }
 
         $approvalContextByDesignId = [];
-        $approvalService = app(DesignApprovalService::class);
+        $feeService = app(ManagementFeeService::class);
         foreach ($designs as $d) {
+            $setLocked = ! empty($designLockByDesignId[$d->id]['locked']);
+            $printLocked = ! empty($printOrderLockByDesignId[$d->id]['locked']);
+            $awaitingEntityFee = $d->set && $feeService->blocksAdminDesignUntilEntityPays($d->set);
+            $blocksExport = $approvalService->blocksQrExport($d);
             $approvalContextByDesignId[$d->id] = [
                 'label' => $approvalService->statusLabel($d->approval_status),
-                'status' => $d->approval_status,
+                'status' => $approvalService->normalizedApprovalStatus($d->approval_status),
                 'requires_approval' => $approvalService->requiresEntityApproval($d),
+                'can_submit' => $approvalService->canSubmitForApproval($user, $d) && ! $awaitingEntityFee,
+                'can_edit' => $approvalService->canEntityEditDesign($user, $d),
+                'can_open_editor' => ! $awaitingEntityFee
+                    && $approvalService->canOpenDesignEditor($user, $d, $setLocked, $printLocked),
+                'can_review' => $approvalService->canReviewApproval($user, $d),
+                'awaiting_entity_fee' => $awaitingEntityFee,
+                'management_fee_pending' => $approvalService->managementFeePendingAfterApproval($d)
+                    || $feeService->entityOwesManagementFee($d),
+                'entity_fee_due' => $feeService->entityOwesManagementFee($d),
+                'acts_as_administration' => $approvalService->userActsAsAdministration($user),
+                'blocks_export' => $blocksExport,
+                'block_message' => $approvalService->blockMessage($d),
+                'can_send_to_print' => ! $awaitingEntityFee
+                    && ! ($d->set && $this->designSetIsDigitalOnly($d->set))
+                    && $this->printOrderSubmissionBlockMessage($d) === null,
+                'send_to_print_block_reason' => $this->printOrderSubmissionBlockMessage($d),
             ];
         }
 
-        return view('design.index', compact('designs', 'designLockByDesignId', 'printOrderLockByDesignId', 'approvalContextByDesignId'));
+        $canStartNewDesign = $approvalService->userCanStartNewDesign($user);
+
+        return view('design.index', compact('designs', 'designLockByDesignId', 'printOrderLockByDesignId', 'approvalContextByDesignId', 'canStartNewDesign'));
     }
 
     /**
@@ -4050,6 +4453,51 @@ class DesignController extends Controller
     }
 
     /**
+     * Disponibilidad de participaciones para crear o ampliar diseños por set.
+     *
+     * @param  \Illuminate\Support\Collection<int, Set>|array<int, Set>  $sets
+     * @return array<int, array{total:int, allocated_to_design:int, available_for_new_design:int, has_design:bool}>
+     */
+    private function batchSetDesignAvailabilityForSetIds(array $setIds, $sets): array
+    {
+        $setIds = array_values(array_unique(array_filter($setIds)));
+        if ($setIds === []) {
+            return [];
+        }
+
+        $setsById = collect($sets)->keyBy('id');
+
+        $allocatedRows = Participation::query()
+            ->whereIn('set_id', $setIds)
+            ->whereNotNull('design_format_id')
+            ->where('status', '!=', 'anulada')
+            ->groupBy('set_id')
+            ->selectRaw('set_id, COUNT(*) as c')
+            ->pluck('c', 'set_id');
+
+        $designRows = DesignFormat::query()
+            ->whereIn('set_id', $setIds)
+            ->groupBy('set_id')
+            ->selectRaw('set_id, COUNT(*) as c')
+            ->pluck('c', 'set_id');
+
+        $out = [];
+        foreach ($setIds as $sid) {
+            $set = $setsById->get($sid);
+            $total = $set ? (int) $set->total_participations : 0;
+            $allocated = (int) ($allocatedRows[$sid] ?? 0);
+            $out[$sid] = [
+                'total' => $total,
+                'allocated_to_design' => $allocated,
+                'available_for_new_design' => max(0, $total - $allocated),
+                'has_design' => (int) ($designRows[$sid] ?? 0) > 0,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return array{locked:bool, message:?string, assigned_count:int, status_locked_count:int}
      */
     private function buildDesignLockContext(int $assignedCount, int $statusLockedCount): array
@@ -4082,13 +4530,118 @@ class DesignController extends Controller
         ];
     }
 
-    private function isPrintOrderBlockingStatus(string $status): bool
+    private function isPrintOrderEditingBlockedStatus(string $status): bool
     {
         return in_array($status, [
             PrintOrder::STATUS_PENDING_REVIEW,
             PrintOrder::STATUS_IN_PRODUCTION,
-            PrintOrder::STATUS_SENT,
         ], true);
+    }
+
+    /**
+     * @return array{locked:bool, completed:bool, message:?string, status:?string, order_code:?string}
+     */
+    private function buildPrintOrderLockContext(?PrintOrder $order): array
+    {
+        if (! $order) {
+            return ['locked' => false, 'completed' => false, 'message' => null, 'status' => null, 'order_code' => null];
+        }
+
+        $status = (string) $order->status;
+
+        if ($order->isWorkflowComplete()) {
+            return [
+                'locked' => false,
+                'completed' => true,
+                'message' => 'La imprenta marcó el pedido '.$order->order_code.' como enviado.',
+                'status' => $status,
+                'order_code' => (string) $order->order_code,
+            ];
+        }
+
+        if ($this->isPrintOrderEditingBlockedStatus($status)) {
+            return [
+                'locked' => true,
+                'completed' => false,
+                'message' => 'Diseño en imprenta ('.$order->order_code.'): '.PrintOrder::statusLabel($status).'.',
+                'status' => $status,
+                'order_code' => (string) $order->order_code,
+            ];
+        }
+
+        return ['locked' => false, 'completed' => false, 'message' => null, 'status' => $status, 'order_code' => (string) $order->order_code];
+    }
+
+    private function isPrintOrderBlockingStatus(string $status): bool
+    {
+        return $this->isPrintOrderEditingBlockedStatus($status);
+    }
+
+    private function resolveAuthorizedPrintShopOrder(): ?PrintOrder
+    {
+        $orderId = session('print_shop_order_id');
+        $user = auth()->user();
+        if (! $orderId || ! $user || ! $user->canManagePrintShopOrders()) {
+            return null;
+        }
+
+        $order = PrintOrder::query()->find((int) $orderId);
+        if (! $order) {
+            return null;
+        }
+
+        if ($user->isPrintShop() && ! $user->isSuperAdmin()) {
+            $panelShopId = (int) ($user->panel_account_id ?? 0);
+            if ($panelShopId > 0 && (int) $order->print_configuration_id !== $panelShopId) {
+                return null;
+            }
+        }
+
+        return $order;
+    }
+
+    private function assertPrintShopMayDesignOrder(PrintOrder $printOrder): void
+    {
+        $user = auth()->user();
+        if (! $user || ! $user->canManagePrintShopOrders()) {
+            abort(403, 'No tienes acceso al editor de diseño de imprenta.');
+        }
+
+        if ($user->isPrintShop() && ! $user->isSuperAdmin()) {
+            $panelShopId = (int) ($user->panel_account_id ?? 0);
+            if ($panelShopId > 0 && (int) $printOrder->print_configuration_id !== $panelShopId) {
+                abort(403, 'Esta orden pertenece a otra imprenta.');
+            }
+        }
+
+        if (! $printOrder->printShopCanEditDesign()) {
+            abort(403, 'Este pedido ya no admite edición de diseño en su estado actual.');
+        }
+    }
+
+    private function userCanAccessDesignFormat(?User $user, DesignFormat $format): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin() || $user->canAccessEntity((int) $format->entity_id)) {
+            return true;
+        }
+
+        if (! $user->canManagePrintShopOrders()) {
+            return false;
+        }
+
+        $orderId = session('print_shop_order_id');
+        if (! $orderId) {
+            return false;
+        }
+
+        return PrintOrder::query()
+            ->where('id', (int) $orderId)
+            ->where('design_format_id', $format->id)
+            ->exists();
     }
 
     /**
@@ -4106,8 +4659,8 @@ class DesignController extends Controller
 
     private function getPrintOrderLockContext(?int $designFormatId): array
     {
-        if (!$designFormatId) {
-            return ['locked' => false, 'message' => null, 'status' => null, 'order_code' => null];
+        if (! $designFormatId) {
+            return ['locked' => false, 'completed' => false, 'message' => null, 'status' => null, 'order_code' => null];
         }
 
         $latest = PrintOrder::query()
@@ -4115,17 +4668,39 @@ class DesignController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        if (!$latest || !$this->isPrintOrderBlockingStatus((string) $latest->status)) {
-            return ['locked' => false, 'message' => null, 'status' => null, 'order_code' => null];
+        if (! $latest) {
+            return ['locked' => false, 'completed' => false, 'message' => null, 'status' => null, 'order_code' => null];
         }
 
-        $label = PrintOrder::statusLabel((string) $latest->status);
-        return [
-            'locked' => true,
-            'message' => "Este diseño tiene una orden de imprenta activa ({$latest->order_code}) en estado '{$label}'. No se permite editar ni reenviar.",
-            'status' => (string) $latest->status,
-            'order_code' => (string) $latest->order_code,
-        ];
+        $ctx = $this->buildPrintOrderLockContext($latest);
+
+        $printShopOrderId = session('print_shop_order_id');
+        if ($ctx['locked']
+            && $printShopOrderId
+            && (int) $latest->id === (int) $printShopOrderId
+            && auth()->user()?->canManagePrintShopOrders()) {
+            return [
+                'locked' => false,
+                'completed' => false,
+                'message' => null,
+                'status' => (string) $latest->status,
+                'order_code' => (string) $latest->order_code,
+            ];
+        }
+
+        if ($ctx['locked']) {
+            $label = PrintOrder::statusLabel((string) $latest->status);
+
+            return [
+                'locked' => true,
+                'completed' => false,
+                'message' => "Este diseño está en imprenta ({$latest->order_code}, {$label}). No se puede editar hasta que finalice el trabajo.",
+                'status' => (string) $latest->status,
+                'order_code' => (string) $latest->order_code,
+            ];
+        }
+
+        return $ctx;
     }
 
     private function logDesignLockAudit(Set $set, string $action, array $lockContext, ?int $designFormatId = null): void
@@ -4146,4 +4721,135 @@ class DesignController extends Controller
             \Log::warning('No se pudo registrar auditoría de bloqueo de diseño: ' . $e->getMessage());
         }
     }
-} 
+
+    private function hydrateDesignHtmlFromBlocks(DesignFormat $design): DesignFormat
+    {
+        $blocks = is_array($design->blocks ?? null) ? $design->blocks : [];
+
+        if (empty(trim((string) ($design->participation_html ?? ''))) && ! empty($blocks['participation_html'])) {
+            $design->participation_html = $blocks['participation_html'];
+        }
+        if (empty(trim((string) ($design->cover_html ?? ''))) && ! empty($blocks['cover_html'])) {
+            $design->cover_html = $blocks['cover_html'];
+        }
+        if (empty(trim((string) ($design->back_html ?? ''))) && ! empty($blocks['back_html'])) {
+            $design->back_html = $blocks['back_html'];
+        }
+
+        $design->participation_html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+        $design->cover_html = $this->ensureAbsoluteUrlsInHtml($design->cover_html ?? '');
+        $design->back_html = $this->ensureAbsoluteUrlsInHtml($design->back_html ?? '');
+
+        if (empty($design->backgrounds) && ! empty($blocks['backgrounds']) && is_array($blocks['backgrounds'])) {
+            $design->backgrounds = $blocks['backgrounds'];
+        }
+
+        return $design;
+    }
+
+    /**
+     * Placeholder sin HTML: abrir el asistente format con plantilla por defecto (mismo flujo que diseño nuevo).
+     */
+    private function redirectToFormatWizardForEmptyDesign(DesignFormat $format)
+    {
+        session([
+            'design_entity_id' => $format->entity_id,
+            'design_lottery_id' => $format->lottery_id,
+            'design_set_id' => $format->set_id,
+        ]);
+
+        $request = Request::create(route('design.format'), 'POST', [
+            'set_id' => $format->set_id,
+            'new_design' => 1,
+        ]);
+        $request->setLaravelSession(session());
+
+        return $this->format($request);
+    }
+
+    private function ensurePlaceholderDesign(Set $set, Entity $entity, int $lotteryId): DesignFormat
+    {
+        $design = DesignFormat::query()
+            ->where('set_id', $set->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($design) {
+            app(DesignApprovalService::class)->assignDesignerTypeIfMissing($design, auth()->user());
+            app(ManagementFeeService::class)->ensureSnapshot($set, $design);
+
+            return $design->refresh();
+        }
+
+        $design = DesignFormat::create([
+            'entity_id' => $entity->id,
+            'lottery_id' => $lotteryId,
+            'set_id' => $set->id,
+            'format' => 'A4',
+            'designer_type' => DesignApprovalService::DESIGNER_ADMINISTRATION,
+            'approval_status' => DesignApprovalService::STATUS_DRAFT,
+            'participation_html' => '',
+            'cover_html' => '',
+            'back_html' => '',
+            'backgrounds' => [],
+            'output' => [],
+            'margins' => [],
+        ]);
+
+        app(ManagementFeeService::class)->ensureSnapshot($set, $design);
+
+        return $design;
+    }
+
+    private function notifyEntityManagementFeePaymentRequired(DesignFormat $design): void
+    {
+        $design->loadMissing(['entity', 'set']);
+        $entity = $design->entity;
+        if (! $entity) {
+            return;
+        }
+
+        $emailsSent = [];
+        $communicationEmailService = app(CommunicationEmailService::class);
+
+        $managers = Manager::query()
+            ->where('entity_id', $entity->id)
+            ->where('status', 1)
+            ->with('user')
+            ->get();
+
+        foreach ($managers as $manager) {
+            $email = trim((string) ($manager->user?->email ?? ''));
+            if ($email === '' || isset($emailsSent[$email])) {
+                continue;
+            }
+
+            $communicationEmailService->sendAndLog(
+                recipientEmail: $email,
+                recipientRole: 'entity',
+                recipientUser: $manager->user,
+                messageType: 'management_fee_payment_request',
+                templateKey: 'management_fee_payment_request',
+                mailClass: ManagementFeePaymentRequestMail::class,
+                mailPayload: ['design_format_id' => $design->id],
+                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id],
+            );
+
+            $emailsSent[$email] = true;
+        }
+
+        $entityEmail = trim((string) ($entity->email ?? ''));
+        if ($entityEmail !== '' && ! isset($emailsSent[$entityEmail])) {
+            $communicationEmailService->sendAndLog(
+                recipientEmail: $entityEmail,
+                recipientRole: 'entity',
+                recipientUser: null,
+                messageType: 'management_fee_payment_request',
+                templateKey: 'management_fee_payment_request',
+                mailClass: ManagementFeePaymentRequestMail::class,
+                mailPayload: ['design_format_id' => $design->id],
+                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id],
+            );
+        }
+    }
+}

@@ -8,7 +8,7 @@
 
 @section('content')
 
-<div class="container-fluid">
+<div class="container-fluid partilot-page-shell">
 
     <div class="row">
 
@@ -52,13 +52,11 @@
 
 
 
-    <div class="row justify-content-center">
-
-        <div class="col-lg-6">
-
-            <div class="card">
-
+    <div class="row partilot-page-panel-row">
+        <div class="col-12">
+            <div class="card partilot-page-panel partilot-page-panel--centered">
                 <div class="card-body">
+                    <div class="partilot-page-panel__inner partilot-page-panel__narrow">
 
                     <h5 class="mb-3">Resumen del cobro</h5>
 
@@ -182,12 +180,10 @@
 
                     @endif
 
+                    </div>
                 </div>
-
             </div>
-
         </div>
-
     </div>
 
 </div>
@@ -246,7 +242,7 @@
 
         if (data.already_paid) {
 
-            window.location.href = @json($design ? route('design.summary', $design->id) : route('design.index'));
+            window.location.href = @json($paymentSuccessRedirectUrl ?? route('design.index'));
 
             return;
 

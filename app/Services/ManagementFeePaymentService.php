@@ -35,14 +35,33 @@ class ManagementFeePaymentService
 
     public function canPay(User $user, Set $set, ?\App\Models\DesignFormat $design = null): bool
     {
-        if (app(ManagementFeeService::class)->isManagementFeeSettled($set)) {
+        $feeService = app(ManagementFeeService::class);
+
+        if ($feeService->isManagementFeeSettled($set)) {
             return false;
         }
 
-        if ($design && app(DesignApprovalService::class)->requiresEntityApproval($design)) {
-            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED) {
-                return false;
-            }
+        if ($feeService->managementFeePaymentBlockedByApproval($design, $set)) {
+            return false;
+        }
+
+        $set->loadMissing('entity');
+        $payer = $set->management_fee_payer ?? $feeService->calculateForSet($set)['payer'];
+
+        if ($payer === ManagementFeeService::PAYER_ENTITY) {
+            return $this->canPayAsEntityPayer($user, $set);
+        }
+
+        return $feeService->canMarkAsPaid($user, $set);
+    }
+
+    /**
+     * Pago Stripe de cuota con pagador entidad: solo usuarios de la entidad (no administración ni super admin).
+     */
+    private function canPayAsEntityPayer(User $user, Set $set): bool
+    {
+        if (app(DesignApprovalService::class)->userActsAsAdministration($user)) {
+            return false;
         }
 
         return app(ManagementFeeService::class)->canMarkAsPaid($user, $set);

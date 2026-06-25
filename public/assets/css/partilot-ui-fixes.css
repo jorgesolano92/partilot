@@ -280,3 +280,189 @@ small.text-muted,
 .config-inline-tabs .nav-link {
     white-space: nowrap;
 }
+
+/* Overlay bloqueante al generar PDF (partial async_design_pdf en listado, resumen, imprenta) */
+#design-pdf-blocking-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    background: rgba(0, 0, 0, 0.65);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+#design-pdf-blocking-overlay.is-visible {
+    display: flex;
+}
+
+#design-pdf-blocking-overlay .design-pdf-blocking-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 480px;
+    text-align: center;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+}
+
+#design-pdf-blocking-overlay .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: #e78307;
+}
+
+/*
+ * Utilidades de panel (card + footer como listado Sorteos).
+ * No usar flex/min-height en .content: rompe el footer absoluto del tema.
+ */
+.partilot-page-panel--centered > .card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.partilot-page-panel__inner {
+    width: 100%;
+}
+
+.partilot-page-panel__narrow {
+    width: 100%;
+    max-width: 540px;
+}
+
+.partilot-page-panel__section + .partilot-page-panel__section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eef1f6;
+}
+
+@media (min-width: 992px) {
+    .partilot-page-panel__aside {
+        padding-left: 1.5rem;
+        border-left: 1px solid #eef1f6;
+    }
+}
+
+.partilot-page-panel__col-main,
+.partilot-page-panel__col-side {
+    height: 100%;
+}
+
+.partilot-page-panel__col-side {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (min-width: 992px) {
+    .partilot-page-panel__col-side {
+        padding-left: 1.5rem;
+        border-left: 1px solid #eef1f6;
+    }
+}
+
+/* Paginación tablas: todos los botones redondeados (pill) */
+.content-page .pagination {
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.content-page .pagination .page-item .page-link {
+    border-radius: 999px !important;
+    min-width: 32px;
+    height: 32px;
+    line-height: 30px;
+    padding: 0 10px !important;
+    text-align: center;
+    border: 1px solid #d9dde8 !important;
+    margin: 0 2px;
+    color: #525a6d;
+    background: #fff;
+    box-shadow: none;
+}
+
+.content-page .pagination .page-item:first-child .page-link,
+.content-page .pagination .page-item:last-child .page-link {
+    border-radius: 999px !important;
+}
+
+.content-page .pagination .page-item.active .page-link,
+.content-page .pagination .page-link.active,
+.content-page .pagination .active > .page-link {
+    background-color: #1f2430 !important;
+    border-color: #1f2430 !important;
+    color: #fff !important;
+    border-radius: 999px !important;
+    height: 32px;
+    line-height: 30px;
+    font-weight: 600;
+}
+
+.content-page .pagination .page-item.disabled .page-link,
+.content-page .pagination .page-link.disabled,
+.content-page .pagination .disabled > .page-link {
+    opacity: 0.55;
+    height: 32px;
+    line-height: 30px;
+    border-radius: 999px !important;
+}
+
+.content-page .dataTables_wrapper .dataTables_paginate .paginate_button {
+    border-radius: 999px !important;
+}
+
+.content-page .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.content-page .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+    border-radius: 999px !important;
+}
+
+/* Botones del panel: esquinas redondeadas (30px, como formularios y asistente diseño) */
+.content-page .btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button) {
+    border-radius: 30px !important;
+}
+
+/* Herramientas del editor de diseño: grupo continuo (solo esquinas exteriores redondeadas) */
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button),
+.content-page .format-btn-group label.btn:not(.btn-link):not(.page-link) {
+    border-radius: 0 !important;
+}
+
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):first-of-type:not(:last-of-type) {
+    border-radius: 0.25rem 0 0 0.25rem !important;
+}
+
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):last-of-type:not(:first-of-type) {
+    border-radius: 0 0.25rem 0.25rem 0 !important;
+}
+
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):only-of-type {
+    border-radius: 0.25rem !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:not(.btn-link):not(.page-link) {
+    border-radius: 0 !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:first-child {
+    border-radius: 30px 0 0 30px !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:last-child,
+.content-page .btn-group:not(.format-btn-group) > .dropdown-toggle-split {
+    border-radius: 0 30px 30px 0 !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:only-child,
+.content-page .btn-group:not(.format-btn-group) > .dropdown-toggle:only-child {
+    border-radius: 30px !important;
+}
+
+.content-page .input-group > .btn:last-child,
+.content-page .input-group > .btn:not(:first-child):not(:last-child) {
+    border-radius: 0 30px 30px 0 !important;
+}
+
+.content-page .input-group > .btn:first-child:only-child {
+    border-radius: 30px !important;
+}

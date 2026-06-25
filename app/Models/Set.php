@@ -285,6 +285,30 @@ class Set extends Model
     }
 
     /**
+     * Participaciones ya generadas por un diseño (con design_format_id), excluyendo anuladas.
+     */
+    public function participationsAllocatedToDesignCount(): int
+    {
+        return (int) $this->participations()
+            ->whereNotNull('design_format_id')
+            ->where('status', '!=', 'anulada')
+            ->count();
+    }
+
+    /**
+     * Participaciones que aún pueden asignarse a un diseño nuevo en este set.
+     */
+    public function availableParticipationsForNewDesign(): int
+    {
+        return max(0, (int) $this->total_participations - $this->participationsAllocatedToDesignCount());
+    }
+
+    public function hasExistingDesign(): bool
+    {
+        return $this->designFormats()->exists();
+    }
+
+    /**
      * Obtener el total de participaciones restando las anuladas
      */
     public function getTotalParticipationsAttribute()

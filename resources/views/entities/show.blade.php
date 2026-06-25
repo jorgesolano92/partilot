@@ -1187,8 +1187,6 @@
 			                </div>
                     	</div>
 
-                    </div>
-
                     
                 </div> <!-- end card body-->
             </div> <!-- end card -->

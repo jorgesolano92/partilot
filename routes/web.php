@@ -168,6 +168,10 @@ Route::middleware(['auth', 'active_entity.context', 'entity_panel.readonly', 'en
     Route::prefix('print-shop')->middleware('role:super_admin,print_shop')->group(function () {
         Route::get('/', [\App\Http\Controllers\PrintShopController::class, 'index'])->name('print-shop.index');
         Route::get('/orders/{printOrder}', [\App\Http\Controllers\PrintShopController::class, 'show'])->name('print-shop.orders.show');
+        Route::get('/orders/{printOrder}/design', [\App\Http\Controllers\PrintShopController::class, 'editDesign'])->name('print-shop.orders.design');
+        Route::get('/orders/{printOrder}/briefing-files/{file}', [\App\Http\Controllers\PrintShopController::class, 'downloadBriefingFile'])->name('print-shop.orders.briefing-file');
+        Route::post('/orders/{printOrder}/save-format', [\App\Http\Controllers\DesignController::class, 'printShopSaveFormat'])->name('print-shop.orders.save-design');
+        Route::put('/orders/{printOrder}/update-format', [\App\Http\Controllers\DesignController::class, 'printShopUpdateFormat'])->name('print-shop.orders.update-design');
         Route::post('/orders/{printOrder}/status', [\App\Http\Controllers\PrintShopController::class, 'updateStatus'])->name('print-shop.orders.status');
     });
 
@@ -509,6 +513,7 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::post('/sets/{set}/management-fee/confirm-stripe', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeStripe'])->name('design.managementFee.confirmStripe');
     Route::post('/sets/{set}/management-fee/confirm-remittance', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeRemittance'])->name('design.managementFee.confirmRemittance');
     Route::get('/approvals', [\App\Http\Controllers\DesignController::class, 'approvalsIndex'])->name('design.approvals.index');
+    Route::get('/{id}/preview', [\App\Http\Controllers\DesignController::class, 'participationPreview'])->name('design.participationPreview');
     Route::get('/{id}/approval', [\App\Http\Controllers\DesignController::class, 'approvalReview'])->name('design.approval.review');
     Route::post('/{id}/submit-for-approval', [\App\Http\Controllers\DesignController::class, 'submitForApproval'])->name('design.submitForApproval');
     Route::post('/{id}/approve', [\App\Http\Controllers\DesignController::class, 'approveDesign'])->name('design.approve');

@@ -588,6 +588,83 @@
                 margin-bottom: 0;
             }
 
+            /*
+             * Card + footer unidos (como Administraciones / Sorteos listado).
+             * La fila del card crece hasta el footer; el footer va justo debajo.
+             */
+            .content-page {
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 100vh;
+            }
+
+            .content-page > .content {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+                padding: 0 15px !important;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page) {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+                width: 100%;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                min-height: 0 !important;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child > [class*="col-"] {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child > [class*="col-"] > .card {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+                height: auto !important;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child > [class*="col-"] > .card > .card-body {
+                flex: 1 1 auto !important;
+                min-height: calc(100vh - 335px) !important;
+            }
+
+            #wrapper .content-page > footer.footer {
+                position: relative !important;
+                flex-shrink: 0 !important;
+                bottom: auto !important;
+                left: auto !important;
+                right: auto !important;
+                width: auto !important;
+                margin: -1px 27px 0 !important;
+                border: 1px solid #d9dde8 !important;
+                border-top: 0 !important;
+                border-radius: 0 0 18px 18px !important;
+                background: #fff !important;
+                box-shadow: none !important;
+            }
+
+            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page .content {
+                min-height: 0 !important;
+            }
+
+            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer {
+                margin: -1px 27px 0 !important;
+                border-radius: 0 0 18px 18px !important;
+                box-shadow: none !important;
+            }
+
             .header-title {margin: 0 !important;}
         </style>
 

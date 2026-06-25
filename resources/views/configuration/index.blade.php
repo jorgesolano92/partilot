@@ -644,30 +644,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         $table.DataTable({
-            responsive: {
-                details: {
-                    type: 'column',
-                    target: 0
-                }
-            },
+            scrollX: true,
+            scrollCollapse: true,
             autoWidth: false,
-            order: [[9, 'desc']],
+            order: [[8, 'desc']],
             pageLength: 25,
             lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'Todos']],
             language: {
                 url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
             },
             columnDefs: [
-                { className: 'dtr-control', orderable: false, targets: 0 },
-                { responsivePriority: 1, targets: [1, 5, 7, 10] },
-                { responsivePriority: 2, targets: [2] },
-                { responsivePriority: 3, targets: [6] },
-                { responsivePriority: 4, targets: [8] },
-                { responsivePriority: 5, targets: [9] },
-                { responsivePriority: 6, targets: [3, 4] },
-                { orderable: false, targets: [0, 9, 10] },
+                { width: '110px', targets: 0 },
+                { width: '160px', targets: [1, 2] },
+                { width: '120px', targets: [3, 4] },
+                { width: '150px', targets: [5, 6] },
+                { width: '100px', targets: 7 },
+                { width: '130px', targets: 8 },
+                { width: '130px', targets: 9 },
+                { orderable: false, targets: [9, 10] },
                 { className: 'text-end', targets: 10 }
-            ]
+            ],
+            initComplete: function () {
+                this.api().columns.adjust();
+            }
         });
     }
 

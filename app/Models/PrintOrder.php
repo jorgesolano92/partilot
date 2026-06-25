@@ -205,5 +205,50 @@ class PrintOrder extends Model
 
         return 'No se puede avanzar: el estado de cobro no está resuelto.';
     }
+
+    /**
+     * Bloquea edición del diseño en panel admin/entidad mientras la imprenta trabaja.
+     */
+    public function isEditingBlockedForDesign(): bool
+    {
+        return in_array((string) $this->status, [
+            self::STATUS_PENDING_REVIEW,
+            self::STATUS_IN_PRODUCTION,
+        ], true);
+    }
+
+    public function isWorkflowComplete(): bool
+    {
+        return (string) $this->status === self::STATUS_SENT;
+    }
+
+    /**
+     * La imprenta puede abrir el editor mientras el pedido está activo.
+     */
+    public function printShopCanEditDesign(): bool
+    {
+        return in_array((string) $this->status, [
+            self::STATUS_PENDING_REVIEW,
+            self::STATUS_IN_PRODUCTION,
+            self::STATUS_REJECTED,
+        ], true);
+    }
+
+    /**
+     * Pedido con diseño pendiente de elaborar por la imprenta.
+     */
+    public function requiresPrintShopDesign(): bool
+    {
+        if (! $this->design_format_id) {
+            return true;
+        }
+
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return true;
+        }
+
+        return ! app(\App\Services\DesignApprovalService::class)->designHasParticipationContent($this->design);
+    }
 }
 

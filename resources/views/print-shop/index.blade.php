@@ -86,6 +86,8 @@
                                     @php
                                         $books = (int) ceil(max(1, (int) ($order->set->total_participations ?? 0)) / max(1, (int) ($order->participations_per_book ?? 50)));
                                         $paymentIssue = $printOrderIssuesById[$order->id] ?? null;
+                                        $orderNeedsDesign = $order->requiresPrintShopDesign();
+                                        $orderCanDesign = $order->printShopCanEditDesign() && (bool) $order->design_format_id;
                                     @endphp
                                     <tr>
                                         <td><a href="{{ route('print-shop.orders.show', $order->id) }}" class="fw-semibold">{{ $order->order_code }}</a></td>
@@ -96,6 +98,11 @@
                                             <span class="badge {{ \App\Models\PrintOrder::statusBadgeClass((string) $order->status) }} rounded-pill">
                                                 {{ \App\Models\PrintOrder::statusLabel((string) $order->status) }}
                                             </span>
+                                            @if($orderNeedsDesign)
+                                                <div class="small mt-1">
+                                                    <span class="badge bg-warning text-dark rounded-pill">Diseño pendiente</span>
+                                                </div>
+                                            @endif
                                         </td>
                                         <td>
                                             <span class="badge {{ \App\Models\PrintOrder::paymentStatusBadgeClass($order->payment_status) }} rounded-pill">
@@ -109,10 +116,15 @@
                                         <td>{{ number_format((float) $order->quoted_amount, 2, ',', '.') }}€</td>
                                         <td>{{ $order->sent_at ? $order->sent_at->format('d/m/Y') : ($order->created_at?->format('d/m/Y') ?? '—') }}</td>
                                         <td class="text-end">
+                                            @if($orderCanDesign)
+                                                <a href="{{ route('print-shop.orders.design', $order->id) }}" class="btn btn-sm btn-warning text-dark" title="Diseñar participaciones">
+                                                    <i class="ri-brush-line"></i>
+                                                </a>
+                                            @endif
                                             <a href="{{ route('print-shop.orders.show', $order->id) }}" class="btn btn-sm btn-outline-dark">
                                                 <i class="ri-eye-line"></i> Ver
                                             </a>
-                                            @if($order->design_format_id)
+                                            @if($order->design_format_id && ! $orderNeedsDesign)
                                                 <a href="{{ route('print-shop.orders.show', $order->id) }}#archivos-impresion" class="btn btn-sm btn-outline-primary" title="Descargar PDF">
                                                     <i class="ri-file-pdf-line"></i>
                                                 </a>

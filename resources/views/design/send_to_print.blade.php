@@ -3,7 +3,7 @@
 @section('title', 'Enviar a imprenta')
 
 @section('content')
-<div class="container-fluid">
+<div class="container-fluid partilot-page-shell">
     <div class="row">
         <div class="col-12">
             <div class="page-title-box">
@@ -26,14 +26,16 @@
         </div>
     @endif
 
+    <div class="row partilot-page-panel-row">
+        <div class="col-12">
+            <div class="card partilot-page-panel">
+                <div class="card-body">
     <form method="POST" action="{{ route('design.submitPrintOrder', $design->id) }}" id="sendToPrintForm">
         @csrf
         <input type="hidden" name="payment_method" id="payment_method" value="{{ !empty($printPayment['can_queue_remittance']) ? 'remittance' : 'stripe' }}">
         <input type="hidden" name="stripe_payment_intent_id" id="stripe_payment_intent_id" value="">
-        <div class="row g-3">
-            <div class="col-lg-7">
-                <div class="card">
-                    <div class="card-body">
+        <div class="row g-4">
+            <div class="col-lg-7 partilot-page-panel__col-main">
                         <h5 class="mb-2">Configuración del envío</h5>
                         <p class="text-muted small mb-3">La misma imprenta diseña e imprime el pedido. El presupuesto se calcula con sus tarifas.</p>
 
@@ -67,12 +69,8 @@
                                 <textarea name="notes" class="form-control" rows="4" placeholder="Indicaciones de entrega, cortes, empaquetado, etc.">{{ old('notes') }}</textarea>
                             </div>
                         </div>
-                    </div>
-                </div>
             </div>
-            <div class="col-lg-5">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
+            <div class="col-lg-5 partilot-page-panel__col-side d-flex flex-column">
                         <h5 class="mb-1">Resumen de presupuesto</h5>
                         <p class="text-muted small mb-3" id="quote-shop-name">{{ $quote['print_configuration_name'] ?? ($selectedPrintShop->displayName() ?? '') }}</p>
                         <div class="d-flex justify-content-between small mb-2">
@@ -138,11 +136,13 @@
                                 <i class="ri-send-plane-line me-1"></i> Enviar a imprenta
                             </button>
                         </div>
-                    </div>
-                </div>
             </div>
         </div>
     </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 

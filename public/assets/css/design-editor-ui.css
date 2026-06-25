@@ -24,6 +24,24 @@
     padding-right: 10px !important;
 }
 
+/* Barra de herramientas del lienzo (refuerzo; regla principal en partilot-ui-fixes.css) */
+.content-page .design-editor-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button),
+.content-page .design-editor-page .format-btn-group label.btn:not(.btn-link):not(.page-link) {
+    border-radius: 0 !important;
+}
+
+.content-page .design-editor-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):first-of-type:not(:last-of-type) {
+    border-radius: 0.25rem 0 0 0.25rem !important;
+}
+
+.content-page .design-editor-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):last-of-type:not(:first-of-type) {
+    border-radius: 0 0.25rem 0.25rem 0 !important;
+}
+
+.content-page .design-editor-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):only-of-type {
+    border-radius: 0.25rem !important;
+}
+
 .design-editor-page .elements.text-placeholder-new {
     border: 2px dashed #e78307 !important;
     background: rgba(231, 131, 7, 0.08) !important;
@@ -107,35 +125,7 @@
     margin-bottom: 12px;
 }
 
-#design-pdf-blocking-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 20000;
-    background: rgba(0, 0, 0, 0.65);
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-}
-
-#design-pdf-blocking-overlay.is-visible {
-    display: flex;
-}
-
-#design-pdf-blocking-overlay .design-pdf-blocking-card {
-    background: #fff;
-    border-radius: 16px;
-    padding: 2rem;
-    max-width: 480px;
-    text-align: center;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
-}
-
-#design-pdf-blocking-overlay .spinner-border {
-    width: 3rem;
-    height: 3rem;
-    color: #e78307;
-}
+/* Overlay PDF: estilos en partilot-ui-fixes.css (cargado en layout global) */
 
 /* Navegación del asistente (Atrás / Siguiente / Guardar) */
 .design-editor-page .design-wizard-nav-btn {
@@ -173,4 +163,70 @@
 .design-editor-page .design-wizard-nav-btn--continue {
     background-color: #333;
     color: #fff;
+}
+
+/*
+ * Panel + footer en editor de diseño (format / edit_format).
+ * Estas vistas usan .design-editor-page y quedan fuera del flex global del layout;
+ * sin esto el footer del tema (position:absolute; left:0) invade el sidebar.
+ */
+.content-page .content .container-fluid.design-editor-page {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    width: 100%;
+}
+
+.content-page .content .container-fluid.design-editor-page > form {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+}
+
+.content-page .content .container-fluid.design-editor-page > form > .row,
+.content-page .content .container-fluid.design-editor-page > .row:last-child {
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
+}
+
+.content-page .content .container-fluid.design-editor-page > form > .row > [class*="col-"],
+.content-page .content .container-fluid.design-editor-page > .row:last-child > [class*="col-"] {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.content-page .content .container-fluid.design-editor-page > form > .row > [class*="col-"] > .card,
+.content-page .content .container-fluid.design-editor-page > .row:last-child > [class*="col-"] > .card {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 0;
+}
+
+.content-page .content .container-fluid.design-editor-page > form > .row > [class*="col-"] > .card > .card-body,
+.content-page .content .container-fluid.design-editor-page > .row:last-child > [class*="col-"] > .card > .card-body {
+    flex: 1 1 auto;
+    min-height: calc(100vh - 335px);
+}
+
+body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: auto !important;
+    flex-shrink: 0 !important;
+    margin: -1px 27px 0 !important;
+    border: 1px solid #d9dde8 !important;
+    border-top: 0 !important;
+    border-radius: 0 0 18px 18px !important;
+    background: #fff !important;
+    box-shadow: none !important;
 }

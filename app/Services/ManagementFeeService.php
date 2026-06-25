@@ -85,13 +85,110 @@ class ManagementFeeService
 
     public function blocksQrExport(Set $set, ?DesignFormat $design = null): bool
     {
-        if ($design && app(DesignApprovalService::class)->requiresEntityApproval($design)) {
-            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED) {
+        $approvalService = app(DesignApprovalService::class);
+
+        if ($design && $approvalService->requiresEntityApproval($design)) {
+            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED
+                && ! $approvalService->hasCommittedPrintOrder($design)) {
                 return true;
             }
         }
 
+        if ($design && $approvalService->isAwaitingEntityManagementFeeBeforeAdminDesign($design)) {
+            return true;
+        }
+
         return ! $this->isManagementFeeSettled($set);
+    }
+
+    /**
+     * La entidad debe abonar la cuota de gestión (p. ej. tras impresión PARTILOT).
+     */
+    public function entityOwesManagementFee(DesignFormat $design): bool
+    {
+        $design->loadMissing(['set.entity']);
+        if (! $design->set || ! $design->entity) {
+            return false;
+        }
+
+        if ($this->resolvePayer($design->entity) !== self::PAYER_ENTITY) {
+            return false;
+        }
+
+        if ($this->isManagementFeeSettled($design->set)) {
+            return false;
+        }
+
+        if ($this->blocksAdminDesignUntilEntityPays($design->set)) {
+            return true;
+        }
+
+        return app(DesignApprovalService::class)->designHasParticipationContent($design);
+    }
+
+    /**
+     * El pago de cuota exige aprobación previa del diseño.
+     * Solo cuando pagador es administración; la entidad paga primero y aprueba después.
+     */
+    public function managementFeePaymentBlockedByApproval(?DesignFormat $design, Set $set): bool
+    {
+        $set->loadMissing('entity');
+        $entity = $set->entity;
+
+        if (! $entity || $this->resolvePayer($entity) === self::PAYER_ENTITY) {
+            return false;
+        }
+
+        if (! $design) {
+            return false;
+        }
+
+        $approvalService = app(DesignApprovalService::class);
+        if (! $approvalService->requiresEntityApproval($design)) {
+            return false;
+        }
+
+        return $design->approval_status !== DesignApprovalService::STATUS_APPROVED;
+    }
+
+    public function entityDesigns(Entity $entity): bool
+    {
+        return (bool) ($entity->entity_pays_print_fee ?? false);
+    }
+
+    public function administrationDesigns(Entity $entity): bool
+    {
+        return ! $this->entityDesigns($entity);
+    }
+
+    public function requiresEntityPaymentBeforeAdminDesign(Entity $entity): bool
+    {
+        return (bool) ($entity->entity_pays_management_fee ?? false)
+            && $this->administrationDesigns($entity);
+    }
+
+    public function blocksAdminDesignUntilEntityPays(Set $set): bool
+    {
+        $set->loadMissing('entity');
+        $entity = $set->entity;
+
+        if (! $entity || $this->resolvePayer($entity) !== self::PAYER_ENTITY) {
+            return false;
+        }
+
+        if ($this->isManagementFeeSettled($set)) {
+            return false;
+        }
+
+        $approvalService = app(DesignApprovalService::class);
+
+        // Switch 2 ON: la entidad diseña → cuota antes de entrar al editor (cualquier usuario).
+        if ($approvalService->entityDesignEnabled($entity)) {
+            return true;
+        }
+
+        // Switch 1 ON + Switch 2 OFF: la administración diseña → cuota antes de que admin entre al editor.
+        return $this->requiresEntityPaymentBeforeAdminDesign($entity);
     }
 
     public function ensureSnapshot(Set $set, ?DesignFormat $design = null): Set
@@ -100,8 +197,17 @@ class ManagementFeeService
             return $set;
         }
 
+        $set->loadMissing('entity');
+        $entityForSnapshot = $set->entity;
+        $paymentBeforeAdminDesign = $entityForSnapshot
+            && $this->requiresEntityPaymentBeforeAdminDesign($entityForSnapshot);
+        $entityPaysFee = $entityForSnapshot
+            && $this->resolvePayer($entityForSnapshot) === self::PAYER_ENTITY;
+
         if ($design && app(DesignApprovalService::class)->requiresEntityApproval($design)) {
-            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED) {
+            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED
+                && ! $paymentBeforeAdminDesign
+                && ! $entityPaysFee) {
                 return $set;
             }
         }
@@ -169,16 +275,29 @@ class ManagementFeeService
      */
     public function buildSummaryContext(Set $set, User $user, ?DesignFormat $design = null): array
     {
+        $set->loadMissing('entity.administration');
         $set = $this->ensureSnapshot($set, $design);
         $paymentService = app(ManagementFeePaymentService::class);
         $billingService = app(AdministrationBillingService::class);
         $stripeEnabled = $paymentService->hasStripeConfigured();
         $canPay = $paymentService->canPay($user, $set, $design);
         $usesRemittance = $billingService->shouldQueueManagementFeeRemittance($set);
+        $approvalService = app(DesignApprovalService::class);
+        $awaitingApproval = $design
+            && $approvalService->requiresEntityApproval($design)
+            && $design->approval_status !== DesignApprovalService::STATUS_APPROVED
+            && ! $approvalService->hasCommittedPrintOrder($design);
 
-        $administration = $set->relationLoaded('entity')
-            ? $set->entity?->administration
-            : $set->entity()->with('administration')->first()?->administration;
+        $administration = $set->entity?->administration;
+        $entity = $set->entity;
+        $paymentBeforeAdminDesign = $entity
+            && $this->requiresEntityPaymentBeforeAdminDesign($entity)
+            && ! $this->isManagementFeeSettled($set);
+        $paymentBeforeEditor = $entity
+            && $this->resolvePayer($entity) === self::PAYER_ENTITY
+            && app(DesignApprovalService::class)->entityDesignEnabled($entity)
+            && ! $this->isManagementFeeSettled($set);
+        $paymentBlockedByApproval = $this->managementFeePaymentBlockedByApproval($design, $set);
 
         return [
             'status' => $set->management_fee_status,
@@ -190,17 +309,19 @@ class ManagementFeeService
             'payer_label' => $this->payerLabel($set->management_fee_payer),
             'paid_at' => $set->management_fee_paid_at,
             'blocks_export' => $this->blocksQrExport($set, $design),
-            'can_pay_stripe' => $canPay && $stripeEnabled && ! $usesRemittance,
+            'can_pay_stripe' => $canPay && $stripeEnabled && ! $usesRemittance && ! $paymentBlockedByApproval,
             'can_queue_remittance' => $billingService->canQueueManagementFee($user, $set, $design),
             'uses_remittance' => $usesRemittance,
+            'has_valid_iban' => $administration ? $billingService->hasValidBillingIban($administration) : false,
             'remittance_frequency_label' => $administration
                 ? $billingService->remittanceFrequencyLabel($administration->billing_remittance_frequency)
                 : null,
-            'can_mark_paid' => ! $stripeEnabled && ! $usesRemittance && $this->canMarkAsPaid($user, $set),
+            'can_mark_paid' => ! $stripeEnabled && ! $usesRemittance && $this->canMarkAsPaid($user, $set) && ! $paymentBlockedByApproval,
             'stripe_enabled' => $stripeEnabled,
-            'awaiting_approval' => $design
-                && app(DesignApprovalService::class)->requiresEntityApproval($design)
-                && $design->approval_status !== DesignApprovalService::STATUS_APPROVED,
+            'awaiting_approval' => $awaitingApproval,
+            'payment_before_admin_design' => $paymentBeforeAdminDesign,
+            'payment_before_editor' => $paymentBeforeEditor,
+            'needs_payment_action' => ! $this->isManagementFeeSettled($set) && ! $paymentBlockedByApproval,
         ];
     }
 

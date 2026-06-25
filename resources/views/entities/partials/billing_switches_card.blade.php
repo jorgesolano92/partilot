@@ -43,13 +43,13 @@
                @checked($paysPrint)
                @if($readonly) disabled @endif>
         <label class="form-check-label" for="entity_pays_print_fee">
-            <b>Diseño e impresión de participaciones</b>
+            <b>Quién diseña e imprime</b>
             <br>
             <small class="text-muted">
                 @if($paysPrint)
-                    ON — La <strong>Entidad</strong> paga diseño e impresión en imprenta PARTILOT.
+                    ON — La <strong>Entidad</strong> diseña (y paga impresión en imprenta PARTILOT si aplica).
                 @else
-                    OFF — La <strong>Administración</strong> paga diseño e impresión.
+                    OFF — La <strong>Administración</strong> diseña; la entidad solo aprueba el diseño.
                 @endif
             </small>
         </label>

@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DesignExternalInvitation;
+use App\Models\DesignExternalInvitationFile;
 use App\Models\DesignFormat;
 use App\Models\PrintOrder;
 use App\Services\PrintOrderPaymentReconciliationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class PrintShopController extends Controller
 {
@@ -71,6 +74,32 @@ class PrintShopController extends Controller
         ));
     }
 
+    public function editDesign(Request $request, PrintOrder $printOrder)
+    {
+        $this->authorizePrintShopAccess($request);
+        $this->authorizePrintOrderForPanelUser($request, $printOrder);
+
+        return app(DesignController::class)->printShopOpenDesign($request, $printOrder);
+    }
+
+    public function downloadBriefingFile(Request $request, PrintOrder $printOrder, int $file)
+    {
+        $this->authorizePrintShopAccess($request);
+        $this->authorizePrintOrderForPanelUser($request, $printOrder);
+
+        $invitation = $this->resolveBriefingInvitation($printOrder);
+        if (! $invitation) {
+            abort(404, 'No hay briefing asociado a esta orden.');
+        }
+
+        $row = $invitation->files()->where('id', $file)->firstOrFail();
+        if (! Storage::disk('public')->exists($row->path)) {
+            abort(404, 'Archivo no encontrado.');
+        }
+
+        return Storage::disk('public')->download($row->path, $row->original_name ?: basename($row->path));
+    }
+
     public function show(Request $request, PrintOrder $printOrder)
     {
         $this->authorizePrintShopAccess($request);
@@ -96,7 +125,19 @@ class PrintShopController extends Controller
 
         $paymentIssue = app(PrintOrderPaymentReconciliationService::class)->detectIssue($printOrder);
 
-        return view('print-shop.show', compact('printOrder', 'audits', 'paymentIssue'));
+        $briefingInvitation = $this->resolveBriefingInvitation($printOrder);
+
+        $requiresDesign = $printOrder->requiresPrintShopDesign();
+        $canOpenDesignEditor = $printOrder->printShopCanEditDesign() && (bool) $printOrder->design_format_id;
+
+        return view('print-shop.show', compact(
+            'printOrder',
+            'audits',
+            'paymentIssue',
+            'briefingInvitation',
+            'requiresDesign',
+            'canOpenDesignEditor'
+        ));
     }
 
     public function updateStatus(Request $request, PrintOrder $printOrder)
@@ -171,6 +212,19 @@ class PrintShopController extends Controller
     private function canOperatePrintOrders($user): bool
     {
         return $user && ($user->isSuperAdmin() || $user->isPrintShop());
+    }
+
+    private function resolveBriefingInvitation(PrintOrder $printOrder): ?DesignExternalInvitation
+    {
+        return DesignExternalInvitation::query()
+            ->where('set_id', $printOrder->set_id)
+            ->where('entity_id', $printOrder->entity_id)
+            ->when($printOrder->print_configuration_id, function ($query) use ($printOrder) {
+                $query->where('print_configuration_id', $printOrder->print_configuration_id);
+            })
+            ->with('files')
+            ->orderByDesc('id')
+            ->first();
     }
 
     /**

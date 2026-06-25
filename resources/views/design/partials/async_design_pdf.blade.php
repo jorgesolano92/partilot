@@ -48,9 +48,7 @@
     </div>
 </div>
 
-</div>
-
-<div id="design-pdf-blocking-overlay" aria-live="polite" aria-busy="true">
+<div id="design-pdf-blocking-overlay" aria-live="polite" aria-busy="true" hidden>
     <div class="design-pdf-blocking-card">
         <div class="spinner-border mb-3" role="status"><span class="visually-hidden">Generando...</span></div>
         <h5 class="mb-2" id="design-pdf-blocking-title">Generando PDF</h5>
@@ -83,11 +81,11 @@
     var $ov = $('#design-pdf-blocking-overlay');
     if (title) $('#design-pdf-blocking-title').text(title);
     if (text) $('#design-pdf-blocking-text').text(text);
-    $ov.addClass('is-visible');
+    $ov.prop('hidden', false).addClass('is-visible');
   }
 
   function partilotHidePdfBlocking() {
-    $('#design-pdf-blocking-overlay').removeClass('is-visible');
+    $('#design-pdf-blocking-overlay').removeClass('is-visible').prop('hidden', true);
   }
 
   function partilotNotifyPdf(type, title, message, sticky) {

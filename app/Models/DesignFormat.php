@@ -212,22 +212,8 @@ class DesignFormat extends Model
                 // Insertar en lotes de 100 para mejor rendimiento (más pequeño para debugging)
                 if (count($participationsToCreate) >= 100) {
                     try {
-                        // Verificar si hay códigos duplicados antes de insertar
-                        $codesToInsert = array_column($participationsToCreate, 'participation_code');
-                        $existingCodes = Participation::whereIn('participation_code', $codesToInsert)
-                            ->where('design_format_id', $this->id)
-                            ->pluck('participation_code')->toArray();
-                        
-                        if (!empty($existingCodes)) {
-                            \Log::warning('Códigos de participación ya existen para este design format: ' . implode(', ', $existingCodes));
-                            // Eliminar solo las participaciones existentes de este design format con estos códigos
-                            Participation::whereIn('participation_code', $existingCodes)
-                                ->where('design_format_id', $this->id)
-                                ->delete();
-                            \Log::info('Eliminadas participaciones duplicadas de este design format');
-                        }
-                        
-                        // Usar insert en lugar de upsert para evitar conflictos de duplicados
+                        $this->clearParticipationNumberConflictsBeforeInsert($participationsToCreate);
+
                         $result = Participation::insert($participationsToCreate);
                         $insertedCount = count($participationsToCreate);
                         $totalCreated += $insertedCount;
@@ -248,22 +234,8 @@ class DesignFormat extends Model
             // Insertar las participaciones restantes
             if (!empty($participationsToCreate)) {
                 try {
-                    // Verificar si hay códigos duplicados antes de insertar
-                    $codesToInsert = array_column($participationsToCreate, 'participation_code');
-                    $existingCodes = Participation::whereIn('participation_code', $codesToInsert)
-                        ->where('design_format_id', $this->id)
-                        ->pluck('participation_code')->toArray();
-                    
-                    if (!empty($existingCodes)) {
-                        \Log::warning('Códigos de participación ya existen en lote final para este design format: ' . implode(', ', $existingCodes));
-                        // Eliminar solo las participaciones existentes de este design format con estos códigos
-                        Participation::whereIn('participation_code', $existingCodes)
-                            ->where('design_format_id', $this->id)
-                            ->delete();
-                        \Log::info('Eliminadas participaciones duplicadas del lote final de este design format');
-                    }
-                    
-                    // Usar insert en lugar de upsert para evitar conflictos de duplicados
+                    $this->clearParticipationNumberConflictsBeforeInsert($participationsToCreate);
+
                     $result = Participation::insert($participationsToCreate);
                     $insertedCount = count($participationsToCreate);
                     $totalCreated += $insertedCount;
@@ -367,6 +339,46 @@ class DesignFormat extends Model
         
         // Generar nuevas participaciones
         return $this->generateParticipations();
+    }
+
+    /**
+     * Evita violar participations_set_id_participation_number_unique antes de insertar.
+     *
+     * @param  array<int, array<string, mixed>>  $participationsToCreate
+     */
+    private function clearParticipationNumberConflictsBeforeInsert(array $participationsToCreate): void
+    {
+        $setId = (int) $this->set_id;
+        $numbers = array_values(array_unique(array_map('intval', array_column($participationsToCreate, 'participation_number'))));
+        if ($numbers === []) {
+            return;
+        }
+
+        $foreignQuery = Participation::query()
+            ->where('set_id', $setId)
+            ->whereIn('participation_number', $numbers)
+            ->where(function ($q) {
+                $q->where('design_format_id', '!=', $this->id)
+                    ->orWhereNull('design_format_id');
+            });
+
+        $hasBlocked = (clone $foreignQuery)
+            ->where(function ($q) {
+                $q->whereNotNull('seller_id')
+                    ->orWhereIn('status', ['vendida', 'reservada', 'pagada', 'perdida']);
+            })
+            ->exists();
+
+        if ($hasBlocked) {
+            throw new \RuntimeException(
+                'No se pueden generar participaciones: el set ya tiene participaciones comprometidas en otro diseño.'
+            );
+        }
+
+        $deleted = (clone $foreignQuery)->delete();
+        if ($deleted > 0) {
+            \Log::info("Eliminadas {$deleted} participaciones huérfanas/de otro diseño antes de insertar para DesignFormat ID {$this->id}");
+        }
     }
 
     /**

@@ -103,6 +103,46 @@
                             @endif
 
                             <hr>
+
+                            @if($requiresDesign ?? false)
+                                <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                    <div>
+                                        <i class="ri-palette-line me-1"></i>
+                                        <strong>Diseño pendiente.</strong>
+                                        Este pedido requiere que la imprenta elabore el diseño de las participaciones.
+                                    </div>
+                                    @if($canOpenDesignEditor ?? false)
+                                        <a href="{{ route('print-shop.orders.design', $printOrder->id) }}" class="btn btn-warning text-dark">
+                                            <i class="ri-brush-line me-1"></i> Diseñar participaciones
+                                        </a>
+                                    @endif
+                                </div>
+                            @elseif($canOpenDesignEditor ?? false)
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                    <p class="text-muted small mb-0">Puedes ajustar el diseño antes de generar los PDF de impresión.</p>
+                                    <a href="{{ route('print-shop.orders.design', $printOrder->id) }}" class="btn btn-outline-primary btn-sm">
+                                        <i class="ri-edit-line me-1"></i> Editar diseño
+                                    </a>
+                                </div>
+                            @endif
+
+                            @if(!empty($briefingInvitation) && (filled($briefingInvitation->comment) || $briefingInvitation->files->isNotEmpty()))
+                                <h5 class="mb-2">Briefing del cliente</h5>
+                                @if(filled($briefingInvitation->comment))
+                                    <div class="border rounded p-3 bg-light small mb-3" style="white-space: pre-wrap;">{{ $briefingInvitation->comment }}</div>
+                                @endif
+                                @if($briefingInvitation->files->isNotEmpty())
+                                    <div class="d-flex flex-wrap gap-2 mb-3">
+                                        @foreach($briefingInvitation->files as $f)
+                                            <a href="{{ route('print-shop.orders.briefing-file', [$printOrder->id, $f->id]) }}" class="btn btn-sm btn-outline-dark">
+                                                <i class="ri-download-2-line me-1"></i>{{ $f->original_name ?: basename($f->path) }}
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @endif
+                                <hr>
+                            @endif
+
                             <h5 class="mb-2" id="archivos-impresion">Archivos para imprimir</h5>
                             @php
                                 $design = $printOrder->design;
@@ -185,7 +225,29 @@
                 </div>
 
                 <div class="col-lg-4">
+                    @if(($requiresDesign ?? false) || ($canOpenDesignEditor ?? false))
                     <div class="form-card bs">
+                        <div class="">
+                            <h5 class="mb-3">Diseño</h5>
+                            @if($requiresDesign ?? false)
+                                <span class="badge bg-warning text-dark rounded-pill mb-2">Pendiente de diseño</span>
+                                <p class="small text-muted mb-3">Debes elaborar el diseño de las participaciones para poder generar los PDF.</p>
+                            @else
+                                <p class="small text-muted mb-3">El diseño ya tiene contenido. Puedes revisarlo o ajustarlo si es necesario.</p>
+                            @endif
+                            @if($canOpenDesignEditor ?? false)
+                                <a href="{{ route('print-shop.orders.design', $printOrder->id) }}" class="btn btn-primary w-100">
+                                    <i class="ri-brush-line me-1"></i>
+                                    {{ ($requiresDesign ?? false) ? 'Diseñar participaciones' : 'Abrir editor de diseño' }}
+                                </a>
+                            @else
+                                <p class="small text-muted mb-0">No hay un diseño vinculado a esta orden. Contacta con Partilot.</p>
+                            @endif
+                        </div>
+                    </div>
+                    @endif
+
+                    <div class="form-card bs {{ (($requiresDesign ?? false) || ($canOpenDesignEditor ?? false)) ? 'mt-3' : '' }}">
                         <div class="">
                             <h5 class="mb-3">Cobro</h5>
                             <span class="badge {{ \App\Models\PrintOrder::paymentStatusBadgeClass($printOrder->payment_status) }} rounded-pill">

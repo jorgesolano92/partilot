@@ -175,15 +175,21 @@
             <div class="page-title-box">
                 <div class="page-title-right">
                     <ol class="breadcrumb m-0">
-                        <li class="breadcrumb-item"><a href="javascript: void(0);">Diseño e Impresión</a></li>
-                        <li class="breadcrumb-item active">Editar Formato</li>
+                        @if(!empty($printShopOrder))
+                            <li class="breadcrumb-item"><a href="{{ route('print-shop.index') }}">Panel Imprenta</a></li>
+                            <li class="breadcrumb-item"><a href="{{ route('print-shop.orders.show', $printShopOrder->id) }}">{{ $printShopOrder->order_code }}</a></li>
+                            <li class="breadcrumb-item active">Editar diseño</li>
+                        @else
+                            <li class="breadcrumb-item"><a href="javascript: void(0);">Diseño e Impresión</a></li>
+                            <li class="breadcrumb-item active">Editar Formato</li>
+                        @endif
                     </ol>
                 </div>
-                <h4 class="page-title">Editar Formato</h4>
+                <h4 class="page-title">{{ !empty($printShopOrder) ? 'Editar diseño — '.$printShopOrder->order_code : 'Editar Formato' }}</h4>
             </div>
         </div>
     </div>
-    <form method="POST" action="{{ route('design.updateFormat', $format->id) }}" id="edit-format-form">
+    <form method="POST" action="{{ $update_format_url ?? route('design.updateFormat', $format->id) }}" id="edit-format-form">
         @csrf
         @method('PUT')
         <div class="row">
@@ -423,32 +429,6 @@
                                 </div>
                                 <div class="mt-2 p-2 small text-muted border-top" id="dimensions-info-step2"></div>
                             </div>
-                            @if($isDigitalSet ?? false)
-                            <div class="row mt-3 mb-3">
-                                <div class="col-6 text-start">
-                                    <a href="javascript:;" class="btn btn-md btn-light mt-2 prev-step design-wizard-nav-btn design-wizard-nav-btn--dark">
-                                        <i class="ri-arrow-left-circle-line" aria-hidden="true"></i>
-                                        <span>Atrás</span>
-                                    </a>
-                                </div>
-                                <div class="col-6 text-end">
-                                    <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
-                                        <button type="button" id="step-edit-next" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
-                                            <span>Siguiente</span>
-                                            <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
-                                        </button>
-                                        <button type="button" id="save-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--primary">
-                                            <span>Guardar</span>
-                                            <i class="ri-save-line" aria-hidden="true"></i>
-                                        </button>
-                                        <button type="button" id="save-continue-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--continue">
-                                            <span>Guardar y continuar</span>
-                                            <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            @endif
                             @if(!($isDigitalSet ?? false))
                             <div class="form-card fade bs d-none" id="step-3" style="min-height: 658px;">
                                 <h4 class="mb-0 mt-1">Diseñar Portada</h4>
@@ -628,7 +608,9 @@
                                     </div>
                                 </div>
 
-                                <div class="row">
+                                @endif
+
+                            <div class="row mt-3 mb-3">
                                   <div class="col-6 text-start">
                                       <a href="javascript:;" class="btn btn-md btn-light mt-2 prev-step design-wizard-nav-btn design-wizard-nav-btn--dark">
                                           <i class="ri-arrow-left-circle-line" aria-hidden="true"></i>
@@ -636,16 +618,16 @@
                                       </a>
                                   </div>
                                   <div class="col-6 text-end">
-                                      <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions-main" style="min-width: 200px;">
-                                      <button id="step" type="button" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                      <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
+                                      <button type="button" id="step" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
                                           <span>Siguiente</span>
                                           <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
                                       </button>
-                                      <button id="save-step" type="button" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                      <button type="button" id="save-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--primary">
                                           <span>Guardar</span>
                                           <i class="ri-save-line" aria-hidden="true"></i>
                                       </button>
-                                      <button id="save-continue-step" type="button" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--continue">
+                                      <button type="button" id="save-continue-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--continue">
                                           <span>Guardar y continuar</span>
                                           <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
                                       </button>
@@ -653,7 +635,6 @@
                                   </div>
                               </div>
                             </div>
-                            @endif
                         </div>
                     </div> <!-- end card body-->
                 </div> <!-- end card -->

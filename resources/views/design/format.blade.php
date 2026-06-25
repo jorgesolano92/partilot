@@ -9,6 +9,9 @@
     <div class="card-header bg-warning bg-opacity-25 d-flex align-items-center gap-2 py-2">
         <i class="ri-folder-user-line fs-5"></i>
         <strong>Indicaciones y archivos del cliente</strong>
+        @if(!empty($printShopOrder))
+            <span class="badge bg-dark ms-auto">Orden {{ $printShopOrder->order_code }}</span>
+        @endif
     </div>
     <div class="card-body py-3">
         @if(filled($externalInvitation->comment))
@@ -22,7 +25,7 @@
             <ul class="list-unstyled mb-0 d-flex flex-wrap gap-2">
                 @foreach($externalInvitation->files as $f)
                     <li>
-                        <a href="{{ route('design.external.downloadFile', $f->id) }}" class="btn btn-sm btn-outline-dark">
+                        <a href="{{ !empty($printShopOrder) ? route('print-shop.orders.briefing-file', [$printShopOrder->id, $f->id]) : route('design.external.downloadFile', $f->id) }}" class="btn btn-sm btn-outline-dark">
                             <i class="ri-download-2-line"></i> {{ $f->original_name ?: basename($f->path) }}
                         </a>
                     </li>
@@ -32,6 +35,18 @@
             <p class="text-muted small mb-0">No se adjuntaron archivos en el pedido.</p>
         @endif
     </div>
+</div>
+@endif
+
+@if(!empty($printShopOrder))
+<div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+        <i class="ri-printer-line me-1"></i>
+        Estás diseñando para la orden <strong>{{ $printShopOrder->order_code }}</strong>.
+    </div>
+    <a href="{{ route('print-shop.orders.show', $printShopOrder->id) }}" class="btn btn-sm btn-outline-dark">
+        <i class="ri-arrow-left-line me-1"></i> Volver a la orden
+    </a>
 </div>
 @endif
 

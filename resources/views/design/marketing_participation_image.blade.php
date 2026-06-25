@@ -22,7 +22,7 @@
     }
 </style>
 
-<div class="container-fluid">
+<div class="container-fluid partilot-page-shell">
     <div class="row">
         <div class="col-12">
             <div class="page-title-box">
@@ -37,9 +37,9 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
+    <div class="row partilot-page-panel-row">
+        <div class="col-12">
+            <div class="card partilot-page-panel">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                         <div>

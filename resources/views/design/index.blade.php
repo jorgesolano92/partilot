@@ -32,6 +32,14 @@
                         <div class="alert alert-danger">{{ session('error') }}</div>
                     @endif
 
+                    @if(auth()->user()->isEntity())
+                        <div class="d-flex justify-content-end mb-3 {{ count($designs) ? 'd-none' : '' }}">
+                            <a href="{{ route('design.approvals.index') }}" style="border-radius: 30px;" class="btn btn-md btn-outline-primary">
+                                <i class="ri-checkbox-circle-line"></i> Aprobaciones
+                            </a>
+                        </div>
+                    @endif
+
                     <div class="{{count($designs) ? '' : 'd-none'}}">
                         <h4 class="header-title">
 
@@ -42,12 +50,16 @@
                                 <input type="text" class="form-control" placeholder="Status">
                             </div>
 
-                            <a href="{{url('design/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
-                            @if(auth()->user()->isEntity())
-                                <a href="{{ route('design.approvals.index') }}" style="border-radius: 30px;" class="btn btn-md btn-outline-primary float-end me-2">
-                                    <i class="ri-checkbox-circle-line"></i> Aprobaciones
-                                </a>
-                            @endif
+                            <div class="float-end d-flex align-items-center gap-2">
+                                @if(auth()->user()->isEntity())
+                                    <a href="{{ route('design.approvals.index') }}" style="border-radius: 30px;" class="btn btn-md btn-outline-primary">
+                                        <i class="ri-checkbox-circle-line"></i> Aprobaciones
+                                    </a>
+                                @endif
+                                @if($canStartNewDesign ?? true)
+                                    <a href="{{url('design/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                @endif
+                            </div>
 
                         </h4>
 
@@ -77,9 +89,22 @@
                             @foreach($designs as $design)
                             @php
                                 $lockCtx = isset($designLockByDesignId[$design->id]) ? $designLockByDesignId[$design->id] : ['locked' => false];
-                                $printLockCtx = isset($printOrderLockByDesignId[$design->id]) ? $printOrderLockByDesignId[$design->id] : ['locked' => false];
+                                $printLockCtx = isset($printOrderLockByDesignId[$design->id]) ? $printOrderLockByDesignId[$design->id] : ['locked' => false, 'completed' => false];
+                                $approvalCtx = $approvalContextByDesignId[$design->id] ?? null;
+                                $entityViewer = auth()->user()->isEntity()
+                                    && ! auth()->user()->isAdministration()
+                                    && empty($approvalCtx['acts_as_administration']);
                                 $isLocked = !empty($lockCtx['locked']) || !empty($printLockCtx['locked']);
-                                $rowHref = $isLocked ? route('design.summary', $design->id) : route('design.editFormat', $design->id);
+                                $canOpenEditor = !empty($approvalCtx['can_open_editor']);
+                                $feePending = !empty($approvalCtx['management_fee_pending']);
+                                $awaitingEntityFee = !empty($approvalCtx['awaiting_entity_fee']);
+                                $blocksExport = !empty($approvalCtx['blocks_export']);
+                                $exportBlockTitle = $approvalCtx['block_message'] ?? 'Acción no disponible';
+                                $rowHref = route('design.summary', $design->id);
+                                if ($canOpenEditor && ! $awaitingEntityFee && ! ($entityViewer && ! empty($approvalCtx['entity_fee_due']))) {
+                                    $rowHref = route('design.editFormat', $design->id);
+                                }
+                                $showOperationalLock = $isLocked && ! $canOpenEditor && empty($printLockCtx['locked']);
                             @endphp
                             <tr class="row-clickable" data-href="{{ $rowHref }}" style="cursor: pointer;">
                                 <td><a href="{{ $rowHref }}">#DS{{ str_pad($design->id,5,'0',STR_PAD_LEFT) }}</a></td>
@@ -99,37 +124,76 @@
                                 <td>{{ $design->entity ? $design->entity->city : '-' }}</td>
                                 <td>
                                     @php
-                                        $approvalCtx = $approvalContextByDesignId[$design->id] ?? null;
+                                        $approvalStatus = $approvalCtx['status'] ?? null;
                                     @endphp
-                                    @if(!empty($printLockCtx['locked']))
+                                    @if(!empty($approvalCtx['awaiting_entity_fee']))
+                                        <label class="badge bg-danger rounded-pill">Cuota gestión impagada</label>
+                                    @elseif(!empty($approvalCtx['entity_fee_due']))
+                                        <label class="badge bg-warning text-dark rounded-pill">
+                                            {{ $entityViewer ? 'Cuota gestión pendiente' : 'Pendiente pago entidad' }}
+                                        </label>
+                                        @if(!empty($printLockCtx['completed']))
+                                            <div class="small mt-1"><span class="badge bg-success rounded-pill">Impresión enviada</span></div>
+                                        @endif
+                                    @elseif(!empty($approvalCtx['management_fee_pending']))
+                                        <label class="badge bg-warning text-dark rounded-pill">Cuota gestión pendiente</label>
+                                    @elseif(!empty($printLockCtx['completed']))
+                                        <label class="badge bg-success rounded-pill">Impresión enviada</label>
+                                    @elseif(!empty($printLockCtx['locked']))
                                         <label class="badge bg-info text-dark rounded-pill">En imprenta</label>
-                                    @elseif(!empty($approvalCtx['requires_approval']) && in_array($approvalCtx['status'] ?? '', ['pending_approval', 'rejected', 'draft'], true))
+                                    @elseif(!empty($approvalCtx['requires_approval']) && $approvalStatus === 'approved')
+                                        <label class="badge bg-info text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
+                                    @elseif(!empty($approvalCtx['requires_approval']) && in_array($approvalStatus, ['pending_approval', 'rejected', 'draft'], true))
                                         <label class="badge bg-warning text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
-                                    @elseif($isLocked)
+                                    @elseif($showOperationalLock)
                                         <label class="badge bg-secondary rounded-pill">Bloqueado</label>
                                     @else
                                         <label class="badge bg-success rounded-pill">Editable</label>
                                     @endif
                                 </td>
                                 <td class="no-click" style="cursor: default;">
-                                    @if($isLocked)
-                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="Ver resumen y descargas"><i class="ri-eye-line"></i></a>
+                                    @if($awaitingEntityFee || (!empty($approvalCtx['entity_fee_due']) && $entityViewer))
+                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="Ver estado — cuota de gestión pendiente"><i class="ri-eye-line"></i></a>
+                                        <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-sm btn-success" title="Pagar cuota de gestión"><i class="ri-bank-card-line"></i></a>
                                     @else
+                                    @if(!empty($approvalCtx['can_submit']))
+                                        <form action="{{ route('design.submitForApproval', $design->id) }}" method="POST" class="d-inline" onclick="event.stopPropagation();" onsubmit="return confirm('¿Enviar este diseño a la entidad para su aprobación?');">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-warning text-dark" title="Enviar a la entidad para aprobación"><i class="ri-send-plane-line"></i></button>
+                                        </form>
+                                    @endif
+                                    @if($canOpenEditor)
                                         <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light" title="Editar diseño"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
+                                    @else
+                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="Ver resumen y descargas"><i class="ri-eye-line"></i></a>
+                                        @if(!empty($design->participation_html))
+                                            <a href="{{ route('design.participationPreview', $design->id) }}" class="btn btn-sm btn-light" title="Ver diseño"><i class="ri-image-line"></i></a>
+                                        @endif
+                                        @if(!empty($approvalCtx['can_review']))
+                                            <a href="{{ route('design.approval.review', $design->id) }}" class="btn btn-sm btn-primary" title="Revisar y aprobar"><i class="ri-checkbox-circle-line"></i></a>
+                                        @endif
+                                    @endif
+                                    @if($feePending && !empty($approvalCtx['acts_as_administration']) && empty($approvalCtx['entity_fee_due']))
+                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-success" title="Gestionar pago cuota de gestión"><i class="ri-bank-card-line"></i></a>
+                                    @elseif(!empty($approvalCtx['entity_fee_due']) && !empty($approvalCtx['acts_as_administration']))
+                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="Cuota de gestión pendiente — debe pagar la entidad"><i class="ri-information-line"></i></a>
                                     @endif
                                     @php
                                         $hasCover = !empty($design->cover_html);
                                         $hasBack = $design->hasBackDesign();
+                                        $isDigital = $design->set && ($design->set->digital_participations ?? 0) > 0 && (int)($design->set->physical_participations ?? 0) === 0;
                                     @endphp
+                                    @if(! $blocksExport && !empty($design->participation_html))
                                     <a href="{{ route('design.marketingParticipationImage', $design->id) }}" class="btn btn-sm btn-light" title="Imagen para redes (sin QR)" target="_blank"><i class="ri-share-line"></i></a>
-                                    @if($hasCover)
+                                    @endif
+                                    @if(! $blocksExport && $hasCover)
                                     <button type="button"
                                         class="btn btn-sm btn-light js-design-pdf-async"
                                         title="PDF portadas (varias por hoja)"
                                         data-async-url="{{ route('design.exportCoverPdfAsync', $design->id) }}"
                                         data-title="Portadas"><i class="ri-book-2-line"></i></button>
                                     @endif
-                                    @if($hasBack)
+                                    @if(! $blocksExport && $hasBack)
                                     <button type="button"
                                         class="btn btn-sm btn-light js-design-pdf-async"
                                         title="PDF traseras (indique cuántas; son idénticas)"
@@ -138,14 +202,18 @@
                                         data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
                                         data-title="Traseras"><i class="ri-stack-line"></i></button>
                                     @endif
-                                    @php
-                                        $isDigital = $design->set && ($design->set->digital_participations ?? 0) > 0 && (int)($design->set->physical_participations ?? 0) === 0;
-                                    @endphp
                                     @if($isDigital)
-                                        <a target="_blank" href="{{ route('design.digitalParticipationImage', $design->id) }}" class="btn btn-sm btn-light" title="Descargar imagen (PNG) de participación digital">
-                                            <i class="ri-image-line"></i>
-                                        </a>
+                                        @if($blocksExport)
+                                            <button type="button" class="btn btn-sm btn-light" disabled title="{{ $exportBlockTitle }}"><i class="ri-image-line"></i></button>
+                                        @else
+                                            <a target="_blank" href="{{ route('design.digitalParticipationImage', $design->id) }}" class="btn btn-sm btn-light" title="Descargar imagen (PNG) de participación digital">
+                                                <i class="ri-image-line"></i>
+                                            </a>
+                                        @endif
                                     @else
+                                        @if($blocksExport)
+                                            <button type="button" class="btn btn-sm btn-light" disabled title="{{ $exportBlockTitle }}"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
+                                        @else
                                         <button type="button"
                                             class="btn btn-sm btn-light js-design-pdf-async"
                                             title="Descargar PDF de participaciones (elija rango)"
@@ -153,23 +221,24 @@
                                             data-pdf-dialog="participation"
                                             data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
                                             data-title="Participaciones"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
+                                        @endif
                                     @endif
                                     @if(!$isDigital)
-                                        @if(!empty($printLockCtx['locked']))
-                                            <button type="button" class="btn btn-sm btn-outline-warning text-dark" disabled title="{{ $printLockCtx['message'] ?? 'Ya existe una orden activa en imprenta.' }}">
-                                                <i class="ri-send-plane-line"></i>
-                                            </button>
-                                        @else
+                                        @if(!empty($approvalCtx['can_send_to_print']))
                                             <a href="{{ route('design.sendToPrint', $design->id) }}" class="btn btn-sm btn-warning text-dark" title="Enviar a imprenta">
                                                 <i class="ri-send-plane-line"></i>
                                             </a>
+                                        @else
+                                            <button type="button" class="btn btn-sm btn-outline-warning text-dark" disabled title="{{ $approvalCtx['send_to_print_block_reason'] ?? 'No disponible' }}">
+                                                <i class="ri-send-plane-line"></i>
+                                            </button>
                                         @endif
                                     @endif
-                                    {{-- <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light"><img src="{{url('assets/design_1.svg')}}" alt="" width="12"></a> --}}
                                     @if($isLocked)
                                         <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="No se puede eliminar: el set tiene participaciones comprometidas."><i class="ri-delete-bin-6-line"></i></button>
                                     @else
                                         <a href="#" class="btn btn-sm btn-danger delete-design" data-design-id="{{ $design->id }}" data-design-name="{{ $design->set ? $design->set->set_name : 'Diseño #' . $design->id }}" title="Eliminar diseño"><i class="ri-delete-bin-6-line"></i></a>
+                                    @endif
                                     @endif
                                 </td>
                             </tr>
@@ -197,7 +266,9 @@
 
                                 <br>
 
-                                <a href="{{url('design/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                @if($canStartNewDesign ?? true)
+                                    <a href="{{url('design/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                @endif
                             </div>
 
                         </div>
