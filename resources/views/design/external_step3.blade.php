@@ -44,6 +44,7 @@
 
                         <form action="{{ route('design.external.sendInvitation') }}" method="POST" id="partilotPaymentForm" class="mt-4">
                             @csrf
+                            <input type="hidden" name="payment_method" id="payment_method" value="{{ !empty($printPayment['can_queue_remittance']) ? 'remittance' : 'stripe' }}">
                             <input type="hidden" name="stripe_payment_intent_id" id="stripe_payment_intent_id" value="">
 
                             <div class="payment-mock-wrap">
@@ -54,10 +55,15 @@
                                                 <div class="payment-amount-label">Importe</div>
                                                 <div class="payment-amount-value">{{ number_format(($quote['total'] ?? 0), 2, ',', '.') }}€</div>
                                             </div>
+                                            <div class="payment-info-line"><span>Pagador:</span> <strong>{{ $printPayment['payer_label'] ?? '—' }}</strong></div>
+                                            <div class="payment-info-line"><span>Modo de pago:</span> <strong>{{ $printPayment['payment_mode_label'] ?? '—' }}</strong></div>
                                             <div class="payment-info-line"><span>Imprenta:</span> <strong>{{ $selectedPrintShop->displayName() }}</strong></div>
                                             <div class="payment-info-line"><span>Pedido:</span> <strong>{{ $invitation->orden_id ?? ('ORD-' . $set->id) }}</strong></div>
                                             <div class="payment-info-line"><span>Fecha:</span> <strong>{{ now()->format('d/m/Y H:i') }}</strong></div>
                                             <div class="payment-info-line"><span>Descripción:</span> <strong>Diseño e impresión PARTILOT</strong></div>
+                                            @if(!empty($quote['is_digital_set']))
+                                                <div class="payment-info-line"><span>Tipo de set:</span> <strong>Digital (solo diseño)</strong></div>
+                                            @endif
                                             @if(!empty($quote['subtotal']['design']))
                                                 <div class="payment-info-line"><span>Incl. diseño:</span> <strong>{{ number_format($quote['subtotal']['design'], 2, ',', '.') }}€</strong></div>
                                             @endif
@@ -65,7 +71,14 @@
                                     </div>
 
                                     <div class="col-lg-7">
-                                        @if($stripePaymentEnabled ?? false)
+                                        <div id="remittance-payment-block" class="{{ !empty($printPayment['can_queue_remittance']) ? '' : 'd-none' }}">
+                                            <div class="alert alert-info small mb-0">
+                                                Esta administración paga por <strong>remesa {{ strtolower($printPayment['remittance_frequency_label'] ?? 'periódica') }}</strong>.
+                                                El importe se adeudará en el próximo ciclo de cobro.
+                                            </div>
+                                        </div>
+
+                                        <div id="stripe-payment-block" class="{{ ($stripePaymentEnabled ?? false) ? '' : 'd-none' }}">
                                             <div class="payment-card-form">
                                                 <h5 class="mb-3">PAGAR CON TARJETA</h5>
                                                 <div id="stripe-card-element" class="form-control" style="padding-top: 12px; min-height: 46px;"></div>
@@ -74,12 +87,12 @@
                                                     Usa tarjeta de prueba: 4242 4242 4242 4242, fecha futura, CVC cualquiera.
                                                 </div>
                                             </div>
-                                        @else
-                                            <div class="alert alert-warning mb-0">
-                                                Stripe no está configurado para <strong>{{ $selectedPrintShop->displayName() }}</strong>.
-                                                Configura las claves en Ajustes → Imprenta.
-                                            </div>
-                                        @endif
+                                        </div>
+
+                                        <div id="stripe-unconfigured-alert" class="alert alert-warning mb-0 {{ ($stripePaymentEnabled ?? false) || !empty($printPayment['can_queue_remittance']) ? 'd-none' : '' }}">
+                                            Stripe no está configurado para <strong>{{ $selectedPrintShop->displayName() }}</strong>.
+                                            Configura las claves en Ajustes → Imprenta.
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -90,7 +103,11 @@
                         <a href="{{ route('design.external.step2') }}" class="btn btn-dark rounded-pill">
                             <i class="ri-arrow-left-line me-1"></i> Atrás
                         </a>
-                        @if($stripePaymentEnabled ?? false)
+                        @if(!empty($printPayment['can_queue_remittance']))
+                            <button type="button" id="btn-remittance-submit" class="btn btn-warning rounded-pill px-4 text-dark fw-semibold" onclick="return confirmExternalRemittanceSubmit();">
+                                Confirmar en remesa
+                            </button>
+                        @elseif($stripePaymentEnabled ?? false)
                             <button type="button" id="btn-stripe-pay" class="btn btn-warning rounded-pill px-4 text-dark fw-semibold">Pagar</button>
                         @else
                             <button type="button" class="btn btn-warning rounded-pill px-4 text-dark fw-semibold" disabled>Pagar</button>
@@ -145,14 +162,28 @@
 </style>
 @endsection
 
-@if($stripePaymentEnabled ?? false)
+@if(!empty($printPayment['can_queue_remittance']) || ($stripePaymentEnabled ?? false))
 @section('scripts')
-<script src="https://js.stripe.com/v3"></script>
+@if($stripePaymentEnabled ?? false)
+<script src="https://js.stripe.com/v3/"></script>
+@endif
+<script>
+function confirmExternalRemittanceSubmit() {
+    if (!confirm('¿Confirmar el envío a imprenta y registrar el importe en la próxima remesa?')) {
+        return false;
+    }
+    document.getElementById('payment_method').value = 'remittance';
+    document.getElementById('partilotPaymentForm').submit();
+    return false;
+}
+</script>
+@if($stripePaymentEnabled ?? false)
 <script>
 (() => {
     const payBtn = document.getElementById('btn-stripe-pay');
     const errorBox = document.getElementById('stripe-card-errors');
     const paymentIntentInput = document.getElementById('stripe_payment_intent_id');
+    const paymentMethodInput = document.getElementById('payment_method');
     const form = document.getElementById('partilotPaymentForm');
     const cardContainer = document.getElementById('stripe-card-element');
     if (!payBtn || !errorBox || !paymentIntentInput || !form || !cardContainer) return;
@@ -196,6 +227,7 @@
         try {
             clearError();
             payBtn.disabled = true;
+            paymentMethodInput.value = 'stripe';
             if (!stripe || !card || !clientSecret) {
                 await initStripe();
             }
@@ -224,11 +256,11 @@
         }
     });
 
-    // Montar el formulario de Stripe al cargar la vista (no esperar al click en Pagar).
     initStripe().catch((e) => {
         showError(e.message || 'No se pudo inicializar Stripe.');
     });
 })();
 </script>
+@endif
 @endsection
 @endif

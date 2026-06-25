@@ -205,6 +205,13 @@ class DesignController extends Controller
             $selectedPrintShop = PrintConfiguration::resolveDefault();
             $invitation->update(['print_configuration_id' => $selectedPrintShop->id]);
             $quote = $this->calculateExternalInvitationQuote($set, $invitation);
+            $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContextForEntity($entity, auth()->user());
+            if (empty($printPayment['user_may_submit'])) {
+                return redirect()->route('design.external.step1')
+                    ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago de este pedido.');
+            }
+        } else {
+            $printPayment = null;
         }
 
         return view('design.external_step2', compact(
@@ -214,7 +221,8 @@ class DesignController extends Controller
             'invitation',
             'quote',
             'mode',
-            'selectedPrintShop'
+            'selectedPrintShop',
+            'printPayment'
         ));
     }
 
@@ -234,12 +242,15 @@ class DesignController extends Controller
         $cfg = PrintConfiguration::resolveDefault();
         $invitation->print_configuration_id = $cfg->id;
         $quote = $this->calculateExternalInvitationQuote($invitation->set, $invitation);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContextForEntity($invitation->entity, auth()->user());
         [$publishableKey, $secretKey] = $this->resolveStripeKeys($cfg);
 
         return response()->json([
             'ok' => true,
             'quote' => $quote,
-            'stripe_payment_enabled' => $cfg->hasStripeConfigured(),
+            'print_payment' => $printPayment,
+            'stripe_payment_enabled' => $cfg->hasStripeConfigured() && ! empty($printPayment['can_pay_stripe']),
+            'stripe_publishable_key' => $publishableKey,
         ]);
     }
 
@@ -297,8 +308,13 @@ class DesignController extends Controller
         $set = $invitation->set;
         $quote = $this->calculateExternalInvitationQuote($set, $invitation);
         $selectedPrintShop = $this->printConfigurationForInvitation($invitation);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContextForEntity($entity, auth()->user());
+        if (empty($printPayment['user_may_submit'])) {
+            return redirect()->route('design.external.step1')
+                ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago de este pedido.');
+        }
         [$stripePublishableKey, $stripeSecretKey] = $this->resolveStripeKeys($selectedPrintShop);
-        $stripePaymentEnabled = $selectedPrintShop->hasStripeConfigured();
+        $stripePaymentEnabled = $selectedPrintShop->hasStripeConfigured() && ! empty($printPayment['can_pay_stripe']);
 
         return view('design.external_step3', compact(
             'entity',
@@ -309,7 +325,8 @@ class DesignController extends Controller
             'mode',
             'selectedPrintShop',
             'stripePublishableKey',
-            'stripePaymentEnabled'
+            'stripePaymentEnabled',
+            'printPayment'
         ));
     }
 
@@ -325,6 +342,14 @@ class DesignController extends Controller
             ->findOrFail(session('design_external_invitation_id'));
         $cfg = $this->printConfigurationForInvitation($invitation);
         $quote = $this->calculateExternalInvitationQuote($invitation->set, $invitation);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContextForEntity($invitation->entity, auth()->user());
+
+        if (empty($printPayment['can_pay_stripe'])) {
+            return response()->json([
+                'ok' => false,
+                'message' => $printPayment['user_submit_block_reason'] ?? 'Este pedido no admite pago con tarjeta para su perfil.',
+            ], 422);
+        }
 
         [$publishableKey, $secretKey] = $this->resolveStripeKeys($cfg);
         if ($secretKey === '' || $publishableKey === '') {
@@ -436,8 +461,20 @@ class DesignController extends Controller
         $mode = session('design_external_mode', 'external');
         $rules = ['email' => 'required|email'];
         if ($mode === 'partilot') {
+            $invitation = DesignExternalInvitation::where('created_by_user_id', auth()->id())
+                ->findOrFail(session('design_external_invitation_id'));
+            $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContextForEntity($invitation->entity, auth()->user());
+            if (empty($printPayment['user_may_submit'])) {
+                return redirect()->back()->with('error', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago de este pedido.');
+            }
+
             $rules['email'] = 'nullable|email';
-            $rules['stripe_payment_intent_id'] = 'required|string';
+            $rules['payment_method'] = 'nullable|in:stripe,remittance';
+            if (! empty($printPayment['can_queue_remittance'])) {
+                $rules['stripe_payment_intent_id'] = 'nullable|string';
+            } else {
+                $rules['stripe_payment_intent_id'] = 'required|string';
+            }
         }
         $request->validate($rules, [
             'stripe_payment_intent_id.required' => 'No se encontró el pago de Stripe confirmado.',
@@ -457,7 +494,16 @@ class DesignController extends Controller
         ]);
 
         if ($mode === 'partilot') {
+            $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContextForEntity($invitation->entity, auth()->user());
+            if (! empty($printPayment['can_queue_remittance'])
+                && ($request->input('payment_method') === 'remittance' || empty($request->input('stripe_payment_intent_id')))) {
+                return $this->submitExternalPartilotViaRemittance($invitation, $quote, $cfg);
+            }
+
             $paymentIntentId = (string) $request->input('stripe_payment_intent_id');
+            if ($paymentIntentId === '') {
+                return redirect()->back()->with('error', 'No se encontró el pago de Stripe confirmado.');
+            }
             if (! $this->isStripePaymentSucceeded($paymentIntentId, $cfg)) {
                 return redirect()->back()->with('error', 'El pago no está confirmado en Stripe. Intenta nuevamente.');
             }
@@ -2707,7 +2753,13 @@ class DesignController extends Controller
         $hasDesignContent = app(DesignApprovalService::class)->designHasParticipationContent($design);
         $blocksQrExport = app(DesignApprovalService::class)->blocksQrExport($design);
         $sendToPrintBlockReason = $this->printOrderSubmissionBlockMessage($design);
-        $canSendToPrint = $sendToPrintBlockReason === null && ! $this->designSetIsDigitalOnly($design->set);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        $canSendToPrint = $sendToPrintBlockReason === null
+            && ! $this->designSetIsDigitalOnly($design->set)
+            && ! empty($printPayment['user_may_submit']);
+        if ($sendToPrintBlockReason === null && empty($printPayment['user_may_submit']) && ! $this->designSetIsDigitalOnly($design->set)) {
+            $sendToPrintBlockReason = $printPayment['user_submit_block_reason'];
+        }
         $setLock = $design->set ? $this->getSetDesignLockContext($design->set) : ['locked' => false];
         $canOpenEditor = $approvalService->canOpenDesignEditor(auth()->user(), $design, $setLock['locked'], $printOrderLock['locked']);
         $canPreviewDesign = $hasDesignContent;
@@ -2730,7 +2782,8 @@ class DesignController extends Controller
             'canPreviewDesign',
             'entityFeeDue',
             'stripePublishableKey',
-            'stripePaymentEnabled'
+            'stripePaymentEnabled',
+            'printPayment'
         ));
     }
 
@@ -3008,6 +3061,11 @@ class DesignController extends Controller
             return redirect()->route('design.summary', $design->id)
                 ->with('warning', 'Los sets de participaciones digitales no se envían a imprenta.');
         }
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        if (empty($printPayment['user_may_submit'])) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago de impresión de este diseño.');
+        }
         $printOrderLock = $this->getPrintOrderLockContext($design->id);
         if ($printOrderLock['locked']) {
             return redirect()->route('design.summary', $design->id)
@@ -3023,7 +3081,6 @@ class DesignController extends Controller
             'print_configuration_id' => (int) $selectedPrintShop->id,
         ];
         $quote = $this->calculatePrintOrderQuote($design->set, $defaults, chargeDesignFee: false);
-        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design);
         [$stripePublishableKey, $stripeSecretKey] = $this->resolveStripeKeys($selectedPrintShop);
         $stripePaymentEnabled = $selectedPrintShop->hasStripeConfigured() && ! empty($printPayment['can_pay_stripe']);
 
@@ -3052,7 +3109,7 @@ class DesignController extends Controller
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
         $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false);
-        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
         [$publishableKey, $secretKey] = $this->resolveStripeKeys($cfg);
 
         return response()->json([
@@ -3078,8 +3135,12 @@ class DesignController extends Controller
         }
 
         $design->loadMissing('entity');
-        if (app(AdministrationBillingService::class)->shouldQueuePrintFeeRemittance($design->entity)) {
-            return response()->json(['ok' => false, 'message' => 'Este pedido se confirma por remesa, no con tarjeta.'], 422);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        if (empty($printPayment['can_pay_stripe'])) {
+            return response()->json([
+                'ok' => false,
+                'message' => $printPayment['user_submit_block_reason'] ?? 'Este pedido no admite pago con tarjeta para su perfil.',
+            ], 422);
         }
 
         $data = $request->validate($this->printOrderSubmissionRules());
@@ -3140,7 +3201,12 @@ class DesignController extends Controller
             return $redirect;
         }
 
-        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design);
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        if (empty($printPayment['user_may_submit'])) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago de impresión de este diseño.');
+        }
+
         $usesRemittance = ! empty($printPayment['can_queue_remittance']);
 
         $data = $request->validate(array_merge($this->printOrderSubmissionRules(), [
@@ -3152,6 +3218,12 @@ class DesignController extends Controller
 
         if ($usesRemittance) {
             return $this->submitPrintOrderViaRemittance($request, $design, $data);
+        }
+
+        if (empty($printPayment['can_pay_stripe'])) {
+            return redirect()->route('design.sendToPrint', $design->id)
+                ->withInput()
+                ->with('error', $printPayment['user_submit_block_reason'] ?? 'No hay un medio de pago disponible para su perfil.');
         }
 
         if (empty($data['stripe_payment_intent_id'])) {
@@ -3317,6 +3389,80 @@ class DesignController extends Controller
     }
 
     /**
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    private function submitExternalPartilotViaRemittance(
+        DesignExternalInvitation $invitation,
+        array $quote,
+        PrintConfiguration $cfg
+    ) {
+        $invitation->loadMissing('entity.administration');
+        $design = DesignFormat::query()
+            ->where('entity_id', (int) $invitation->entity_id)
+            ->where('set_id', (int) $invitation->set_id)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $design) {
+            $design = DesignFormat::create([
+                'entity_id' => (int) $invitation->entity_id,
+                'lottery_id' => (int) $invitation->lottery_id,
+                'set_id' => (int) $invitation->set_id,
+                'output' => [
+                    'participations_per_book' => (int) ($invitation->participations_per_book ?? 50),
+                ],
+            ]);
+        }
+
+        $expectedTotal = round((float) ($quote['total'] ?? 0), 2);
+        if ($expectedTotal <= 0) {
+            return redirect()->route('design.external.step3')
+                ->with('error', 'El importe del pedido debe ser mayor que cero.');
+        }
+
+        $order = null;
+        DB::transaction(function () use ($invitation, $quote, $cfg, $design, &$order) {
+            $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
+            $order = PrintOrder::create([
+                'print_configuration_id' => $cfg->id,
+                'order_code' => $orderCode,
+                'design_format_id' => (int) $design->id,
+                'set_id' => $invitation->set_id,
+                'entity_id' => $invitation->entity_id,
+                'lottery_id' => $invitation->lottery_id,
+                'created_by_user_id' => auth()->id(),
+                'status' => PrintOrder::STATUS_PENDING_REVIEW,
+                'payment_provider' => PrintOrder::PAYMENT_PROVIDER_REMITTANCE,
+                'payment_intent_id' => null,
+                'payment_status' => PrintOrder::PAYMENT_STATUS_PAID,
+                'print_size' => $invitation->print_size,
+                'participations_per_book' => $invitation->participations_per_book,
+                'back_mode' => $invitation->back_mode,
+                'quoted_amount' => $quote['total'],
+                'quote_breakdown' => $quote,
+                'notes' => trim((string) ($invitation->comment ?? ''))."\n[PAGO REMESA] Flujo Diseño e Impresión PARTILOT.",
+                'sent_at' => null,
+                'paid_at' => now(),
+            ]);
+
+            app(AdministrationBillingService::class)->queuePrintFeeCharge($order, auth()->user());
+
+            $this->insertPrintOrderAuditRow(
+                printOrder: $order,
+                action: 'order_created_remittance',
+                message: 'Orden PARTILOT creada con cargo en remesa periódica.',
+                userId: auth()->id()
+            );
+        });
+
+        $invitation->update(['status' => DesignExternalInvitation::STATUS_SENT, 'sent_at' => now()]);
+        session()->forget(['design_external_invitation_id', 'design_external_mode']);
+
+        return redirect()->route('design.external.list')
+            ->with('success', 'Pedido enviado a imprenta. El importe quedará pendiente de adeudo en la próxima remesa.');
+    }
+
+    /**
      * @return array<string, string>
      */
     private function printOrderSubmissionRules(): array
@@ -3438,6 +3584,12 @@ class DesignController extends Controller
         $printOrderLock = $this->getPrintOrderLockContext($design->id);
         if ($printOrderLock['locked']) {
             return (string) ($printOrderLock['message'] ?? 'Este diseño no puede enviarse a imprenta.');
+        }
+
+        $design->loadMissing('entity');
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        if (empty($printPayment['user_may_submit'])) {
+            return $printPayment['user_submit_block_reason'];
         }
 
         return null;
@@ -4335,6 +4487,7 @@ class DesignController extends Controller
             $setLocked = ! empty($designLockByDesignId[$d->id]['locked']);
             $printLocked = ! empty($printOrderLockByDesignId[$d->id]['locked']);
             $awaitingEntityFee = $d->set && $feeService->blocksAdminDesignUntilEntityPays($d->set);
+            $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($d, $user);
             $blocksExport = $approvalService->blocksQrExport($d);
             $approvalContextByDesignId[$d->id] = [
                 'label' => $approvalService->statusLabel($d->approval_status),
@@ -4354,8 +4507,11 @@ class DesignController extends Controller
                 'block_message' => $approvalService->blockMessage($d),
                 'can_send_to_print' => ! $awaitingEntityFee
                     && ! ($d->set && $this->designSetIsDigitalOnly($d->set))
-                    && $this->printOrderSubmissionBlockMessage($d) === null,
-                'send_to_print_block_reason' => $this->printOrderSubmissionBlockMessage($d),
+                    && $this->printOrderSubmissionBlockMessage($d) === null
+                    && ! empty($printPayment['user_may_submit']),
+                'send_to_print_block_reason' => $this->printOrderSubmissionBlockMessage($d)
+                    ?: ($printPayment['user_submit_block_reason'] ?? null),
+                'print_payer_label' => $printPayment['payer_label'] ?? null,
             ];
         }
 

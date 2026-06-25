@@ -78,6 +78,10 @@
                             <strong id="quote-payer">{{ $printPayment['payer_label'] ?? '—' }}</strong>
                         </div>
                         <div class="d-flex justify-content-between small mb-2">
+                            <span>Modo de pago</span>
+                            <strong id="quote-payment-mode">{{ $printPayment['payment_mode_label'] ?? '—' }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between small mb-2">
                             <span>Set</span>
                             <strong>{{ $design->set->set_name ?? ('#'.$design->set_id) }}</strong>
                         </div>
@@ -245,6 +249,10 @@ function confirmRemittanceSubmit() {
     function updateQuoteDisplay(quote, printPayment, stripeEnabled, stripeKey) {
         document.getElementById('quote-shop-name').textContent = quote.print_configuration_name || '';
         document.getElementById('quote-payer').textContent = printPayment?.payer_label || '—';
+        const paymentModeEl = document.getElementById('quote-payment-mode');
+        if (paymentModeEl) {
+            paymentModeEl.textContent = printPayment?.payment_mode_label || '—';
+        }
         document.getElementById('quote-participations').textContent = fmtInt(quote.total_participations);
         document.getElementById('quote-books').textContent = quote.books ?? 0;
         document.getElementById('quote-design').textContent = fmtMoney(quote.subtotal?.design);

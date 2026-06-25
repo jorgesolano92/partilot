@@ -179,29 +179,70 @@ class AdministrationBillingService
             return false;
         }
 
-        $design->loadMissing('entity.administration');
+        $context = $this->buildPrintPaymentContext($design, $user);
 
-        return $this->shouldQueuePrintFeeRemittance($design->entity)
-            && $this->hasValidBillingIban($design->entity->administration);
+        return ! empty($context['can_queue_remittance']);
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function buildPrintPaymentContext(DesignFormat $design): array
+    public function buildPrintPaymentContext(DesignFormat $design, ?User $user = null): array
     {
         $design->loadMissing('entity.administration');
-        $entity = $design->entity;
-        $payer = $entity ? $this->resolvePrintPayer($entity) : BillingCharge::PAYER_ADMINISTRATION;
-        $usesRemittance = $this->shouldQueuePrintFeeRemittance($entity);
+
+        return $this->buildPrintPaymentContextForEntity($design->entity, $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildPrintPaymentContextForEntity(?Entity $entity, ?User $user = null): array
+    {
+        $user ??= auth()->user();
         $administration = $entity?->administration;
+        $payer = $entity ? $this->resolvePrintPayer($entity) : BillingCharge::PAYER_ADMINISTRATION;
+        $entityPays = $payer === BillingCharge::PAYER_ENTITY;
+        $adminUsesRemittance = $this->usesRemittance($administration);
+
+        $approvalService = app(DesignApprovalService::class);
+        $actsAsAdministration = $user && $approvalService->userActsAsAdministration($user);
+        $isEntityViewer = $user
+            && $user->isEntity()
+            && ! $actsAsAdministration;
+
+        if ($entityPays) {
+            return [
+                'payer' => $payer,
+                'payer_label' => $this->printPayerLabel($payer),
+                'uses_remittance' => false,
+                'payment_mode_label' => 'Tarjeta (Stripe)',
+                'can_pay_stripe' => $isEntityViewer,
+                'can_queue_remittance' => false,
+                'user_may_submit' => $isEntityViewer,
+                'user_submit_block_reason' => $actsAsAdministration
+                    ? 'El coste de diseño e impresión lo abona la entidad desde su panel.'
+                    : null,
+                'remittance_frequency_label' => null,
+            ];
+        }
 
         return [
             'payer' => $payer,
             'payer_label' => $this->printPayerLabel($payer),
-            'uses_remittance' => $usesRemittance,
-            'can_pay_stripe' => ! $usesRemittance,
-            'can_queue_remittance' => $usesRemittance && $administration && $this->hasValidBillingIban($administration),
+            'uses_remittance' => $adminUsesRemittance,
+            'payment_mode_label' => $adminUsesRemittance
+                ? 'Remesa '.$this->remittanceFrequencyLabel($administration?->billing_remittance_frequency)
+                : 'Tarjeta (Stripe)',
+            'can_pay_stripe' => $actsAsAdministration && ! $adminUsesRemittance,
+            'can_queue_remittance' => $actsAsAdministration
+                && $adminUsesRemittance
+                && $administration
+                && $this->hasValidBillingIban($administration),
+            'user_may_submit' => $actsAsAdministration,
+            'user_submit_block_reason' => $isEntityViewer
+                ? 'El coste de diseño e impresión lo abona la administración.'
+                : null,
             'remittance_frequency_label' => $administration
                 ? $this->remittanceFrequencyLabel($administration->billing_remittance_frequency)
                 : null,

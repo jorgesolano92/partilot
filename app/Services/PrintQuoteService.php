@@ -8,6 +8,12 @@ use App\Models\Set;
 
 class PrintQuoteService
 {
+    public function isDigitalOnlySet(Set $set): bool
+    {
+        return ($set->digital_participations ?? 0) > 0
+            && (int) ($set->physical_participations ?? 0) === 0;
+    }
+
     /**
      * Presupuesto de envío a imprenta (diseño ya elaborado en PARTILOT por defecto).
      *
@@ -16,6 +22,10 @@ class PrintQuoteService
      */
     public function calculateForSet(Set $set, PrintConfiguration $cfg, array $input, bool $chargeDesignFee = false): array
     {
+        if ($this->isDigitalOnlySet($set)) {
+            return $this->calculateForDigitalSet($set, $cfg, $input, $chargeDesignFee);
+        }
+
         $totalParticipations = (int) ($set->total_participations ?? 0);
         $perBook = max(1, (int) ($input['participations_per_book'] ?? 50));
         $books = (int) ceil($totalParticipations / $perBook);
@@ -73,19 +83,45 @@ class PrintQuoteService
             'print_size' => $invitation->print_size ?? 'custom',
         ];
 
-        $quote = $this->calculateForSet($set, $cfg, $input, chargeDesignFee: true);
-        $quote['design_fee_waived'] = false;
-        $quote['charge_design_fee'] = true;
-        $quote['subtotal']['design'] = (float) ($cfg->price_design ?? 0);
-        $quote['total'] = round(
-            $quote['subtotal']['design']
-            + $quote['subtotal']['participation']
-            + $quote['subtotal']['back']
-            + $quote['subtotal']['book'],
-            2
-        );
+        return $this->calculateForSet($set, $cfg, $input, chargeDesignFee: true);
+    }
 
-        return $quote;
+    /**
+     * Sets digitales: solo tarifa de diseño (no hay impresión física).
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    private function calculateForDigitalSet(Set $set, PrintConfiguration $cfg, array $input, bool $chargeDesignFee): array
+    {
+        $priceDesign = (float) ($cfg->price_design ?? 0);
+        $designCost = $chargeDesignFee ? $priceDesign : 0.0;
+
+        return [
+            'print_configuration_id' => (int) $cfg->id,
+            'print_configuration_name' => $cfg->displayName(),
+            'total_participations' => (int) ($set->total_participations ?? 0),
+            'print_size' => $input['print_size'] ?? 'custom',
+            'participations_per_book' => max(1, (int) ($input['participations_per_book'] ?? 50)),
+            'books' => 0,
+            'back_mode' => ($input['back_mode'] ?? 'bw') === 'color' ? 'color' : 'bw',
+            'is_digital_set' => true,
+            'design_fee_waived' => ! $chargeDesignFee,
+            'charge_design_fee' => $chargeDesignFee,
+            'unit_prices' => [
+                'design' => $priceDesign,
+                'participation' => 0.0,
+                'back' => 0.0,
+                'book' => 0.0,
+            ],
+            'subtotal' => [
+                'design' => $designCost,
+                'participation' => 0.0,
+                'back' => 0.0,
+                'book' => 0.0,
+            ],
+            'total' => round($designCost, 2),
+        ];
     }
 
     private function pricePerBook(PrintConfiguration $cfg, int $perBook): float

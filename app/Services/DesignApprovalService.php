@@ -103,7 +103,9 @@ class DesignApprovalService
             return true;
         }
 
-        return $this->normalizedApprovalStatus($design->approval_status) === self::STATUS_PENDING;
+        $status = $this->normalizedApprovalStatus($design->approval_status);
+
+        return in_array($status, [self::STATUS_PENDING, self::STATUS_APPROVED], true);
     }
 
     public function isAdministrationSideUser(User $user): bool
