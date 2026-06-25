@@ -32,6 +32,18 @@
                         <div class="alert alert-danger">{{ session('error') }}</div>
                     @endif
 
+                    @if(auth()->user()->isEntity() && ($pendingApprovalsCount ?? 0) > 0)
+                        <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                            <span>
+                                <i class="ri-checkbox-circle-line me-1"></i>
+                                Tiene {{ $pendingApprovalsCount }} diseño{{ $pendingApprovalsCount > 1 ? 's' : '' }} pendiente{{ $pendingApprovalsCount > 1 ? 's' : '' }} de su aprobación.
+                            </span>
+                            <a href="{{ route('design.approvals.index') }}" class="btn btn-primary btn-sm">
+                                Ir a aprobaciones
+                            </a>
+                        </div>
+                    @endif
+
                     @if(auth()->user()->isEntity())
                         <div class="d-flex justify-content-end mb-3 {{ count($designs) ? 'd-none' : '' }}">
                             <a href="{{ route('design.approvals.index') }}" style="border-radius: 30px;" class="btn btn-md btn-outline-primary">

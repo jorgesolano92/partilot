@@ -172,6 +172,7 @@ Route::middleware(['auth', 'active_entity.context', 'entity_panel.readonly', 'en
         Route::get('/orders/{printOrder}/briefing-files/{file}', [\App\Http\Controllers\PrintShopController::class, 'downloadBriefingFile'])->name('print-shop.orders.briefing-file');
         Route::post('/orders/{printOrder}/save-format', [\App\Http\Controllers\DesignController::class, 'printShopSaveFormat'])->name('print-shop.orders.save-design');
         Route::put('/orders/{printOrder}/update-format', [\App\Http\Controllers\DesignController::class, 'printShopUpdateFormat'])->name('print-shop.orders.update-design');
+        Route::post('/orders/{printOrder}/submit-approval', [\App\Http\Controllers\PrintShopController::class, 'submitDesignForApproval'])->name('print-shop.orders.submit-approval');
         Route::post('/orders/{printOrder}/status', [\App\Http\Controllers\PrintShopController::class, 'updateStatus'])->name('print-shop.orders.status');
     });
 

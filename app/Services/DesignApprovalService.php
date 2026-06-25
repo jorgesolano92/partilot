@@ -13,6 +13,8 @@ class DesignApprovalService
 
     public const DESIGNER_ENTITY = 'entity';
 
+    public const DESIGNER_PRINT_SHOP = 'print_shop';
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_PENDING = 'pending_approval';
@@ -54,6 +56,10 @@ class DesignApprovalService
 
     public function resolveDesignerTypeForSave(?User $user, Entity $entity): string
     {
+        if (session('print_shop_order_id') && $user?->canManagePrintShopOrders()) {
+            return self::DESIGNER_PRINT_SHOP;
+        }
+
         if ($user && $this->canEntityActAsDesigner($user, $entity)) {
             return self::DESIGNER_ENTITY;
         }
@@ -83,7 +89,14 @@ class DesignApprovalService
 
     public function requiresEntityApproval(DesignFormat $design): bool
     {
-        return ($design->designer_type ?? self::DESIGNER_ADMINISTRATION) === self::DESIGNER_ADMINISTRATION;
+        $type = $design->designer_type ?? self::DESIGNER_ADMINISTRATION;
+
+        return in_array($type, [self::DESIGNER_ADMINISTRATION, self::DESIGNER_PRINT_SHOP], true);
+    }
+
+    public function isPrintShopDesign(DesignFormat $design): bool
+    {
+        return ($design->designer_type ?? '') === self::DESIGNER_PRINT_SHOP;
     }
 
     /**
@@ -231,10 +244,19 @@ class DesignApprovalService
         $entity = $design->entity;
 
         if (! $design->designer_type) {
-            $design->designer_type = ($user && $entity)
-                ? $this->resolveDesignerTypeForSave($user, $entity)
-                : self::DESIGNER_ADMINISTRATION;
+            $design->designer_type = session('print_shop_order_id') && $user?->canManagePrintShopOrders()
+                ? self::DESIGNER_PRINT_SHOP
+                : (($user && $entity)
+                    ? $this->resolveDesignerTypeForSave($user, $entity)
+                    : self::DESIGNER_ADMINISTRATION);
             $dirty = true;
+        } elseif ($user?->canManagePrintShopOrders() && session('print_shop_order_id')) {
+            $status = $this->normalizedApprovalStatus($design->approval_status);
+            if (in_array($status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true)
+                && $design->designer_type !== self::DESIGNER_PRINT_SHOP) {
+                $design->designer_type = self::DESIGNER_PRINT_SHOP;
+                $dirty = true;
+            }
         } elseif ($user && $entity && $this->isAdministrationSideUser($user)) {
             $status = $this->normalizedApprovalStatus($design->approval_status);
             if (in_array($status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true)
@@ -271,6 +293,10 @@ class DesignApprovalService
             return false;
         }
 
+        if ($this->isPrintShopDesign($design)) {
+            return $this->userCanSubmitDesignForApproval($user, $design);
+        }
+
         if (! $user->canAccessEntity((int) $design->entity_id)) {
             return false;
         }
@@ -282,6 +308,15 @@ class DesignApprovalService
     {
         if ($user->isEntityPanelAccount()) {
             return false;
+        }
+
+        if ($this->isPrintShopDesign($design)) {
+            if (! session('print_shop_order_id') && $this->userActsAsAdministration($user)) {
+                return false;
+            }
+
+            return $user->canManagePrintShopOrders()
+                && $this->printShopCanSubmitDesign($user, $design);
         }
 
         // Gestor o cuenta con perfil entidad nunca envía a aprobación (aunque también gestione administración).
@@ -307,6 +342,32 @@ class DesignApprovalService
         }
 
         return in_array((int) $design->entity->administration_id, $user->accessibleAdministrationIds(), true);
+    }
+
+    public function printShopCanSubmitDesign(User $user, DesignFormat $design): bool
+    {
+        $query = PrintOrder::query()->where('design_format_id', $design->id);
+
+        if ($user->isPrintShop() && ! $user->isSuperAdmin()) {
+            $panelShopId = (int) ($user->panel_account_id ?? 0);
+            if ($panelShopId > 0) {
+                $query->where('print_configuration_id', $panelShopId);
+            }
+        }
+
+        return $query->exists();
+    }
+
+    public function printShopCanEditDesign(DesignFormat $design): bool
+    {
+        if (! $this->isPrintShopDesign($design)) {
+            return true;
+        }
+
+        return in_array($this->normalizedApprovalStatus($design->approval_status), [
+            self::STATUS_DRAFT,
+            self::STATUS_REJECTED,
+        ], true);
     }
 
     public function canReviewApproval(User $user, DesignFormat $design): bool
@@ -390,7 +451,24 @@ class DesignApprovalService
             'approval_rejection_reason' => $reason,
         ])->save();
 
-        return $design->refresh();
+        $this->reopenPrintOrdersAfterDesignRejection($design->refresh());
+
+        return $design;
+    }
+
+    public function reopenPrintOrdersAfterDesignRejection(DesignFormat $design): void
+    {
+        PrintOrder::query()
+            ->where('design_format_id', $design->id)
+            ->whereIn('status', [
+                PrintOrder::STATUS_SENT,
+                PrintOrder::STATUS_IN_PRODUCTION,
+            ])
+            ->get()
+            ->each(fn (PrintOrder $order) => $order->reopenForDesignCorrection(
+                auth()->id(),
+                'Pedido reabierto automáticamente: la entidad rechazó el diseño'
+            ));
     }
 
     public function invalidateApprovalAfterEdit(DesignFormat $design): void
@@ -438,16 +516,16 @@ class DesignApprovalService
 
     public function blocksQrExport(DesignFormat $design): bool
     {
-        if (! $this->designHasParticipationContent($design)) {
-            return true;
-        }
-
         if ($this->isAwaitingEntityManagementFeeBeforeAdminDesign($design)) {
             return true;
         }
 
+        if (! $this->designHasParticipationContent($design)) {
+            return true;
+        }
+
         if ($this->requiresEntityApproval($design) && $design->approval_status !== self::STATUS_APPROVED) {
-            if (! $this->hasCommittedPrintOrder($design)) {
+            if ($this->isPrintShopDesign($design) || ! $this->hasCommittedPrintOrder($design)) {
                 return true;
             }
         }
@@ -461,19 +539,27 @@ class DesignApprovalService
 
     public function blockMessage(DesignFormat $design): string
     {
+        if ($this->isAwaitingEntityManagementFeeBeforeAdminDesign($design)) {
+            $design->loadMissing('set.entity');
+            $entity = $design->set?->entity;
+            if ($entity && $this->entityDesignEnabled($entity)) {
+                return 'La entidad debe abonar la cuota de gestión PARTILOT antes de acceder al editor y continuar con el diseño.';
+            }
+
+            return 'La entidad debe abonar la cuota de gestión PARTILOT para que pueda continuar editando el diseño de participación.';
+        }
+
         if (! $this->designHasParticipationContent($design)) {
             return 'El diseño de participación aún no está creado. Debe completarse antes de generar PDFs o enviar a imprenta.';
         }
 
-        if ($this->isAwaitingEntityManagementFeeBeforeAdminDesign($design)) {
-            return 'La entidad debe abonar la cuota de gestión PARTILOT antes de que la administración pueda continuar con el diseño.';
-        }
-
         if ($this->requiresEntityApproval($design) && $design->approval_status !== self::STATUS_APPROVED) {
-            if (! $this->hasCommittedPrintOrder($design)) {
-                return match ($design->approval_status) {
+            if ($this->isPrintShopDesign($design) || ! $this->hasCommittedPrintOrder($design)) {
+                return match ($this->normalizedApprovalStatus($design->approval_status)) {
                     self::STATUS_PENDING => 'El diseño está pendiente de aprobación por la entidad.',
-                    self::STATUS_REJECTED => 'El diseño fue rechazado por la entidad. Debe corregirse y volver a enviarse.',
+                    self::STATUS_REJECTED => $this->isPrintShopDesign($design)
+                        ? 'El diseño fue rechazado por la entidad. La imprenta debe corregirlo y reenviarlo.'
+                        : 'El diseño fue rechazado por la entidad. Debe corregirse y volver a enviarse.',
                     default => 'El diseño debe ser aprobado por la entidad antes de generar archivos con códigos QR.',
                 };
             }
@@ -497,6 +583,16 @@ class DesignApprovalService
             self::STATUS_PENDING => 'Pendiente aprobación entidad',
             self::STATUS_APPROVED => 'Aprobado por entidad',
             self::STATUS_REJECTED => 'Rechazado por entidad',
+            default => '—',
+        };
+    }
+
+    public function designerTypeLabel(?string $type): string
+    {
+        return match ($type) {
+            self::DESIGNER_PRINT_SHOP => 'Imprenta PARTILOT',
+            self::DESIGNER_ENTITY => 'Entidad',
+            self::DESIGNER_ADMINISTRATION => 'Administración',
             default => '—',
         };
     }

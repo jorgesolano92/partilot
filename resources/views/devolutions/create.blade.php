@@ -1247,6 +1247,8 @@
     </div>
 
 </div>
+</div>
+<!-- End Content-->
 
 <div class="modal fade" id="modal-premio-especial-obligatorio" tabindex="-1" aria-labelledby="modal-premio-especial-obligatorio-label" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

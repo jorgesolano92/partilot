@@ -21,7 +21,7 @@
 
     <div class="row partilot-page-panel-row">
         <div class="col-12">
-            <div class="card partilot-page-panel partilot-page-panel--centered">
+            <div class="card partilot-page-panel partilot-page-panel--centered show-alerts">
                 <div class="card-body text-center py-5">
                     <div class="partilot-page-panel__inner">
                     @if(session('success'))
@@ -36,99 +36,45 @@
                         $entityViewer = auth()->user()->isEntity()
                             && ! auth()->user()->isAdministration()
                             && ! $adminUser;
+                        $managementFeeData = $managementFee ?? [];
                         $entityMustPayNow = $entityViewer && (
                             ! empty($awaitingEntityFeeBeforeDesign)
                             || (
-                                ! empty($managementFee['needs_payment_action'])
-                                && ($managementFee['payer'] ?? '') === 'entity'
+                                ! empty($managementFeeData['needs_payment_action'])
+                                && ($managementFeeData['payer'] ?? '') === 'entity'
                             )
                         );
+                        $entityFeeBlocksEditing = ! empty($awaitingEntityFeeBeforeDesign)
+                            || ! empty($entityFeeDue)
+                            || (! empty($managementFeeData['payment_before_admin_design']) && $adminUser)
+                            || (! empty($managementFeeData['payment_before_editor']) && $entityViewer);
                         $showExportActions = ! $entityMustPayNow && empty($blocksQrExport);
+                        $qrBlockTitle = $summaryBlockMessage ?? $approvalService->blockMessage($design);
                     @endphp
 
-                    @if(!empty($awaitingEntityFeeBeforeDesign))
-                        <div class="alert alert-warning text-start partilot-page-panel__narrow mx-auto mb-4">
-                            <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente (entidad)</h5>
-                            @if($entityViewer)
-                                <p class="mb-2 small">
-                                    @if(!empty($managementFee['payment_before_editor']))
-                                        Debe abonar la cuota de gestión PARTILOT antes de acceder al editor y diseñar la participación.
+                    @if(!empty($summaryStatus))
+                        <div class="alert alert-{{ ($summaryStatus['tone'] ?? 'warning') === 'success' ? 'success' : 'warning' }} text-start partilot-page-panel__narrow mx-auto mb-4">
+                            @if(!empty($summaryStatus['title']))
+                                <h5 class="mb-2">
+                                    @if(($summaryStatus['tone'] ?? '') !== 'success')
+                                        <i class="ri-error-warning-line me-1"></i>
                                     @else
-                                        Debe abonar la cuota de gestión PARTILOT para que la administración pueda continuar con el diseño de este set.
+                                        <i class="ri-checkbox-circle-line me-1"></i>
                                     @endif
-                                </p>
-                                <p class="mb-0 small text-muted">
-                                    Hasta entonces no es posible editar el diseño ni generar PDFs con códigos QR.
-                                </p>
-                            @else
-                                <p class="mb-2 small">
-                                    <strong>La entidad debe pagar la cuota de gestión PARTILOT</strong> antes de que pueda continuar el diseño de participación.
-                                </p>
-                                <ul class="small mb-0 text-start ps-3">
-                                    <li>El diseño aún no está creado (solo reservado el set).</li>
-                                    <li>No puede editarse ni generarse PDF con QR hasta el pago.</li>
-                                    <li>No puede enviarse a imprenta hasta completar el diseño y liquidar la cuota.</li>
-                                    <li>El pago solo puede realizarlo la entidad desde su panel de Diseño e Impresión.</li>
-                                </ul>
+                                    {{ $summaryStatus['title'] }}
+                                </h5>
                             @endif
+                            <p class="mb-0 small">{{ $summaryStatus['message'] ?? '' }}</p>
                         </div>
-                    @elseif($entityMustPayNow)
-                        <div class="alert alert-warning text-start partilot-page-panel__narrow mx-auto mb-4">
-                            <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente</h5>
-                            <p class="mb-0 small">
-                                @if(!empty($managementFee['payment_before_editor']))
-                                    Debe abonar la cuota de gestión PARTILOT
-                                    ({{ number_format($managementFee['amount'] ?? 0, 2, ',', '.') }}€)
-                                    antes de acceder al editor de diseño.
-                                @elseif(!empty($managementFee['payment_before_admin_design']))
-                                    Debe abonar la cuota de gestión PARTILOT ({{ number_format($managementFee['amount'] ?? 0, 2, ',', '.') }}€)
-                                    antes de que la administración pueda crear el diseño de participación.
-                                @else
-                                    Debe abonar la cuota de gestión PARTILOT
-                                    ({{ number_format($managementFee['amount'] ?? 0, 2, ',', '.') }}€)
-                                    antes de generar archivos con códigos QR.
-                                @endif
-                            </p>
-                        </div>
-                    @elseif(!empty($managementFee['needs_payment_action']))
-                        <div class="alert alert-warning text-start partilot-page-panel__narrow mx-auto mb-4">
-                            <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente</h5>
-                            <p class="mb-0 small">
-                                @if(!empty($managementFee['awaiting_approval']) && ($managementFee['payer'] ?? '') === 'entity')
-                                    Debe abonar la cuota de gestión PARTILOT
-                                    ({{ number_format($managementFee['amount'], 2, ',', '.') }}€)
-                                    para activar las participaciones. Puede revisar y aprobar el diseño después del pago.
-                                @else
-                                    El diseño ya está aprobado por la entidad. Debe confirmarse el pago de la cuota de gestión PARTILOT
-                                    ({{ number_format($managementFee['amount'], 2, ',', '.') }}€, pagador: {{ $managementFee['payer_label'] }})
-                                    antes de generar archivos con códigos QR.
-                                @endif
-                            </p>
-                        </div>
-                    @elseif(empty($hasDesignContent))
-                        <div class="alert alert-warning text-start partilot-page-panel__narrow mx-auto mb-4">
-                            <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Diseño pendiente de crear</h5>
-                            <p class="mb-0 small">
-                                El diseño de participación aún no tiene contenido. Debe completarse en el editor antes de generar PDFs o enviar a imprenta.
-                            </p>
-                        </div>
-                    @else
-                    <p class="text-success mb-4 fs-5">
-                        <i class="ri-checkbox-circle-line me-1"></i>
-                        La configuración del diseño se ha guardado correctamente.
-                    </p>
-                    <p class="text-muted mb-4">
-                        Puedes descargar los PDF generados o volver al listado de diseños.
-                    </p>
                     @endif
 
-                    @if($entityMustPayNow && !empty($managementFee['can_pay_stripe']))
+                    @if($entityMustPayNow && !empty($managementFeeData['can_pay_stripe']))
                         <div class="text-center mb-4">
                             <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-success btn-lg">
                                 <i class="ri-bank-card-line me-1"></i> Pagar cuota de gestión
                             </a>
                         </div>
-                    @elseif($entityMustPayNow && !empty($managementFee['can_mark_paid']))
+                    @elseif($entityMustPayNow && !empty($managementFeeData['can_mark_paid']))
                         <form action="{{ route('design.markManagementFeePaid', $design->set_id) }}" method="POST" class="text-center mb-4" onsubmit="return confirm('¿Confirmar el pago de la cuota de gestión PARTILOT?');">
                             @csrf
                             <button type="submit" class="btn btn-success btn-lg">
@@ -357,7 +303,6 @@
                             && (int) ($design->set->physical_participations ?? 0) === 0;
                         $hasCover = !empty($design->cover_html);
                         $hasBack = $design->hasBackDesign();
-                        $qrBlockTitle = app(\App\Services\DesignApprovalService::class)->blockMessage($design);
                     @endphp
                     @if($showExportActions)
                     <div class="d-flex flex-wrap justify-content-center gap-3 mb-4">
@@ -430,15 +375,22 @@
                     @endif
                     @endif
 
-                    @if($entityMustPayNow && empty($managementFee['can_pay_stripe']) && empty($managementFee['can_mark_paid']))
+                    @if($entityMustPayNow && empty($managementFeeData['can_pay_stripe']) && empty($managementFeeData['can_mark_paid']))
                         <p class="small text-muted partilot-page-panel__narrow mx-auto mb-4">
                             <i class="ri-information-line me-1"></i>
                             No hay un medio de pago disponible para su perfil. Revise la configuración de facturación de la administración.
                         </p>
                     @elseif(! $showExportActions && ! $entityMustPayNow && ! empty($blocksQrExport))
+                        @if(!empty($entityFeeBlocksEditing))
+                            <div class="alert alert-warning text-start partilot-page-panel__narrow mx-auto mb-4">
+                                <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente (entidad)</h5>
+                                <p class="mb-0 small">{{ $qrBlockTitle }}</p>
+                            </div>
+                        @else
                         <p class="small text-muted partilot-page-panel__narrow mx-auto mb-4">
                             <i class="ri-information-line me-1"></i> {{ $qrBlockTitle }}
                         </p>
+                        @endif
                     @endif
 
                     @if(!empty($latestPrintOrder))

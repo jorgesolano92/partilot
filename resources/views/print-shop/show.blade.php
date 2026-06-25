@@ -126,6 +126,56 @@
                                 </div>
                             @endif
 
+                            @php
+                                $designApprovalService = app(\App\Services\DesignApprovalService::class);
+                                $linkedDesign = $printOrder->design;
+                                $linkedDesignApprovalStatus = $linkedDesign
+                                    ? $designApprovalService->normalizedApprovalStatus($linkedDesign->approval_status)
+                                    : null;
+                            @endphp
+                            @if($linkedDesign && $designApprovalService->isPrintShopDesign($linkedDesign))
+                                @if($linkedDesignApprovalStatus === \App\Services\DesignApprovalService::STATUS_DRAFT && ($canSubmitToEntity ?? false))
+                                    <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                        <div>
+                                            <i class="ri-send-plane-line me-1"></i>
+                                            El diseño está listo. Debe enviarse a la entidad para su aprobación antes de generar los PDF.
+                                        </div>
+                                        <form action="{{ route('print-shop.orders.submit-approval', $printOrder->id) }}" method="POST" onsubmit="return confirm('¿Enviar este diseño a la entidad para su aprobación?');">
+                                            @csrf
+                                            <button type="submit" class="btn btn-warning text-dark">
+                                                <i class="ri-send-plane-line me-1"></i> Enviar a la entidad
+                                            </button>
+                                        </form>
+                                    </div>
+                                @elseif($linkedDesignApprovalStatus === \App\Services\DesignApprovalService::STATUS_PENDING)
+                                    <div class="alert alert-info mb-3">
+                                        <i class="ri-time-line me-1"></i>
+                                        Diseño enviado a la entidad. Pendiente de su aprobación antes de generar los PDF de impresión.
+                                    </div>
+                                @elseif($linkedDesignApprovalStatus === \App\Services\DesignApprovalService::STATUS_REJECTED)
+                                    <div class="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                        <div>
+                                            <i class="ri-close-circle-line me-1"></i>
+                                            <strong>Rechazado por la entidad.</strong>
+                                            @if(filled($linkedDesign->approval_rejection_reason))
+                                                <span class="d-block mt-1 small">{{ $linkedDesign->approval_rejection_reason }}</span>
+                                            @endif
+                                            Corrija el diseño y guárdelo de nuevo para reenviarlo a la entidad.
+                                        </div>
+                                        @if($canOpenDesignEditor ?? false)
+                                            <a href="{{ route('print-shop.orders.design', $printOrder->id) }}" class="btn btn-danger">
+                                                <i class="ri-edit-line me-1"></i> Corregir diseño
+                                            </a>
+                                        @endif
+                                    </div>
+                                @elseif($linkedDesignApprovalStatus === \App\Services\DesignApprovalService::STATUS_APPROVED)
+                                    <div class="alert alert-success mb-3">
+                                        <i class="ri-check-line me-1"></i>
+                                        Diseño aprobado por la entidad. Ya puede generar los PDF de impresión.
+                                    </div>
+                                @endif
+                            @endif
+
                             @if(!empty($briefingInvitation) && (filled($briefingInvitation->comment) || $briefingInvitation->files->isNotEmpty()))
                                 <h5 class="mb-2">Briefing del cliente</h5>
                                 @if(filled($briefingInvitation->comment))
@@ -156,6 +206,8 @@
                                 <p class="text-muted small mb-0">Esta orden no tiene un diseño vinculado. Contacta con Partilot si necesitas los archivos.</p>
                             @elseif($isDigitalSet)
                                 <p class="text-muted small mb-0">Set digital: no requiere PDF de participaciones físicas.</p>
+                            @elseif($design && $designApprovalService->blocksQrExport($design))
+                                <p class="text-muted small mb-0">{{ $designApprovalService->blockMessage($design) }}</p>
                             @else
                                 <p class="text-muted small mb-3">Genera y descarga los PDF del pedido. La generación puede tardar unos minutos según el volumen.</p>
                                 <div class="d-flex flex-wrap gap-2">
@@ -274,11 +326,20 @@
                             <h5 class="mb-3">Cambiar estado</h5>
                             <div class="d-grid gap-2">
                                 @if($printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_IN_PRODUCTION))
-                                    <form method="POST" action="{{ route('print-shop.orders.status', $printOrder->id) }}">
-                                        @csrf
-                                        <input type="hidden" name="target_status" value="{{ \App\Models\PrintOrder::STATUS_IN_PRODUCTION }}">
-                                        <button type="submit" class="btn btn-info text-dark w-100"><i class="ri-hammer-line me-1"></i> Marcar en producción</button>
-                                    </form>
+                                    @if($canSubmitToEntity ?? false)
+                                        <form action="{{ route('print-shop.orders.submit-approval', $printOrder->id) }}" method="POST" onsubmit="return confirm('¿Enviar este diseño a la entidad para su aprobación?');">
+                                            @csrf
+                                            <button type="submit" class="btn btn-warning text-dark w-100">
+                                                <i class="ri-send-plane-line me-1"></i> Enviar diseño a la entidad
+                                            </button>
+                                        </form>
+                                    @else
+                                        <form method="POST" action="{{ route('print-shop.orders.status', $printOrder->id) }}">
+                                            @csrf
+                                            <input type="hidden" name="target_status" value="{{ \App\Models\PrintOrder::STATUS_IN_PRODUCTION }}">
+                                            <button type="submit" class="btn btn-info text-dark w-100"><i class="ri-hammer-line me-1"></i> Marcar en producción</button>
+                                        </form>
+                                    @endif
                                 @endif
                                 @if($printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_SENT))
                                     <form method="POST" action="{{ route('print-shop.orders.status', $printOrder->id) }}">
@@ -286,6 +347,8 @@
                                         <input type="hidden" name="target_status" value="{{ \App\Models\PrintOrder::STATUS_SENT }}">
                                         <button type="submit" class="btn btn-success w-100"><i class="ri-truck-line me-1"></i> Marcar enviada</button>
                                     </form>
+                                @elseif($printOrder->designApprovalTransitionBlockReason(\App\Models\PrintOrder::STATUS_SENT))
+                                    <p class="small text-muted mb-0">{{ $printOrder->designApprovalTransitionBlockReason(\App\Models\PrintOrder::STATUS_SENT) }}</p>
                                 @endif
                                 @if($printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_REJECTED))
                                     <form method="POST" action="{{ route('print-shop.orders.status', $printOrder->id) }}">
@@ -298,7 +361,10 @@
                                     <form method="POST" action="{{ route('print-shop.orders.status', $printOrder->id) }}">
                                         @csrf
                                         <input type="hidden" name="target_status" value="{{ \App\Models\PrintOrder::STATUS_PENDING_REVIEW }}">
-                                        <button type="submit" class="btn btn-warning text-dark w-100"><i class="ri-restart-line me-1"></i> Reabrir revisión</button>
+                                        <button type="submit" class="btn btn-warning text-dark w-100">
+                                            <i class="ri-restart-line me-1"></i>
+                                            {{ $linkedDesignApprovalStatus === \App\Services\DesignApprovalService::STATUS_REJECTED ? 'Reabrir para corregir diseño' : 'Reabrir revisión' }}
+                                        </button>
                                     </form>
                                 @endif
                             </div>

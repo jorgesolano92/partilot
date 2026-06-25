@@ -188,6 +188,10 @@
             .container-fluid .alert {
                 display: none;
             }
+
+            .container-fluid .show-alerts .alert {
+                display: block;
+            }
             /* Formularios: mantener estilo pill en controles dentro de input-group */
             .content-page .content .group-form .form-control,
             .content-page .content .group-form .ts-wrapper.single .ts-control {

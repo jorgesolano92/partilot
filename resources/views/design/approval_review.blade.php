@@ -85,7 +85,11 @@
                                 <p class="mb-3"><strong>Participaciones:</strong> {{ number_format((int) ($design->set->total_participations ?? 0), 0, ',', '.') }}</p>
 
                                 <p class="text-muted small">
-                                    Al aprobar el diseño se habilitará el cobro de la cuota de gestión PARTILOT al pagador configurado en la entidad.
+                                    @if(app(\App\Services\DesignApprovalService::class)->isPrintShopDesign($design))
+                                        Al aprobar el diseño la imprenta PARTILOT podrá generar los archivos de impresión.
+                                    @else
+                                        Al aprobar el diseño se habilitará el cobro de la cuota de gestión PARTILOT al pagador configurado en la entidad.
+                                    @endif
                                 </p>
 
                                 <form action="{{ route('design.approve', $design->id) }}" method="POST" class="mb-2" onsubmit="return confirm('¿Confirmar que aprueba este diseño?');">
@@ -99,7 +103,7 @@
                                     @csrf
                                     <div class="mb-2">
                                         <label class="form-label small">Motivo del rechazo (opcional)</label>
-                                        <textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="Indique qué debe corregir la administración"></textarea>
+                                        <textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="{{ app(\App\Services\DesignApprovalService::class)->isPrintShopDesign($design) ? 'Indique qué debe corregir la imprenta' : 'Indique qué debe corregir la administración' }}"></textarea>
                                     </div>
                                     <button type="submit" class="btn btn-outline-danger w-100">
                                         <i class="ri-close-line me-1"></i> Rechazar

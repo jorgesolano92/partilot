@@ -167,6 +167,11 @@ class PrintOrder extends Model
 
     public function canTransitionTo(string $targetStatus): bool
     {
+        if ((string) $this->status === self::STATUS_SENT
+            && $targetStatus === self::STATUS_PENDING_REVIEW) {
+            return $this->isDesignRejectedByEntity();
+        }
+
         $transitions = [
             self::STATUS_PENDING_REVIEW => [self::STATUS_IN_PRODUCTION, self::STATUS_REJECTED],
             self::STATUS_IN_PRODUCTION => [self::STATUS_SENT, self::STATUS_REJECTED],
@@ -178,9 +183,110 @@ class PrintOrder extends Model
             return false;
         }
 
+        if ($this->designApprovalTransitionBlockReason($targetStatus)) {
+            return false;
+        }
+
         if (in_array($targetStatus, [self::STATUS_IN_PRODUCTION, self::STATUS_SENT], true) && ! $this->isPaymentSettled()) {
             return false;
         }
+
+        return true;
+    }
+
+    public function transitionBlockReason(string $targetStatus): ?string
+    {
+        if ($reason = $this->designApprovalTransitionBlockReason($targetStatus)) {
+            return $reason;
+        }
+
+        if (in_array($targetStatus, [self::STATUS_IN_PRODUCTION, self::STATUS_SENT], true) && ! $this->isPaymentSettled()) {
+            return $this->paymentTransitionBlockReason();
+        }
+
+        return null;
+    }
+
+    public function isDesignApprovedByEntity(): bool
+    {
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return true;
+        }
+
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+        if (! $approvalService->requiresEntityApproval($this->design)) {
+            return true;
+        }
+
+        return $approvalService->normalizedApprovalStatus($this->design->approval_status)
+            === \App\Services\DesignApprovalService::STATUS_APPROVED;
+    }
+
+    public function isDesignRejectedByEntity(): bool
+    {
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return false;
+        }
+
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+
+        return $approvalService->requiresEntityApproval($this->design)
+            && $approvalService->normalizedApprovalStatus($this->design->approval_status)
+                === \App\Services\DesignApprovalService::STATUS_REJECTED;
+    }
+
+    public function designApprovalTransitionBlockReason(string $targetStatus): ?string
+    {
+        if (! in_array($targetStatus, [self::STATUS_IN_PRODUCTION, self::STATUS_SENT], true)) {
+            return null;
+        }
+
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return null;
+        }
+
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+        if (! $approvalService->requiresEntityApproval($this->design) || $this->isDesignApprovedByEntity()) {
+            return null;
+        }
+
+        return match ($approvalService->normalizedApprovalStatus($this->design->approval_status)) {
+            \App\Services\DesignApprovalService::STATUS_PENDING => 'La entidad debe aprobar el diseño antes de continuar.',
+            \App\Services\DesignApprovalService::STATUS_REJECTED => 'El diseño fue rechazado. Corríjalo y reenvíelo a la entidad.',
+            default => 'El diseño debe enviarse y ser aprobado por la entidad antes de continuar.',
+        };
+    }
+
+    /**
+     * Vuelve el pedido a revisión cuando la entidad rechaza el diseño (p. ej. si se marcó enviado antes de tiempo).
+     */
+    public function reopenForDesignCorrection(?int $userId = null, ?string $message = null): bool
+    {
+        if (! in_array((string) $this->status, [self::STATUS_SENT, self::STATUS_IN_PRODUCTION], true)) {
+            return false;
+        }
+
+        $from = (string) $this->status;
+        $this->forceFill([
+            'status' => self::STATUS_PENDING_REVIEW,
+            'sent_at' => null,
+        ])->save();
+
+        \Illuminate\Support\Facades\DB::table('print_order_status_audits')->insert([
+            'print_order_id' => $this->id,
+            'entity_id' => $this->entity_id,
+            'set_id' => $this->set_id,
+            'design_format_id' => $this->design_format_id,
+            'user_id' => $userId,
+            'action' => 'status_change',
+            'from_status' => $from,
+            'to_status' => self::STATUS_PENDING_REVIEW,
+            'message' => $message ?? 'Pedido reabierto: la entidad rechazó el diseño',
+            'created_at' => now(),
+        ]);
 
         return true;
     }
@@ -227,6 +333,23 @@ class PrintOrder extends Model
      */
     public function printShopCanEditDesign(): bool
     {
+        $this->loadMissing('design');
+        if ($this->design) {
+            $approvalService = app(\App\Services\DesignApprovalService::class);
+
+            if ($this->isDesignRejectedByEntity()) {
+                return true;
+            }
+
+            if (! $approvalService->printShopCanEditDesign($this->design)) {
+                return false;
+            }
+        }
+
+        if ((string) $this->status === self::STATUS_SENT) {
+            return false;
+        }
+
         return in_array((string) $this->status, [
             self::STATUS_PENDING_REVIEW,
             self::STATUS_IN_PRODUCTION,

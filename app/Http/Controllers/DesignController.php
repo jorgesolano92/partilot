@@ -2775,6 +2775,17 @@ class DesignController extends Controller
         $canOpenEditor = $approvalService->canOpenDesignEditor(auth()->user(), $design, $setLock['locked'], $printOrderLock['locked']);
         $canPreviewDesign = $hasDesignContent;
         $entityFeeDue = app(ManagementFeeService::class)->entityOwesManagementFee($design);
+        $summaryBlockMessage = $approvalService->blockMessage($design);
+        $summaryStatus = $this->buildDesignSummaryStatus(
+            $design,
+            auth()->user(),
+            $awaitingEntityFeeBeforeDesign,
+            $hasDesignContent,
+            $managementFee,
+            $entityFeeDue,
+            $blocksQrExport,
+            $summaryBlockMessage
+        );
         [$stripePublishableKey, ] = app(ManagementFeePaymentService::class)->resolveStripeKeys();
         $stripePaymentEnabled = app(ManagementFeePaymentService::class)->hasStripeConfigured();
 
@@ -2792,6 +2803,8 @@ class DesignController extends Controller
             'canOpenEditor',
             'canPreviewDesign',
             'entityFeeDue',
+            'summaryStatus',
+            'summaryBlockMessage',
             'stripePublishableKey',
             'stripePaymentEnabled',
             'printPayment'
@@ -2867,8 +2880,12 @@ class DesignController extends Controller
         app(DesignApprovalService::class)->approve($design, $user);
 
         if ($user->isEntity() && ! $user->isAdministration()) {
+            $message = app(DesignApprovalService::class)->isPrintShopDesign($design)
+                ? 'Diseño aprobado correctamente. La imprenta podrá continuar con la impresión.'
+                : 'Diseño aprobado correctamente. La administración podrá continuar con el proceso.';
+
             return redirect()->route('design.index')
-                ->with('success', 'Diseño aprobado correctamente. La administración podrá continuar con el proceso.');
+                ->with('success', $message);
         }
 
         return redirect()->route('design.summary', $design->id)
@@ -2881,8 +2898,12 @@ class DesignController extends Controller
         $reason = $request->input('reason');
         app(DesignApprovalService::class)->reject($design, auth()->user(), is_string($reason) ? $reason : null);
 
+        $message = app(DesignApprovalService::class)->isPrintShopDesign($design)
+            ? 'Diseño rechazado. La imprenta deberá corregirlo y reenviarlo a la entidad.'
+            : 'Diseño rechazado. La administración deberá corregirlo y reenviarlo.';
+
         return redirect()->route('design.approvals.index')
-            ->with('success', 'Diseño rechazado. La administración deberá corregirlo y reenviarlo.');
+            ->with('success', $message);
     }
 
     public function payManagementFee(Set $set)
@@ -3509,6 +3530,72 @@ class DesignController extends Controller
         ];
     }
 
+    private function buildDesignSummaryStatus(
+        DesignFormat $design,
+        User $user,
+        bool $awaitingEntityFeeBeforeDesign,
+        bool $hasDesignContent,
+        ?array $managementFee,
+        bool $entityFeeDue,
+        bool $blocksQrExport,
+        string $summaryBlockMessage
+    ): array {
+        $approvalService = app(DesignApprovalService::class);
+        $adminUser = $approvalService->userActsAsAdministration($user);
+        $entityViewer = $user->isEntity()
+            && ! $user->isAdministration()
+            && ! $adminUser;
+        $amountLabel = isset($managementFee['amount'])
+            ? number_format((float) $managementFee['amount'], 2, ',', '.').'€'
+            : null;
+
+        if ($awaitingEntityFeeBeforeDesign || ($entityFeeDue && ! $hasDesignContent)) {
+            if ($entityViewer) {
+                $message = ! empty($managementFee['payment_before_editor'])
+                    ? 'Debe abonar la cuota de gestión PARTILOT'
+                        .($amountLabel ? " ({$amountLabel})" : '')
+                        .' antes de acceder al editor y continuar con el diseño.'
+                    : 'Debe abonar la cuota de gestión PARTILOT'
+                        .($amountLabel ? " ({$amountLabel})" : '')
+                        .' para que la administración pueda continuar con el diseño de este set.';
+            } else {
+                $message = 'La entidad debe pagar la cuota de gestión PARTILOT'
+                    .($amountLabel ? " ({$amountLabel})" : '')
+                    .' para que pueda continuar editando el diseño de participación. '
+                    .'Hasta entonces no es posible editar el diseño ni generar PDFs con códigos QR. '
+                    .'El pago solo puede realizarlo la entidad desde su panel de Diseño e Impresión.';
+            }
+
+            return [
+                'tone' => 'warning',
+                'title' => 'Cuota de gestión pendiente (entidad)',
+                'message' => $message,
+            ];
+        }
+
+        if (! $hasDesignContent) {
+            return [
+                'tone' => 'warning',
+                'title' => 'Diseño pendiente de crear',
+                'message' => 'El diseño de participación aún no tiene contenido. Debe completarse en el editor antes de generar PDFs o enviar a imprenta.',
+            ];
+        }
+
+        if ($blocksQrExport) {
+            return [
+                'tone' => 'warning',
+                'title' => 'Acción pendiente',
+                'message' => $summaryBlockMessage,
+            ];
+        }
+
+        return [
+            'tone' => 'success',
+            'title' => 'Diseño guardado',
+            'message' => 'La configuración del diseño se ha guardado correctamente. Puede descargar los PDF generados o volver al listado de diseños.',
+        ];
+    }
+
     private function entityAwaitingAdminDesignAfterFeePayment(DesignFormat $design): bool
     {
         $design->loadMissing('set.entity');
@@ -3758,6 +3845,7 @@ class DesignController extends Controller
 
                 if (isset($data['from_step_5']) && $data['from_step_5'] === true) {
                     app(DesignApprovalService::class)->assignDesignerTypeIfMissing($format, $this->resolveDesignSaveUser());
+                    $this->autoSubmitPrintShopDesignForEntityApproval($format);
                 } else {
                     app(DesignApprovalService::class)->invalidateApprovalAfterEdit($format->refresh());
                 }
@@ -4481,10 +4569,18 @@ class DesignController extends Controller
 
         $approvalService = app(DesignApprovalService::class);
         $user = auth()->user();
+        $pendingApprovalsCount = 0;
         if ($user->isEntity() && ! $user->isAdministration()) {
             $designs = $designs
                 ->filter(fn (DesignFormat $design) => $approvalService->isVisibleToEntityViewer($design))
                 ->values();
+
+            $pendingApprovalsCount = DesignFormat::query()
+                ->whereIn('entity_id', $entityIds)
+                ->where('approval_status', DesignApprovalService::STATUS_PENDING)
+                ->get()
+                ->filter(fn (DesignFormat $design) => $approvalService->canReviewApproval($user, $design))
+                ->count();
         }
 
         $lockBySetId = $this->batchDesignLockContextsForSetIds(
@@ -4550,7 +4646,7 @@ class DesignController extends Controller
 
         $canStartNewDesign = $approvalService->userCanStartNewDesign($user);
 
-        return view('design.index', compact('designs', 'designLockByDesignId', 'printOrderLockByDesignId', 'approvalContextByDesignId', 'canStartNewDesign'));
+        return view('design.index', compact('designs', 'designLockByDesignId', 'printOrderLockByDesignId', 'approvalContextByDesignId', 'canStartNewDesign', 'pendingApprovalsCount'));
     }
 
     /**
@@ -4789,6 +4885,27 @@ class DesignController extends Controller
         return $order;
     }
 
+    private function autoSubmitPrintShopDesignForEntityApproval(DesignFormat $design): void
+    {
+        if (! session('print_shop_order_id')) {
+            return;
+        }
+
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return;
+        }
+
+        $design->refresh();
+        $approvalService = app(DesignApprovalService::class);
+        if (! $approvalService->canSubmitForApproval($user, $design)) {
+            return;
+        }
+
+        $approvalService->submitForApproval($design, $user);
+        session()->flash('success', 'Diseño enviado a la entidad para su aprobación.');
+    }
+
     private function assertPrintShopMayDesignOrder(PrintOrder $printOrder): void
     {
         $user = auth()->user();
@@ -4805,6 +4922,12 @@ class DesignController extends Controller
 
         if (! $printOrder->printShopCanEditDesign()) {
             abort(403, 'Este pedido ya no admite edición de diseño en su estado actual.');
+        }
+
+        $printOrder->loadMissing('design');
+        if ($printOrder->design
+            && ! app(DesignApprovalService::class)->printShopCanEditDesign($printOrder->design)) {
+            abort(403, 'El diseño está pendiente de aprobación por la entidad. No puede editarse hasta que la entidad responda.');
         }
 
         $printOrder->loadMissing('set');

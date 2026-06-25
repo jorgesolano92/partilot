@@ -6,6 +6,7 @@ use App\Models\DesignExternalInvitation;
 use App\Models\DesignExternalInvitationFile;
 use App\Models\DesignFormat;
 use App\Models\PrintOrder;
+use App\Services\DesignApprovalService;
 use App\Services\PrintOrderPaymentReconciliationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -113,6 +114,16 @@ class PrintShopController extends Controller
         }
 
         $printOrder->load(['entity', 'set.reserve.lottery', 'lottery', 'design', 'printConfiguration']);
+
+        if ($printOrder->isDesignRejectedByEntity()
+            && in_array((string) $printOrder->status, [PrintOrder::STATUS_SENT, PrintOrder::STATUS_IN_PRODUCTION], true)) {
+            $printOrder->reopenForDesignCorrection(
+                $request->user()?->id,
+                'Pedido reabierto: diseño rechazado por la entidad'
+            );
+            $printOrder->refresh();
+        }
+
         $audits = DB::table('print_order_status_audits')
             ->where('print_order_id', $printOrder->id)
             ->orderByDesc('id')
@@ -137,14 +148,43 @@ class PrintShopController extends Controller
         $requiresDesign = $printOrder->requiresPrintShopDesign();
         $canOpenDesignEditor = $printOrder->printShopCanEditDesign() && (bool) $printOrder->design_format_id;
 
+        session(['print_shop_order_id' => $printOrder->id]);
+        $canSubmitToEntity = $printOrder->design
+            && app(\App\Services\DesignApprovalService::class)->canSubmitForApproval($request->user(), $printOrder->design);
+
         return view('print-shop.show', compact(
             'printOrder',
             'audits',
             'paymentIssue',
             'briefingInvitation',
             'requiresDesign',
-            'canOpenDesignEditor'
+            'canOpenDesignEditor',
+            'canSubmitToEntity'
         ));
+    }
+
+    public function submitDesignForApproval(Request $request, PrintOrder $printOrder)
+    {
+        $this->authorizePrintShopAccess($request);
+        $this->authorizePrintOrderForPanelUser($request, $printOrder);
+
+        if (! $printOrder->isVisibleToPrintShop()) {
+            abort(404, 'Este pedido no está disponible.');
+        }
+
+        $printOrder->loadMissing('design');
+        $design = $printOrder->design;
+        if (! $design) {
+            return redirect()->back()->with('error', 'No hay diseño vinculado a este pedido.');
+        }
+
+        session(['print_shop_order_id' => $printOrder->id]);
+        $approvalService = app(DesignApprovalService::class);
+        $approvalService->assignDesignerTypeIfMissing($design, $request->user());
+        $approvalService->submitForApproval($design->refresh(), $request->user());
+
+        return redirect()->route('print-shop.orders.show', $printOrder)
+            ->with('success', 'Diseño enviado a la entidad para su aprobación.');
     }
 
     public function updateStatus(Request $request, PrintOrder $printOrder)
@@ -161,8 +201,27 @@ class PrintShopController extends Controller
         ]);
 
         $target = $data['target_status'];
+
+        if ($target === PrintOrder::STATUS_IN_PRODUCTION) {
+            $printOrder->loadMissing('design');
+            $design = $printOrder->design;
+            $approvalService = app(DesignApprovalService::class);
+            if ($design
+                && $approvalService->isPrintShopDesign($design)
+                && $approvalService->canSubmitForApproval($request->user(), $design)) {
+                session(['print_shop_order_id' => $printOrder->id]);
+                $approvalService->assignDesignerTypeIfMissing($design, $request->user());
+                $approvalService->submitForApproval($design->refresh(), $request->user());
+
+                return redirect()
+                    ->route('print-shop.orders.show', $printOrder->id)
+                    ->with('success', 'Diseño enviado a la entidad para su aprobación.');
+            }
+        }
+
         if (! $printOrder->canTransitionTo($target)) {
-            $reason = $printOrder->paymentTransitionBlockReason();
+            $reason = $printOrder->transitionBlockReason($target)
+                ?? $printOrder->paymentTransitionBlockReason();
 
             return redirect()->back()->with('error', $reason ?? 'Transición de estado no permitida.');
         }
