@@ -101,6 +101,58 @@ class ManagementFeeService
         return ! $this->isManagementFeeSettled($set);
     }
 
+    public function blocksPrintShopUntilEntityPaysManagementFee(Set $set): bool
+    {
+        $set->loadMissing('entity');
+        $entity = $set->entity;
+
+        if (! $entity || $this->resolvePayer($entity) !== self::PAYER_ENTITY) {
+            return false;
+        }
+
+        return ! $this->isManagementFeeSettled($set);
+    }
+
+    /**
+     * Alerta modal para gestores entidad con cuota de gestión pendiente.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getEntityManagementFeeModalAlert(User $user): ?array
+    {
+        if (! $user->isEntity() || app(DesignApprovalService::class)->userActsAsAdministration($user)) {
+            return null;
+        }
+
+        foreach ($user->accessibleEntityIds() as $entityId) {
+            $designs = DesignFormat::query()
+                ->with(['set.entity', 'entity'])
+                ->where('entity_id', $entityId)
+                ->orderByDesc('id')
+                ->get();
+
+            foreach ($designs as $design) {
+                if (! $this->entityOwesManagementFee($design)) {
+                    continue;
+                }
+
+                $set = $this->ensureSnapshot($design->set, $design);
+
+                return [
+                    'design_id' => $design->id,
+                    'set_id' => $set->id,
+                    'entity_name' => $design->entity?->name,
+                    'set_name' => $set->set_name ?? ('Set #'.$set->id),
+                    'amount' => (float) ($set->management_fee_amount ?? 0),
+                    'pay_url' => route('design.managementFee.pay', $set->id),
+                    'summary_url' => route('design.summary', $design->id),
+                ];
+            }
+        }
+
+        return null;
+    }
+
     /**
      * La entidad debe abonar la cuota de gestión (p. ej. tras impresión PARTILOT).
      */

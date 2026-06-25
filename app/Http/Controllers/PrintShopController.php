@@ -20,6 +20,7 @@ class PrintShopController extends Controller
         $statusFilter = (string) $request->query('status', 'all');
         $query = PrintOrder::query()
             ->with(['entity', 'set', 'lottery', 'design', 'printConfiguration'])
+            ->visibleToPrintShop()
             ->orderByDesc('id');
 
         $user = $request->user();
@@ -39,7 +40,9 @@ class PrintShopController extends Controller
             $query->where('status', $statusFilter);
         }
 
-        $printOrders = $query->limit(300)->get();
+        $printOrders = $query->limit(300)->get()
+            ->filter(fn (PrintOrder $order) => $order->isVisibleToPrintShop())
+            ->values();
 
         $reconciliationService = app(PrintOrderPaymentReconciliationService::class);
         $printOrderIssuesById = [];
@@ -53,7 +56,7 @@ class PrintShopController extends Controller
         $orderIds = $printOrders->pluck('id')->all();
         $printOrderAuditsByOrderId = $this->loadOrderAudits($orderIds);
 
-        $countsQuery = PrintOrder::query();
+        $countsQuery = PrintOrder::query()->visibleToPrintShop();
         if ($user && $user->isPrintShop() && ! $user->isSuperAdmin()) {
             $panelShopId = (int) ($user->panel_account_id ?? 0);
             if ($panelShopId > 0) {
@@ -104,6 +107,10 @@ class PrintShopController extends Controller
     {
         $this->authorizePrintShopAccess($request);
         $this->authorizePrintOrderForPanelUser($request, $printOrder);
+
+        if (! $printOrder->isVisibleToPrintShop()) {
+            abort(404, 'Este pedido no está disponible hasta que la entidad confirme la cuota de gestión PARTILOT.');
+        }
 
         $printOrder->load(['entity', 'set.reserve.lottery', 'lottery', 'design', 'printConfiguration']);
         $audits = DB::table('print_order_status_audits')

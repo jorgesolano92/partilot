@@ -1983,8 +1983,18 @@
         </script>
         @include('partials.lottery-deadline-reminder-modal')
         @include('partials.lottery-deadline-admin-decision-modal')
+        @include('partials.entity-management-fee-modal')
 
         @auth
+        @if(!empty($entityManagementFeeModalAlert))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var modalEl = document.getElementById('entityManagementFeeModal');
+                if (!modalEl || typeof bootstrap === 'undefined') return;
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+        </script>
+        @endif
         @if(!empty($lotteryDeadlineAdminDecisionAlerts))
         <script>
             function showLotteryDeadlineAdminDecisionModalIfAny() {

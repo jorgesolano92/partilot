@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use App\Models\User;
 use App\Services\LotteryDeadlineReminderService;
+use App\Services\ManagementFeeService;
 use App\Models\Participation;
 use App\Observers\UserObserver;
 use App\Observers\ParticipationObserver;
@@ -42,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
             if (! $user) {
                 $view->with('lotteryDeadlineModalAlerts', []);
                 $view->with('lotteryDeadlineAdminDecisionAlerts', []);
+                $view->with('entityManagementFeeModalAlert', null);
 
                 return;
             }
@@ -56,6 +58,22 @@ class AppServiceProvider extends ServiceProvider
                 'lotteryDeadlineAdminDecisionAlerts',
                 $reminderService->getAdminDecisionModalsForUser($user)
             );
+            $view->with(
+                'entityManagementFeeModalAlert',
+                $this->shouldSuppressEntityManagementFeeModal()
+                    ? null
+                    : app(ManagementFeeService::class)->getEntityManagementFeeModalAlert($user)
+            );
         });
+    }
+
+    private function shouldSuppressEntityManagementFeeModal(): bool
+    {
+        return request()->routeIs([
+            'design.managementFee.pay',
+            'design.managementFee.paymentIntent',
+            'design.managementFee.confirmStripe',
+            'design.managementFee.confirmRemittance',
+        ]);
     }
 }

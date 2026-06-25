@@ -250,5 +250,47 @@ class PrintOrder extends Model
 
         return ! app(\App\Services\DesignApprovalService::class)->designHasParticipationContent($this->design);
     }
+
+    /**
+     * La imprenta no debe ver ni trabajar pedidos retenidos por cuota de gestión pendiente de la entidad.
+     */
+    public function isVisibleToPrintShop(): bool
+    {
+        if (! $this->set_id) {
+            return true;
+        }
+
+        $this->loadMissing('set');
+
+        return ! app(\App\Services\ManagementFeeService::class)
+            ->blocksPrintShopUntilEntityPaysManagementFee($this->set);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
+     */
+    public function scopeVisibleToPrintShop($query)
+    {
+        $paid = \App\Services\ManagementFeeService::STATUS_PAID;
+        $queued = \App\Services\ManagementFeeService::STATUS_QUEUED_REMITTANCE;
+
+        return $query->whereHas('set', function ($setQuery) use ($paid, $queued) {
+            $setQuery->where(function ($visibilityQuery) use ($paid, $queued) {
+                // La administración paga la gestión → visible para imprenta.
+                $visibilityQuery->whereHas('entity', function ($entityQuery) {
+                    $entityQuery->where('entity_pays_management_fee', false);
+                })
+                // La entidad paga la gestión → solo si la cuota ya está liquidada.
+                ->orWhere(function ($entityPaysQuery) use ($paid, $queued) {
+                    $entityPaysQuery
+                        ->whereHas('entity', function ($entityQuery) {
+                            $entityQuery->where('entity_pays_management_fee', true);
+                        })
+                        ->whereIn('management_fee_status', [$paid, $queued]);
+                });
+            });
+        });
+    }
 }
 

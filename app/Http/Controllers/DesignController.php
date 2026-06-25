@@ -459,6 +459,7 @@ class DesignController extends Controller
     public function externalSendInvitation(Request $request)
     {
         $mode = session('design_external_mode', 'external');
+        $createdOrder = null;
         $rules = ['email' => 'required|email'];
         if ($mode === 'partilot') {
             $invitation = DesignExternalInvitation::where('created_by_user_id', auth()->id())
@@ -509,10 +510,11 @@ class DesignController extends Controller
             }
 
             $duplicateOrder = null;
+            $createdOrder = null;
             $lock = Cache::lock('print-order-stripe-pi:'.sha1($paymentIntentId), 25);
             $lock->block(12);
             try {
-                DB::transaction(function () use ($paymentIntentId, $invitation, $quote, $cfg, &$duplicateOrder) {
+                DB::transaction(function () use ($paymentIntentId, $invitation, $quote, $cfg, &$duplicateOrder, &$createdOrder) {
                     $existing = PrintOrder::query()
                         ->where('payment_intent_id', $paymentIntentId)
                         ->lockForUpdate()
@@ -548,7 +550,7 @@ class DesignController extends Controller
                     }
 
                     $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
-                    $order = PrintOrder::create([
+                    $createdOrder = PrintOrder::create([
                         'print_configuration_id' => $cfg->id,
                         'order_code' => $orderCode,
                         'design_format_id' => (int) $design->id,
@@ -571,11 +573,13 @@ class DesignController extends Controller
                     ]);
 
                     $this->insertPrintOrderAuditRow(
-                        printOrder: $order,
+                        printOrder: $createdOrder,
                         action: 'order_created_stripe',
                         message: 'Orden creada con pago Stripe confirmado. PI: '.$paymentIntentId,
                         userId: auth()->id()
                     );
+
+                    $this->afterPrintOrderCreated($createdOrder, $design);
                 });
             } finally {
                 $lock->release();
@@ -610,10 +614,16 @@ class DesignController extends Controller
 
         $invitation->update(['status' => DesignExternalInvitation::STATUS_SENT, 'sent_at' => now()]);
         session()->forget(['design_external_invitation_id', 'design_external_mode']);
+
+        $partilotSuccess = 'Pago confirmado y orden de imprenta registrada correctamente.';
+        if ($mode === 'partilot' && ! empty($createdOrder) && ! $createdOrder->fresh()->isVisibleToPrintShop()) {
+            $partilotSuccess = 'Pago confirmado. La imprenta recibirá el pedido cuando la entidad abone la cuota de gestión PARTILOT.';
+        }
+
         return redirect()->route('design.external.list')->with(
             'success',
             $mode === 'partilot'
-                ? 'Pago confirmado y orden de imprenta registrada correctamente.'
+                ? $partilotSuccess
                 : ('Invitación enviada a ' . $request->email)
         );
     }
@@ -1307,7 +1317,8 @@ class DesignController extends Controller
         $data['snapshot_path'] = $data['snapshot_path'] ?? null;
 
         $set = Set::find($data['set_id'] ?? null);
-        if ($set) {
+        $byPrintShop = (bool) session('print_shop_order_id');
+        if ($set && ! $byPrintShop) {
             $set->loadMissing('entity');
             if (app(ManagementFeeService::class)->blocksAdminDesignUntilEntityPays($set)) {
                 return response()->json([
@@ -3265,10 +3276,11 @@ class DesignController extends Controller
         }
 
         $duplicateOrder = null;
+        $createdOrder = null;
         $lock = Cache::lock('print-order-stripe-pi:'.sha1($paymentIntentId), 25);
         $lock->block(12);
         try {
-            DB::transaction(function () use ($paymentIntentId, $design, $data, $quote, $cfg, &$duplicateOrder) {
+            DB::transaction(function () use ($paymentIntentId, $design, $data, $quote, $cfg, &$duplicateOrder, &$createdOrder) {
                 $existing = PrintOrder::query()
                     ->where('payment_intent_id', $paymentIntentId)
                     ->lockForUpdate()
@@ -3287,7 +3299,7 @@ class DesignController extends Controller
                 }
 
                 $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
-                $order = PrintOrder::create([
+                $createdOrder = PrintOrder::create([
                     'print_configuration_id' => $cfg->id,
                     'order_code' => $orderCode,
                     'design_format_id' => $design->id,
@@ -3310,11 +3322,13 @@ class DesignController extends Controller
                 ]);
 
                 $this->insertPrintOrderAuditRow(
-                    printOrder: $order,
+                    printOrder: $createdOrder,
                     action: 'order_created_stripe',
                     message: 'Orden creada con pago Stripe (diseño existente). PI: '.$paymentIntentId,
                     userId: auth()->id()
                 );
+
+                $this->afterPrintOrderCreated($createdOrder, $design);
             });
         } finally {
             $lock->release();
@@ -3325,8 +3339,13 @@ class DesignController extends Controller
                 ->with('warning', 'Este pago ya tiene una orden de imprenta registrada ('.$duplicateOrder->order_code.').');
         }
 
+        $successMessage = 'Pago confirmado y orden de imprenta enviada correctamente.';
+        if ($createdOrder && ! $createdOrder->fresh()->isVisibleToPrintShop()) {
+            $successMessage = 'Pago confirmado. La imprenta recibirá el pedido cuando la entidad abone la cuota de gestión PARTILOT.';
+        }
+
         return redirect()->route('design.summary', $design->id)
-            ->with('success', 'Pago confirmado y orden de imprenta enviada correctamente.');
+            ->with('success', $successMessage);
     }
 
     /**
@@ -3382,10 +3401,17 @@ class DesignController extends Controller
                 message: 'Orden creada con cargo en remesa periódica.',
                 userId: auth()->id()
             );
+
+            $this->afterPrintOrderCreated($order, $design);
         });
 
+        $successMessage = 'Pedido enviado a imprenta. El importe quedará pendiente de adeudo en la próxima remesa.';
+        if ($order && ! $order->fresh()->isVisibleToPrintShop()) {
+            $successMessage = 'Pedido registrado. La imprenta lo recibirá cuando la entidad abone la cuota de gestión PARTILOT.';
+        }
+
         return redirect()->route('design.summary', $design->id)
-            ->with('success', 'Pedido enviado a imprenta. El importe quedará pendiente de adeudo en la próxima remesa.');
+            ->with('success', $successMessage);
     }
 
     /**
@@ -3453,13 +3479,20 @@ class DesignController extends Controller
                 message: 'Orden PARTILOT creada con cargo en remesa periódica.',
                 userId: auth()->id()
             );
+
+            $this->afterPrintOrderCreated($order, $design);
         });
 
         $invitation->update(['status' => DesignExternalInvitation::STATUS_SENT, 'sent_at' => now()]);
         session()->forget(['design_external_invitation_id', 'design_external_mode']);
 
+        $successMessage = 'Pedido enviado a imprenta. El importe quedará pendiente de adeudo en la próxima remesa.';
+        if ($order && ! $order->fresh()->isVisibleToPrintShop()) {
+            $successMessage = 'Pedido registrado. La imprenta lo recibirá cuando la entidad abone la cuota de gestión PARTILOT.';
+        }
+
         return redirect()->route('design.external.list')
-            ->with('success', 'Pedido enviado a imprenta. El importe quedará pendiente de adeudo en la próxima remesa.');
+            ->with('success', $successMessage);
     }
 
     /**
@@ -4773,6 +4806,11 @@ class DesignController extends Controller
         if (! $printOrder->printShopCanEditDesign()) {
             abort(403, 'Este pedido ya no admite edición de diseño en su estado actual.');
         }
+
+        $printOrder->loadMissing('set');
+        if (! $printOrder->isVisibleToPrintShop()) {
+            abort(403, 'Este pedido no está disponible hasta que la entidad confirme la cuota de gestión PARTILOT.');
+        }
     }
 
     private function userCanAccessDesignFormat(?User $user, DesignFormat $format): bool
@@ -4955,6 +4993,44 @@ class DesignController extends Controller
         app(ManagementFeeService::class)->ensureSnapshot($set, $design);
 
         return $design;
+    }
+
+    private function afterPrintOrderCreated(PrintOrder $order, ?DesignFormat $design = null): bool
+    {
+        $order->loadMissing(['set.entity', 'design']);
+        $design ??= $order->design;
+        $set = $order->set;
+        if (! $set) {
+            return false;
+        }
+
+        $feeService = app(ManagementFeeService::class);
+        if ($design) {
+            $feeService->ensureSnapshot($set, $design);
+            $set->refresh();
+        }
+
+        if (! $feeService->blocksPrintShopUntilEntityPaysManagementFee($set)) {
+            return false;
+        }
+
+        $designForNotify = $design ?? DesignFormat::query()
+            ->where('set_id', $set->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($designForNotify) {
+            $this->notifyEntityManagementFeePaymentRequired($designForNotify);
+        }
+
+        $this->insertPrintOrderAuditRow(
+            printOrder: $order,
+            action: 'held_for_entity_management_fee',
+            message: 'Orden retenida: la imprenta no la verá hasta que la entidad pague la cuota de gestión PARTILOT.',
+            userId: auth()->id()
+        );
+
+        return true;
     }
 
     private function notifyEntityManagementFeePaymentRequired(DesignFormat $design): void
