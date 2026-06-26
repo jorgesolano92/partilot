@@ -81,7 +81,9 @@ class EntityLotteryPrizePaymentService
             'has_sold_digital_participations' => $hasSoldDigital,
         ], $userId);
 
-        return $setting;
+        $this->syncSettingIfSavedScrutinyExists($setting);
+
+        return $setting->fresh();
     }
 
     /**
@@ -107,6 +109,13 @@ class EntityLotteryPrizePaymentService
             ->where('entity_id', $entityId)
             ->where('lottery_id', $lotteryId)
             ->first();
+    }
+
+    public function refreshFundsFromSavedScrutiny(EntityLotteryPrizeSetting $setting): EntityLotteryPrizeSetting
+    {
+        $this->syncSettingIfSavedScrutinyExists($setting);
+
+        return $setting->fresh();
     }
 
     /**
@@ -176,8 +185,8 @@ class EntityLotteryPrizePaymentService
      */
     public function evaluatePresencialPayment(Participation $participation, ?float $prizeAmount = null): array
     {
-        if ($this->isNativeDigitalParticipation($participation)) {
-            return ['allowed' => false, 'reason' => 'native_digital', 'message' => 'Las participaciones digitales solo se cobran online.'];
+        if ($participation->requiresOnlinePrizeCollection()) {
+            return ['allowed' => false, 'reason' => 'online_only', 'message' => 'Esta participación solo se cobra online (digital o digitalizada).'];
         }
 
         $lotteryId = $this->resolveLotteryId($participation);
@@ -262,11 +271,25 @@ class EntityLotteryPrizePaymentService
      */
     public function listForSuperAdmin(?string $fundsStatus = null, ?string $mode = null)
     {
-        return EntityLotteryPrizeSetting::query()
+        $settings = EntityLotteryPrizeSetting::query()
             ->with(['entity.administration', 'lottery'])
             ->whereNotNull('prize_payment_mode')
             ->when($fundsStatus, fn ($q) => $q->where('funds_status', $fundsStatus))
             ->when($mode, fn ($q) => $q->where('prize_payment_mode', $mode))
+            ->orderByDesc('updated_at')
+            ->get();
+
+        foreach ($settings as $setting) {
+            $this->syncSettingIfSavedScrutinyExists($setting);
+        }
+
+        if ($settings->isEmpty()) {
+            return $settings;
+        }
+
+        return EntityLotteryPrizeSetting::query()
+            ->with(['entity.administration', 'lottery'])
+            ->whereIn('id', $settings->pluck('id'))
             ->orderByDesc('updated_at')
             ->get();
     }
@@ -421,7 +444,7 @@ class EntityLotteryPrizePaymentService
     ): bool {
         return $setting->isModePresencial()
             && $setting->has_sold_digital_participations
-            && $this->isNativeDigitalParticipation($participation);
+            && $participation->requiresOnlinePrizeCollection();
     }
 
     /**
@@ -662,6 +685,8 @@ class EntityLotteryPrizePaymentService
             'online_payer' => $resolvedPayer,
         ], $userId);
 
+        $this->syncSettingIfSavedScrutinyExists($setting);
+
         return $setting->fresh();
     }
 
@@ -797,57 +822,130 @@ class EntityLotteryPrizePaymentService
     {
         return Participation::query()
             ->where('entity_id', $entityId)
-            ->whereRaw("participation_code LIKE '1D/%'")
             ->sold()
             ->whereHas('set.reserve', fn ($q) => $q->where('lottery_id', $lotteryId))
+            ->where(function ($query) {
+                $query->whereRaw("participation_code LIKE '1D/%'")
+                    ->orWhere('wallet_mode', Participation::WALLET_MODE_DIGITAL);
+            })
             ->exists();
+    }
+
+    protected function syncSettingIfSavedScrutinyExists(EntityLotteryPrizeSetting $setting): void
+    {
+        $entity = $setting->relationLoaded('entity')
+            ? $setting->entity
+            : Entity::query()->find($setting->entity_id);
+
+        if (! $entity?->administration_id) {
+            return;
+        }
+
+        $scrutiny = AdministrationLotteryScrutiny::query()
+            ->where('lottery_id', $setting->lottery_id)
+            ->where('administration_id', $entity->administration_id)
+            ->where('is_saved', true)
+            ->first();
+
+        if ($scrutiny) {
+            $this->syncSettingAfterScrutiny($setting, $scrutiny);
+        }
     }
 
     protected function syncSettingAfterScrutiny(EntityLotteryPrizeSetting $setting, AdministrationLotteryScrutiny $scrutiny): void
     {
         $fundsRequired = $this->calculateFundsRequiredAmount($setting, $scrutiny);
         $wasOnlineEnabled = $setting->online_payments_enabled;
-        $onlineEnabled = false;
-        $presencialEnabled = false;
-        $fundsStatus = $setting->funds_status;
 
-        if ($setting->isModeOnline()) {
-            if ($setting->isOnlinePayerEntity()) {
-                $fundsStatus = EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
-                $onlineEnabled = true;
-            } else {
-                $fundsStatus = $fundsRequired > 0
-                    ? EntityLotteryPrizeSetting::FUNDS_PENDING
-                    : EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+        $updates = [
+            'funds_required_amount' => $fundsRequired,
+        ];
+
+        $hasSoldOnlineCollectible = $this->entityHasSoldDigitalParticipations(
+            (int) $setting->entity_id,
+            (int) $setting->lottery_id
+        );
+        if ($hasSoldOnlineCollectible !== (bool) $setting->has_sold_digital_participations) {
+            $updates['has_sold_digital_participations'] = $hasSoldOnlineCollectible;
+        }
+
+        if ($setting->funds_status === EntityLotteryPrizeSetting::FUNDS_CONFIRMED) {
+            if ($fundsRequired > (float) $setting->funds_deposited_amount) {
+                $updates['funds_status'] = EntityLotteryPrizeSetting::FUNDS_PENDING;
             }
-        } elseif ($setting->isModePresencial()) {
-            if ($setting->has_sold_digital_participations) {
-                $fundsStatus = $fundsRequired > 0
-                    ? EntityLotteryPrizeSetting::FUNDS_PENDING
-                    : EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
-            } else {
-                $fundsStatus = EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
-                $presencialEnabled = true;
+        } else {
+            $resolvedFundsStatus = $this->resolveFundsStatusAfterScrutiny($setting, $fundsRequired);
+            if ($resolvedFundsStatus !== $setting->funds_status) {
+                $updates['funds_status'] = $resolvedFundsStatus;
             }
         }
 
-        $setting->update([
-            'funds_required_amount' => $fundsRequired,
-            'funds_status' => $fundsStatus,
-            'online_payments_enabled' => $onlineEnabled,
-            'presencial_payments_enabled' => $presencialEnabled,
-        ]);
+        if ($setting->isModePresencial()
+            && ! $setting->has_sold_digital_participations
+            && ! $setting->presencial_payments_enabled) {
+            $updates['presencial_payments_enabled'] = true;
+            $updates['funds_status'] = EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+        }
 
-        if ($setting->isOnlinePayerEntity() && $onlineEnabled && ! $wasOnlineEnabled) {
+        if ($setting->isModeOnline()
+            && $setting->isOnlinePayerEntity()
+            && ! $setting->online_payments_enabled) {
+            $updates['online_payments_enabled'] = true;
+            $updates['funds_status'] = EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+        }
+
+        $hasChanges = false;
+        foreach ($updates as $field => $value) {
+            $current = $setting->{$field};
+            if (in_array($field, ['funds_required_amount', 'funds_deposited_amount'], true)) {
+                if ((float) $current !== (float) $value) {
+                    $hasChanges = true;
+                    break;
+                }
+            } elseif ((bool) $current !== (bool) $value || $current !== $value) {
+                $hasChanges = true;
+                break;
+            }
+        }
+
+        if (! $hasChanges) {
+            return;
+        }
+
+        $setting->update($updates);
+
+        if ($setting->isOnlinePayerEntity()
+            && ($updates['online_payments_enabled'] ?? false)
+            && ! $wasOnlineEnabled) {
             $this->notifyUsersPrizePaymentsUnlocked($setting->fresh(), 'online');
         }
+    }
 
-        $this->log($setting, 'sync_after_scrutiny', [
-            'funds_required_amount' => $fundsRequired,
-            'funds_status' => $fundsStatus,
-            'online_payments_enabled' => $onlineEnabled,
-            'presencial_payments_enabled' => $presencialEnabled,
-        ]);
+    protected function resolveFundsStatusAfterScrutiny(
+        EntityLotteryPrizeSetting $setting,
+        float $fundsRequired
+    ): string {
+        if ($setting->isModeOnline()) {
+            if ($setting->isOnlinePayerEntity()) {
+                return EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+            }
+
+            return $fundsRequired > 0
+                ? EntityLotteryPrizeSetting::FUNDS_PENDING
+                : EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+        }
+
+        if ($setting->isModePresencial()) {
+            if ($setting->has_sold_digital_participations) {
+                return $fundsRequired > 0
+                    ? EntityLotteryPrizeSetting::FUNDS_PENDING
+                    : EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+            }
+
+            return EntityLotteryPrizeSetting::FUNDS_NOT_REQUIRED;
+        }
+
+        return $setting->funds_status;
     }
 
     protected function calculateFundsRequiredAmount(
@@ -878,24 +976,51 @@ class EntityLotteryPrizePaymentService
         int $lotteryId,
         AdministrationLotteryScrutiny $scrutiny
     ): float {
-        $digitalSetIds = Participation::query()
+        $participations = Participation::query()
             ->where('entity_id', $entityId)
-            ->whereRaw("participation_code LIKE '1D/%'")
             ->sold()
             ->whereHas('set.reserve', fn ($q) => $q->where('lottery_id', $lotteryId))
+            ->get()
+            ->filter(fn (Participation $participation) => $participation->requiresOnlinePrizeCollection());
+
+        if ($participations->isEmpty()) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+
+        $nativeDigitalSetIds = $participations
+            ->filter(fn (Participation $participation) => str_starts_with((string) $participation->participation_code, '1D/'))
             ->pluck('set_id')
             ->unique()
             ->all();
 
-        if (empty($digitalSetIds)) {
-            return 0.0;
+        if (! empty($nativeDigitalSetIds)) {
+            $total += (float) ScrutinyDetailedResult::query()
+                ->where('scrutiny_id', $scrutiny->id)
+                ->where('entity_id', $entityId)
+                ->whereIn('set_id', $nativeDigitalSetIds)
+                ->sum('premio_total');
         }
 
-        return (float) ScrutinyDetailedResult::query()
-            ->where('scrutiny_id', $scrutiny->id)
-            ->where('entity_id', $entityId)
-            ->whereIn('set_id', $digitalSetIds)
-            ->sum('premio_total');
+        $digitalizedPhysical = $participations
+            ->filter(fn (Participation $participation) => ! str_starts_with((string) $participation->participation_code, '1D/'));
+
+        foreach ($digitalizedPhysical->groupBy('set_id') as $setId => $group) {
+            $count = $group->count();
+            $results = ScrutinyDetailedResult::query()
+                ->where('scrutiny_id', $scrutiny->id)
+                ->where('entity_id', $entityId)
+                ->where('set_id', $setId)
+                ->where('total_participations', '>', 0)
+                ->get();
+
+            foreach ($results as $result) {
+                $total += $count * (float) $result->premio_por_participacion;
+            }
+        }
+
+        return $total;
     }
 
     protected function resolveLotteryId(Participation $participation): ?int

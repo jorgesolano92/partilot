@@ -103,6 +103,27 @@ class Participation extends Model
             || ($this->buyerNameIsWalletUserId() && $this->wallet_mode === null);
     }
 
+    /**
+     * Participaciones que deben cobrarse online (nativas 1D/ o físicas digitalizadas en cartera).
+     */
+    public function requiresOnlinePrizeCollection(): bool
+    {
+        $code = (string) ($this->participation_code ?? '');
+
+        if (str_starts_with($code, '1D/')) {
+            return true;
+        }
+
+        $this->loadMissing('set');
+
+        if (($this->set?->digital_participations ?? 0) > 0
+            && (int) ($this->set?->physical_participations ?? 0) <= 0) {
+            return true;
+        }
+
+        return $this->wallet_mode === self::WALLET_MODE_DIGITAL;
+    }
+
     public function returnedBy()
     {
         return $this->belongsTo(User::class, 'returned_by');

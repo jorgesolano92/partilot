@@ -20,7 +20,8 @@ return [
     |
     | LOTTERY_AUTO_DEADLINE_CLOSURE_ENABLED=false (default) → no ejecuta en cron; usar
     |   php artisan sipart:lottery-deadline-closure --ignore-disabled para pruebas.
-    | LOTTERY_ENFORCE_DRAW_DATE_RULES=false → sigue permitiendo operar sorteos pasados en panel;
+    | LOTTERY_ENFORCE_DRAW_DATE_RULES=false → sigue permitiendo operar sorteos pasados en panel
+    |   y digitalizar / vincular en cartera fuera del plazo (deadline_date);
     |   el cierre solo mira la fecha límite efectiva, no bloquea por draw_date.
     */
     'auto_deadline_closure' => [

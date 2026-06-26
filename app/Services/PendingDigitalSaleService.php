@@ -169,12 +169,7 @@ class PendingDigitalSaleService
 
         $set = $participations->first()->set;
         $resolvedLotteryId = $lotteryId ?? $set->reserve->lottery_id;
-        $playedPer = (float) ($set->played_amount ?? 0);
-        $donationPer = (float) ($set->donation_amount ?? 0);
-        $unitTotal = $playedPer + $donationPer;
-        if ($unitTotal <= 0) {
-            $unitTotal = (float) ($set->total_participation_amount ?? 0);
-        }
+        $unitTotal = $set->pricePerParticipation();
         $saleAmount = round($participations->count() * $unitTotal, 2);
 
         return DB::transaction(function () use (

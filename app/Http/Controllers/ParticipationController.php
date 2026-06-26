@@ -515,7 +515,7 @@ class ParticipationController extends Controller
             }
 
             $set = $participations->first()->set()->with('reserve')->first();
-            $pricePerParticipation = (float) ($set->played_amount ?? 0);
+            $pricePerParticipation = $set->pricePerParticipation();
             $saleAmount = $participations->count() * $pricePerParticipation;
 
             $paymentMethod = $request->payment_method;
@@ -664,7 +664,7 @@ class ParticipationController extends Controller
             return response()->json(['success' => false, 'message' => 'Error al obtener el set.'], 500);
         }
 
-        $pricePerParticipation = (float) ($set->played_amount ?? 0);
+        $pricePerParticipation = $set->pricePerParticipation();
         $saleAmount = $participations->count() * $pricePerParticipation;
         $paymentMethod = $request->payment_method;
 
@@ -821,7 +821,7 @@ class ParticipationController extends Controller
         }
 
         $paymentMethod = in_array($paymentMethod, ['efectivo', 'bizum', 'transferencia'], true) ? $paymentMethod : 'otro';
-        $pricePerParticipation = (float) ($set->played_amount ?? 0);
+        $pricePerParticipation = $set->pricePerParticipation();
         $now = now();
 
         // Obtener TODAS las participaciones (asignada+vendida+pagada) del vendedor para este sorteo
@@ -832,7 +832,7 @@ class ParticipationController extends Controller
             ->get();
 
         $totalParticipations = $allParticipations->count();
-        $totalAmount = $allParticipations->sum(fn ($p) => (float) ($p->set->played_amount ?? 0));
+        $totalAmount = $allParticipations->sum(fn ($p) => (float) ($p->set?->pricePerParticipation() ?? 0));
 
         // Obtener lo ya pagado en liquidaciones previas
         $previousPaid = SellerSettlement::where('seller_id', $seller->id)
@@ -930,7 +930,7 @@ class ParticipationController extends Controller
 
             try {
                 $set = $participations->first()->set()->with('reserve')->first();
-                $pricePerParticipation = (float) ($set->played_amount ?? 0);
+                $pricePerParticipation = $set->pricePerParticipation();
                 $saleAmount = $participations->count() * $pricePerParticipation;
                 $paymentMethod = $request->payment_method;
 
@@ -981,7 +981,7 @@ class ParticipationController extends Controller
 
         try {
             $set = $participation->set()->with('reserve')->first();
-            $pricePerParticipation = (float) ($set->played_amount ?? 0);
+            $pricePerParticipation = $set->pricePerParticipation();
             $saleAmount = $pricePerParticipation;
             $paymentMethod = $request->payment_method;
 
@@ -1715,6 +1715,7 @@ class ParticipationController extends Controller
             'esDigital' => $isDigital,
             'wallet_mode' => $participation->wallet_mode ?? ($participation->buyerNameIsWalletUserId() ? Participation::WALLET_MODE_DIGITAL : null),
             'is_storage' => $participation->isWalletStorage(),
+            'requires_online_collection' => $participation->requiresOnlinePrizeCollection(),
             'storage_message' => $participation->isWalletStorage()
                 ? \App\Services\LotteryDigitalizationService::STORAGE_WALLET_MESSAGE
                 : null,
@@ -2612,7 +2613,7 @@ class ParticipationController extends Controller
 
         $set = $participation->set;
         if ($set) {
-            return (float) ($set->played_amount ?? 0) + (float) ($set->donation_amount ?? 0);
+            return $set->pricePerParticipation();
         }
 
         return (float) ($participation->sale_amount ?? 0);
@@ -3378,7 +3379,7 @@ class ParticipationController extends Controller
         $gate = $this->prizePaymentService()->evaluateOnlineCollection($participation, $prizeAmount);
         $item = array_merge($item, $gate);
 
-        if ($prizeAmount > 0 && empty($item['is_digital'])) {
+        if ($prizeAmount > 0 && ! $participation->requiresOnlinePrizeCollection()) {
             $entityId = (int) ($participation->entity_id ?? $participation->set?->entity_id ?? 0);
             $lotteryId = (int) ($participation->set?->reserve?->lottery_id ?? 0);
             if ($entityId && $lotteryId) {

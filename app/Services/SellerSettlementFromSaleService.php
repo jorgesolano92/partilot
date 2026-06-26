@@ -22,7 +22,7 @@ class SellerSettlementFromSaleService
         $paymentMethod = in_array($paymentMethod, ['efectivo', 'bizum', 'transferencia'], true)
             ? $paymentMethod
             : 'otro';
-        $pricePerParticipation = (float) ($set->played_amount ?? 0);
+        $pricePerParticipation = $set->pricePerParticipation();
         $now = now();
 
         $allParticipations = Participation::where('seller_id', $seller->id)
@@ -32,7 +32,7 @@ class SellerSettlementFromSaleService
             ->get();
 
         $totalParticipations = $allParticipations->count();
-        $totalAmount = $allParticipations->sum(fn ($p) => (float) ($p->set->played_amount ?? 0));
+        $totalAmount = $allParticipations->sum(fn ($p) => (float) ($p->set?->pricePerParticipation() ?? 0));
 
         $previousPaid = SellerSettlement::where('seller_id', $seller->id)
             ->where('lottery_id', $lotteryId)

@@ -34,6 +34,8 @@ class PrizePaymentSuperAdminController extends Controller
     {
         abort_unless(auth()->user()?->isSuperAdmin(), 403);
 
+        $prizePayment = $this->prizePaymentService->refreshFundsFromSavedScrutiny($prizePayment);
+
         $prizePayment->load([
             'entity.administration',
             'lottery',

@@ -328,6 +328,19 @@ class Set extends Model
     }
 
     /**
+     * Importe total por participación (jugado + donativo).
+     */
+    public function pricePerParticipation(): float
+    {
+        $total = $this->total_participation_amount ?? null;
+        if ($total !== null && (float) $total > 0) {
+            return (float) $total;
+        }
+
+        return (float) (($this->played_amount ?? 0) + ($this->donation_amount ?? 0));
+    }
+
+    /**
      * Scope para filtrar sets accesibles por usuario.
      */
     public function scopeForUser($query, User $user)

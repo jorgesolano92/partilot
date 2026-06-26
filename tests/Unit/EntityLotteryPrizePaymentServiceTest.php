@@ -74,6 +74,7 @@ class EntityLotteryPrizePaymentServiceTest extends TestCase
     {
         $participation = Mockery::mock(Participation::class)->makePartial();
         $participation->participation_code = '1D/DIGITAL';
+        $participation->wallet_mode = null;
         $participation->shouldReceive('loadMissing')->andReturnSelf();
         $participation->setRelation('set', null);
 
@@ -81,7 +82,60 @@ class EntityLotteryPrizePaymentServiceTest extends TestCase
         $result = $service->evaluatePresencialPayment($participation, 10.0);
 
         $this->assertFalse($result['allowed']);
-        $this->assertSame('native_digital', $result['reason']);
+        $this->assertSame('online_only', $result['reason']);
+    }
+
+    public function test_presencial_blocked_for_digitalized_physical(): void
+    {
+        $set = new \App\Models\Set(['physical_participations' => 5, 'digital_participations' => 0]);
+        $participation = Mockery::mock(Participation::class)->makePartial();
+        $participation->participation_code = '1/00001';
+        $participation->wallet_mode = Participation::WALLET_MODE_DIGITAL;
+        $participation->shouldReceive('loadMissing')->andReturnSelf();
+        $participation->setRelation('set', $set);
+
+        $service = new EntityLotteryPrizePaymentService();
+        $result = $service->evaluatePresencialPayment($participation, 10.0);
+
+        $this->assertFalse($result['allowed']);
+        $this->assertSame('online_only', $result['reason']);
+    }
+
+    public function test_digitalized_physical_collectible_online_under_presencial_mode(): void
+    {
+        $setting = new EntityLotteryPrizeSetting([
+            'prize_payment_mode' => EntityLotteryPrizeSetting::MODE_PRESENCIAL,
+            'has_sold_digital_participations' => true,
+            'online_payments_enabled' => true,
+            'presencial_payments_enabled' => true,
+            'funds_status' => EntityLotteryPrizeSetting::FUNDS_CONFIRMED,
+            'contract_status' => EntityLotteryPrizeSetting::CONTRACT_SIGNED,
+            'blocked_user_message' => EntityLotteryPrizeSetting::DEFAULT_BLOCKED_MESSAGE,
+            'unlocked_user_message' => EntityLotteryPrizeSetting::DEFAULT_UNLOCKED_MESSAGE,
+        ]);
+
+        $set = new \App\Models\Set(['physical_participations' => 5, 'digital_participations' => 0]);
+        $participation = Mockery::mock(Participation::class)->makePartial();
+        $participation->id = 4;
+        $participation->entity_id = 30;
+        $participation->participation_code = '1/00003';
+        $participation->wallet_mode = Participation::WALLET_MODE_DIGITAL;
+        $participation->collected_at = null;
+        $participation->donated_at = null;
+        $participation->status = 'vendida';
+        $participation->shouldReceive('loadMissing')->andReturnSelf();
+        $participation->setRelation('set', $set);
+
+        $service = Mockery::mock(EntityLotteryPrizePaymentService::class)->makePartial();
+        $service->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('resolveLotteryId')->andReturn(5);
+        $service->shouldReceive('getSettings')->with(30, 5)->andReturn($setting);
+        $service->shouldReceive('isCollectedOrReservedOnline')->andReturn(false);
+
+        $result = $service->evaluateOnlineCollection($participation, 292.0);
+
+        $this->assertTrue($result['cobrable']);
+        $this->assertFalse($result['payment_blocked']);
     }
 
     public function test_digital_under_presencial_mode_blocked_until_activated(): void

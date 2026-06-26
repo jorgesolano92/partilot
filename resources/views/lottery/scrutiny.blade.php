@@ -125,11 +125,16 @@
                                                                 $totalParticipations = $decimosInfo['total_participations'] ?? 0;
                                                                 $totalWinning += $totalParticipations;
                                                                 
-                                                                // Calcular premio total
-                                                                $totalDecimos = $decimosInfo['total_decimos'] ?? 0;
                                                                 $premioPorDecimo = $categoryResult['total_prize'];
-                                                                $premioTotal = $premioPorDecimo * $totalDecimos;
-                                                                $totalPrizeAmount += $premioTotal;
+                                                                $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
+                                                                foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                                                                    $importeJugado = $setInfo['importe_jugado'] ?? 0;
+                                                                    $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
+                                                                    if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
+                                                                        $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
+                                                                        $totalPrizeAmount += $premioPorParticipacion * $participacionesVendidas;
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                         
@@ -212,9 +217,16 @@
                                                                 if (isset($scrutinyResultsByEntity[$entity->id])) {
                                                                     foreach ($scrutinyResultsByEntity[$entity->id] as $categoryResult) {
                                                                         $decimosInfo = $categoryResult['decimos_info'] ?? [];
-                                                                        $totalDecimos = $decimosInfo['total_decimos'] ?? 0;
                                                                         $premioPorDecimo = $categoryResult['total_prize'];
-                                                                        $premioTotalEntidad += $premioPorDecimo * $totalDecimos;
+                                                                        $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
+                                                                        foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                                                                            $importeJugado = $setInfo['importe_jugado'] ?? 0;
+                                                                            $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
+                                                                            if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
+                                                                                $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
+                                                                                $premioTotalEntidad += $premioPorParticipacion * $participacionesVendidas;
+                                                                            }
+                                                                        }
                                                                     }
                                                                 }
                                                             @endphp
@@ -239,8 +251,8 @@
                                                                 @if(!empty($setsInfo))
                                                                     @foreach($setsInfo as $setInfo)
                                                                         @php
-                                                                            $decimosDeEsteSet = $setInfo['decimos'] ?? 0;
-                                                                            $premioTotalSet = $premioPorDecimo * $decimosDeEsteSet;
+                                                                            $decimosDeEsteSet = (float) ($setInfo['decimos'] ?? 0);
+                                                                            $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
                                                                             
                                                                             // Calcular premio por participación para este set específico
                                                                             $premioPorParticipacion = 0;
@@ -250,12 +262,16 @@
                                                                                 $porcentajeParticipacion = $importeJugado / $ticketPrice;
                                                                                 $premioPorParticipacion = $premioPorDecimo * $porcentajeParticipacion;
                                                                             }
+
+                                                                            $premioTotalSet = $premioPorParticipacion * $participacionesVendidas;
+                                                                            $decimosLabel = rtrim(rtrim(number_format($decimosDeEsteSet, 2, ',', '.'), '0'), ',');
                                                                         @endphp
                                                                         <tr>
                                                                             <td colspan="4" style="border-bottom: 1px solid #333; background-color: #f8f9fa;">
                                                                                 <div class="d-flex justify-content-between align-items-center">
                                                                                     <div>
-                                                                                        <b>Número: {{ $categoryResult['number_str'] }} - Premiado con {{ number_format($premioPorDecimo, 2) }}€ X {{ $decimosDeEsteSet }} Décimos = {{ number_format($premioTotalSet, 2) }}€</b>
+                                                                                        <b>Número: {{ $categoryResult['number_str'] }} - Premiado con {{ number_format($premioPorDecimo, 2) }}€ X {{ $decimosLabel }} Décimos = {{ number_format($premioTotalSet, 2) }}€</b>
+                                                                                        <small class="text-muted ms-2">({{ $participacionesVendidas }} participaciones)</small>
                                                                                     </div>
                                                                                     <div class="text-end">
                                                                                         <span class="me-2">{{ number_format($premioPorParticipacion, 2) }}€</span>

@@ -20,6 +20,10 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('sets', function (Blueprint $table) {
+            $table->string('management_fee_status', 32)->nullable()->change();
+        });
+        
         Schema::table('design_formats', function (Blueprint $table) {
             $table->string('design_name', 120)->nullable()->after('set_id');
             $table->boolean('back_skipped')->default(false)->after('back_html');

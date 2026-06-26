@@ -7,17 +7,33 @@ use App\Models\Participation;
 
 class LotteryDigitalizationService
 {
+    public function __construct(
+        private readonly LotteryDrawDateGuardService $drawDateGuard,
+    ) {
+    }
+
     public const IRREVERSIBLE_NOTICE = 'El proceso de digitalización no se puede deshacer. Si la participación tiene premio, el cobro será online.';
 
     public const STORAGE_NOTICE = 'Guardar en almacén no digitaliza la participación. Solo podrás consultar el resultado; el cobro presencial requiere acudir a la entidad con el papel.';
 
     public const STORAGE_WALLET_MESSAGE = 'Esta participación solo se podrá cobrar de manera presencial, ya que no está digitalizada. Lo que ves aquí es una extensión informativa de tu participación.';
 
-    /** Sorteo completado o cancelado. */
+    /** Sorteo completado o cancelado (cuando las reglas de fecha están activas). */
     private const CLOSED_STATUSES = [3, 4];
+
+    private const CANCELLED_STATUS = 4;
 
     public function isDigitalizationClosed(Lottery $lottery): bool
     {
+        if ((int) $lottery->status === self::CANCELLED_STATUS) {
+            return true;
+        }
+
+        // Modo depuración: LOTTERY_ENFORCE_DRAW_DATE_RULES=false omite plazos y sorteos ya celebrados.
+        if (! $this->drawDateGuard->isEnforcementEnabled()) {
+            return false;
+        }
+
         if (in_array((int) $lottery->status, self::CLOSED_STATUSES, true)) {
             return true;
         }

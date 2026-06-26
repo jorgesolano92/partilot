@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sets', function (Blueprint $table) {
-            $table->string('management_fee_status', 20)->nullable()->after('status');
+            $table->string('management_fee_status', 32)->nullable()->after('status');
             $table->decimal('management_fee_amount', 10, 2)->nullable()->after('management_fee_status');
             $table->decimal('management_fee_unit_price', 8, 4)->nullable()->after('management_fee_amount');
             $table->unsignedInteger('management_fee_participation_count')->nullable()->after('management_fee_unit_price');
