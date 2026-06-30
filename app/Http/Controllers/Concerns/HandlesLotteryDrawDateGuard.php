@@ -50,17 +50,45 @@ trait HandlesLotteryDrawDateGuard
         ?Reserve $reserve,
         ?string $fallbackRoute = null
     ): ?RedirectResponse {
-        $reserve?->loadMissing('lottery');
+        $message = $this->lotteryDrawDateGuard()->mutationDeniedMessageForReserve($reserve);
+        if ($message === null) {
+            return null;
+        }
 
-        return $this->redirectIfLotteryDrawDateBlocked($reserve?->lottery, $fallbackRoute);
+        if ($fallbackRoute) {
+            return redirect()->route($fallbackRoute)->with('error', $message);
+        }
+
+        return redirect()->back()->with('error', $message);
     }
 
     protected function redirectIfSetLotteryBlocked(
         ?Set $set,
         ?string $fallbackRoute = null
     ): ?RedirectResponse {
-        $set?->loadMissing('reserve.lottery');
+        $message = $this->lotteryDrawDateGuard()->mutationDeniedMessageForSet($set);
+        if ($message === null) {
+            return null;
+        }
 
-        return $this->redirectIfLotteryDrawDateBlocked($set?->reserve?->lottery, $fallbackRoute);
+        if ($fallbackRoute) {
+            return redirect()->route($fallbackRoute)->with('error', $message);
+        }
+
+        return redirect()->back()->with('error', $message);
+    }
+
+    protected function jsonIfSetLotteryBlocked(?Set $set): ?JsonResponse
+    {
+        $message = $this->lotteryDrawDateGuard()->mutationDeniedMessageForSet($set);
+        if ($message === null) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'code' => 'SET_MUTATION_BLOCKED',
+        ], 422);
     }
 }

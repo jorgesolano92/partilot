@@ -12,6 +12,7 @@ use App\Mail\EntityManagerInvitationMail;
 use App\Mail\EntityManagerPreregisterInviteMail;
 use App\Services\ManagerAccountService;
 use App\Mail\EntityResponsibleManagerConfirmedMail;
+use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
 use App\Support\ContactEmailRegistry;
 use Illuminate\Support\Facades\Cache;
@@ -1280,12 +1281,34 @@ class EntityController extends Controller
             'permission_payments' => 'nullable|boolean',
         ]);
 
-        $manager->update([
+        $permissionFields = [
+            'permission_sellers',
+            'permission_design',
+            'permission_statistics',
+            'permission_payments',
+        ];
+
+        $before = $manager->only($permissionFields);
+        $after = [
             'permission_sellers' => $request->has('permission_sellers'),
             'permission_design' => $request->has('permission_design'),
             'permission_statistics' => $request->has('permission_statistics'),
             'permission_payments' => $request->has('permission_payments'),
-        ]);
+        ];
+
+        $manager->update($after);
+
+        $audit = app(AuditLogService::class);
+        foreach ($permissionFields as $field) {
+            $audit->logManagerPermissionChange(
+                $manager,
+                auth()->user(),
+                $field,
+                $before[$field] ?? null,
+                $after[$field],
+                $request
+            );
+        }
 
         return redirect()->route('entities.show', $entity->id)
             ->with('success', 'Permisos del gestor actualizados correctamente.');

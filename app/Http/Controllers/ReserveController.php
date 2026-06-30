@@ -322,7 +322,7 @@ class ReserveController extends Controller
         }
 
         $reserve->loadMissing('lottery');
-        if ($response = $this->redirectIfLotteryDrawDateBlocked($reserve->lottery)) {
+        if ($response = $this->redirectIfReserveLotteryBlocked($reserve)) {
             return $response;
         }
 
@@ -365,6 +365,10 @@ class ReserveController extends Controller
             abort(403, 'No tienes permisos para eliminar esta reserva.');
         }
 
+        if ($response = $this->redirectIfReserveLotteryBlocked($reserve)) {
+            return $response;
+        }
+
         $reserve->delete();
 
         return redirect()->route('reserves.index')
@@ -378,6 +382,10 @@ class ReserveController extends Controller
     {
         if (!auth()->user()->canAccessEntity($reserve->entity_id)) {
             abort(403, 'No tienes permisos para actualizar esta reserva.');
+        }
+
+        if ($response = $this->redirectIfReserveLotteryBlocked($reserve)) {
+            return $response;
         }
 
         $request->validate([

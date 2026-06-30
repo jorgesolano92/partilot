@@ -61,6 +61,31 @@ class ApiController extends Controller
             $table->index('accepted_at');
         });
 
+        Schema::create('administration_audit_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('administration_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('field', 64);
+            $table->text('old_value')->nullable();
+            $table->text('new_value')->nullable();
+            $table->string('ip', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('manager_permission_audits', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('manager_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('field', 64);
+            $table->string('old_value', 255)->nullable();
+            $table->string('new_value', 255)->nullable();
+            $table->string('ip', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->timestamps();
+        });
+
         Schema::table('scrutiny_detailed_results', function (Blueprint $table) {
             $table->decimal('total_decimos', 10, 2)->default(0)->change();
         });

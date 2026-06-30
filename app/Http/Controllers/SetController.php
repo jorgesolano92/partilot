@@ -348,7 +348,7 @@ class SetController extends Controller
             'total_amount' => 'required|numeric|min:0',
             'physical_participations' => 'nullable|integer|min:0',
             'digital_participations' => 'nullable|integer|min:0',
-            'deadline_date' => ['nullable', 'date', new \App\Rules\DeadlineBeforeLottery($reserve->id)]
+            'deadline_date' => ['required', 'date', new \App\Rules\DeadlineBeforeLottery($reserve->id)]
         ]);
 
 
@@ -454,11 +454,15 @@ class SetController extends Controller
             abort(403, 'No tienes permisos para actualizar este set.');
         }
 
+        if ($response = $this->redirectIfSetLotteryBlocked($set)) {
+            return $response;
+        }
+
         $validated = $request->validate([
-            'deadline_date' => ['nullable', 'date', new \App\Rules\DeadlineBeforeLottery($set->reserve_id)]
+            'deadline_date' => ['required', 'date', new \App\Rules\DeadlineBeforeLottery($set->reserve_id)]
         ]);
 
-        $set->update(['deadline_date' => $validated['deadline_date'] ?? null]);
+        $set->update(['deadline_date' => $validated['deadline_date']]);
 
         return redirect()->route('sets.show', $set->id)
             ->with('success', 'Fecha límite actualizada correctamente.');
@@ -472,6 +476,10 @@ class SetController extends Controller
     {
         if (!auth()->user()->canAccessEntity($set->entity_id)) {
             abort(403, 'No tienes permisos para eliminar este set.');
+        }
+
+        if ($response = $this->redirectIfSetLotteryBlocked($set)) {
+            return $response;
         }
 
         $countBlocking = Participation::where('set_id', $set->id)
@@ -499,6 +507,10 @@ class SetController extends Controller
                 'success' => false,
                 'message' => 'No tienes permisos para actualizar este set.'
             ], 403);
+        }
+
+        if ($response = $this->jsonIfSetLotteryBlocked($set)) {
+            return $response;
         }
 
         $request->validate([
@@ -655,6 +667,10 @@ class SetController extends Controller
         $set = Set::with('reserve.lottery')
             ->forUser(auth()->user())
             ->findOrFail($id);
+
+        if ($response = $this->redirectIfSetLotteryBlocked($set)) {
+            return $response;
+        }
 
         // Leer el archivo XML (sin resolver entidades externas — mitigación XXE)
         $xml = SafeXml::loadFromFile($request->file('xml_file')->getPathname());

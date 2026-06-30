@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\Manager;
 use App\Mail\AdministrationWelcomeMail;
 use App\Services\AdministrationBillingService;
+use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
 use App\Services\ManagerAccountService;
 
@@ -130,7 +131,17 @@ class AdministratorController extends Controller
             $data['image'] = SecureImageUpload::store($request->file('image'), 'images');
         }
 
+        $previousAccount = $administration->account;
         $administration->update($data);
+
+        app(AuditLogService::class)->logAdministrationFieldChange(
+            $administration,
+            auth()->user(),
+            'account',
+            $previousAccount,
+            $data['account'] ?? null,
+            $request
+        );
 
         if ($panelUser) {
             $u = [
