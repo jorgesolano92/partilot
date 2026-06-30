@@ -14,6 +14,42 @@ use App\Models\User;
 class EntityLotteryPrizePaymentService
 {
     /**
+     * Entidades con reserva confirmada que aún no han cerrado devolución entidad→administración.
+     *
+     * @return \Illuminate\Support\Collection<int, Entity>
+     */
+    public function entitiesPendingAdminDevolutionClosure(int $administrationId, int $lotteryId): \Illuminate\Support\Collection
+    {
+        return Entity::query()
+            ->where('administration_id', $administrationId)
+            ->whereHas('reserves', fn ($q) => $q->where('lottery_id', $lotteryId)->where('status', 1))
+            ->whereDoesntHave('lotteryPrizeSettings', fn ($q) => $q
+                ->where('lottery_id', $lotteryId)
+                ->whereNotNull('mode_locked_at'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
+    public function administrationCanRunScrutiny(int $administrationId, int $lotteryId): bool
+    {
+        return $this->entitiesPendingAdminDevolutionClosure($administrationId, $lotteryId)->isEmpty();
+    }
+
+    public function administrationScrutinyBlockedMessage(int $administrationId, int $lotteryId): ?string
+    {
+        $pending = $this->entitiesPendingAdminDevolutionClosure($administrationId, $lotteryId);
+        if ($pending->isEmpty()) {
+            return null;
+        }
+
+        $names = $pending->pluck('name')->filter()->implode(', ');
+
+        return 'No se puede escrutinar hasta que todas las entidades hayan confirmado la devolución a la administración'
+            .' (liquidación con modalidad de pago de premios).'
+            .($names !== '' ? ' Pendientes: '.$names.'.' : '');
+    }
+
+    /**
      * Bloquea la modalidad de pago al cerrar devolución entidad→administración.
      */
     public function lockModeFromDevolution(

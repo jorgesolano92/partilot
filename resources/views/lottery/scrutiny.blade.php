@@ -46,6 +46,17 @@
         </div>
     @endif
 
+    @if(!empty($scrutinyBlocked))
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-warning" role="alert">
+                    <i class="ri-error-warning-line me-2"></i>
+                    {{ $scrutinyBlockedMessage }}
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="row">
         <div class="col-12">
             <div class="card">
@@ -337,7 +348,7 @@
                                         </div>
                                         
                                         <div class="col-6 text-end">
-                                            <button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-warning mt-2">Procesar Escrutinio
+                                            <button type="submit" @disabled(!empty($scrutinyBlocked)) style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-warning mt-2" @if(!empty($scrutinyBlocked)) title="{{ $scrutinyBlockedMessage }}" @endif>Procesar Escrutinio
                                                 <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
                                         </div>
 
@@ -383,7 +394,11 @@
 
 <script>
 // Confirmación antes de procesar el escrutinio
-document.querySelector('form').addEventListener('submit', function(e) {
+document.querySelector('form')?.addEventListener('submit', function(e) {
+    @if(!empty($scrutinyBlocked))
+    e.preventDefault();
+    return;
+    @endif
     if (!confirm('¿Está seguro de que desea procesar el escrutinio? Esta acción no se puede deshacer.')) {
         e.preventDefault();
     }

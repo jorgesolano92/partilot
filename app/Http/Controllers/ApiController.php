@@ -20,6 +20,11 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('scrutiny_detailed_results', function (Blueprint $table) {
+            $table->decimal('total_decimos', 10, 2)->default(0)->change();
+        });
+
+        return "ok";
         Schema::table('sets', function (Blueprint $table) {
             $table->string('management_fee_status', 32)->nullable()->change();
         });

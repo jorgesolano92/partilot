@@ -101,6 +101,11 @@ class Entity extends Model
         return $this->hasMany(Reserve::class);
     }
 
+    public function lotteryPrizeSettings()
+    {
+        return $this->hasMany(EntityLotteryPrizeSetting::class);
+    }
+
     /**
      * Relación con los resultados de escrutinio
      */

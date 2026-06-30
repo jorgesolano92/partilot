@@ -78,7 +78,22 @@ class LotteryScrutinyController extends Controller
         $scrutinyData = $this->prepareScrutinyData($lottery, $entitiesWithReserves, $scrutinyResults);
         $scrutinyData = $this->enrichScrutinyDataWithCategoryResults($scrutinyData, $scrutinyResultsByEntity);
 
-        return view('lottery.scrutiny', compact('lottery', 'administration', 'entitiesWithReserves', 'scrutinyData', 'scrutinyResults', 'scrutinyResultsByEntity'));
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        $entitiesPendingDevolution = $prizePaymentService->entitiesPendingAdminDevolutionClosure($administrationId, $lotteryId);
+        $scrutinyBlocked = $entitiesPendingDevolution->isNotEmpty();
+        $scrutinyBlockedMessage = $prizePaymentService->administrationScrutinyBlockedMessage($administrationId, $lotteryId);
+
+        return view('lottery.scrutiny', compact(
+            'lottery',
+            'administration',
+            'entitiesWithReserves',
+            'scrutinyData',
+            'scrutinyResults',
+            'scrutinyResultsByEntity',
+            'entitiesPendingDevolution',
+            'scrutinyBlocked',
+            'scrutinyBlockedMessage'
+        ));
     }
 
     /**
@@ -97,6 +112,13 @@ class LotteryScrutinyController extends Controller
         if (!$lottery->result) {
             return redirect()->route('lottery.results')
                 ->with('error', 'Este sorteo aún no tiene resultados');
+        }
+
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        $blockedMessage = $prizePaymentService->administrationScrutinyBlockedMessage($administrationId, $lotteryId);
+        if ($blockedMessage !== null) {
+            return redirect()->route('lottery.scrutiny', $lotteryId)
+                ->with('error', $blockedMessage);
         }
 
         try {
