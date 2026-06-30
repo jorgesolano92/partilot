@@ -5,11 +5,11 @@ namespace App\Services;
 use App\Models\Administration;
 use App\Models\PrintConfiguration;
 use App\Models\User;
+use App\Support\PanelPassword;
 use Illuminate\Support\Facades\Hash;
 
 class PrintShopPanelUserService
 {
-    public const DEFAULT_PANEL_PASSWORD = '12345678';
 
     public function panelUser(?PrintConfiguration $config = null): ?User
     {
@@ -65,7 +65,7 @@ class PrintShopPanelUserService
 
         $password = ! empty($input['panel_password'])
             ? (string) $input['panel_password']
-            : self::DEFAULT_PANEL_PASSWORD;
+            : PanelPassword::generate();
 
         return User::create([
             'name' => $displayName,

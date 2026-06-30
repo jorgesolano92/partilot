@@ -50,13 +50,8 @@ Este documento cruza cada ítem del informe con el estado actual del repositorio
 - **Evidencia:** `SecureImageUpload` + validación `image|mimes` en `AdministratorController` y `CreateAdmin`. Ruta pública `api/upload-image` eliminada. **Pendiente:** mover a `storage/` y bloquear ejecución PHP en Apache/Nginx.
 
 #### SEC-002 · Alta · Contraseña provisional fija `12345678`
-- **Estado:** 🟡 Parcial
-- **Evidencia:** Sigue creándose con `bcrypt(12345678)` en `EntityController`, `AdministratorController`, `PrintShopPanelUserService`, `ApiController`. Existe mitigación: middleware `RedirectIfEntityManagerLegacyPassword`, vista de cambio obligatorio, rechazo de `12345678` al cambiar (`AuthController`).
-- **Proceder:**
-  1. Sustituir por contraseña aleatoria (`Str::password(16)`) en todos los altas.
-  2. Enviar por canal seguro (email único / magic link); caducar invitación.
-  3. Unificar `PrintShopPanelUserService` y seeders de desarrollo.
-  4. Tests: gestor nuevo no accede al panel sin cambiar contraseña.
+- **Estado:** 🟡 Parcial (Oleada B — 2026-06-17)
+- **Evidencia:** Nuevos gestores usan `PanelPassword::generate()` + `ManagerProvisionalAccessMail`. API sync panel y imprenta ya no usan `12345678`. **Pendiente:** cuentas legacy con hash `12345678` siguen obligadas a cambiar vía middleware.
 
 #### SEC-003 · Media · Sin logs de auditoría en permisos de gestores
 - **Estado:** ❌ Pendiente
@@ -64,9 +59,8 @@ Este documento cruza cada ítem del informe con el estado actual del repositorio
 - **Proceder:** Crear `manager_permission_audits` (user_id, entity_id, manager_id, campo, valor_anterior, valor_nuevo, ip, user_agent, created_at). Registrar en cada cambio de permisos/estado de gestor.
 
 #### SEC-004 · Media · NIF/CIF nullable en entidad activa
-- **Estado:** 🟡 Parcial
-- **Evidencia:** Alta exige NIF (`EntityController::store` → `required`). **Update** permite `nif_cif` nullable (`~L1030`) sin condicionar a `status === 1`.
-- **Proceder:** En `update`, si `status === 1` → `nif_cif` required + `EntityDocument`. Migración para detectar activas sin NIF.
+- **Estado:** 🟡 Parcial (Oleada B — 2026-06-17)
+- **Evidencia:** `EntityController::update` exige NIF si `status === 1`. **Pendiente:** migración datos activas sin NIF.
 
 #### SEC-005 · Alta · XSS en comentarios de entidad
 - **Estado:** 🟡 Parcial (Oleada A — 2026-06-17)
@@ -99,24 +93,20 @@ Este documento cruza cada ítem del informe con el estado actual del repositorio
 - **Proceder:** Hash por lote de impresión + `print_order_id` en participaciones; registro de escaneos duplicados (alerta).
 
 #### SEC-010 · Media · Contraseña mín. 6 en autorregistro
-- **Estado:** ❌ Pendiente
-- **Evidencia:** `AuthController::apiRegister` → `min:6`.
-- **Proceder:** Subir a `min:8` o `Password::min(8)->mixedCase()->numbers()`; opcional ` uncompromised()`; alinear con cambio gestor (`min:8`).
+- **Estado:** ✅ Mitigado (Oleada B — 2026-06-17)
+- **Evidencia:** `PasswordRules::registration()` (`min:8`) en `AuthController::apiRegister`, registro comprador digital y regalo.
 
 #### SEC-011 · Alta · SMS sin rate limit en validación
-- **Estado:** 🟡 Parcial
-- **Evidencia:** `POST auth/sms/send-code` tiene `throttle:6,1`. **No hay endpoint dedicado** de verificación con throttle; `verifyCode` se llama desde registro (`AuthController`, `GiftRecipientRegistrationController`) sin límite por IP/teléfono en intentos fallidos.
-- **Proceder:** Rate limit en registro por IP+teléfono; contador de intentos fallidos en `PhoneVerificationCode`; bloqueo temporal; log de abuso.
+- **Estado:** 🟡 Parcial (Oleada B — 2026-06-17)
+- **Evidencia:** `PhoneVerificationService::verifyCode` cuenta intentos fallidos y bloquea temporalmente (`failed_attempts`, `locked_until`). **Pendiente:** throttle por IP en endpoints de registro.
 
 #### SEC-012 · Media · Email case-sensitive
-- **Estado:** 🟡 Parcial
-- **Evidencia:** Varios flujos usan `LOWER(email)` (`GiftRecipientRegistrationController`, `ParticipationGiftService`). Registro/alta panel sigue `unique:users` case-sensitive en MySQL.
-- **Proceder:** Normalizar email a minúsculas en `User` mutator; migración `UPDATE users SET email = LOWER(email)`; índice único funcional o columna `email_normalized`.
+- **Estado:** 🟡 Parcial (Oleada B — 2026-06-17)
+- **Evidencia:** Mutator `User::saving` normaliza email; migración `normalize_user_emails`. **Pendiente:** normalizar emails en tablas `entities`/`administrations`.
 
 #### SEC-013 · Media · Sin log de aceptación RGPD
-- **Estado:** ❌ Pendiente
-- **Evidencia:** `aceptar_condiciones` validado en registro; no hay tabla de consentimientos.
-- **Proceder:** Tabla `user_consents` (user_id, type, version, ip, user_agent, text_hash, accepted_at).
+- **Estado:** 🟡 Parcial (Oleada B — 2026-06-17)
+- **Evidencia:** Tabla `user_consents` + `UserConsentService` en registro API, comprador digital y regalo. **Pendiente:** ventas (SEC-020).
 
 #### SEC-014 · Media · Correos de registro no enviados
 - **Estado:** 🟡 Parcial
@@ -132,9 +122,8 @@ Este documento cruza cada ítem del informe con el estado actual del repositorio
 - **Proceder:** Igual que SEC-010 en flujos `SellerService` / invitación PARTILOT; flag `requires_password_setup`.
 
 #### SEC-016 · Media · NIF opcional vendedores externos
-- **Estado:** 🔍 Verificar
-- **Evidencia:** `SellerService` acepta `nif_cif` nullable; hay reglas `unique` en controlador según `RESPUESTA_INFORME_AUDITORIA.md`.
-- **Proceder:** Auditar `SellerController::store_*`; hacer NIF required para externos antes de `STATUS_ACTIVE` y ventas.
+- **Estado:** ✅ Mitigado (Oleada B — 2026-06-17)
+- **Evidencia:** NIF obligatorio en `SellerService::createExternalSeller`, `SellerController::store_new_user` y API gestor.
 
 #### SEC-017 · Media · Sin snapshot al adjudicar tacos
 - **Estado:** ❌ Pendiente

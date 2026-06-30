@@ -466,7 +466,7 @@
         </div>
     </form>
     @if(!($printShopPanelUser ?? null))
-        <p class="form-text small mb-0 mt-2">Si no indicas contraseña, se usará la provisional <code>12345678</code>.</p>
+        <p class="form-text small mb-0 mt-2">Si no indicas contraseña, se generará una contraseña aleatoria segura (comunícala a la imprenta por un canal privado).</p>
     @endif
 </div>
 @endif

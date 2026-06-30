@@ -12,6 +12,7 @@ use App\Models\Administration;
 use App\Models\Entity;
 use App\Models\Manager;
 use App\Models\Seller;
+use App\Support\ContactEmailRegistry;
 use Illuminate\Support\Facades\Hash;
 
 class User extends Authenticatable
@@ -84,6 +85,15 @@ class User extends Authenticatable
         'birthday' => 'date',
         'hide_entity_billing_switches_modal' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (User $user) {
+            if ($user->isDirty('email') && $user->email !== null) {
+                $user->email = ContactEmailRegistry::normalize($user->email);
+            }
+        });
+    }
 
     /**
      * Comprobar si el usuario tiene un rol específico.

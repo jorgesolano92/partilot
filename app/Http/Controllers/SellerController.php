@@ -245,7 +245,7 @@ class SellerController extends Controller
             'name' => 'nullable|string|max:255', // No requerido
             'last_name' => 'nullable|string|max:255', // No requerido
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['nullable', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif', 'unique:sellers,nif_cif'],
+            'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif', 'unique:sellers,nif_cif'],
             'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
             'email' => 'required|email',
             'phone' => 'nullable|string|max:255',
@@ -1574,7 +1574,7 @@ class SellerController extends Controller
             'email' => 'required|email',
             'phone' => 'nullable|string|max:255',
             'birthday' => 'nullable|date',
-            'nif_cif' => 'nullable|string|max:255',
+            'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument],
         ]);
         $user = $request->user();
         if (!in_array((int) $request->entity_id, $user->getManagerEntityIds(), true)) {

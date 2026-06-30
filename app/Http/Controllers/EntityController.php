@@ -10,6 +10,7 @@ use App\Models\PendingEntityManagerInvitation;
 use App\Models\User;
 use App\Mail\EntityManagerInvitationMail;
 use App\Mail\EntityManagerPreregisterInviteMail;
+use App\Services\ManagerAccountService;
 use App\Mail\EntityResponsibleManagerConfirmedMail;
 use App\Services\CommunicationEmailService;
 use App\Support\ContactEmailRegistry;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class EntityController extends Controller
 {
@@ -1029,7 +1031,17 @@ class EntityController extends Controller
             'city' => 'nullable|string|max:255',
             'postal_code' => 'nullable|string|max:10',
             'address' => 'nullable|string|max:500',
-            'nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\EntityDocument],
+            'nif_cif' => [
+                Rule::requiredIf(function () use ($request, $entity) {
+                    $status = $request->input('status', $entity->status);
+
+                    return (string) $status === '1' || (int) $status === 1;
+                }),
+                'nullable',
+                'string',
+                'max:20',
+                new \App\Rules\EntityDocument,
+            ],
             'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'comments' => 'nullable|string|max:1000',
@@ -1163,12 +1175,13 @@ class EntityController extends Controller
             'manager_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
         if (!$user) {
-            $user = new User;
-            $user->name = $request->manager_name . ' ' . $request->manager_last_name;
-            $user->email = $request->manager_email;
-            $user->password = User::ENTITY_MANAGER_LEGACY_DEFAULT_PASSWORD;
-            $user->role = User::ROLE_ENTITY;
-            $user->save();
+            $user = app(ManagerAccountService::class)->createUser([
+                'name' => $request->manager_name,
+                'last_name' => $request->manager_last_name,
+                'last_name2' => $request->manager_last_name2,
+                'email' => $request->manager_email,
+                'role' => User::ROLE_ENTITY,
+            ], 'entidad');
         }
 
         // Actualizar datos del usuario

@@ -13,7 +13,9 @@ use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Services\CommunicationEmailService;
 use App\Services\ParticipationGiftService;
+use App\Services\UserConsentService;
 use App\Support\ActiveEntityContext;
+use App\Support\PasswordRules;
 
 class AuthController extends Controller
 {
@@ -355,7 +357,7 @@ class AuthController extends Controller
 
         $request->validate([
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
+            'password' => PasswordRules::registration(),
             'phone' => 'nullable|string|max:20',
             'sms_code' => [
                 \Illuminate\Validation\Rule::requiredIf(fn () => app(\App\Services\PhoneVerificationService::class)
@@ -372,7 +374,7 @@ class AuthController extends Controller
             'email.email' => 'El formato del email no es válido.',
             'email.unique' => 'Ya existe una cuenta con este email.',
             'password.required' => 'La contraseña es obligatoria.',
-            'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
+            ...PasswordRules::messages(),
             'fecha_nacimiento.required' => 'La fecha de nacimiento es obligatoria.',
             'fecha_nacimiento.date' => 'La fecha de nacimiento no es válida.',
             'fecha_nacimiento.before' => 'La fecha de nacimiento debe ser anterior a hoy.',
@@ -415,6 +417,13 @@ class AuthController extends Controller
             'role' => User::ROLE_CLIENT,
             'status' => true,
         ]);
+
+        app(UserConsentService::class)->record(
+            $user,
+            \App\Models\UserConsent::TYPE_REGISTRATION_TERMS,
+            $request,
+            ['source' => 'api_register']
+        );
 
         app(ParticipationGiftService::class)->attachPendingGiftsToUser($user);
 

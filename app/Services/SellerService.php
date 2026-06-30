@@ -145,6 +145,10 @@ class SellerService
      */
     public function createExternalSeller(array $data, int $entityId): Seller
     {
+        if (trim((string) ($data['nif_cif'] ?? '')) === '') {
+            throw new \InvalidArgumentException('El NIF/CIF es obligatorio para vendedores externos.');
+        }
+
         return DB::transaction(function () use ($data, $entityId) {
             // Primero verificar si ya existe un seller con este email
             $existingSeller = Seller::with('entities')->where('email', $data['email'])->first();

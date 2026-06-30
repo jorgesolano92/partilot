@@ -25,6 +25,7 @@ use App\Models\PartilotBillingSetting;
 use App\Models\BillingDirectDebitOrder;
 use App\Services\AdministrationBillingService;
 use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\ManagerAccountService;
 use App\Support\ContactEmailRegistry;
 use App\Support\PanelSelectionResolver;
 use Illuminate\Support\Facades\Hash;
@@ -1373,12 +1374,13 @@ class ConfigurationController extends Controller
         ]);
 
         if (! $managerUser) {
-            $managerUser = new User;
-            $managerUser->name = $validated['name'].' '.$validated['last_name'];
-            $managerUser->email = $validated['email'];
-            $managerUser->password = User::ENTITY_MANAGER_LEGACY_DEFAULT_PASSWORD;
-            $managerUser->role = User::ROLE_ENTITY;
-            $managerUser->save();
+            $managerUser = app(ManagerAccountService::class)->createUser([
+                'name' => $validated['name'],
+                'last_name' => $validated['last_name'],
+                'last_name2' => $validated['last_name2'],
+                'email' => $validated['email'],
+                'role' => User::ROLE_ENTITY,
+            ], 'configuración de entidad');
             $manager->update(['user_id' => $managerUser->id]);
         }
 

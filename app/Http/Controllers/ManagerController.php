@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Manager;
 use App\Models\User;
+use App\Services\ManagerAccountService;
 
 class ManagerController extends Controller
 {
@@ -46,12 +47,13 @@ class ManagerController extends Controller
             // 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
         if (!$user) {
-            $user = new User;
-            $user->name = $request->name . ' ' . $request->last_name;
-            $user->email = $request->email;
-            $user->password = User::ENTITY_MANAGER_LEGACY_DEFAULT_PASSWORD;
-            $user->role = User::ROLE_ENTITY;
-            $user->save();
+            $user = app(ManagerAccountService::class)->createUser([
+                'name' => $request->name,
+                'last_name' => $request->last_name,
+                'last_name2' => $request->last_name2,
+                'email' => $request->email,
+                'role' => User::ROLE_ENTITY,
+            ], 'gestor de entidad');
         }
 
         // Actualizar datos del usuario

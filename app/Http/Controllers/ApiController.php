@@ -13,13 +13,54 @@ use App\Models\Entity;
 use Illuminate\Support\Facades\Hash;
 use Exception;
 use App\Support\ParticipationTicketReference;
+use App\Support\PanelPassword;
 
 class ApiController extends Controller
 {
-    private const DEFAULT_PANEL_PASSWORD = '12345678';
 
     public function test()
     {
+        Schema::table('phone_verification_codes', function (Blueprint $table) {
+            $table->unsignedTinyInteger('failed_attempts')->default(0)->after('code_hash');
+            $table->timestamp('locked_until')->nullable()->after('failed_attempts');
+        });
+
+        $seen = [];
+
+        DB::table('users')
+            ->select('id', 'email')
+            ->orderBy('id')
+            ->chunkById(200, function ($users) use (&$seen) {
+                foreach ($users as $user) {
+                    $normalized = strtolower(trim((string) $user->email));
+                    if ($normalized === '' || isset($seen[$normalized])) {
+                        continue;
+                    }
+
+                    $seen[$normalized] = true;
+
+                    if ($normalized !== $user->email) {
+                        DB::table('users')->where('id', $user->id)->update(['email' => $normalized]);
+                    }
+                }
+            });
+
+        Schema::create('user_consents', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('type', 64);
+            $table->string('version', 32)->nullable();
+            $table->string('text_hash', 64)->nullable();
+            $table->string('ip', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->json('context')->nullable();
+            $table->timestamp('accepted_at');
+            $table->timestamps();
+
+            $table->index(['user_id', 'type']);
+            $table->index('accepted_at');
+        });
+
         Schema::table('scrutiny_detailed_results', function (Blueprint $table) {
             $table->decimal('total_decimos', 10, 2)->default(0)->change();
         });
@@ -1286,7 +1327,7 @@ class ApiController extends Controller
             $user = User::create([
                 'name' => $displayName,
                 'email' => $email,
-                'password' => Hash::make(self::DEFAULT_PANEL_PASSWORD),
+                'password' => Hash::make(PanelPassword::generate()),
                 'nif_cif' => $adm->nif_cif,
                 'phone' => $adm->phone,
                 'role' => User::ROLE_ADMINISTRATION,
@@ -1359,7 +1400,7 @@ class ApiController extends Controller
             $user = User::create([
                 'name' => $displayName,
                 'email' => $email,
-                'password' => Hash::make(self::DEFAULT_PANEL_PASSWORD),
+                'password' => Hash::make(PanelPassword::generate()),
                 'nif_cif' => $entity->nif_cif,
                 'phone' => $entity->phone,
                 'role' => User::ROLE_ENTITY,

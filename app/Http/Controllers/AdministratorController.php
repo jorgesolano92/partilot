@@ -18,6 +18,7 @@ use App\Models\Manager;
 use App\Mail\AdministrationWelcomeMail;
 use App\Services\AdministrationBillingService;
 use App\Services\CommunicationEmailService;
+use App\Services\ManagerAccountService;
 
 class AdministratorController extends Controller
 {
@@ -315,18 +316,17 @@ class AdministratorController extends Controller
         }
 
         if (! $managerUser) {
-            $managerUser = User::create([
+            $managerUser = app(ManagerAccountService::class)->createUser([
                 'name' => $request->input('name'),
                 'last_name' => $request->input('last_name'),
                 'last_name2' => $request->input('last_name2'),
                 'email' => $request->input('email'),
-                'password' => bcrypt(12345678),
                 'role' => User::ROLE_ADMINISTRATION,
                 'status' => true,
                 'phone' => $request->input('phone') ?: null,
                 'nif_cif' => $request->input('nif_cif') ?: null,
                 'birthday' => $request->input('birthday') ?: null,
-            ]);
+            ], 'administración de lotería');
         }
 
         $panelUser = User::create([
@@ -433,19 +433,18 @@ class AdministratorController extends Controller
                 ])->withInput();
             }
 
-            $managerUser = User::create([
+            $managerUser = app(ManagerAccountService::class)->createUser([
                 'name' => $request->input('name'),
                 'last_name' => $request->input('last_name'),
                 'last_name2' => $request->input('last_name2'),
                 'email' => $managerEmail,
-                'password' => bcrypt(12345678),
                 'role' => User::ROLE_ADMINISTRATION,
                 'status' => true,
                 'phone' => $request->input('phone') ?: null,
                 'nif_cif' => $request->input('nif_cif') ?: null,
                 'birthday' => $request->input('birthday') ?: null,
                 'comment' => $request->input('comment') ?: null,
-            ]);
+            ], 'administración de lotería');
         }
 
         Manager::query()
