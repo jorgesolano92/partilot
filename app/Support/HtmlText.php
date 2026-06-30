@@ -22,4 +22,19 @@ final class HtmlText
 
         return $decoded;
     }
+
+    /**
+     * Texto plano seguro para almacenar (sin etiquetas HTML).
+     */
+    public static function sanitizePlainText(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        $decoded = self::decode($value);
+        $withoutScripts = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $decoded) ?? $decoded;
+
+        return strip_tags($withoutScripts);
+    }
 }

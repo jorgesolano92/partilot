@@ -137,6 +137,8 @@ class EntityController extends Controller
             'remove_image' => 'nullable|in:0,1'
         ]);
 
+        $validated['comments'] = \App\Support\HtmlText::sanitizePlainText($validated['comments'] ?? null);
+
         // Manejo de imagen: nueva subida o marcar para quitar
         if ($request->boolean('remove_image')) {
             $validated['image'] = null;

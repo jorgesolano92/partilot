@@ -53,7 +53,10 @@ class Entity extends Model
 
     protected function comments(): Attribute
     {
-        return $this->htmlDecodedTextAttribute();
+        return Attribute::make(
+            get: fn (?string $value) => HtmlText::decode($value),
+            set: fn (?string $value) => HtmlText::sanitizePlainText($value),
+        );
     }
 
     protected function province(): Attribute

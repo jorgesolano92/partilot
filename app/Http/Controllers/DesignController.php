@@ -26,6 +26,7 @@ use App\Models\Manager;
 use App\Services\CommunicationEmailService;
 use App\Support\FpdiPdfMerge;
 use App\Support\GeneratedPdfCatalog;
+use App\Support\SecureImageUpload;
 use App\Services\DesignApprovalService;
 use App\Services\ImageOptimizationService;
 use App\Services\ManagementFeePaymentService;
@@ -819,6 +820,9 @@ class DesignController extends Controller
             'save_format_url' => route('design.external.saveFormat'),
             'redirect_after_save' => route('design.external.thankYou'),
             'externalInvitation' => $invitation,
+            'design_upload_url' => route('design.external.uploadImage'),
+            'design_snapshot_url' => route('design.external.saveSnapshot'),
+            'design_qr_url' => route('design.external.generateQr'),
         ]);
     }
 
@@ -1138,6 +1142,9 @@ class DesignController extends Controller
                 : null,
             'printShopOrder' => $byPrintShop ? $printShopOrder : null,
             'externalInvitation' => $externalInvitation,
+            'design_upload_url' => route('design.uploadImage'),
+            'design_snapshot_url' => route('design.saveSnapshot'),
+            'design_qr_url' => route('design.generateQr'),
         ]);
     }
 
@@ -4362,6 +4369,8 @@ class DesignController extends Controller
     }
 
     public function saveSnapshot(Request $request) {
+        $this->assertDesignEditorAccess($request);
+
         try {
             $validated = $request->validate([
                 'design_id' => 'required|exists:sets,id',
@@ -5206,5 +5215,39 @@ class DesignController extends Controller
                 context: ['set_id' => $design->set_id, 'entity_id' => $entity->id],
             );
         }
+    }
+
+    public function uploadImage(Request $request)
+    {
+        $this->assertDesignEditorAccess($request);
+
+        $request->validate(SecureImageUpload::rules('image', true));
+
+        $filename = SecureImageUpload::store($request->file('image'), 'uploads');
+
+        return response()->json(['url' => url('uploads/'.$filename)]);
+    }
+
+    private function assertDesignEditorAccess(Request $request): void
+    {
+        if (session('design_external_invitation_id')) {
+            return;
+        }
+
+        $user = auth()->user();
+        if (! $user) {
+            abort(401, 'No autenticado.');
+        }
+
+        if ($user->hasRole('print_shop') || $user->hasRole('super_admin')) {
+            return;
+        }
+
+        $entityId = session('design_entity_id');
+        if ($entityId && $user->canAccessEntity((int) $entityId)) {
+            return;
+        }
+
+        abort(403, 'No tienes permisos para usar el editor de diseño.');
     }
 }

@@ -9,6 +9,7 @@ use App\Models\Reserve;
 use App\Models\Participation;
 use App\Services\CommunicationEmailService;
 use App\Mail\SetCreatedToEntityManagerMail;
+use App\Support\SafeXml;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -655,8 +656,11 @@ class SetController extends Controller
             ->forUser(auth()->user())
             ->findOrFail($id);
 
-        // Leer el archivo XML
-        $xml = simplexml_load_file($request->file('xml_file')->getPathname());
+        // Leer el archivo XML (sin resolver entidades externas — mitigación XXE)
+        $xml = SafeXml::loadFromFile($request->file('xml_file')->getPathname());
+        if ($xml === false) {
+            return back()->withErrors(['error' => 'El archivo XML no es válido o no se pudo leer.']);
+        }
 
         // Extraer los números de la reserva desde el XML
         $numerosReservaXml = [];

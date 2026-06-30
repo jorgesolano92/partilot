@@ -1414,8 +1414,14 @@ $(document).ready(function() {
       const formData = new FormData();
       formData.append('image', file);
       showDesignLoading('Subiendo imagen...');
-      fetch('{{url('api/upload-image')}}', {
+      fetch(@json($design_upload_url ?? route('design.uploadImage')), {
         method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
         body: formData
       })
       .then(response => response.json())
@@ -2728,8 +2734,14 @@ $('#format').change(function (e) {
     const formData = new FormData();
     formData.append('text', $('#qr-text').val());
     showDesignLoading('Generando código QR...');
-    fetch('{{url('api/generarQr')}}', {
+    fetch(@json($design_qr_url ?? route('design.generateQr')), {
         method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
         body: formData
     })
     .then(response => response.json())
@@ -2749,8 +2761,14 @@ $('#format').change(function (e) {
     const formData = new FormData();
     formData.append('image', file);
     showDesignLoading('Subiendo imagen...');
-    fetch('{{url('api/upload-image')}}', {
+    fetch(@json($design_upload_url ?? route('design.uploadImage')), {
         method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
         body: formData
     })
     .then(response => response.json())
@@ -3211,10 +3229,14 @@ $('#format').change(function (e) {
       formData.append('snapshot', imageData);
       $.ajax({
         type: 'POST',
-        url: '{{ url("/api/design/save-snapshot") }}',
+        url: @json($design_snapshot_url ?? route('design.saveSnapshot')),
         data: formData,
         contentType: false,
         processData: false,
+        headers: {
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+          'X-Requested-With': 'XMLHttpRequest'
+        },
         success: function (response) {
           snapshot_path = response.path;
           if (typeof onSuccess === 'function') onSuccess();
@@ -3304,7 +3326,7 @@ $('#format').change(function (e) {
     }
 
     data.save_reason = options.reason || 'manual-save';
-    const saveUrl = @json($save_format_url ?? url('/api/design/save-format'));
+    const saveUrl = @json($save_format_url ?? route('design.saveFormat'));
     const redirectAfterSave = @json($redirect_after_save ?? null);
     autosaveInFlight = true;
 

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Requests\CreateAdmin;
 use App\Models\Administration;
 use App\Support\ContactEmailRegistry;
+use App\Support\SecureImageUpload;
 use App\Models\User;
 use App\Models\Manager;
 use App\Mail\AdministrationWelcomeMail;
@@ -55,7 +56,7 @@ class AdministratorController extends Controller
             'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument],
             'province' => 'required|string|max:255',
             'city' => 'required|string|max:255',
-            'postal_code' => 'required|string|max:10',
+            'postal_code' => ['required', 'string', 'regex:/^[0-9]{5}$/'],
             'address' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'phone' => 'required|string|max:255',
@@ -71,6 +72,7 @@ class AdministratorController extends Controller
             ],
             'status' => 'nullable|in:-1,0,1',
             'panel_password' => 'nullable|string|min:8|confirmed',
+            ...SecureImageUpload::rules('image'),
         ]);
 
         // Validar IBAN completo solo si se proporciona cuenta
@@ -124,10 +126,7 @@ class AdministratorController extends Controller
         ];
 
         if ($request->file('image')) {
-            $file = $request->file('image');
-            $filename = $file->hashName();
-            $file->move(public_path('images'), $filename);
-            $data['image'] = $filename;
+            $data['image'] = SecureImageUpload::store($request->file('image'), 'images');
         }
 
         $administration->update($data);
@@ -253,10 +252,7 @@ class AdministratorController extends Controller
             'account' => $accountValue ? ('ES' . $accountValue) : null,
         ];
         if ($request->file('image')) {
-            $file = $request->file('image');
-            $filename = $file->hashName();
-            $file->move(public_path('images'), $filename);
-            $data['image'] = $filename;
+            $data['image'] = SecureImageUpload::store($request->file('image'), 'images');
         }
 
         $request->session()->put('administration', $data);

@@ -1431,8 +1431,14 @@ function uploadImage(file) {
     return;
   }
   
-  fetch('{{url('api/upload-image')}}', {
+  fetch(@json(route('design.uploadImage')), {
     method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    },
     body: formData
   })
   .then(response => response.json())
@@ -1741,10 +1747,14 @@ function performLocalStepSave(options) {
       formData.append('snapshot', canvas.toDataURL('image/png'));
       $.ajax({
         type: 'POST',
-        url: "{{url('/')}}/api/design/save-snapshot",
+        url: @json(route('design.saveSnapshot')),
         data: formData,
         contentType: false,
         processData: false,
+        headers: {
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+          'X-Requested-With': 'XMLHttpRequest'
+        },
         success: function(response) {
           snapshot_path = response.path;
           finishSave();
@@ -2653,8 +2663,14 @@ $(document).ready(function() {
         const formData = new FormData();
         formData.append('text', $('#qr-text').val());
         showDesignLoading('Generando código QR...');
-        fetch('{{url('api/generarQr')}}', {
+        fetch(@json(route('design.generateQr')), {
             method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
             body: formData
         })
         .then(response => response.json())
@@ -2803,8 +2819,14 @@ $(document).on('click', '#apply-bg', function() {
     const formData = new FormData();
     formData.append('image', file);
     showDesignLoading('Subiendo imagen...');
-    fetch('{{url('api/upload-image')}}', {
+    fetch(@json(route('design.uploadImage')), {
       method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+      },
       body: formData
     })
     .then(response => response.json())

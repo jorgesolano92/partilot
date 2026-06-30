@@ -149,6 +149,9 @@ Route::get('/terminos-y-condiciones', [LegalController::class, 'terminosYCondici
 Route::get('/design/external/invite/{token}', [\App\Http\Controllers\DesignController::class, 'externalInviteByToken'])->name('design.external.invite');
 Route::get('/design/external/editor', [\App\Http\Controllers\DesignController::class, 'externalEditor'])->name('design.external.editor');
 Route::post('/design/external/save-format', [\App\Http\Controllers\DesignController::class, 'externalSaveFormat'])->name('design.external.saveFormat');
+Route::post('/design/external/upload-image', [\App\Http\Controllers\DesignController::class, 'uploadImage'])->name('design.external.uploadImage');
+Route::post('/design/external/save-snapshot', [\App\Http\Controllers\DesignController::class, 'saveSnapshot'])->name('design.external.saveSnapshot');
+Route::post('/design/external/generate-qr', [\App\Http\Controllers\BackController::class, 'generarQr'])->name('design.external.generateQr');
 Route::get('/design/external/thank-you', [\App\Http\Controllers\DesignController::class, 'externalThankYou'])->name('design.external.thankYou');
 Route::get('/design/external/file/{id}/download', [\App\Http\Controllers\DesignController::class, 'externalDownloadFileSession'])->name('design.external.downloadFile');
 
@@ -164,6 +167,10 @@ Route::middleware(['auth', 'active_entity.context', 'entity_panel.readonly', 'en
         ->name('lottery-deadline-decisions.assume-debt');
     Route::post('lottery-deadline-decisions/annul', [\App\Http\Controllers\LotteryDeadlineAdminDecisionController::class, 'annul'])
         ->name('lottery-deadline-decisions.annul');
+
+    Route::post('/design-editor/upload-image', [\App\Http\Controllers\DesignController::class, 'uploadImage'])->name('design.uploadImage');
+    Route::post('/design-editor/save-snapshot', [\App\Http\Controllers\DesignController::class, 'saveSnapshot'])->name('design.saveSnapshot');
+    Route::post('/design-editor/generate-qr', [\App\Http\Controllers\BackController::class, 'generarQr'])->name('design.generateQr');
 
     Route::prefix('print-shop')->middleware('role:super_admin,print_shop')->group(function () {
         Route::get('/', [\App\Http\Controllers\PrintShopController::class, 'index'])->name('print-shop.index');

@@ -25,7 +25,7 @@ class CreateAdmin extends FormRequest
         return [
             //
             "web"=>"nullable|string|max:255",
-            // "image"=>"required|string|max:255",
+            ...\App\Support\SecureImageUpload::rules('image'),
             "name"=>"required|string|max:255",
             "receiving"=>["required", "string", "regex:/^[0-9]{5}$/"],
             "admin_number"=>["nullable", "string", "regex:/^[0-9]{9}$/"],
@@ -33,7 +33,7 @@ class CreateAdmin extends FormRequest
             "nif_cif"=>"required|string|max:255",
             "province"=>"required|string|max:255",
             "city"=>"required|string|max:255",
-            "postal_code"=>"required|string|max:255",
+            "postal_code"=>["required", "string", "regex:/^[0-9]{5}$/"],
             "address"=>"required|string|max:255",
             'email' => [
                 'required',

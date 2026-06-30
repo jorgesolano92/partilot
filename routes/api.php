@@ -31,38 +31,11 @@ use App\Http\Controllers\BackgroundTaskController;
 */
 
 
-Route::post('upload-image', function(Request $request) {
-    //
-    if ($request->hasFile('image') && $request->file('image')->isValid()) {
-        $file = $request->file('image');
-
-        $filename = time() . '_' . $file->getClientOriginalName();
-        $destinationPath = public_path('uploads');
-
-        // Asegúrate de que la carpeta exista
-        if (!file_exists($destinationPath)) {
-            mkdir($destinationPath, 0755, true);
-        }
-
-        $file->move($destinationPath, $filename);
-
-        $url = url("uploads/{$filename}");
-        return response()->json(['url' => $url]);
-    }
-
-    return response()->json(['error' => 'Imagen no válida'], 422);
-});
-
-Route::post('generarQr', [BackController::class,'generarQr']);
-
-Route::post('/design/save-format', [App\Http\Controllers\DesignController::class, 'saveFormat']);
-
 Route::get('test', [ApiController::class,'test']);
 
 Route::get('/check-delete/{type}/{id}', [ApiController::class, 'checkDelete']);
 Route::delete('/delete/{type}/{id}', [ApiController::class, 'deleteItem']);
 
-Route::post('/design/save-snapshot', [\App\Http\Controllers\DesignController::class, 'saveSnapshot']);
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name('api.stripe.webhook');
 
 // ============================================================================
@@ -488,24 +461,7 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('utils')->group(function () {
         // Subir imagen (versión para app móvil)
-        Route::post('/upload-image', function(Request $request) {
-            if ($request->hasFile('image') && $request->file('image')->isValid()) {
-                $file = $request->file('image');
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $destinationPath = public_path('uploads');
-                
-                if (!file_exists($destinationPath)) {
-                    mkdir($destinationPath, 0755, true);
-                }
-                
-                $file->move($destinationPath, $filename);
-                $url = url("uploads/{$filename}");
-                
-                return response()->json(['url' => $url]);
-            }
-            
-            return response()->json(['error' => 'Imagen no válida'], 422);
-        });
+        Route::post('/upload-image', [\App\Http\Controllers\DesignController::class, 'uploadImage']);
         
         // Generar QR (versión para app móvil)
         Route::post('/generate-qr', [BackController::class, 'generarQr']);
