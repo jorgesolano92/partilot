@@ -27,8 +27,9 @@ class ScrutinyDetailedResult extends Model
     protected $casts = [
         'premio_por_decimo' => 'decimal:2',
         'premio_por_participacion' => 'decimal:2',
+        'total_decimos' => 'decimal:2',
         'premio_total' => 'decimal:2',
-        'winning_categories' => 'array'
+        'winning_categories' => 'array',
     ];
 
     /**

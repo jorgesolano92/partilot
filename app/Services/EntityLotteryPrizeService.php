@@ -67,22 +67,26 @@ class EntityLotteryPrizeService
     }
 
     /**
-     * @return array{decimos: int, premio_total: float}
+     * Etiqueta legible para décimos (p. ej. 2,5 sin ceros sobrantes).
+     */
+    public static function formatDecimosLabel(float $decimos): string
+    {
+        return rtrim(rtrim(number_format($decimos, 2, ',', '.'), '0'), ',');
+    }
+
+    /**
+     * Datos de visualización desde el registro guardado (sin re-redondear décimos).
+     *
+     * @return array{decimos: float, decimos_label: string, premio_total: float}
      */
     public function recalculateDecimos(ScrutinyDetailedResult $result, Lottery $lottery): array
     {
-        $ticketPrice = (float) ($lottery->ticket_price ?? 0);
-        $pricePerParticipation = (float) ($result->set->played_amount ?? 0);
-        $totalParticipations = (int) $result->total_participations;
-        $participacionesPorDecimo = $pricePerParticipation > 0 ? $ticketPrice / $pricePerParticipation : 0;
-        $decimos = $participacionesPorDecimo > 0
-            ? (int) round($totalParticipations / $participacionesPorDecimo)
-            : 0;
-        $premioTotal = (float) $result->premio_por_decimo * $decimos;
+        $decimos = (float) $result->total_decimos;
 
         return [
             'decimos' => $decimos,
-            'premio_total' => $premioTotal,
+            'decimos_label' => self::formatDecimosLabel($decimos),
+            'premio_total' => (float) $result->premio_total,
         ];
     }
 }

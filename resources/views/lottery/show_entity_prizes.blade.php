@@ -118,7 +118,7 @@
                                                     <tr>
                                                         <td><strong>{{ $result->winning_number }}</strong></td>
                                                         <td class="text-end">{{ number_format($result->premio_por_decimo, 2, ',', '.') }}€</td>
-                                                        <td class="text-center">{{ $calc['decimos'] }}</td>
+                                                        <td class="text-center">{{ $calc['decimos_label'] }}</td>
                                                         <td class="text-end">{{ number_format($result->premio_por_participacion, 2, ',', '.') }}€</td>
                                                         <td class="text-end"><strong>{{ number_format($calc['premio_total'], 2, ',', '.') }}€</strong></td>
                                                         <td class="text-end">

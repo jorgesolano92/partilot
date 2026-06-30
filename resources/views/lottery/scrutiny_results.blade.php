@@ -208,33 +208,21 @@
                                                 @if($totalWinningNumbers > 0)
                                                     @foreach($entityResults as $result)
                                                     @php
-                                                        // Recalcular los datos correctos usando la misma lógica que scrutiny.blade.php
-                                                        $lottery = $scrutiny->lottery;
-                                                        $ticketPrice = $lottery->ticket_price ?? 0;
-                                                        
-                                                        // Obtener el set para recalcular
-                                                        $set = $result->set;
-                                                        $pricePerParticipation = $set->played_amount ?? 0;
-                                                        
-                                                        // Recalcular décimos usando la misma fórmula
-                                                        $totalParticipations = $result->total_participations;
-                                                        $participacionesPorDecimo = $ticketPrice / $pricePerParticipation;
-                                                        $decimosRecalculados = $totalParticipations / $participacionesPorDecimo;
-                                                        $decimosRedondeados = round($decimosRecalculados);
-                                                        
-                                                        // Recalcular premio total
-                                                        $premioTotalRecalculado = $result->premio_por_decimo * $decimosRedondeados;
+                                                        $decimosDeEsteSet = (float) $result->total_decimos;
+                                                        $decimosLabel = \App\Services\EntityLotteryPrizeService::formatDecimosLabel($decimosDeEsteSet);
+                                                        $premioTotalSet = (float) $result->premio_total;
                                                     @endphp
-                                                    @if ($decimosRedondeados > 0)
+                                                    @if ($decimosDeEsteSet > 0)
                                                     <tr>
                                                         <td colspan="4" style="border-bottom: 1px solid #333; background-color: #f8f9fa;">
                                                                 <div class="d-flex justify-content-between align-items-center">
                                                                     <div>
-                                                                        <b>Número: {{ $result->winning_number }} - Premiado con {{ number_format($result->premio_por_decimo, 2) }}€ X {{ $decimosRedondeados }} Décimos = {{ number_format($premioTotalRecalculado, 2) }}€</b>
+                                                                        <b>Número: {{ $result->winning_number }} - Premiado con {{ number_format($result->premio_por_decimo, 2) }}€ X {{ $decimosLabel }} Décimos = {{ number_format($premioTotalSet, 2) }}€</b>
+                                                                        <small class="text-muted ms-2">({{ $result->total_participations }} participaciones)</small>
                                                                     </div>
                                                                     <div class="text-end">
                                                                         <span class="me-2">{{ number_format($result->premio_por_participacion, 2) }}€</span>
-                                                                        <button type="button" class="btn btn-sm btn-outline-info" onclick="showPrizeDetails('{{ $result->winning_number }}', {{ json_encode($result->winning_categories) }}, {{ $decimosRedondeados }}, {{ $result->premio_por_decimo }}, {{ $result->premio_por_participacion }})">
+                                                                        <button type="button" class="btn btn-sm btn-outline-info" onclick="showPrizeDetails('{{ $result->winning_number }}', {{ json_encode($result->winning_categories) }}, {{ $decimosDeEsteSet }}, {{ $result->premio_por_decimo }}, {{ $result->premio_por_participacion }})">
                                                                             <i class="ri-eye-line"></i>
                                                                         </button>
                                                                     </div>

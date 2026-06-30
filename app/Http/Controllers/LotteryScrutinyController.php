@@ -1639,7 +1639,7 @@ class LotteryScrutinyController extends Controller
                             'set_id' => $setInfo['set_id'],
                             'premio_por_decimo' => $premioPorDecimo,
                             'premio_por_participacion' => $premioPorParticipacion,
-                            'total_decimos' => $setInfo['decimos'] ?? 0,
+                            'total_decimos' => round((float) ($setInfo['decimos'] ?? 0), 2),
                             'total_participations' => $participacionesVendidas,
                             'premio_total' => $premioTotalSet,
                             'winning_categories' => json_encode($categoryResult['categories']),
@@ -1677,7 +1677,7 @@ class LotteryScrutinyController extends Controller
                         'set_id' => $firstSet ? $firstSet->id : null,
                         'premio_por_decimo' => $premioPorDecimo,
                         'premio_por_participacion' => $premioPorDecimo, // Usar premio por décimo como fallback
-                        'total_decimos' => $totalDecimos,
+                        'total_decimos' => round((float) $totalDecimos, 2),
                         'total_participations' => $decimosInfo['total_participations'] ?? 0,
                         'premio_total' => $premioTotal,
                         'winning_categories' => json_encode($categoryResult['categories']),
