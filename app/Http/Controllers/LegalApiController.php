@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CookieConsent;
 use App\Services\CookieConsentService;
 use App\Services\LegalAcceptanceService;
+use App\Services\RoleLegalAcceptanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,6 +14,7 @@ class LegalApiController extends Controller
     public function __construct(
         private readonly LegalAcceptanceService $legalAcceptance,
         private readonly CookieConsentService $cookieConsent,
+        private readonly RoleLegalAcceptanceService $roleLegalAcceptance,
     ) {}
 
     public function config(): JsonResponse
@@ -58,6 +60,41 @@ class LegalApiController extends Controller
             'success' => true,
             'pending' => $this->legalAcceptance->pendingAcceptancesForUser($user),
         ]);
+    }
+
+    public function showRoleInvitation(Request $request, string $key): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 401);
+        }
+
+        $invitation = $this->roleLegalAcceptance->findInvitationForUser($user, $key);
+        if (! $invitation) {
+            return response()->json(['success' => false, 'message' => 'Invitación no encontrada.'], 404);
+        }
+
+        return response()->json(['success' => true, 'invitation' => $invitation]);
+    }
+
+    public function respondRoleInvitation(Request $request, string $key): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 401);
+        }
+
+        $validated = $request->validate([
+            'action' => 'required|in:accept,reject',
+        ]);
+
+        $result = $this->roleLegalAcceptance->respondByKey($user, $key, $validated['action'], $request);
+
+        return response()->json([
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'requires_password_setup' => $result['requires_password_setup'] ?? false,
+        ], $result['success'] ? 200 : 422);
     }
 
     public function storeCookieConsent(Request $request): JsonResponse

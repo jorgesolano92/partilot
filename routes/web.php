@@ -118,9 +118,12 @@ Route::get('firebase-messaging-sw.js', function () {
 
 // Rutas públicas de confirmación de vendedores (sin autenticación)
 Route::get('/sellers/confirm/accept/{token}', [SellerController::class, 'confirmAccept'])->name('sellers.confirm-accept');
+Route::post('/sellers/confirm/accept/{token}', [SellerController::class, 'confirmAcceptStore'])->name('sellers.confirm-accept.store');
 Route::get('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmReject'])->name('sellers.confirm-reject');
+Route::post('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmRejectStore'])->name('sellers.confirm-reject.store');
 Route::get('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAccept'])->name('entity-managers.confirm-accept');
 Route::post('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAcceptStore'])->name('entity-managers.confirm-accept.store');
+Route::post('/entity-managers/confirm/respond/{token}', [EntityController::class, 'confirmManagerRespond'])->name('entity-managers.confirm-respond');
 Route::get('/entity-managers/confirm/reject/{token}', [EntityController::class, 'confirmManagerReject'])->name('entity-managers.confirm-reject');
 
 // Confirmación doble opt-in cobro por transferencia (sin autenticación)

@@ -152,7 +152,90 @@ class LegalAcceptanceService
             ],
             'role_intro_sentence' => config('legal.role_intro_sentence'),
             'documents' => $this->listPublicDocuments(),
+            'prize_collection' => $this->prizeCollectionClientConfig(),
+            'prize_donation' => $this->prizeDonationClientConfig(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function prizeCollectionClientConfig(): array
+    {
+        $cfg = config('legal_prizes.collection', []);
+
+        return [
+            'title' => $cfg['title'] ?? 'Confirmar cobro de premio',
+            'irreversibility_warning' => $cfg['irreversibility_warning'] ?? '',
+            'confirm_label' => $cfg['confirm_label'] ?? 'Confirmar cobro',
+            'confirm_again_label' => $cfg['confirm_again_label'] ?? 'Pulsa de nuevo para confirmar',
+            'double_confirm_message' => $cfg['double_confirm_message'] ?? '',
+            'legal_link_label' => $cfg['legal_link_label'] ?? 'Ver condiciones de cobro',
+            'version' => (string) ($cfg['version'] ?? '3'),
+            'text_hash' => (string) ($cfg['hash'] ?? 'l6_cobro_premio_v3'),
+            'legal_document_slug' => 'terminos-y-condiciones',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function prizeDonationClientConfig(): array
+    {
+        $cfg = config('legal_prizes.donation', []);
+
+        return [
+            'title' => $cfg['title'] ?? 'Confirmar donación de premio',
+            'notice_template' => $cfg['notice_template'] ?? '',
+            'fiscal_certificate_question' => $cfg['fiscal_certificate_question'] ?? '',
+            'rgpd_notice_template' => $cfg['rgpd_notice_template'] ?? '',
+            'confirm_label' => $cfg['confirm_label'] ?? 'Confirmar donación',
+            'confirm_again_label' => $cfg['confirm_again_label'] ?? 'Pulsa de nuevo para confirmar',
+            'version' => (string) ($cfg['version'] ?? '3'),
+            'text_hash' => (string) ($cfg['hash'] ?? 'l7_donacion_premio_v3'),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function recordPrizeCollectionConfirmation(User $user, Request $request, array $context = []): ?LegalAcceptance
+    {
+        $cfg = config('legal_prizes.collection', []);
+        $entityId = isset($context['entity_id']) ? (int) $context['entity_id'] : null;
+        $administrationId = isset($context['administration_id']) ? (int) $context['administration_id'] : null;
+
+        return $this->recordFromRequest(
+            action: LegalAcceptance::ACTION_COBRO_PREMIO_CONFIRMADO,
+            request: $request,
+            user: $user,
+            version: (string) ($cfg['version'] ?? '3'),
+            textHash: (string) ($cfg['hash'] ?? 'l6_cobro_premio_v3'),
+            entityId: $entityId,
+            administrationId: $administrationId,
+            context: $context,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function recordPrizeDonationConfirmation(User $user, Request $request, array $context = []): ?LegalAcceptance
+    {
+        $cfg = config('legal_prizes.donation', []);
+        $entityId = isset($context['entity_id']) ? (int) $context['entity_id'] : null;
+        $administrationId = isset($context['administration_id']) ? (int) $context['administration_id'] : null;
+
+        return $this->recordFromRequest(
+            action: LegalAcceptance::ACTION_DONACION_PREMIO_CONFIRMADA,
+            request: $request,
+            user: $user,
+            version: (string) ($cfg['version'] ?? '3'),
+            textHash: (string) ($cfg['hash'] ?? 'l7_donacion_premio_v3'),
+            entityId: $entityId,
+            administrationId: $administrationId,
+            context: $context,
+        );
     }
 
     /**
@@ -162,8 +245,7 @@ class LegalAcceptanceService
      */
     public function pendingAcceptancesForUser(User $user): array
     {
-        // Fase 2: consultar managers/sellers pendientes y devolver pantallas bloqueantes.
-        return [];
+        return app(RoleLegalAcceptanceService::class)->pendingInvitationsForUser($user);
     }
 
     public function detectChannel(Request $request): string

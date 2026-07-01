@@ -1866,8 +1866,13 @@
         <script src="{{url('ckeditor/ckeditor.js')}}"></script>
         <script src="{{url('ckeditor/adapters/jquery.js')}}"></script>
 
-        <!-- Firebase Notifications -->
-        <script src="{{url('js/firebase-notifications.js')}}"></script>
+        <!-- Firebase Notifications (tras banner L2 si aplica) -->
+        @include('partials.partilot-cookie-consent-state')
+        @include('partials.legal-analytics-scripts')
+        <script>
+            window.partilotDeferFirebaseUntilCookieBanner = @json((bool) config('legal.defer_firebase_until_cookie_banner', true));
+        </script>
+        <script src="{{url('js/firebase-notifications.js')}}" defer></script>
 
         <!-- Image Persistence -->
         <script src="{{url('js/image-persistence.js')}}"></script>

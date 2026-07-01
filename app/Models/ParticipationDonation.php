@@ -10,6 +10,7 @@ class ParticipationDonation extends Model
 {
     protected $fillable = [
         'user_id',
+        'entity_id',
         'nombre',
         'apellidos',
         'nif',
@@ -17,6 +18,7 @@ class ParticipationDonation extends Model
         'importe_codigo',
         'codigo_recarga',
         'anonima',
+        'certificado_fiscal',
     ];
 
     protected $casts = [
@@ -24,6 +26,7 @@ class ParticipationDonation extends Model
         'importe_donacion' => 'decimal:2',
         'importe_codigo' => 'decimal:2',
         'anonima' => 'boolean',
+        'certificado_fiscal' => 'boolean',
     ];
 
     public function user(): BelongsTo

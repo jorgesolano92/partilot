@@ -13,6 +13,7 @@ use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Services\CommunicationEmailService;
 use App\Services\ParticipationGiftService;
+use App\Services\RoleLegalAcceptanceService;
 use App\Services\UserConsentService;
 use App\Support\ActiveEntityContext;
 use App\Support\PasswordRules;
@@ -343,6 +344,9 @@ class AuthController extends Controller
             ->where('to_user_id', $user->id)
             ->where('status', ParticipationGift::STATUS_PENDING)
             ->count();
+
+        $response['pending_role_invitations'] = app(RoleLegalAcceptanceService::class)
+            ->pendingInvitationsForUser($user);
 
         return response()->json($response);
     }

@@ -28,13 +28,13 @@ La aceptación legal debe producirse **antes** de cualquier acto jurídico o eco
 
 | ID | Momento | Acción BD | Canal | Estado |
 |----|---------|-----------|-------|--------|
-| **L1** | Registro usuario | `REGISTRO_ACEPTACION_TCU` | Web, App, Web entidad | 🟡 Parcial — registro API + `user_consents` + `legal_acceptances`; app debe consumir `/api/legal/config` |
-| **L2** | Banner cookies | `COOKIES_ACEPTACION` | Web, Web entidad | 🟡 Parcial — banner panel + API; falta bloquear GA/Firebase hasta consentimiento |
-| **L3** | Aceptación GR | `ACEPTACION_ROL_GESTOR_RESPONSABLE` | Web, App | 🔴 Pendiente — pantalla bloqueante + textos v3 |
-| **L4** | Aceptación Gestor | `ACEPTACION_ROL_GESTOR` | Web, App | 🔴 Pendiente |
-| **L5** | Aceptación Vendedor | `ACEPTACION_ROL_VENDEDOR` | Web, App | 🔴 Pendiente — hoy solo enlace email sin textos completos |
-| **L6** | Cobro premio | `COBRO_PREMIO_CONFIRMADO` | Web, App | 🟡 Parcial — doble opt-in transferencia; falta doble confirmación app |
-| **L7** | Donación premio | `DONACION_PREMIO_CONFIRMADA` | Web, App | 🟡 Parcial — API; falta UI certificado fiscal |
+| **L1** | Registro usuario | `REGISTRO_ACEPTACION_TCU` | Web, App, Web entidad | 🟡 Parcial — API + app con config remota; falta prueba E2E |
+| **L2** | Banner cookies | `COOKIES_ACEPTACION` | Web, Web entidad | 🟡 Parcial — panel + diseño externo + gate Firebase |
+| **L3** | Aceptación GR | `ACEPTACION_ROL_GESTOR_RESPONSABLE` | Web, App | 🟡 Parcial — pantalla bloqueante + API; emails G1–G5 pendientes |
+| **L4** | Aceptación Gestor | `ACEPTACION_ROL_GESTOR` | Web, App | 🟡 Parcial |
+| **L5** | Aceptación Vendedor | `ACEPTACION_ROL_VENDEDOR` | Web, App | 🟡 Parcial — pantalla legal web + app bloqueante |
+| **L6** | Cobro premio | `COBRO_PREMIO_CONFIRMADO` | Web, App | 🟡 Parcial — doble confirmación app + registro legal; email opt-in |
+| **L7** | Donación premio | `DONACION_PREMIO_CONFIRMADA` | Web, App | 🟡 Parcial — certificado fiscal opcional + registro legal |
 | **L8** | Liquidación definitiva | `LIQUIDACION_DEFINITIVA_CONFIRMADA` | Panel web | 🔴 Pendiente — campo `CONFIRMO LIQUIDACIÓN` |
 | **L9** | Baja cuenta | `SOLICITUD_BAJA_CUENTA` | Web, App | 🔴 Pendiente — requisito App Store / Play |
 
@@ -173,21 +173,29 @@ Prioridad alta tras L3–L5:
 
 ### Fase 1 — L1 + L2 completos
 
-- [ ] App Ionic: consumir `/api/legal/config`, checkbox texto exacto, WebView URLs
-- [ ] Deshabilitar Analytics/Firebase en web hasta `cookies_analiticas=true`
-- [ ] Banner en web de entidad (si layout separado)
+- [x] API `/api/legal/config` para app (texto L1, URLs, versiones)
+- [x] App Ionic: registro consume config, checkbox bloqueante, enlaces a visor iframe
+- [x] App Ionic: `documento-legal` y `condiciones-legales` cargan HTML del backend
+- [x] Canal `X-Partilot-Channel` en registro API
+- [x] Banner cookies en `layout_external_design` (diseño por invitación)
+- [x] Firebase web diferido hasta interacción con banner L2
+- [x] Plantilla `legal-analytics-scripts` (GA vía `LEGAL_ANALYTICS_SCRIPTS`)
+- [ ] Deshabilitar Analytics/Firebase Analytics explícito cuando se añadan scripts
+- [ ] Probar registro end-to-end app ↔ API local
 
 ### Fase 2 — L3, L4, L5 (roles)
 
-- [ ] Pantallas bloqueantes con textos `Textos_Aceptacion_Roles_v3`
-- [ ] `pendingAcceptancesForUser()` con managers/sellers pendientes
+- [x] Pantallas bloqueantes con textos `Textos_Aceptacion_Roles_v3`
+- [x] `pendingAcceptancesForUser()` con managers/sellers pendientes
+- [x] App Ionic `aceptacion-rol` + guard en `/tabs`
+- [x] Integración web EntityController / SellerController
 - [ ] Emails G1–G5
 
 ### Fase 3 — Premios L6, L7, Flujo 5
 
-- [ ] Doble confirmación cobro en app
-- [ ] Donación + certificado fiscal
-- [ ] Copy método pago irreversible
+- [x] Doble confirmación cobro en app + `COBRO_PREMIO_CONFIRMADO`
+- [x] Donación + certificado fiscal opcional + `DONACION_PREMIO_CONFIRMADA`
+- [x] Copy método pago irreversible en liquidación (devoluciones)
 
 ### Fase 4 — L8, L9
 

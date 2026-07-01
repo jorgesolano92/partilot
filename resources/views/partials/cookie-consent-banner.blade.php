@@ -79,6 +79,17 @@
             })
         }).then(function () {
             banner.remove();
+            try {
+                var analyticsAllowed = choice === 'all' || (choice === 'custom' && !!analytics);
+                window.partilotAnalyticsAllowed = analyticsAllowed;
+                window.partilotCookieConsent = {
+                    choice: choice,
+                    cookies_analiticas: analyticsAllowed
+                };
+                window.dispatchEvent(new CustomEvent('partilot-cookie-consent', {
+                    detail: window.partilotCookieConsent
+                }));
+            } catch (e) {}
         }).catch(function () {
             banner.remove();
         });

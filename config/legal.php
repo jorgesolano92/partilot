@@ -63,4 +63,15 @@ return [
     */
     'cookie_consent_name' => 'partilot_cookie_consent',
     'cookie_consent_days' => (int) env('LEGAL_COOKIE_CONSENT_DAYS', 365),
+
+    /*
+    | Scripts de analítica (GA, etc.) — solo se cargan con cookies analíticas aceptadas.
+    | Ejemplo: 'https://www.googletagmanager.com/gtag/js?id=G-XXXX'
+    */
+    'analytics_scripts' => array_filter(array_map('trim', explode(',', (string) env('LEGAL_ANALYTICS_SCRIPTS', '')))),
+
+    /*
+    | Firebase web (notificaciones push en panel): requiere interacción con banner L2.
+    */
+    'defer_firebase_until_cookie_banner' => env('LEGAL_DEFER_FIREBASE_UNTIL_COOKIE_BANNER', true),
 ];

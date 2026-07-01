@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\EmailCommunicationLog;
 use App\Services\CommunicationEmailService;
+use App\Services\RoleLegalAcceptanceService;
 use App\Mail\SellerSettlementStatusMail;
 use App\Support\ParticipationTicketReference;
 
@@ -3339,65 +3340,114 @@ class SellerController extends Controller
     }
 
     /**
-     * Confirmar aceptación de solicitud de vendedor
+     * Formulario público: revisar condiciones y aceptar invitación de vendedor.
      */
     public function confirmAccept($token)
     {
-        $seller = Seller::where('confirmation_token', $token)
-            ->where('status', Seller::STATUS_PENDING)
-            ->first();
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $seller = $roleService->findSellerByToken($token);
 
-        if (!$seller) {
+        if (! $seller) {
             return view('sellers.confirmation-error', [
                 'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
-                'type' => 'error'
+                'type' => 'error',
             ]);
         }
 
-        // Actualizar status a ACTIVO
-        $seller->update([
-            'status' => Seller::STATUS_ACTIVE,
-            'confirmation_token' => null,
-            'confirmation_sent_at' => null
-        ]);
+        $invitation = $roleService->buildWebSellerPayload($seller);
 
-        \Illuminate\Support\Facades\Log::info("Vendedor {$seller->id} ({$seller->email}) ha aceptado la solicitud de vendedor");
-
-        return view('sellers.confirmation-success', [
-            'message' => '¡Solicitud aceptada correctamente!',
-            'seller' => $seller,
-            'type' => 'accept'
+        return view('legal.role-invitation-public', [
+            'invitation' => $invitation,
+            'acceptUrl' => route('sellers.confirm-accept.store', ['token' => $token]),
+            'rejectUrl' => route('sellers.confirm-reject.store', ['token' => $token]),
         ]);
     }
 
     /**
-     * Confirmar rechazo de solicitud de vendedor
+     * Procesar aceptación de invitación de vendedor (web).
+     */
+    public function confirmAcceptStore(Request $request, $token)
+    {
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $seller = $roleService->findSellerByToken($token);
+
+        if (! $seller) {
+            return view('sellers.confirmation-error', [
+                'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
+                'type' => 'error',
+            ]);
+        }
+
+        $request->validate([
+            'action' => 'required|in:accept',
+            'role_terms' => 'accepted',
+        ], [
+            'role_terms.accepted' => 'Debe aceptar las responsabilidades del rol para continuar.',
+        ]);
+
+        $result = $roleService->respondSellerInvitation($seller, 'accept', $request, $seller->user);
+
+        if (! $result['success']) {
+            return view('sellers.confirmation-error', [
+                'message' => $result['message'],
+                'type' => 'error',
+            ]);
+        }
+
+        $seller->refresh();
+
+        \Log::info("Vendedor {$seller->id} ({$seller->email}) ha aceptado la solicitud de vendedor");
+
+        return view('sellers.confirmation-success', [
+            'message' => '¡Solicitud aceptada correctamente!',
+            'seller' => $seller,
+            'type' => 'accept',
+        ]);
+    }
+
+    /**
+     * Confirmar rechazo de solicitud de vendedor (enlace directo del email).
      */
     public function confirmReject($token)
     {
-        $seller = Seller::where('confirmation_token', $token)
-            ->where('status', Seller::STATUS_PENDING)
-            ->first();
+        return $this->processSellerReject($token, request());
+    }
 
-        if (!$seller) {
+    /**
+     * Procesar rechazo desde formulario web.
+     */
+    public function confirmRejectStore(Request $request, $token)
+    {
+        $request->validate([
+            'action' => 'required|in:reject',
+        ]);
+
+        return $this->processSellerReject($token, $request);
+    }
+
+    protected function processSellerReject(string $token, Request $request)
+    {
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $seller = $roleService->findSellerByToken($token);
+
+        if (! $seller) {
             return view('sellers.confirmation-error', [
                 'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
-                'type' => 'error'
+                'type' => 'error',
             ]);
         }
 
         $email = $seller->email;
         $sellerId = $seller->id;
 
-        // Eliminar el vendedor
-        $seller->delete();
+        $roleService->respondSellerInvitation($seller, 'reject', $request, $seller->user);
 
-        \Illuminate\Support\Facades\Log::info("Vendedor {$sellerId} ({$email}) ha rechazado la solicitud de vendedor - Eliminado");
+        \Log::info("Vendedor {$sellerId} ({$email}) ha rechazado la solicitud de vendedor - Eliminado");
 
         return view('sellers.confirmation-success', [
             'message' => 'Solicitud rechazada. El vendedor ha sido eliminado del sistema.',
             'seller' => null,
-            'type' => 'reject'
+            'type' => 'reject',
         ]);
     }
 

@@ -1956,6 +1956,9 @@ class ParticipationController extends Controller
             'nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
             'iban' => ['required', 'string', new \App\Rules\SpanishIban],
             'importe_total' => 'required|numeric|min:0.01',
+            'confirmacion_cobro_irreversible' => 'required|accepted',
+        ], [
+            'confirmacion_cobro_irreversible.accepted' => 'Debe confirmar que entiende que el cobro es irreversible.',
         ]);
 
         $user = $request->user();
@@ -2046,6 +2049,22 @@ class ParticipationController extends Controller
         }
 
         // Usar el importe total validado en servidor
+        $participationIds = $participations->pluck('id')->toArray();
+        $firstEntity = $participations->first()?->set?->entity;
+        app(\App\Services\LegalAcceptanceService::class)->recordPrizeCollectionConfirmation(
+            $user,
+            $request,
+            [
+                'modalidad' => 'TRANSFERENCIA',
+                'importe' => $importeTotal,
+                'participation_ids' => $participationIds,
+                'destino' => 'IBAN',
+                'iban_last4' => substr(preg_replace('/\s+/', '', (string) $request->iban), -4),
+                'entity_id' => $firstEntity?->id,
+                'administration_id' => $firstEntity?->administration_id,
+            ]
+        );
+
         $token = ParticipationCollection::generateConfirmationToken();
         $expiresAt = now()->addHours(ParticipationCollection::verificationExpiryHours());
 
@@ -2065,7 +2084,6 @@ class ParticipationController extends Controller
         ]);
 
         // Reservar participaciones (sin marcar collected_at hasta confirmar email)
-        $participationIds = $participations->pluck('id')->toArray();
         foreach ($participations as $p) {
             $ref = $this->getReferenceFromParticipation($p);
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
@@ -2127,6 +2145,12 @@ class ParticipationController extends Controller
             'nombre' => 'nullable|string|max:255',
             'apellidos' => 'nullable|string|max:255',
             'nif' => ['nullable', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            'confirmacion_operacion_irreversible' => 'required|accepted',
+            'confirmacion_donacion_irreversible' => 'required_if:importe_donacion,>0|accepted',
+            'certificado_fiscal' => 'nullable|boolean',
+        ], [
+            'confirmacion_operacion_irreversible.accepted' => 'Debe confirmar que entiende que la operación es irreversible.',
+            'confirmacion_donacion_irreversible.accepted' => 'Debe confirmar la donación de premio.',
         ]);
 
         $user = $request->user();
@@ -2232,6 +2256,52 @@ class ParticipationController extends Controller
             ], 422);
         }
 
+        $certificadoFiscal = (bool) $request->boolean('certificado_fiscal');
+        if ($importeDonacion > 0 && $certificadoFiscal) {
+            $request->validate([
+                'nombre' => 'required|string|max:255',
+                'apellidos' => 'required|string|max:255',
+                'nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            ], [
+                'nombre.required' => 'Indique su nombre para el certificado fiscal.',
+                'apellidos.required' => 'Indique sus apellidos para el certificado fiscal.',
+                'nif.required' => 'Indique su NIF/NIE para el certificado fiscal.',
+            ]);
+        }
+
+        $participationIds = $participations->pluck('id')->toArray();
+        $modalidad = $importeDonacion > 0 && $importeCodigo > 0
+            ? 'DONACION_CODIGO'
+            : ($importeDonacion > 0 ? 'DONACION' : 'CODIGO_RECARGA');
+
+        app(\App\Services\LegalAcceptanceService::class)->recordPrizeCollectionConfirmation(
+            $user,
+            $request,
+            [
+                'modalidad' => $modalidad,
+                'importe' => $importeTotal,
+                'participation_ids' => $participationIds,
+                'entity_id' => $entity?->id,
+                'administration_id' => $administration?->id,
+            ]
+        );
+
+        if ($importeDonacion > 0) {
+            app(\App\Services\LegalAcceptanceService::class)->recordPrizeDonationConfirmation(
+                $user,
+                $request,
+                [
+                    'modalidad' => 'DONACION',
+                    'importe_donado' => $importeDonacion,
+                    'participation_ids' => $participationIds,
+                    'certificado_fiscal' => $certificadoFiscal,
+                    'entity_id' => $entity?->id,
+                    'administration_id' => $administration?->id,
+                    'entity_name' => $entity?->name,
+                ]
+            );
+        }
+
         // Generar código de recarga si hay importe para código (API de la administración o PARTILOT por defecto)
         $codigoRecarga = null;
         if ($importeCodigo > 0) {
@@ -2250,6 +2320,7 @@ class ParticipationController extends Controller
         // Crear registro de donación
         $donation = ParticipationDonation::create([
             'user_id' => $user->id,
+            'entity_id' => $entity?->id,
             'nombre' => $request->nombre,
             'apellidos' => $request->apellidos,
             'nif' => $request->nif,
@@ -2257,10 +2328,10 @@ class ParticipationController extends Controller
             'importe_codigo' => $importeCodigo,
             'codigo_recarga' => $codigoRecarga,
             'anonima' => $anonima,
+            'certificado_fiscal' => $certificadoFiscal,
         ]);
 
         // Marcar participaciones como donadas en la tabla participations
-        $participationIds = $participations->pluck('id')->toArray();
         Participation::whereIn('id', $participationIds)->update(['donated_at' => now()]);
 
         // Asociar cada participación al registro de donación

@@ -42,7 +42,11 @@ Route::prefix('legal')->group(function () {
     Route::get('/documents/{slug}', [LegalApiController::class, 'document']);
     Route::get('/cookies/status', [LegalApiController::class, 'cookieStatus']);
     Route::post('/cookies', [LegalApiController::class, 'storeCookieConsent']);
-    Route::middleware('auth.api')->get('/pending-acceptances', [LegalApiController::class, 'pendingAcceptances']);
+    Route::middleware('auth.api')->group(function () {
+        Route::get('/pending-acceptances', [LegalApiController::class, 'pendingAcceptances']);
+        Route::get('/role-invitations/{key}', [LegalApiController::class, 'showRoleInvitation']);
+        Route::post('/role-invitations/{key}/respond', [LegalApiController::class, 'respondRoleInvitation']);
+    });
 });
 
 Route::get('/check-delete/{type}/{id}', [ApiController::class, 'checkDelete']);

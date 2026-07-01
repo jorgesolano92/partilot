@@ -168,6 +168,9 @@
             });
         });
     </script>
+    @include('partials.partilot-cookie-consent-state')
+    @include('partials.legal-analytics-scripts')
+    @include('partials.cookie-consent-banner')
     @yield('scripts')
 </body>
 </html>

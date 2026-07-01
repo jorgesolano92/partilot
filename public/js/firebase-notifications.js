@@ -19,6 +19,10 @@ class FirebaseNotifications {
 
     async init() {
         try {
+            if (window.partilotDeferFirebaseUntilCookieBanner && typeof window.partilotWaitForCookieConsent === 'function') {
+                await new Promise((resolve) => window.partilotWaitForCookieConsent(resolve));
+            }
+
             // Check if service worker is supported
             if ('serviceWorker' in navigator) {
                 // Register service worker manually with correct path

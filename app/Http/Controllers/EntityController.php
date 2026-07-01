@@ -14,6 +14,7 @@ use App\Services\ManagerAccountService;
 use App\Mail\EntityResponsibleManagerConfirmedMail;
 use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
+use App\Services\RoleLegalAcceptanceService;
 use App\Support\ContactEmailRegistry;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -1455,14 +1456,8 @@ class EntityController extends Controller
      */
     public function confirmManagerAccept(string $token)
     {
-        $manager = Manager::where('confirmation_token', $token)
-            ->whereNotNull('entity_id')
-            ->where(function ($q) {
-                $q->whereNull('status')
-                    ->orWhere('pending_primary', true);
-            })
-            ->with(['entity', 'user'])
-            ->first();
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $manager = $roleService->findManagerByToken($token);
 
         if (! $manager || ! $manager->user) {
             return view('entities.manager-confirmation-error', [
@@ -1470,39 +1465,75 @@ class EntityController extends Controller
             ]);
         }
 
-        if (! $manager->requires_password_setup) {
-            DB::transaction(function () use ($manager) {
-                if ($manager->pending_primary) {
-                    Manager::where('entity_id', $manager->entity_id)->update([
-                        'is_primary' => false,
-                        'pending_primary' => false,
-                    ]);
-                    $manager->is_primary = true;
-                }
+        $invitation = $roleService->buildWebManagerPayload($manager);
 
-                $manager->status = 1;
-                $manager->confirmation_token = null;
-                $manager->confirmation_sent_at = null;
-                $manager->pending_primary = false;
-                $manager->save();
-            });
-
-            if ($manager->is_primary && $manager->entity) {
-                $manager->entity->update(['status' => 1]);
-                $this->notifyEntityResponsibleManagerConfirmed($manager->entity, $manager);
-            }
-
-            return view('entities.manager-confirmation-success', [
-                'message' => '¡Invitación aceptada correctamente! Ya puedes iniciar sesión y gestionar la entidad.',
-                'type' => 'accept',
+        if ($manager->requires_password_setup) {
+            return view('entities.manager-accept-password', [
+                'token' => $token,
                 'manager' => $manager,
+                'entity' => $manager->entity,
+                'invitation' => $invitation,
             ]);
         }
 
-        return view('entities.manager-accept-password', [
-            'token' => $token,
+        return view('legal.role-invitation-public', [
+            'invitation' => $invitation,
+            'acceptUrl' => route('entity-managers.confirm-respond', ['token' => $token]),
+            'rejectUrl' => route('entity-managers.confirm-respond', ['token' => $token]),
+        ]);
+    }
+
+    /**
+     * Aceptar o rechazar invitación como gestor (sin formulario de contraseña).
+     */
+    public function confirmManagerRespond(Request $request, string $token)
+    {
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $manager = $roleService->findManagerByToken($token);
+
+        if (! $manager || ! $manager->user) {
+            return view('entities.manager-confirmation-error', [
+                'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'action' => 'required|in:accept,reject',
+        ]);
+
+        if ($validated['action'] === 'reject') {
+            $roleService->respondManagerInvitation($manager, 'reject', $request);
+
+            return view('entities.manager-confirmation-success', [
+                'message' => 'Solicitud rechazada. No tendrás acceso como gestor a esta entidad.',
+                'type' => 'reject',
+                'manager' => null,
+            ]);
+        }
+
+        $request->validate([
+            'role_terms' => 'accepted',
+        ], [
+            'role_terms.accepted' => 'Debe aceptar las responsabilidades del rol para continuar.',
+        ]);
+
+        $result = $roleService->finalizeManagerActivation($manager, $request, $manager->user);
+        if (! $result['success']) {
+            return view('entities.manager-confirmation-error', [
+                'message' => $result['message'],
+            ]);
+        }
+
+        $manager->refresh()->load('entity');
+
+        if ($manager->is_primary && $manager->entity) {
+            $this->notifyEntityResponsibleManagerConfirmed($manager->entity, $manager);
+        }
+
+        return view('entities.manager-confirmation-success', [
+            'message' => '¡Invitación aceptada correctamente! Ya puedes iniciar sesión y gestionar la entidad.',
+            'type' => 'accept',
             'manager' => $manager,
-            'entity' => $manager->entity,
         ]);
     }
 
@@ -1511,14 +1542,8 @@ class EntityController extends Controller
      */
     public function confirmManagerAcceptStore(Request $request, string $token)
     {
-        $manager = Manager::where('confirmation_token', $token)
-            ->whereNotNull('entity_id')
-            ->where(function ($q) {
-                $q->whereNull('status')
-                    ->orWhere('pending_primary', true);
-            })
-            ->with(['entity', 'user'])
-            ->first();
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $manager = $roleService->findManagerByToken($token);
 
         if (! $manager || ! $manager->user) {
             return view('entities.manager-confirmation-error', [
@@ -1561,28 +1586,18 @@ class EntityController extends Controller
                     'password' => $request->input('password'),
                 ]);
             }
-
-            if ($manager->pending_primary) {
-                Manager::where('entity_id', $manager->entity_id)->update([
-                    'is_primary' => false,
-                    'pending_primary' => false,
-                ]);
-                $manager->is_primary = true;
-            }
-
-            $manager->update([
-                'status' => 1,
-                'confirmation_token' => null,
-                'confirmation_sent_at' => null,
-                'requires_password_setup' => false,
-                'pending_primary' => false,
-            ]);
         });
 
-        $manager->refresh();
+        $result = $roleService->finalizeManagerActivation($manager, $request, $manager->user);
+        if (! $result['success']) {
+            return view('entities.manager-confirmation-error', [
+                'message' => $result['message'],
+            ]);
+        }
+
+        $manager->refresh()->load('entity');
 
         if ($manager->is_primary && $manager->entity) {
-            $manager->entity->update(['status' => 1]);
             $this->notifyEntityResponsibleManagerConfirmed($manager->entity, $manager);
         }
 
@@ -1598,14 +1613,8 @@ class EntityController extends Controller
      */
     public function confirmManagerReject(string $token)
     {
-        $manager = Manager::where('confirmation_token', $token)
-            ->whereNotNull('entity_id')
-            ->where(function ($q) {
-                $q->whereNull('status')
-                    ->orWhere('pending_primary', true);
-            })
-            ->with(['entity', 'user'])
-            ->first();
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $manager = $roleService->findManagerByToken($token);
 
         if (! $manager) {
             return view('entities.manager-confirmation-error', [
@@ -1613,15 +1622,7 @@ class EntityController extends Controller
             ]);
         }
 
-        if ($manager->pending_primary) {
-            $manager->update([
-                'pending_primary' => false,
-                'confirmation_token' => null,
-                'confirmation_sent_at' => null,
-            ]);
-        } else {
-            $manager->delete();
-        }
+        $roleService->respondManagerInvitation($manager, 'reject', request());
 
         return view('entities.manager-confirmation-success', [
             'message' => 'Solicitud rechazada. No tendrás acceso como gestor a esta entidad.',
