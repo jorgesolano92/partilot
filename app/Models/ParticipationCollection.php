@@ -8,6 +8,7 @@ use App\Services\CommunicationEmailService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -147,25 +148,45 @@ class ParticipationCollection extends Model
 
     public function confirmVerification(): void
     {
-        if (!$this->isPendingVerification() || $this->isExpired()) {
+        if (! $this->isPendingVerification() || $this->isExpired()) {
             throw new \RuntimeException('La solicitud no puede confirmarse.');
         }
 
-        $now = now();
-        $participationIds = $this->items()->pluck('participation_id')->unique()->filter()->values()->all();
+        DB::transaction(function () {
+            $collection = self::query()->whereKey($this->id)->lockForUpdate()->first();
+            if (! $collection || ! $collection->isPendingVerification() || $collection->isExpired()) {
+                throw new \RuntimeException('La solicitud no puede confirmarse.');
+            }
 
-        $this->update([
-            'status' => self::STATUS_VERIFIED,
-            'verified_at' => $now,
-            'collected_at' => $now,
-            'confirmation_token' => null,
-        ]);
+            app(\App\Services\EntityLotteryPrizePaymentService::class)
+                ->reserveDepositedFundsForVerifiedCollection($collection);
 
-        if (!empty($participationIds)) {
-            Participation::whereIn('id', $participationIds)->update(['collected_at' => $now]);
-        }
+            $now = now();
+            $participationIds = $collection->items()->pluck('participation_id')->unique()->filter()->values()->all();
 
-        $this->sendVerifiedNotifications();
+            $collection->update([
+                'status' => self::STATUS_VERIFIED,
+                'verified_at' => $now,
+                'collected_at' => $now,
+                'confirmation_token' => null,
+            ]);
+
+            if ($participationIds !== []) {
+                Participation::whereIn('id', $participationIds)->update(['collected_at' => $now]);
+            }
+
+            $this->refresh();
+            $this->sendVerifiedNotifications();
+
+            app(\App\Services\PaymentOperationAuditService::class)->log(
+                operationType: \App\Models\PaymentOperationAuditLog::OP_COLLECTION_VERIFIED,
+                userId: $collection->user_id ? (int) $collection->user_id : null,
+                amount: (float) $collection->importe_total,
+                referenceType: 'participation_collection',
+                referenceId: (int) $collection->id,
+                context: ['participation_ids' => $participationIds],
+            );
+        });
     }
 
     public function cancelVerification(): void

@@ -17,7 +17,6 @@ class ParticipationDonation extends Model
         'importe_codigo',
         'codigo_recarga',
         'anonima',
-        'donated_at',
     ];
 
     protected $casts = [
@@ -40,5 +39,14 @@ class ParticipationDonation extends Model
     public function participations()
     {
         return $this->belongsToMany(Participation::class, 'participation_donation_items', 'donation_id', 'participation_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (ParticipationDonation $donation) {
+            if ($donation->donated_at === null) {
+                $donation->donated_at = now();
+            }
+        });
     }
 }

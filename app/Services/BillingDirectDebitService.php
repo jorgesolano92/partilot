@@ -75,9 +75,15 @@ class BillingDirectDebitService
                 ->where('status', BillingDirectDebitOrder::STATUS_COLLECTED)
                 ->exists();
 
-            $mandateSignedAt = $administration->billing_sepa_mandate_signed_at
-                ?? $administration->created_at?->toDateString()
-                ?? now()->toDateString();
+            if (! $administration->billing_sepa_mandate_signed_at) {
+                abort(422, 'La administración no tiene fecha de firma del mandato SEPA. No se puede generar el adeudo.');
+            }
+
+            if (trim((string) $administration->billing_sepa_mandate_id) === '') {
+                abort(422, 'La administración no tiene identificador de mandato SEPA configurado.');
+            }
+
+            $mandateSignedAt = $administration->billing_sepa_mandate_signed_at->toDateString();
 
             $order = BillingDirectDebitOrder::create([
                 'administration_id' => $administration->id,

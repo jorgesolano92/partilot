@@ -11,6 +11,7 @@ use App\Models\ParticipationCollection;
 use App\Models\ParticipationCollectionItem;
 use App\Models\ScrutinyDetailedResult;
 use App\Models\User;
+
 class EntityLotteryPrizePaymentService
 {
     /**
@@ -300,6 +301,68 @@ class EntityLotteryPrizePaymentService
         }
 
         return ['allowed' => true, 'message' => null];
+    }
+
+    /**
+     * SEC-029: decremento atómico de la bolsa de solvencia al confirmar un cobro online verificado.
+     */
+    public function reserveDepositedFundsForVerifiedCollection(ParticipationCollection $collection): void
+    {
+        $collection->load(['items.participation.set.reserve']);
+
+        $amountsBySettingKey = [];
+
+        foreach ($collection->items as $item) {
+            $participation = $item->participation;
+            if (! $participation) {
+                continue;
+            }
+
+            $entityId = (int) ($item->entity_id ?? $participation->entity_id ?? $participation->set?->entity_id ?? 0);
+            $lotteryId = $this->resolveLotteryId($participation);
+            if (! $entityId || ! $lotteryId) {
+                continue;
+            }
+
+            $setting = $this->getSettings($entityId, $lotteryId);
+            if (! $setting || $setting->isOnlinePayerEntity()) {
+                continue;
+            }
+
+            $amount = round((float) ($item->amount ?? 0), 2);
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $key = $entityId.':'.$lotteryId;
+            $amountsBySettingKey[$key] = ($amountsBySettingKey[$key] ?? 0.0) + $amount;
+        }
+
+        foreach ($amountsBySettingKey as $key => $amount) {
+            [$entityId, $lotteryId] = array_map('intval', explode(':', $key, 2));
+
+            $setting = EntityLotteryPrizeSetting::query()
+                ->where('entity_id', $entityId)
+                ->where('lottery_id', $lotteryId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $setting || $setting->isOnlinePayerEntity()) {
+                continue;
+            }
+
+            $newDeposited = round((float) $setting->funds_deposited_amount - $amount, 2);
+            if ($newDeposited < 0) {
+                throw new \RuntimeException('Fondos de solvencia insuficientes para confirmar el cobro.');
+            }
+
+            $updates = ['funds_deposited_amount' => $newDeposited];
+            if ($newDeposited < (float) $setting->funds_required_amount) {
+                $updates['funds_status'] = EntityLotteryPrizeSetting::FUNDS_PENDING;
+            }
+
+            $setting->update($updates);
+        }
     }
 
     /**

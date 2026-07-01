@@ -1955,7 +1955,7 @@ class ParticipationController extends Controller
             'apellidos' => 'required|string|max:255',
             'nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
             'iban' => ['required', 'string', new \App\Rules\SpanishIban],
-            'importe_total' => 'required|numeric|min:0',
+            'importe_total' => 'required|numeric|min:0.01',
         ]);
 
         $user = $request->user();
@@ -2000,7 +2000,21 @@ class ParticipationController extends Controller
             return response()->json(['success' => false, 'message' => $multiCheck['message']], 422);
         }
 
+        $walletGuard = app(\App\Services\PrizeWalletOperationGuardService::class);
+        if ($message = $walletGuard->assertEntitiesActive($participations)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
         $apiController = app(ApiController::class);
+        $prizeInfoResolver = function ($p) use ($apiController) {
+            $ref = $this->getReferenceFromParticipation($p);
+
+            return $apiController->getPrizeInfoForReference($ref);
+        };
+        if ($message = $walletGuard->assertAllParticipationsHavePrize($participations, $prizeInfoResolver)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
         foreach ($participations as $p) {
             $ref = $this->getReferenceFromParticipation($p);
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
@@ -2016,8 +2030,22 @@ class ParticipationController extends Controller
             }
         }
 
-        // Usar el importe total enviado desde el frontend
-        $importeTotal = (float) $request->importe_total;
+        $importeTotal = round((float) $request->importe_total, 2);
+        if ($message = $walletGuard->assertPositiveAmount($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        if ($message = $walletGuard->assertWithinGlobalCap($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        if ($message = $walletGuard->assertAmountMatchesParticipations(
+            $importeTotal,
+            $participations,
+            fn ($p) => $this->resolveParticipationWalletAmount($p)
+        )) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        // Usar el importe total validado en servidor
         $token = ParticipationCollection::generateConfirmationToken();
         $expiresAt = now()->addHours(ParticipationCollection::verificationExpiryHours());
 
@@ -2066,6 +2094,16 @@ class ParticipationController extends Controller
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando email de verificación de cobro: '.$e->getMessage());
         }
+
+        app(\App\Services\PaymentOperationAuditService::class)->log(
+            operationType: \App\Models\PaymentOperationAuditLog::OP_COLLECTION_REQUESTED,
+            userId: (int) $user->id,
+            amount: $importeTotal,
+            referenceType: 'participation_collection',
+            referenceId: (int) $collection->id,
+            context: ['participation_ids' => $participationIds],
+            request: $request,
+        );
 
         return response()->json([
             'success' => true,
@@ -2132,7 +2170,22 @@ class ParticipationController extends Controller
             return response()->json(['success' => false, 'message' => 'Solo puedes donar participaciones de la misma entidad.'], 422);
         }
 
+        $walletGuard = app(\App\Services\PrizeWalletOperationGuardService::class);
+        $entity = Entity::with('administration')->find($entityIds->first());
+        if ($message = $walletGuard->assertEntityActive($entity)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
         $apiController = app(ApiController::class);
+        $prizeInfoResolver = function ($p) use ($apiController) {
+            $ref = $this->getReferenceFromParticipation($p);
+
+            return $apiController->getPrizeInfoForReference($ref);
+        };
+        if ($message = $walletGuard->assertAllParticipationsHavePrize($participations, $prizeInfoResolver)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
         foreach ($participations as $p) {
             $ref = $this->getReferenceFromParticipation($p);
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
@@ -2148,30 +2201,27 @@ class ParticipationController extends Controller
             }
         }
 
-        $importeDonacion = (float) $request->importe_donacion;
-        $importeCodigo = (float) $request->importe_codigo;
+        $importeDonacion = round((float) $request->importe_donacion, 2);
+        $importeCodigo = round((float) $request->importe_codigo, 2);
         $importeTotal = $importeDonacion + $importeCodigo;
 
-        if ($importeTotal <= 0) {
-            return response()->json([
-                'success' => false,
-                'message' => 'El importe total de donación y código debe ser mayor que cero.',
-            ], 422);
+        if ($message = $walletGuard->assertPositiveAmount($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
         }
-
-        // Mismo criterio que la app (premio si hay premio; si no, importeTotal del set).
-        $totalParticipaciones = round($participations->sum(
-            fn (Participation $p) => $this->resolveParticipationWalletAmount($p)
-        ), 2);
-
-        if (abs($importeTotal - $totalParticipaciones) > 0.01) {
+        if ($message = $walletGuard->assertWithinGlobalCap($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        if ($message = $walletGuard->assertAmountMatchesParticipations(
+            $importeTotal,
+            $participations,
+            fn ($p) => $this->resolveParticipationWalletAmount($p)
+        )) {
             return response()->json([
                 'success' => false,
                 'message' => 'La suma de donación y código no coincide con el importe total de las participaciones.',
             ], 422);
         }
 
-        $entity = Entity::with('administration')->find($entityIds->first());
         $administration = $entity?->administration;
         $prepagoService = app(\App\Services\PrepagoCodigosService::class);
 
@@ -2207,7 +2257,6 @@ class ParticipationController extends Controller
             'importe_codigo' => $importeCodigo,
             'codigo_recarga' => $codigoRecarga,
             'anonima' => $anonima,
-            'donated_at' => now(),
         ]);
 
         // Marcar participaciones como donadas en la tabla participations
@@ -2238,6 +2287,22 @@ class ParticipationController extends Controller
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando email donación/código: '.$e->getMessage());
         }
+
+        app(\App\Services\PaymentOperationAuditService::class)->log(
+            operationType: \App\Models\PaymentOperationAuditLog::OP_DONATION,
+            userId: (int) $user->id,
+            amount: $importeTotal,
+            entityId: $entity ? (int) $entity->id : null,
+            administrationId: $administration ? (int) $administration->id : null,
+            referenceType: 'participation_donation',
+            referenceId: (int) $donation->id,
+            context: [
+                'participation_ids' => $participationIds,
+                'importe_donacion' => $importeDonacion,
+                'importe_codigo' => $importeCodigo,
+            ],
+            request: $request,
+        );
 
         return response()->json([
             'success' => true,

@@ -124,10 +124,12 @@ Route::post('/entity-managers/confirm/accept/{token}', [EntityController::class,
 Route::get('/entity-managers/confirm/reject/{token}', [EntityController::class, 'confirmManagerReject'])->name('entity-managers.confirm-reject');
 
 // Confirmación doble opt-in cobro por transferencia (sin autenticación)
-Route::get('/cobro-transferencia/confirmar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'confirm'])->name('transfer-collection.confirm');
+Route::middleware(['throttle:20,1'])->group(function () {
+    Route::get('/cobro-transferencia/confirmar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'confirm'])->name('transfer-collection.confirm');
+    Route::get('/cobro-transferencia/cancelar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'cancel'])->name('transfer-collection.cancel');
+});
 Route::get('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'show'])->name('prize-contract.sign');
 Route::post('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'store'])->name('prize-contract.sign.submit');
-Route::get('/cobro-transferencia/cancelar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'cancel'])->name('transfer-collection.cancel');
 
 // Registro web comprador (venta digital pendiente)
 Route::get('/registro-comprador/{token}', [\App\Http\Controllers\DigitalBuyerRegistrationController::class, 'show'])->name('digital-buyer.register');
