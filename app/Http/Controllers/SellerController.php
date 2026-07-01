@@ -1080,6 +1080,7 @@ class SellerController extends Controller
         $request->validate([
             'lottery_id' => 'required|integer|exists:lotteries,id',
             'referencia' => 'required|string|max:120',
+            'sig' => 'nullable|string|max:16',
         ]);
 
         if ($denied = $this->jsonUnlessManagerSellersPermission($request->user(), $entityId)) {
@@ -1087,7 +1088,11 @@ class SellerController extends Controller
         }
 
         $lotteryId = (int) $request->lottery_id;
-        $found = $this->findSetAndParticipationByReferenceForUser($request->user(), $request->referencia);
+        $found = $this->findSetAndParticipationByReferenceForUser(
+            $request->user(),
+            $request->referencia,
+            $request->input('sig')
+        );
 
         if (! $found) {
             return response()->json([
@@ -3457,10 +3462,10 @@ class SellerController extends Controller
         return null;
     }
 
-    private function findSetAndParticipationByReferenceForUser(User $user, string $referencia): ?array
+    private function findSetAndParticipationByReferenceForUser(User $user, string $referencia, ?string $signature = null): ?array
     {
         $referencia = ParticipationTicketReference::normalize($referencia) ?? '';
-        if ($referencia === '' || ! ParticipationTicketReference::isValid($referencia)) {
+        if ($referencia === '' || ParticipationTicketReference::authenticationError($referencia, $signature) !== null) {
             return null;
         }
 

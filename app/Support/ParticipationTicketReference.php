@@ -99,6 +99,78 @@ class ParticipationTicketReference
     }
 
     /**
+     * Firma HMAC (8 hex) para URLs QR — misma idea que DesignFormat::buildTacoRef.
+     */
+    public static function signature(string $reference): string
+    {
+        $reference = self::normalize($reference);
+        if ($reference === null || ! self::isValid($reference)) {
+            throw new InvalidArgumentException('Referencia inválida para firmar.');
+        }
+
+        return substr(hash_hmac('sha256', $reference, (string) config('app.key')), 0, 8);
+    }
+
+    public static function verifySignature(string $reference, string $signature): bool
+    {
+        $reference = self::normalize($reference);
+        if ($reference === null) {
+            return false;
+        }
+
+        $signature = strtolower(trim($signature));
+        if ($signature === '' || ! preg_match('/^[a-f0-9]{8}$/', $signature)) {
+            return false;
+        }
+
+        try {
+            return hash_equals(self::signature($reference), $signature);
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    /**
+     * @return string|null Mensaje de error o null si la referencia (y firma opcional) es de confianza.
+     */
+    public static function authenticationError(?string $reference, ?string $signature = null): ?string
+    {
+        $reference = self::normalize($reference);
+        if ($reference === null || ! self::isValid($reference)) {
+            return 'La referencia no es válida (formato o dígito de control incorrecto).';
+        }
+
+        $signature = $signature !== null ? strtolower(trim($signature)) : '';
+        if ($signature !== '') {
+            if (! self::verifySignature($reference, $signature)) {
+                return 'La firma del código QR no es válida.';
+            }
+
+            return null;
+        }
+
+        if (config('lottery.participation_qr_hmac.require_signature', false)) {
+            return 'Este código QR requiere firma criptográfica.';
+        }
+
+        if (! config('lottery.participation_qr_hmac.allow_legacy_unsigned', true)) {
+            return 'Código QR sin firma no permitido.';
+        }
+
+        return null;
+    }
+
+    public static function signedCheckUrl(string $reference): string
+    {
+        $reference = self::normalize($reference);
+        if ($reference === null || ! self::isValid($reference)) {
+            throw new InvalidArgumentException('Referencia inválida para URL firmada.');
+        }
+
+        return url('comprobar-participacion?ref='.$reference.'&sig='.self::signature($reference));
+    }
+
+    /**
      * Dígito de control sobre 20 dígitos: pesos alternos 2 y 1 (de derecha a izquierda),
      * suma de dígitos del producto, módulo 10 (equivalente al control de documentos españoles).
      */

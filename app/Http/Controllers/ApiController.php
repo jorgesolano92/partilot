@@ -1690,6 +1690,13 @@ class ApiController extends Controller
             ], 400);
         }
 
+        if ($authError = ParticipationTicketReference::authenticationError($ref, $r->query('sig'))) {
+            return response()->json([
+                'success' => false,
+                'message' => $authError,
+            ], 400);
+        }
+
         // Buscar el set que contenga el ticket con la referencia 'r' igual a $ref
         $set = \App\Models\Set::whereNotNull('tickets')->with(['reserve.lottery'])->get()->first(function($set) use ($ref) {
             if (!is_array($set->tickets)) return false;
@@ -1736,7 +1743,12 @@ class ApiController extends Controller
         $prizeInfo = null;
         
         if ($request->has('ref')) {
-            $ref = $request->query('ref');
+            $ref = ParticipationTicketReference::normalize($request->query('ref'));
+            $sig = $request->query('sig');
+
+            if ($authError = ParticipationTicketReference::authenticationError($ref, is_string($sig) ? $sig : null)) {
+                $error = $authError;
+            } else {
             
             // Buscar el set que contiene la referencia en tickets
             $set = \App\Models\Set::whereNotNull('tickets')
@@ -1883,6 +1895,7 @@ class ApiController extends Controller
                     'prize_info' => $prizeInfo
                 ];
                 }
+            }
             }
         }
         

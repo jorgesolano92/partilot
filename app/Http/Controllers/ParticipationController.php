@@ -1591,10 +1591,10 @@ class ParticipationController extends Controller
     /**
      * Buscar set y número de participación por referencia (campo 'r' del ticket).
      */
-    private function findSetAndParticipationNumberByReference(string $referencia): ?array
+    private function findSetAndParticipationNumberByReference(string $referencia, ?string $signature = null): ?array
     {
         $referencia = ParticipationTicketReference::normalize($referencia) ?? '';
-        if ($referencia === '' || ! ParticipationTicketReference::isValid($referencia)) {
+        if ($referencia === '' || ParticipationTicketReference::authenticationError($referencia, $signature) !== null) {
             return null;
         }
 
@@ -2652,14 +2652,20 @@ class ParticipationController extends Controller
      */
     public function apiCheckByReference(Request $request)
     {
-        $request->validate(['referencia' => 'required|string']);
+        $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
         if (!$user->isClient() && !$user->isSeller()) {
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
         }
+        if ($authError = ParticipationTicketReference::authenticationError(
+            $request->referencia,
+            $request->input('sig')
+        )) {
+            return response()->json(['success' => false, 'message' => $authError], 400);
+        }
         $userId = (string) $user->id;
-        $found = $this->findSetAndParticipationNumberByReference($request->referencia);
+        $found = $this->findSetAndParticipationNumberByReference($request->referencia, $request->input('sig'));
         if (!$found) {
             return response()->json([
                 'success' => false,
@@ -2737,14 +2743,20 @@ class ParticipationController extends Controller
      */
     public function apiLinkToWallet(Request $request)
     {
-        $request->validate(['referencia' => 'required|string']);
+        $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
         if (!$user->isClient() && !$user->isSeller()) {
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
         }
+        if ($authError = ParticipationTicketReference::authenticationError(
+            $request->referencia,
+            $request->input('sig')
+        )) {
+            return response()->json(['success' => false, 'message' => $authError], 400);
+        }
         $userId = (string) $user->id;
-        $found = $this->findSetAndParticipationNumberByReference($request->referencia);
+        $found = $this->findSetAndParticipationNumberByReference($request->referencia, $request->input('sig'));
         if (!$found) {
             return response()->json([
                 'success' => false,
@@ -2818,13 +2830,19 @@ class ParticipationController extends Controller
      */
     public function apiStoreInWarehouse(Request $request)
     {
-        $request->validate(['referencia' => 'required|string']);
+        $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
         $user = $request->user();
         if (! $user->isClient() && ! $user->isSeller()) {
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
         }
+        if ($authError = ParticipationTicketReference::authenticationError(
+            $request->referencia,
+            $request->input('sig')
+        )) {
+            return response()->json(['success' => false, 'message' => $authError], 400);
+        }
         $userId = (string) $user->id;
-        $found = $this->findSetAndParticipationNumberByReference($request->referencia);
+        $found = $this->findSetAndParticipationNumberByReference($request->referencia, $request->input('sig'));
         if (! $found) {
             return response()->json([
                 'success' => false,

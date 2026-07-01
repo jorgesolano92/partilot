@@ -49,4 +49,20 @@ return [
     | NEW-F3-04 — configurable vía LOTTERY_MAX_RESERVATION_TICKETS.
     */
     'max_reservation_tickets' => max(0, (int) env('LOTTERY_MAX_RESERVATION_TICKETS', 0)),
+
+    /*
+    | Firma HMAC en URLs QR de participación (SEC-008).
+    | require_signature=false + allow_legacy_unsigned=true → QRs impresos sin &sig= siguen válidos.
+    | En producción endurecida: PARTICIPATION_QR_REQUIRE_HMAC=true
+    */
+    'participation_qr_hmac' => [
+        'require_signature' => filter_var(
+            env('PARTICIPATION_QR_REQUIRE_HMAC', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'allow_legacy_unsigned' => filter_var(
+            env('PARTICIPATION_QR_LEGACY_UNSIGNED', true),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+    ],
 ];

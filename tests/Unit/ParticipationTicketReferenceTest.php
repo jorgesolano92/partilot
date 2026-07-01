@@ -87,4 +87,46 @@ class ParticipationTicketReferenceTest extends TestCase
         $this->assertNotContains('vendida', $returnable);
         $this->assertNotContains('pagada', $returnable);
     }
+
+    #[Test]
+    public function signed_url_contains_hmac_and_legacy_unsigned_still_allowed(): void
+    {
+        config([
+            'lottery.participation_qr_hmac.require_signature' => false,
+            'lottery.participation_qr_hmac.allow_legacy_unsigned' => true,
+        ]);
+
+        $ref = ParticipationTicketReference::generate(2, 3);
+        $url = ParticipationTicketReference::signedCheckUrl($ref);
+
+        $this->assertStringContainsString('ref='.$ref, $url);
+        $this->assertStringContainsString('sig=', $url);
+        $this->assertNull(ParticipationTicketReference::authenticationError($ref, null));
+    }
+
+    #[Test]
+    public function tampered_signature_is_rejected(): void
+    {
+        $ref = ParticipationTicketReference::generate(4, 5);
+        $sig = ParticipationTicketReference::signature($ref);
+
+        $this->assertNotNull(ParticipationTicketReference::authenticationError($ref, '00000000'));
+        $this->assertNull(ParticipationTicketReference::authenticationError($ref, $sig));
+    }
+
+    #[Test]
+    public function require_signature_rejects_unsigned_when_legacy_disabled(): void
+    {
+        config([
+            'lottery.participation_qr_hmac.require_signature' => true,
+            'lottery.participation_qr_hmac.allow_legacy_unsigned' => false,
+        ]);
+
+        $ref = ParticipationTicketReference::generate(7, 8);
+
+        $this->assertNotNull(ParticipationTicketReference::authenticationError($ref, null));
+        $this->assertNull(
+            ParticipationTicketReference::authenticationError($ref, ParticipationTicketReference::signature($ref))
+        );
+    }
 }

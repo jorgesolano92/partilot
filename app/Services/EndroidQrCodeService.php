@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ParticipationTicketReference;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\QrCodeInterface;
 use Endroid\QrCode\Writer\PngWriter;
@@ -15,6 +16,11 @@ class EndroidQrCodeService
     public function __construct()
     {
         $this->baseUrl = url('comprobar-participacion?ref=');
+    }
+
+    private function qrUrlForReference(string $reference): string
+    {
+        return ParticipationTicketReference::signedCheckUrl($reference);
     }
 
     /**
@@ -61,7 +67,7 @@ class EndroidQrCodeService
             return $cached;
         }
         
-        $url = $this->baseUrl . $reference;
+        $url = $this->qrUrlForReference($reference);
         
         // Crear QR code con Endroid (mucho más rápido)
         $qrCode = QrCode::create($url)
@@ -111,7 +117,6 @@ class EndroidQrCodeService
     private function generateUltraFastBatchInMemory($references)
     {
         $results = [];
-        $baseUrl = $this->baseUrl;
         
         // Configuración ultra-optimizada para máxima velocidad
         $qrCode = QrCode::create('')
@@ -119,7 +124,7 @@ class EndroidQrCodeService
             ->setMargin(config('qr_optimization.qr_code.margin', 0));
 
         foreach ($references as $reference) {
-            $url = $baseUrl . $reference;
+            $url = $this->qrUrlForReference($reference);
 
             // Actualizar solo la URL (más eficiente)
             $qrCode = $qrCode->setData($url);
@@ -140,16 +145,8 @@ class EndroidQrCodeService
      */
     private function generateUltraFastBatch($references)
     {
-        $results = [];
-        $baseUrl = $this->baseUrl;
-        
-        // Configuración ultra-optimizada
-        $qrCode = QrCode::create('')
-            ->setSize(150) // Tamaño optimizado
-            ->setMargin(1); // Margen mínimo
-
         foreach ($references as $reference) {
-            $url = $baseUrl . $reference;
+            $url = $this->qrUrlForReference($reference);
 
             // Actualizar solo la URL (más eficiente)
             $qrCode = $qrCode->setData($url);
@@ -171,7 +168,6 @@ class EndroidQrCodeService
     public function generateUltraFastQrCodes($references)
     {
         $results = [];
-        $baseUrl = $this->baseUrl;
         
         // Configuración ultra-optimizada para máxima velocidad
         $qrCode = QrCode::create('')
@@ -186,7 +182,7 @@ class EndroidQrCodeService
             error_log("Endroid QR: Procesando lote " . ($batchIndex + 1) . " de " . count($batches) . " (" . count($batch) . " QR codes)");
 
             foreach ($batch as $reference) {
-                $url = $baseUrl . $reference;
+                $url = $this->qrUrlForReference($reference);
 
                 // Actualizar solo la URL
                 $qrCode = $qrCode->setData($url);
