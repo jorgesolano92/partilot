@@ -48,5 +48,6 @@
     <main class="legal-content">
         @yield('content')
     </main>
+    @include('partials.cookie-consent-banner')
 </body>
 </html>

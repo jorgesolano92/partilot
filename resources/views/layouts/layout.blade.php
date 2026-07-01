@@ -2464,6 +2464,8 @@
             localStorage.removeItem('guide-step4');
         </script>
 
+        @include('partials.cookie-consent-banner')
+
     </body>
 
 <!-- Mirrored from coderthemes.com/ubold/layouts/default/index.html by HTTrack Website Copier/3.x [XR&CO'2014], Sun, 25 May 2025 15:57:16 GMT -->

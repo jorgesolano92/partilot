@@ -101,6 +101,38 @@ class ApiController extends Controller
             $table->timestamps();
         });
 
+        Schema::create('legal_acceptances', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('action', 64);
+            $table->string('result', 32)->default('ACEPTADO');
+            $table->string('version', 32)->nullable();
+            $table->string('text_hash', 64)->nullable();
+            $table->foreignId('entity_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('lottery_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('administration_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('channel', 32)->nullable();
+            $table->string('ip_address', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->json('context')->nullable();
+            $table->timestamp('accepted_at');
+            $table->timestamp('created_at')->useCurrent();
+        });
+
+        Schema::create('cookie_consents', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('visitor_key', 64)->nullable();
+            $table->boolean('cookies_tecnicas')->default(true);
+            $table->boolean('cookies_analiticas')->default(false);
+            $table->string('choice', 32);
+            $table->string('channel', 32)->nullable();
+            $table->string('ip_address', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->timestamp('accepted_at');
+            $table->timestamp('created_at')->useCurrent();
+        });
+
         Schema::table('scrutiny_detailed_results', function (Blueprint $table) {
             $table->decimal('total_decimos', 10, 2)->default(0)->change();
         });

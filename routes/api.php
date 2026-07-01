@@ -20,6 +20,7 @@ use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\BackgroundTaskController;
 use App\Http\Controllers\ReserveController;
 use App\Http\Controllers\SetController;
+use App\Http\Controllers\LegalApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -34,6 +35,15 @@ use App\Http\Controllers\SetController;
 
 
 Route::get('test', [ApiController::class,'test']);
+
+Route::prefix('legal')->group(function () {
+    Route::get('/config', [LegalApiController::class, 'config']);
+    Route::get('/documents', [LegalApiController::class, 'documents']);
+    Route::get('/documents/{slug}', [LegalApiController::class, 'document']);
+    Route::get('/cookies/status', [LegalApiController::class, 'cookieStatus']);
+    Route::post('/cookies', [LegalApiController::class, 'storeCookieConsent']);
+    Route::middleware('auth.api')->get('/pending-acceptances', [LegalApiController::class, 'pendingAcceptances']);
+});
 
 Route::get('/check-delete/{type}/{id}', [ApiController::class, 'checkDelete']);
 Route::delete('/delete/{type}/{id}', [ApiController::class, 'deleteItem']);
