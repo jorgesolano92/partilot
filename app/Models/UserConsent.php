@@ -9,6 +9,8 @@ class UserConsent extends Model
 {
     public const TYPE_REGISTRATION_TERMS = 'registration_terms';
 
+    public const TYPE_DIGITAL_SALE_TERMS = 'digital_sale_terms';
+
     protected $fillable = [
         'user_id',
         'type',

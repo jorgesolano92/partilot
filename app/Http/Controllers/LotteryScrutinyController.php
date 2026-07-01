@@ -141,9 +141,6 @@ class LotteryScrutinyController extends Controller
             $scrutinyResults = $this->calculateCategoryScrutiny($lottery, $reservedNumbers);
             $scrutinyResultsByEntity = $this->organizeResultsByEntity($scrutinyResults, $entitiesWithReserves, $lotteryId);
 
-            $scrutinyData = $this->prepareScrutinyData($lottery, $entitiesWithReserves, $scrutinyResults);
-            $scrutinyData = $this->enrichScrutinyDataWithCategoryResults($scrutinyData, $scrutinyResultsByEntity);
-
             // Calcular totales correctos desde los resultados por categoría
             $totalWinning = 0;
             $totalNonWinning = 0;
@@ -1521,13 +1518,11 @@ class LotteryScrutinyController extends Controller
                         }
                         // Si la reserva tiene un solo número, todas las participaciones del set tienen ese número
                         
-                        $participations = $participations->get();
+                        $participacionesVendidas = (clone $participations)->count();
+                        \Log::info("Participaciones vendidas para número {$number} en set {$set->id}: {$participacionesVendidas}");
                         
-                        $participationsVendidas = $participations->count();
-                        \Log::info("Participaciones vendidas para número {$number} en set {$set->id}: {$participationsVendidas}");
-                        
-                        if ($participationsVendidas > 0) {
-                            $totalParticipations += $participationsVendidas;
+                        if ($participacionesVendidas > 0) {
+                            $totalParticipations += $participacionesVendidas;
                             
                             // Obtener el precio real de la participación (played_amount del set)
                             $pricePerParticipation = $set->played_amount ?? 0;
@@ -1535,22 +1530,22 @@ class LotteryScrutinyController extends Controller
                             $donationAmount = $set->donation_amount ?? 0;
                             $importeJugado = $pricePerParticipation; // No restar el donativo
                             
-                            \Log::info("Set {$set->id}: {$participationsVendidas} participaciones vendidas, Precio Real: {$pricePerParticipation}, Donativo: {$donationAmount}, Importe Jugado: {$importeJugado}");
+                            \Log::info("Set {$set->id}: {$participacionesVendidas} participaciones vendidas, Precio Real: {$pricePerParticipation}, Donativo: {$donationAmount}, Importe Jugado: {$importeJugado}");
                             
                             if ($importeJugado > 0 && $ticketPrice > 0) {
                                 $participacionesPorDecimo = $ticketPrice / $importeJugado;
-                                $decimosDeEsteSet = $participationsVendidas / $participacionesPorDecimo;
+                                $decimosDeEsteSet = ceil(($participacionesVendidas / $participacionesPorDecimo) * 100) / 100;
                                 $totalDecimos += $decimosDeEsteSet;
                                 
                                 $setsInfo[] = [
                                     'set_id' => $set->id,
-                                    'participations_vendidas' => $participationsVendidas,
+                                    'participations_vendidas' => $participacionesVendidas,
                                     'importe_jugado' => $importeJugado,
                                     'participaciones_por_decimo' => $participacionesPorDecimo,
                                     'decimos' => $decimosDeEsteSet
                                 ];
                                 
-                                \Log::info("Set {$set->id}: {$participationsVendidas} participaciones, {$participacionesPorDecimo} por décimo, {$decimosDeEsteSet} décimos");
+                                \Log::info("Set {$set->id}: {$participacionesVendidas} participaciones, {$participacionesPorDecimo} por décimo, {$decimosDeEsteSet} décimos");
                             } else {
                                 \Log::info("Set {$set->id}: No se puede calcular - Importe jugado: {$importeJugado}, Precio décimo: {$ticketPrice}");
                             }
@@ -1661,7 +1656,7 @@ class LotteryScrutinyController extends Controller
                             'set_id' => $setInfo['set_id'],
                             'premio_por_decimo' => $premioPorDecimo,
                             'premio_por_participacion' => $premioPorParticipacion,
-                            'total_decimos' => round((float) ($setInfo['decimos'] ?? 0), 2),
+                            'total_decimos' => ceil((float) ($setInfo['decimos'] ?? 0) * 100) / 100,
                             'total_participations' => $participacionesVendidas,
                             'premio_total' => $premioTotalSet,
                             'winning_categories' => json_encode($categoryResult['categories']),
@@ -1699,7 +1694,7 @@ class LotteryScrutinyController extends Controller
                         'set_id' => $firstSet ? $firstSet->id : null,
                         'premio_por_decimo' => $premioPorDecimo,
                         'premio_por_participacion' => $premioPorDecimo, // Usar premio por décimo como fallback
-                        'total_decimos' => round((float) $totalDecimos, 2),
+                        'total_decimos' => ceil((float) $totalDecimos * 100) / 100,
                         'total_participations' => $decimosInfo['total_participations'] ?? 0,
                         'premio_total' => $premioTotal,
                         'winning_categories' => json_encode($categoryResult['categories']),

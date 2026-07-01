@@ -270,7 +270,10 @@ class PrintShopController extends Controller
         }
 
         $panelShopId = (int) ($user->panel_account_id ?? 0);
-        if ($panelShopId > 0 && (int) $printOrder->print_configuration_id !== $panelShopId) {
+        if ($panelShopId <= 0) {
+            abort(403, 'Cuenta de imprenta sin configuración asignada.');
+        }
+        if ((int) $printOrder->print_configuration_id !== $panelShopId) {
             abort(403, 'Esta orden pertenece a otra imprenta.');
         }
     }

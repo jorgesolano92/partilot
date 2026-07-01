@@ -32,6 +32,8 @@ use App\Support\ParticipationTicketReference;
 use App\Services\ParticipationOwnerService;
 use App\Services\ParticipationWalletValidityService;
 use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\UserConsentService;
+use App\Models\UserConsent;
 use App\Models\EntityLotteryPrizeActivationLog;
 
 class ParticipationController extends Controller
@@ -528,6 +530,12 @@ class ParticipationController extends Controller
             }
             DB::commit();
 
+            $this->recordSaleConsentIfRequested($request, $user, [
+                'channel' => 'manual',
+                'set_id' => (int) $request->set_id,
+                'seller_id' => $seller->id,
+            ]);
+
             // Confirmación compra digital al email del comprador indicado por el vendedor
             try {
                 $items = $participations->map(function ($p) {
@@ -680,6 +688,12 @@ class ParticipationController extends Controller
                 $this->createSellerSettlementFromSale($seller, $participations, $set, $saleAmount, $paymentMethod, $user->id);
             }
             DB::commit();
+
+            $this->recordSaleConsentIfRequested($request, $user, [
+                'channel' => 'digital',
+                'seller_id' => $seller->id,
+                'buyer_id' => $buyer->id,
+            ]);
 
             try {
                 app(\App\Services\DigitalParticipationNotificationService::class)->sendPurchaseConfirmation(
@@ -991,6 +1005,13 @@ class ParticipationController extends Controller
                 $this->createSellerSettlementFromSale($seller, collect([$participation]), $set, $saleAmount, $paymentMethod, $user->id);
             }
             DB::commit();
+
+            $this->recordSaleConsentIfRequested($request, $user, [
+                'channel' => 'qr',
+                'set_id' => (int) $set->id,
+                'seller_id' => $seller->id,
+                'referencia' => $request->referencia,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -2130,6 +2151,13 @@ class ParticipationController extends Controller
         $importeDonacion = (float) $request->importe_donacion;
         $importeCodigo = (float) $request->importe_codigo;
         $importeTotal = $importeDonacion + $importeCodigo;
+
+        if ($importeTotal <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El importe total de donación y código debe ser mayor que cero.',
+            ], 422);
+        }
 
         // Mismo criterio que la app (premio si hay premio; si no, importeTotal del set).
         $totalParticipaciones = round($participations->sum(
@@ -3424,5 +3452,19 @@ class ParticipationController extends Controller
             'success' => false,
             'message' => "Esta participación ha caducado (plazo de {$months} meses desde la fecha del sorteo).",
         ], 422);
+    }
+
+    private function recordSaleConsentIfRequested(Request $request, User $user, array $context = []): void
+    {
+        if (! $request->boolean('accept_terms')) {
+            return;
+        }
+
+        app(UserConsentService::class)->record(
+            $user,
+            UserConsent::TYPE_DIGITAL_SALE_TERMS,
+            $request,
+            $context
+        );
     }
 }

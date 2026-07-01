@@ -305,8 +305,14 @@ class User extends Authenticatable
         }
 
         if ($this->isPrintShop()) {
+            $panelShopId = (int) ($this->panel_account_id ?? 0);
+            if ($panelShopId <= 0) {
+                return false;
+            }
+
             return PrintOrder::query()
                 ->where('design_format_id', $design->id)
+                ->where('print_configuration_id', $panelShopId)
                 ->exists();
         }
 

@@ -9,6 +9,7 @@ use App\Models\Lottery;
 use App\Models\Set;
 use App\Models\Participation;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Support\HtmlText;
 use App\Models\DesignFormat;
 use App\Models\DesignExternalInvitation;
 use App\Models\DesignExternalInvitationFile;
@@ -3254,6 +3255,7 @@ class DesignController extends Controller
         ]), [
             'stripe_payment_intent_id.required_if' => 'No se encontró el pago de Stripe confirmado.',
         ]);
+        $data['notes'] = $this->sanitizePrintOrderNotes($data['notes'] ?? null);
 
         if ($usesRemittance) {
             return $this->submitPrintOrderViaRemittance($request, $design, $data);
@@ -3535,6 +3537,11 @@ class DesignController extends Controller
             'back_mode' => 'required|string|in:bw,color',
             'notes' => 'nullable|string|max:4000',
         ];
+    }
+
+    private function sanitizePrintOrderNotes(?string $notes): ?string
+    {
+        return HtmlText::sanitizePlainText($notes);
     }
 
     private function buildDesignSummaryStatus(
