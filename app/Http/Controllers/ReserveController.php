@@ -199,6 +199,22 @@ class ReserveController extends Controller
     }
 
     /**
+     * @return array{success: bool, messages: string[]}
+     */
+    private function validateReservationTicketCap(int $reservationTickets): array
+    {
+        $maxTickets = (int) config('lottery.max_reservation_tickets', 0);
+        if ($maxTickets > 0 && $reservationTickets > $maxTickets) {
+            return [
+                'success' => false,
+                'messages' => ["El máximo de décimos por reserva es {$maxTickets}."],
+            ];
+        }
+
+        return ['success' => true, 'messages' => []];
+    }
+
+    /**
      * Guardar reserva completa - Paso final
      */
     public function store_information(Request $request)
@@ -231,6 +247,10 @@ class ReserveController extends Controller
             }
             $validated['reservation_amount'] = round($ticketsFromAmount * $ticketPrice, 2);
             $validated['reservation_tickets'] = $ticketsFromAmount;
+        }
+        $capValidation = $this->validateReservationTicketCap((int) $validated['reservation_tickets']);
+        if (! $capValidation['success']) {
+            return redirect()->back()->withErrors($capValidation['messages'])->withInput();
         }
         // Mantener datos actualizados en sesión para la interfaz
         $request->session()->put('selected_entity', $entity);
@@ -341,6 +361,10 @@ class ReserveController extends Controller
             }
             $validated['reservation_amount'] = round($ticketsFromAmount * $ticketPrice, 2);
             $validated['reservation_tickets'] = $ticketsFromAmount;
+        }
+        $capValidation = $this->validateReservationTicketCap((int) $validated['reservation_tickets']);
+        if (! $capValidation['success']) {
+            return redirect()->back()->withErrors($capValidation['messages'])->withInput();
         }
         // Validar décimos disponibles (excluyendo la reserva actual)
         $validation = $this->validateReservationTickets($validated['reservation_numbers'], $reserve->lottery_id, $validated['reservation_tickets'], $reserve->id);

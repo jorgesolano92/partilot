@@ -18,6 +18,8 @@ use App\Http\Controllers\ManagerController;
 use App\Http\Controllers\ScrutinyController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\BackgroundTaskController;
+use App\Http\Controllers\ReserveController;
+use App\Http\Controllers\SetController;
 
 /*
 |--------------------------------------------------------------------------

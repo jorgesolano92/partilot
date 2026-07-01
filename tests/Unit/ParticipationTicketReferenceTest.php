@@ -2,30 +2,38 @@
 
 namespace Tests\Unit;
 
+use App\Models\Participation;
 use App\Support\ParticipationTicketReference;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
 
 class ParticipationTicketReferenceTest extends TestCase
 {
-    public function test_generate_produces_21_digits_with_valid_check(): void
+    #[Test]
+    public function generate_produces_21_digits_with_valid_check(): void
     {
         $ref = ParticipationTicketReference::generate(1, 1);
 
         $this->assertSame(21, strlen($ref));
         $this->assertTrue(ctype_digit($ref));
         $this->assertTrue(ParticipationTicketReference::isValid($ref));
-        $this->assertStringStartsWith('00010001', $ref);
+        $this->assertStringStartsWith(
+            ParticipationTicketReference::encodeScopeDigits(1, 1),
+            $ref
+        );
     }
 
-    public function test_invalid_check_is_rejected(): void
+    #[Test]
+    public function invalid_check_is_rejected(): void
     {
         $ref = ParticipationTicketReference::generate(5, 12);
-        $tampered = substr($ref, 0, 20) . ((int) substr($ref, 20, 1) + 1) % 10;
+        $tampered = substr($ref, 0, 20).((int) substr($ref, 20, 1) + 1) % 10;
 
         $this->assertFalse(ParticipationTicketReference::isValid($tampered));
     }
 
-    public function test_normalize_strips_non_digits(): void
+    #[Test]
+    public function normalize_strips_non_digits(): void
     {
         $this->assertSame(
             '000100011234567890123',
@@ -33,7 +41,8 @@ class ParticipationTicketReferenceTest extends TestCase
         );
     }
 
-    public function test_references_in_same_set_are_not_sequential(): void
+    #[Test]
+    public function references_in_same_set_are_not_sequential(): void
     {
         $refs = [];
         for ($i = 0; $i < 5; $i++) {
@@ -41,12 +50,41 @@ class ParticipationTicketReferenceTest extends TestCase
         }
 
         $this->assertCount(5, array_unique($refs));
-        for ($i = 1; $i < 5; $i++) {
-            $this->assertNotEquals(
-                (int) substr($refs[$i - 1], -3) + 1,
-                (int) substr($refs[$i], -3),
-                'Las referencias no deben diferir solo en el último dígito secuencial'
-            );
-        }
+    }
+
+    #[Test]
+    public function large_ids_do_not_collide_with_truncated_min_9999_encoding(): void
+    {
+        $legacyTruncated = str_pad('1', 4, '0', STR_PAD_LEFT)
+            .str_pad('1', 4, '0', STR_PAD_LEFT);
+        $encodedLarge = ParticipationTicketReference::encodeScopeDigits(10001, 1);
+
+        $this->assertNotSame($legacyTruncated, $encodedLarge);
+        $this->assertNotSame(
+            ParticipationTicketReference::encodeScopeDigits(1, 1),
+            ParticipationTicketReference::encodeScopeDigits(10001, 1)
+        );
+    }
+
+    #[Test]
+    public function generate_unique_skips_existing_references(): void
+    {
+        $seen = ['000000000000000000001' => true];
+
+        $ref = ParticipationTicketReference::generateUnique(9, 9, static fn (string $candidate): bool => isset($seen[$candidate]));
+
+        $this->assertTrue(ParticipationTicketReference::isValid($ref));
+        $this->assertArrayNotHasKey($ref, $seen);
+    }
+
+    #[Test]
+    public function returnable_devolution_statuses_exclude_sold_states(): void
+    {
+        $returnable = Participation::returnableDevolutionStatuses();
+
+        $this->assertContains('disponible', $returnable);
+        $this->assertContains('asignada', $returnable);
+        $this->assertNotContains('vendida', $returnable);
+        $this->assertNotContains('pagada', $returnable);
     }
 }

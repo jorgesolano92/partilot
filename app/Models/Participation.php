@@ -13,6 +13,12 @@ class Participation extends Model
 
     public const WALLET_MODE_STORAGE = 'storage';
 
+    /** Estados permitidos en devoluciones (nunca vendida, pagada ni reserva digital pendiente). */
+    public static function returnableDevolutionStatuses(): array
+    {
+        return ['disponible', 'asignada'];
+    }
+
     protected $fillable = [
         'entity_id',
         'set_id',

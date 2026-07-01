@@ -164,10 +164,11 @@ class Set extends Model
         $usedReferences = [];
 
         for ($i = 1; $i <= $totalParticipations; $i++) {
-            do {
-                $referencia = ParticipationTicketReference::generate((int) $entityId, (int) $reserveId);
-            } while (isset($usedReferences[$referencia]));
-
+            $referencia = ParticipationTicketReference::generateUnique(
+                (int) $entityId,
+                (int) $reserveId,
+                static fn (string $ref): bool => isset($usedReferences[$ref])
+            );
             $usedReferences[$referencia] = true;
             $tickets[] = [
                 'n' => $i,

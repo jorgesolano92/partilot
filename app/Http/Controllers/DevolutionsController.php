@@ -1941,11 +1941,12 @@ class DevolutionsController extends Controller
         }
 
         // Solo se pueden devolver participaciones asignadas o disponibles (nunca vendidas ni pagadas)
+        $returnableStatuses = Participation::returnableDevolutionStatuses();
         if (isset($data['seller_id'])) {
             $query->where('participations.seller_id', $data['seller_id'])
-                  ->whereIn('participations.status', ['asignada', 'disponible']);
+                  ->whereIn('participations.status', $returnableStatuses);
         } else {
-            $query->whereIn('participations.status', ['asignada', 'disponible']);
+            $query->whereIn('participations.status', $returnableStatuses);
         }
 
         // EXCLUIR ANULADAS
@@ -2012,15 +2013,23 @@ class DevolutionsController extends Controller
         $participation = Participation::forUser(auth()->user())
             ->where('set_id', $set->id)
             ->where('participation_number', $participationNumber)
-            ->whereIn('status', ['disponible', 'asignada', 'vendida'])
+            ->whereIn('status', Participation::returnableDevolutionStatuses())
             ->where('status', '!=', 'anulada')
             ->first();
 
-        if (!$participation) {
+        if (! $participation) {
+            $blocked = Participation::forUser(auth()->user())
+                ->where('set_id', $set->id)
+                ->where('participation_number', $participationNumber)
+                ->whereIn('status', ['vendida', 'pagada', 'reserva_venta_digital'])
+                ->exists();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Esa participación no está disponible para devolución.',
-                'participations' => []
+                'message' => $blocked
+                    ? 'No se pueden devolver participaciones ya vendidas o pagadas.'
+                    : 'Esa participación no está disponible para devolución.',
+                'participations' => [],
             ], 422);
         }
 

@@ -502,7 +502,9 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::get('/external/step1', [\App\Http\Controllers\DesignController::class, 'externalStep1'])->name('design.external.step1');
     Route::get('/external/step2', [\App\Http\Controllers\DesignController::class, 'externalStep2'])->name('design.external.step2');
     Route::get('/external/step3', [\App\Http\Controllers\DesignController::class, 'externalStep3'])->name('design.external.step3');
-    Route::post('/external/create-payment-intent', [\App\Http\Controllers\DesignController::class, 'externalCreatePaymentIntent'])->name('design.external.createPaymentIntent');
+    Route::post('/external/create-payment-intent', [\App\Http\Controllers\DesignController::class, 'externalCreatePaymentIntent'])
+        ->middleware('throttle:15,1')
+        ->name('design.external.createPaymentIntent');
     Route::post('/external/preview-quote', [\App\Http\Controllers\DesignController::class, 'externalPreviewQuote'])->name('design.external.previewQuote');
     Route::post('/external/accept-summary', [\App\Http\Controllers\DesignController::class, 'externalAcceptSummary'])->name('design.external.acceptSummary');
     Route::post('/external/store-step1', [\App\Http\Controllers\DesignController::class, 'externalStoreStep1'])->name('design.external.storeStep1');
@@ -512,12 +514,16 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::delete('/external/{id}', [\App\Http\Controllers\DesignController::class, 'externalDestroy'])->name('design.external.destroy');
     Route::get('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'sendToPrint'])->name('design.sendToPrint');
     Route::post('/send-to-print/{id}/quote', [\App\Http\Controllers\DesignController::class, 'previewPrintOrderQuote'])->name('design.previewPrintOrderQuote');
-    Route::post('/send-to-print/{id}/payment-intent', [\App\Http\Controllers\DesignController::class, 'createPrintOrderPaymentIntent'])->name('design.createPrintOrderPaymentIntent');
+    Route::post('/send-to-print/{id}/payment-intent', [\App\Http\Controllers\DesignController::class, 'createPrintOrderPaymentIntent'])
+        ->middleware('throttle:15,1')
+        ->name('design.createPrintOrderPaymentIntent');
     Route::post('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'submitPrintOrder'])->name('design.submitPrintOrder');
     Route::post('/sets/{set}/mark-management-fee-paid', [\App\Http\Controllers\DesignController::class, 'markManagementFeePaid'])->name('design.markManagementFeePaid');
     Route::get('/management-fee/pay/{set}', [\App\Http\Controllers\DesignController::class, 'payManagementFee'])->name('design.managementFee.pay');
     Route::get('/editor/{set}', [\App\Http\Controllers\DesignController::class, 'openEditor'])->name('design.openEditor');
-    Route::post('/sets/{set}/management-fee/payment-intent', [\App\Http\Controllers\DesignController::class, 'createManagementFeePaymentIntent'])->name('design.managementFee.paymentIntent');
+    Route::post('/sets/{set}/management-fee/payment-intent', [\App\Http\Controllers\DesignController::class, 'createManagementFeePaymentIntent'])
+        ->middleware('throttle:15,1')
+        ->name('design.managementFee.paymentIntent');
     Route::post('/sets/{set}/management-fee/confirm-stripe', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeStripe'])->name('design.managementFee.confirmStripe');
     Route::post('/sets/{set}/management-fee/confirm-remittance', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeRemittance'])->name('design.managementFee.confirmRemittance');
     Route::get('/approvals', [\App\Http\Controllers\DesignController::class, 'approvalsIndex'])->name('design.approvals.index');

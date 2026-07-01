@@ -43,4 +43,10 @@ return [
             FILTER_VALIDATE_BOOLEAN
         ),
     ],
+
+    /*
+    | Tope de décimos por operación de reserva (0 = sin límite).
+    | NEW-F3-04 — configurable vía LOTTERY_MAX_RESERVATION_TICKETS.
+    */
+    'max_reservation_tickets' => max(0, (int) env('LOTTERY_MAX_RESERVATION_TICKETS', 0)),
 ];
