@@ -21,4 +21,18 @@ class SecurityHeadersMiddlewareTest extends TestCase
         $this->assertSame('SAMEORIGIN', $response->headers->get('X-Frame-Options'));
         $this->assertStringContainsString("default-src 'self'", (string) $response->headers->get('Content-Security-Policy'));
     }
+
+    #[Test]
+    public function legal_pages_allow_app_iframe_embedding(): void
+    {
+        $middleware = new SecurityHeaders;
+        $request = Request::create('/terminos-y-condiciones', 'GET');
+
+        $response = $middleware->handle($request, static fn () => response('ok'));
+
+        $this->assertNull($response->headers->get('X-Frame-Options'));
+        $csp = (string) $response->headers->get('Content-Security-Policy');
+        $this->assertStringContainsString('frame-ancestors', $csp);
+        $this->assertStringContainsString('localhost', $csp);
+    }
 }

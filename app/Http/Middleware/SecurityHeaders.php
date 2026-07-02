@@ -12,22 +12,40 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class SecurityHeaders
 {
+    /** Rutas públicas de documentos legales embebibles en la app móvil (iframe). */
+    private const LEGAL_EMBEDDABLE_PATHS = [
+        'aviso-legal',
+        'politica-de-privacidad',
+        'politica-de-cookies',
+        'terminos-y-condiciones',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
         /** @var Response $response */
         $response = $next($request);
 
+        $embeddableLegal = $this->isLegalEmbeddableRequest($request);
+
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        if ($embeddableLegal) {
+            $response->headers->remove('X-Frame-Options');
+        } else {
+            $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        }
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
         if (! $response->headers->has('Content-Security-Policy')) {
+            $frameAncestors = $embeddableLegal
+                ? 'frame-ancestors '.trim((string) config('legal.embeddable_frame_ancestors', "'self'"))
+                : "frame-ancestors 'self'";
+
             $response->headers->set('Content-Security-Policy', implode('; ', [
                 "default-src 'self'",
                 "base-uri 'self'",
                 "form-action 'self'",
-                "frame-ancestors 'self'",
+                $frameAncestors,
                 "object-src 'none'",
                 "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
                 "style-src 'self' 'unsafe-inline'",
@@ -39,5 +57,10 @@ class SecurityHeaders
         }
 
         return $response;
+    }
+
+    protected function isLegalEmbeddableRequest(Request $request): bool
+    {
+        return in_array(trim($request->path(), '/'), self::LEGAL_EMBEDDABLE_PATHS, true);
     }
 }

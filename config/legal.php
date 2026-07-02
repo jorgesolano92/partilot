@@ -76,6 +76,15 @@ return [
     'defer_firebase_until_cookie_banner' => env('LEGAL_DEFER_FIREBASE_UNTIL_COOKIE_BANNER', true),
 
     /*
+    | Orígenes que pueden embeber páginas legales en iframe (app Ionic / Capacitor).
+    | CSP frame-ancestors; ver SecurityHeaders.
+    */
+    'embeddable_frame_ancestors' => env(
+        'LEGAL_EMBEDDABLE_FRAME_ANCESTORS',
+        "'self' http://localhost:* https://localhost http://127.0.0.1:* https://127.0.0.1:* ionic: capacitor:"
+    ),
+
+    /*
     | Baja de cuenta (L9).
     */
     'account_deletion' => [
