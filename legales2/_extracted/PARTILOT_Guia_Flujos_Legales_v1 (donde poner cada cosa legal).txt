@@ -1,0 +1,395 @@
+PARTILOT
+Plataforma de Gestión de Participaciones de Lotería
+
+GUÍA DE FLUJOS LEGALES
+Dónde van los textos, cuándo y por qué
+Para dirección, desarrollo y operaciones
+
+📋 CÓMO USAR ESTE DOCUMENTO
+Este documento explica dónde hay que poner cada texto legal, checkbox o firma dentro de la plataforma,
+en qué momento exacto del flujo del usuario aparece, con qué texto exacto, y por qué en ese momento.
+Está organizado por tipo de usuario: Administración, Entidad, Roles (GR/Gestor/Vendedor), Usuario Final y Premios.
+Los pasos marcados en ROJO son bloqueantes: el usuario no puede continuar sin completarlos.
+Los pasos marcados en VERDE no bloquean el flujo pero deben estar visibles y registrarse.
+
+⚠ PRINCIPIO FUNDAMENTAL
+El momento correcto para cada elemento legal no es el que resulta más cómodo técnicamente,
+sino el que garantiza que el usuario toma la decisión con información completa Y antes de que
+se produzca cualquier acto jurídico o económico que dependa de esa aceptación.
+Si el usuario acepta DESPUÉS de haber actuado, la aceptación no tiene valor legal.
+
+FLUJO 1 — ALTA DE LA ADMINISTRACIÓN DE LOTERÍA
+
+La Administración es el primer actor que entra en la plataforma. Todo lo demás (Entidades, Gestores, Vendedores) depende de que ella esté correctamente dada de alta y haya aceptado sus obligaciones. Por eso su proceso de alta es el más formal.
+
+PASO 1.1  Pantalla de inicio del proceso de alta
+📋  Elemento legal: Información previa — sin aceptación todavía
+
+Texto exacto
+«Antes de completar tu registro como Administración de Lotería en PARTILOT, te informamos de que en el siguiente paso deberás firmar el contrato de prestación de servicios. Te recomendamos leerlo antes de continuar. [VER CONTRATO →]»
+¿Por qué aquí?
+El usuario debe saber que hay un contrato antes de empezar a rellenar datos. Si lo descubren al final pueden sentirse presionados a firmar sin leer. Mostrarlo al inicio como información, antes de pedir nada, es la mejor práctica y demuestra transparencia.
+Documento
+B1 — Contrato SaaS Administración v3 (solo informativo en este paso)
+Forma de aceptación
+Sin aceptación — solo informativo. Enlace al documento.
+
+✅  NO BLOQUEANTE: 
+
+PASO 1.2  Formulario de datos de la Administración
+📋  Elemento legal: Sin elemento legal — solo recogida de datos
+
+Texto exacto
+Sin texto legal en este paso. El usuario rellena sus datos: nombre comercial, código SELAE, NIF, dirección, etc.
+¿Por qué aquí?
+En este momento solo estamos recogiendo datos. El acto jurídico (la firma del contrato) viene después, cuando ya tenemos la identidad de la Administración y podemos personalizar el contrato con sus datos reales.
+Documento
+—
+Forma de aceptación
+Sin aceptación en este paso
+
+✅  NO BLOQUEANTE: 
+
+PASO 1.3  Pantalla de firma del Contrato SaaS
+📋  Elemento legal: 🔴 FIRMA DEL CONTRATO B1 — Contrato SaaS con la Administración
+
+Texto exacto
+«Para completar tu alta en PARTILOT, debes leer y firmar el Contrato de Prestación de Servicios. Este contrato regula la relación entre tu Administración y PARTILOT. Una vez firmado, recibirás una copia en tu email.»  [VER CONTRATO COMPLETO →]  [✅ FIRMAR CON CLICK REGISTRADO / ACCEDER A EFIRMA GO]
+¿Por qué aquí?
+El contrato debe firmarse ANTES de que se activen las credenciales. Si activamos el acceso y luego pedimos la firma, la Administración ya está operando sin contrato. Ese orden es un error legal que invalida el contrato como condición de uso.
+Documento
+B1 — Contrato SaaS Administración v3
+Forma de aceptación
+🔴 CLICK REGISTRADO en la plataforma (timestamp + IP + DNI del gestor). El sistema genera PDF del contrato firmado y lo envía por email.
+
+🔴  BLOQUEANTE: El acceso al panel queda bloqueado hasta que el contrato esté firmado. Sin firma no hay acceso.
+
+PASO 1.4  Activación de credenciales y primer acceso
+📋  Elemento legal: Registro de aceptación del Marco Legal
+
+Texto exacto
+En el primer acceso al panel, el sistema muestra: «Al usar PARTILOT aceptas nuestras Condiciones de Uso, Política de Privacidad y Marco Legal. [VER CONDICIONES →]» Un checkbox: «He leído y acepto el Marco Legal de PARTILOT.»
+¿Por qué aquí?
+El Marco Legal cubre aspectos generales del uso de la plataforma que van más allá del contrato comercial B1. Debe aceptarse en el primer acceso para que quede registrado que la Administración conoce todas las condiciones operativas.
+Documento
+A1 — Marco Legal Integral v10 rev2
+Forma de aceptación
+🔴 CHECKBOX obligatorio. Sin marcar no se activa el panel.
+
+🔴  BLOQUEANTE: El panel queda bloqueado hasta que se marque el checkbox.
+
+FLUJO 2 — ALTA DE LA ENTIDAD Y GESTOR RESPONSABLE
+
+La Entidad la da de alta la Administración. Pero el acto legal de aceptación lo hace el Gestor Responsable, que es quien representa a la Entidad en la plataforma. Son dos pasos separados con momentos distintos.
+
+PASO 2.1  La Administración da de alta a la Entidad en su panel
+📋  Elemento legal: Sin elemento legal para la Administración en este paso
+
+Texto exacto
+La Administración rellena los datos de la Entidad (nombre, CIF, datos de contacto) y designa al Gestor Responsable indicando su email.
+¿Por qué aquí?
+Este es un acto administrativo interno de la Administración. No hay aceptación porque quien tiene que aceptar es el Gestor Responsable, que aún no ha sido notificado.
+Documento
+—
+Forma de aceptación
+Sin aceptación — acto interno de la Administración
+
+✅  NO BLOQUEANTE: 
+
+PASO 2.2  El Gestor Responsable recibe la notificación y se registra
+📋  Elemento legal: Registro como usuario + aceptación del Marco Legal
+
+Texto exacto
+Email al GR: «[NOMBRE DE LA ADMINISTRACIÓN] te ha designado Gestor Responsable de [NOMBRE DE LA ENTIDAD] en PARTILOT. Para aceptar el cargo, completa tu registro.»  En el registro: ☐ He leído y acepto el Marco Legal de PARTILOT. [VER →] ☐ Acepto recibir comunicaciones. (Opcional)»
+¿Por qué aquí?
+El GR debe registrarse primero como usuario para poder ser identificado. La aceptación del Marco Legal en el registro es la base general. El cargo específico se acepta en el siguiente paso.
+Documento
+A1 — Marco Legal Integral v10 rev2
+Forma de aceptación
+🔴 CHECKBOX obligatorio en el registro.
+
+🔴  BLOQUEANTE: Sin registro y aceptación del Marco Legal no puede llegar al siguiente paso.
+
+PASO 2.3  Pantalla de aceptación del cargo de Gestor Responsable
+📋  Elemento legal: 🔴 ACEPTACIÓN DEL CONTRATO MARCO B2 + ROL DE GESTOR RESPONSABLE
+
+Texto exacto
+«[NOMBRE DE LA ADMINISTRACIÓN] te ha designado Gestor Responsable de [NOMBRE DE LA ENTIDAD].  Al aceptar este cargo aceptas el Contrato Marco de Uso de la Plataforma en nombre de la Entidad y asumes las responsabilidades específicas del cargo: • Solo tú puedes ejecutar la liquidación definitiva. Es un acto irreversible. • No puedes dejar el cargo sin que otro usuario lo acepte. • Respondes personalmente si actúas de forma negligente.  [VER CONTRATO COMPLETO →] [VER CONDICIONES DEL CARGO →]  [✅ ACEPTO EL CARGO Y EL CONTRATO EN NOMBRE DE LA ENTIDAD] [❌ RECHAZAR]»
+¿Por qué aquí?
+Este es el momento exacto correcto. El GR ya está identificado, ya conoce el Marco Legal general y ahora se le presenta el contrato específico de la Entidad con el detalle de sus responsabilidades. Si se mostrara antes del registro no habría identidad verificada. Si se mostrara después de empezar a operar sería inválido.
+Documento
+B2 — Contrato Marco Entidad v5
+Forma de aceptación
+🔴 CLICK REGISTRADO con timestamp + IP + DNI verificado. PDF generado y enviado por email.
+
+🔴  BLOQUEANTE: La pantalla bloquea TODA la plataforma hasta que el GR acepta o rechaza. Si rechaza, la Administración recibe notificación.
+
+FLUJO 3 — ASIGNACIÓN DE ROLES: GESTOR Y VENDEDOR
+
+PASO 3.1  El GR invita a un Gestor
+📋  Elemento legal: Aceptación del rol de Gestor
+
+Texto exacto
+Notificación al invitado: «[NOMBRE] te invita a colaborar como Gestor en [ENTIDAD].  Al aceptar: • Accederás a datos de la Entidad según las funciones que te deleguen. • Solo puedes usar esos datos para gestionar la Entidad. • Esta aceptación es solo para esta Entidad.  [VER CONDICIONES →] [✅ ACEPTAR] [❌ RECHAZAR]»
+¿Por qué aquí?
+El momento correcto es cuando el GR ha lanzado la invitación pero ANTES de que el usuario invitado acceda a ningún dato de la Entidad. Si le das acceso y luego pides la aceptación, ya ha visto datos sin consentimiento.
+Documento
+C1 — Textos Aceptación Roles v3 (sección Gestor)
+Forma de aceptación
+🔴 CLICK REGISTRADO con timestamp + IP + DNI.
+
+🔴  BLOQUEANTE: Hasta que no acepta no puede ver nada de la Entidad.
+
+PASO 3.2  El GR o Gestor invita a un Vendedor para un sorteo
+📋  Elemento legal: Aceptación del rol de Vendedor
+
+Texto exacto
+Notificación al invitado: «[ENTIDAD] te invita a vender participaciones del sorteo [NOMBRE SORTEO].  Antes de aceptar: • Desde que firmes el recibo de participaciones físicas, eres responsable de ellas. • El dinero que recojas es de la Entidad. • ⚠ Debes verificar que los compradores tienen más de 18 años. • Está prohibido fotocopiar o reproducir las participaciones físicas. • La Administración puede ver tus datos para resolver incidencias.  [VER CONDICIONES →] [✅ ACEPTO SER VENDEDOR] [❌ RECHAZAR]»
+¿Por qué aquí?
+El Vendedor debe aceptar antes de que se le asigne ninguna participación. Si se le asigna material y luego se le pide la aceptación, ya tiene responsabilidad sobre ese material sin haber consentido.
+Documento
+C1 — Textos Aceptación Roles v3 (sección Vendedor)
+Forma de aceptación
+🔴 CLICK REGISTRADO con timestamp + IP + DNI + ID del sorteo.
+
+🔴  BLOQUEANTE: No se puede asignar ninguna participación al Vendedor hasta que haya aceptado.
+
+FLUJO 4 — REGISTRO DEL USUARIO FINAL
+
+PASO 4.1  Formulario de registro de Usuario Final
+📋  Elemento legal: Aceptación del Marco Legal + mayoría de edad
+
+Texto exacto
+Al final del formulario, antes del botón de registro:  «☐ He leído y acepto los Términos y Condiciones de Uso, la Política de Privacidad y el Marco Legal de PARTILOT. [VER →]  * obligatorio  ☐ Acepto recibir comunicaciones de PARTILOT. (Opcional)  [CREAR MI CUENTA] ← desactivado hasta que se marque el primer checkbox»
+¿Por qué aquí?
+El usuario debe aceptar ANTES de que exista su cuenta. Si creamos la cuenta y luego pedimos la aceptación, el usuario ya existe en el sistema sin haber consentido nada. El botón desactivado hasta que se marca el checkbox es el mecanismo técnico que garantiza el orden correcto.
+Documento
+A1 — Marco Legal Integral v10 rev2
+Forma de aceptación
+🔴 CHECKBOX obligatorio. El botón de registro está desactivado hasta que se marca.
+
+🔴  BLOQUEANTE: Sin checkbox marcado el botón de registro no se activa. No se crea ninguna cuenta.
+
+PASO 4.2  Primer acceso a la web / banner de cookies
+📋  Elemento legal: Consentimiento de cookies
+
+Texto exacto
+Banner en la parte inferior: «🍪 Usamos cookies técnicas (necesarias) y analíticas (Google Analytics, Firebase). Las técnicas no necesitan tu permiso.  [✅ ACEPTAR TODAS]  [🔒 SOLO LAS NECESARIAS]  [⚙ CONFIGURAR]  [Ver política de cookies →]»
+¿Por qué aquí?
+El banner de cookies debe aparecer en el PRIMER acceso a la web, antes de que ninguna cookie analítica se cargue. Google Analytics y Firebase no pueden activarse hasta que el usuario haya dado su consentimiento.
+Documento
+A2 — Docs Legales Pie de Página v3 (Política de Cookies)
+Forma de aceptación
+🔴 Los tres botones deben tener el mismo tamaño. La elección se registra.
+
+🔴  BLOQUEANTE: Google Analytics y Firebase no se cargan hasta que el usuario acepta. Las cookies técnicas sí se cargan sin consentimiento.
+
+FLUJO 5 — CONFIGURACIÓN DEL SORTEO: ELECCIÓN DEL MÉTODO DE PAGO
+
+Este es un paso crítico que a menudo se pasa por alto. La elección del método de pago de premios es irreversible y determina todo el proceso posterior. Debe hacerse en la configuración del sorteo, antes de la celebración.
+
+PASO 5.1  Configuración del sorteo — campo obligatorio de método de pago
+📋  Elemento legal: 🔴 ELECCIÓN IRREVOCABLE DEL MÉTODO DE PAGO DE PREMIOS
+
+Texto exacto
+Dentro del formulario de configuración del sorteo, campo obligatorio:  «¿Cómo pagaréis los premios si toca? (obligatorio)  ○ A través de PARTILOT — ingresamos el dinero y la plataforma paga automáticamente. ○ De forma presencial — gestionamos nosotros el pago directamente.  ⚠ Esta elección es definitiva para este sorteo y no puede cambiarse una vez confirmada.  Si elegís 'Presencial' y habéis vendido participaciones digitales, deberéis ingresar el importe de esas participaciones en PARTILOT para que sus titulares puedan cobrar.»  [CONFIRMAR CONFIGURACIÓN] ← desactivado hasta elegir una opción»
+¿Por qué aquí?
+Debe hacerse ANTES del sorteo porque una vez celebrado ya hay participaciones premiadas y el método condiciona todo el proceso. Si no se elige antes, la plataforma debe pedirlo obligatoriamente antes de mostrar cualquier información de premios.
+Documento
+B3 — Acuerdo Mandato Premios v4 (referenciado) + Marco Legal Art. 4.2 bis
+Forma de aceptación
+🔴 Campo obligatorio. El botón de confirmar está desactivado hasta elegir. Una vez confirmado, el campo pasa a solo lectura.
+
+🔴  BLOQUEANTE: Sin esta elección no se puede confirmar la configuración del sorteo.
+
+FLUJO 6 — GESTIÓN DE PREMIOS
+
+Los pasos de este flujo son los más críticos del sistema. Todos implican actos irreversibles y todos tienen consecuencias económicas directas.
+
+PASO 6.1  Escrutinio confirmado — sorteo con premios — modalidad PLATAFORMA
+📋  Elemento legal: 🔴 FIRMA DEL ACUERDO DE MANDATO B3
+
+Texto exacto
+El sistema notifica al GR: «El sorteo [NOMBRE] ha resultado premiado. Para habilitar el cobro, debes firmar el Acuerdo de Mandato de Pago e ingresar los fondos en la cuenta bancaria de PARTILOT.  Importe total a gestionar: [IMPORTE] € Plazo para el ingreso: [FECHA]  [VER ACUERDO COMPLETO →] [✅ FIRMAR ACUERDO CON EFIRMA GO]»
+¿Por qué aquí?
+El GR debe firmar el Acuerdo de Mandato ANTES de ingresar el dinero. Si ingresa el dinero sin firmar, no hay base contractual que documente que esos fondos son de la Entidad y que PARTILOT actúa como mandataria. Ese orden es fundamental para proteger tanto a la Entidad como a PARTILOT ante el banco.
+Documento
+B3 — Acuerdo Mandato Premios v4
+Forma de aceptación
+🔴 FIRMA DIGITAL CERTIFICADA — eFirma Go obligatorio. El ingreso no se puede activar sin firma previa.
+
+🔴  BLOQUEANTE: La cuenta bancaria de PARTILOT no se muestra al GR hasta que el acuerdo esté firmado. Sin firma no hay ingreso.
+
+PASO 6.2  Usuario Final solicita cobro de premio
+📋  Elemento legal: 🔴 AVISO DE IRREVOCABILIDAD + DOBLE CONFIRMACIÓN
+
+Texto exacto
+Pantalla de cobro: «Confirmar cobro de tu premio  Premio: [IMPORTE] € Modalidad: [Transferencia / Donación / Código] Destino: [IBAN / Entidad / Administración]  ⚠ Esta operación es IRREVERSIBLE. Una vez confirmada no podrá modificarse ni cancelarse.  [VER CONDICIONES →] [⚠ CONFIRMAR COBRO — Esta acción no puede deshacerse] [← Volver sin confirmar]»  En móvil: doble tap o swipe to confirm. En web: diálogo adicional de confirmación.
+¿Por qué aquí?
+El usuario debe ver el resumen completo de lo que va a hacer Y el aviso de irreversibilidad ANTES de confirmar. El doble tap o diálogo adicional evita confirmaciones accidentales. Si se confirma por error no hay vuelta atrás.
+Documento
+A1 — Marco Legal Art. 4.3
+Forma de aceptación
+🔴 DOBLE CONFIRMACIÓN obligatoria. En móvil: dos taps o swipe. En web: diálogo adicional.
+
+🔴  BLOQUEANTE: Sin la doble confirmación el cobro no se procesa.
+
+PASO 6.3  Usuario Final elige donar su premio
+📋  Elemento legal: 🔴 ACEPTACIÓN ESPECÍFICA DE DONACIÓN + DATOS FISCALES OPCIONALES
+
+Texto exacto
+Paso adicional antes de la confirmación general:  «El importe donado se transferirá íntegramente a [ENTIDAD]. La donación es irreversible.  ¿Quieres certificado fiscal? [✅ Sí, quiero el certificado]  [❌ No, donar sin certificado]  Si quieres el certificado: Nombre completo: ____________ NIF/NIE: ____________  🔒 Tus datos fiscales se transmitirán a [ENTIDAD] para emitir el certificado. PARTILOT no los conserva.  [✅ CONFIRMAR DONACIÓN]  [← Volver]»
+¿Por qué aquí?
+La donación tiene una particularidad: si el usuario quiere certificado fiscal hay que recoger datos adicionales. Esos datos son voluntarios y van directamente a la Entidad. El aviso de RGPD sobre que PARTILOT no los conserva es obligatorio en este paso exacto.
+Documento
+A1 — Marco Legal Art. 4.3 + Política de Privacidad Apt. 7.1
+Forma de aceptación
+🔴 Aceptación expresa de la donación. Datos fiscales opcionales. Aviso RGPD obligatorio.
+
+🔴  BLOQUEANTE: Sin aceptación de donación no se procesa. Los datos fiscales son voluntarios.
+
+PASO 6.4  GR ejecuta la liquidación definitiva
+📋  Elemento legal: 🔴 CONFIRMACIÓN MANUAL IRREVOCABLE
+
+Texto exacto
+«⚠ LIQUIDACIÓN DEFINITIVA — Acción irreversible  [Tabla con todos los datos: entidad, sorteo, participaciones vendidas, devueltas, importe]  Una vez confirmada, esta liquidación no podrá modificarse, cancelarse ni revertirse bajo ninguna circunstancia.  Para confirmar, escribe exactamente: CONFIRMO LIQUIDACIÓN  [Campo de texto: ________________]  [⚠ EJECUTAR LIQUIDACIÓN DEFINITIVA] ← solo activo cuando el texto coincide exactamente [← Cancelar y revisar]»
+¿Por qué aquí?
+La liquidación definitiva es el acto más grave de toda la plataforma. El campo de texto manual (escribir 'CONFIRMO LIQUIDACIÓN') es el mecanismo más efectivo para evitar confirmaciones accidentales. Es imposible argumentar después que fue un error si el GR tuvo que escribir ese texto a mano.
+Documento
+A1 — Marco Legal Art. 6.2
+Forma de aceptación
+🔴 CAMPO DE TEXTO MANUAL obligatorio. El botón solo se activa cuando el texto coincide exactamente con 'CONFIRMO LIQUIDACIÓN' (mayúsculas incluidas).
+
+🔴  BLOQUEANTE: Sin el texto exacto el botón no se activa. Completamente imposible hacerlo por accidente.
+
+FLUJO 7 — ELIMINACIÓN DE CUENTA
+
+PASO 7.1  Usuario solicita eliminar su cuenta
+📋  Elemento legal: Confirmación de eliminación con verificación de premios pendientes
+
+Texto exacto
+«Eliminar cuenta  ⚠ Esta acción eliminará permanentemente tu cuenta y tus datos personales. No puede deshacerse.  📌 Antes de continuar, asegúrate de haber cobrado todas tus participaciones premiadas. No podrás reclamarlas una vez eliminada la cuenta.  ✅ Se eliminarán: tus datos personales, email, contraseña. ⚠ Se conservarán: registros legales y fiscales obligatorios por ley (mínimo 5 años).  Para confirmar, escribe tu email: [Campo de texto: ________________]  [ELIMINAR MI CUENTA DEFINITIVAMENTE] ← solo activo cuando el email coincide [← Cancelar]»  Si hay premios pendientes: bloquear y mostrar «Tienes participaciones premiadas pendientes de cobro. Gestiónalas antes de eliminar tu cuenta.»
+¿Por qué aquí?
+Requisito de Apple App Store y Google Play: la opción de eliminar cuenta debe estar dentro de la app. El campo de email evita eliminaciones accidentales. El bloqueo si hay premios pendientes protege al usuario de perder dinero.
+Documento
+A1 — Marco Legal Art. 11.3
+Forma de aceptación
+🔴 CAMPO DE EMAIL obligatorio. Bloqueo automático si hay premios pendientes.
+
+🔴  BLOQUEANTE: Si hay premios pendientes la eliminación está bloqueada. Sin el email correcto el botón no se activa.
+
+RESUMEN — MAPA COMPLETO DE PASOS LEGALES
+
+Referencia rápida de todos los pasos en orden, con el elemento legal que corresponde a cada uno.
+
+Paso
+Flujo
+Pantalla
+Elemento legal
+Documento
+Forma
+1.1
+Alta Admin
+Inicio del proceso
+Información previa
+B1
+Informativo
+1.2
+Alta Admin
+Formulario datos
+—
+—
+—
+1.3
+Alta Admin
+Firma contrato
+🔴 Contrato SaaS
+B1
+Click registrado
+1.4
+Alta Admin
+Primer acceso panel
+🔴 Marco Legal
+A1
+Checkbox
+2.1
+Alta Entidad
+Admin da alta
+—
+—
+—
+2.2
+Alta Entidad
+GR se registra
+🔴 Marco Legal
+A1
+Checkbox
+2.3
+Alta Entidad
+GR acepta cargo
+🔴 Contrato Marco + Rol GR
+B2
+Click registrado
+3.1
+Roles
+GR invita Gestor
+🔴 Rol Gestor
+C1
+Click registrado
+3.2
+Roles
+GR invita Vendedor
+🔴 Rol Vendedor
+C1
+Click registrado
+4.1
+Registro UF
+Formulario registro
+🔴 Marco Legal
+A1
+Checkbox
+4.2
+Registro UF
+Primer acceso web
+🔴 Cookies
+A2
+Banner 3 botones
+5.1
+Sorteo
+Configuración sorteo
+🔴 Método de pago
+B3 ref.
+Campo obligatorio
+6.1
+Premios
+Escrutinio con premios
+🔴 Acuerdo Mandato
+B3
+eFirma Go
+6.2
+Premios
+Cobro premio
+🔴 Irrevocabilidad
+A1
+Doble confirmación
+6.3
+Premios
+Donación premio
+🔴 Aceptación donación
+A1
+Click + datos opcionales
+6.4
+Premios
+Liquidación definitiva
+🔴 Confirmación manual
+A1
+Texto manual
+7.1
+Baja
+Eliminar cuenta
+🔴 Confirmación email
+A1
+Campo email
+
+© PARTILOT — Guía de Flujos Legales — v1.0
+Para dirección, desarrollo y operaciones

@@ -1,0 +1,788 @@
+PARTILOT
+Plataforma de Gestión de Participaciones de Lotería
+
+ESPECIFICACIONES DE IMPLEMENTACIÓN LEGAL
+Guía técnica para el equipo de desarrollo
+Web · Panel de gestión · App móvil
+
+Versión
+1.0
+Clasificación
+Uso interno — Equipo de desarrollo
+Elaborado por
+Dirección de PARTILOT con asesoramiento legal
+Documentos base
+Marco Legal Integral v8 · Contratos v1-v2 · Textos de Rol v1
+Canales cubiertos
+Panel web · App móvil iOS · App móvil Android · Web de Entidad
+Prioridad
+CRÍTICA — Implementar antes del lanzamiento
+
+📋  CÓMO USAR ESTE DOCUMENTO
+Este documento especifica qué textos legales deben mostrarse, en qué pantalla exacta, en qué momento,
+con qué comportamiento técnico y qué datos deben registrarse en la base de datos.
+Los textos completos están en el documento 'Textos de Aceptación de Rol v1' y en el 'Marco Legal Integral v8'.
+Este documento NO contiene los textos. Indica DÓNDE y CUÁNDO mostrarlos.
+Cada punto marcado con 🔴 es un requisito legal obligatorio. Los marcados con 🟡 son recomendados.
+
+1.  MAPA GENERAL DE PUNTOS DE ACEPTACIÓN LEGAL
+La Plataforma tiene exactamente 9 momentos en los que el usuario debe ver y aceptar un texto legal. Cada uno tiene un nivel de obligatoriedad, un canal específico y un tipo de registro asociado. Ninguno puede omitirse.
+
+#
+Pantalla / Momento
+Canal
+Acción legal
+L1
+Registro de usuario — Condiciones generales y privacidad
+Web · App · Web Entidad
+🔴 Registro de aceptación
+L2
+Registro de usuario — Política de cookies
+Web · App
+🔴 Registro de consentimiento
+L3
+Aceptación rol Gestor Responsable
+Web · App
+🔴 Registro de aceptación de rol
+L4
+Aceptación rol Gestor
+Web · App
+🔴 Registro de aceptación de rol
+L5
+Aceptación rol Vendedor
+Web · App
+🔴 Registro de aceptación de rol
+L6
+Solicitud de cobro de premio — Aviso de irrevocabilidad
+Web · App
+🔴 Registro por modalidad
+L7
+Donación de premio — Aceptación específica
+Web · App
+🔴 Registro de donación
+L8
+Liquidación definitiva — Confirmación de irrevocabilidad
+Web · App
+🔴 Registro de liquidación
+L9
+Eliminación de cuenta — Confirmación de pérdida de datos
+Web · App
+🔴 Registro de baja
+
+⚠  REGLA GENERAL QUE APLICA A TODOS LOS PUNTOS
+Ningún punto de aceptación legal puede saltarse ni simplificarse sin autorización de la dirección.
+En todos los casos debe existir un registro inmutable en base de datos de: quién aceptó, qué versión, cuándo y desde dónde.
+Los registros de aceptación NUNCA pueden modificarse ni eliminarse, ni siquiera por administradores del sistema.
+Si un punto falla técnicamente, el flujo se bloquea. Nunca se permite continuar sin aceptación confirmada.
+
+L1 y L2 — REGISTRO DE USUARIO
+
+L1 — Condiciones generales de uso y política de privacidad
+
+Cuando se muestra
+En el último paso del flujo de registro, justo antes de que se active el botón de creación de cuenta. Se muestra en los tres canales: panel web, app móvil y web de la Entidad.
+
+Qué debe mostrarse
+Un checkbox desmarcado por defecto con el texto:
+
+He leído y acepto los Términos y Condiciones de Uso, la Política de Privacidad y el Marco Legal Integral de PARTILOT.
+[VER CONDICIONES COMPLETAS →] (enlace que abre el Marco Legal Integral en pantalla completa o nueva pestaña)
+
+El botón de 'Crear cuenta' o 'Registrarme' permanece desactivado hasta que el checkbox esté marcado.
+El enlace 'Ver condiciones completas' debe funcionar aunque el checkbox no esté marcado. El usuario debe poder leer antes de decidir.
+En app móvil, el enlace abre un visor interno (WebView) con el documento completo, sin salir de la app.
+
+Nota importante sobre los roles
+Al registrarse, el usuario acepta el Marco Legal completo, que ya describe las responsabilidades de todos los roles.
+Las pantallas de aceptación de rol (L3, L4, L5) no son condiciones nuevas sino confirmaciones contextualizadas.
+Por eso, en esas pantallas debe aparecer la frase:
+«Al registrarte en PARTILOT ya aceptaste las condiciones generales. Esta pantalla te recuerda las responsabilidades
+específicas de este rol para que tomes tu decisión con toda la información.»
+
+Qué registra el sistema
+Campo
+Valor
+Obligatorio
+user_id
+ID del usuario recién creado
+🔴 Sí
+action
+REGISTRO_ACEPTACION_TCU
+🔴 Sí
+version_documento
+v8.0 (o la vigente en ese momento)
+🔴 Sí
+timestamp
+UTC — generado por el servidor, no el cliente
+🔴 Sí
+ip_address
+IP del dispositivo
+🔴 Sí
+canal
+WEB / APP_IOS / APP_ANDROID / WEB_ENTIDAD
+🔴 Sí
+resultado
+ACEPTADO
+🔴 Sí
+
+L2 — Política de cookies
+
+Cuándo se muestra
+En el primer acceso del usuario al panel web o a la web de la Entidad. No aplica a la app móvil, que gestiona permisos de forma diferente mediante los permisos del sistema operativo.
+
+Qué debe mostrarse
+Un banner de cookies en la parte inferior de la pantalla que no bloquee el contenido pero que sea claramente visible. Debe incluir:
+Botón 'Aceptar todas' — activa cookies técnicas y analíticas.
+Botón 'Solo las necesarias' — activa únicamente cookies técnicas. Esta opción debe ser igual de visible que 'Aceptar todas', no más pequeña ni menos prominente.
+Enlace 'Configurar' — abre un panel donde el usuario puede activar o desactivar cada categoría de cookie individualmente.
+Enlace 'Ver política de cookies' — abre el Documento III del Marco Legal Integral.
+
+⚠  REQUISITO AEPD
+Rechazar las cookies no esenciales debe ser igual de fácil que aceptarlas. Un botón de 'Aceptar' grande y prominente
+junto a un enlace de texto pequeño que diga 'configurar' NO cumple con los criterios de la AEPD.
+Los dos botones principales deben tener el mismo tamaño y prominence visual.
+
+Qué registra el sistema
+Campo
+Valor
+Obligatorio
+user_id
+ID del usuario (si está logado) o cookie anónima
+🔴 Sí
+action
+COOKIES_ACEPTACION
+🔴 Sí
+cookies_tecnicas
+true (siempre)
+🔴 Sí
+cookies_analiticas
+true / false según elección
+🔴 Sí
+timestamp
+UTC — generado por el servidor
+🔴 Sí
+ip_address
+IP del dispositivo
+🔴 Sí
+canal
+WEB / WEB_ENTIDAD
+🔴 Sí
+
+L3, L4 y L5 — ACEPTACIÓN DE ROLES
+
+Comportamiento técnico común a los tres roles
+
+📋  FLUJO TÉCNICO OBLIGATORIO PARA TODOS LOS ROLES
+1.  El sistema detecta que el usuario tiene una solicitud de rol pendiente.
+2.  Al abrir la app o el panel web, antes de mostrar cualquier otra pantalla, se muestra la pantalla de aceptación.
+3.  El usuario NO puede navegar a ninguna otra sección hasta que tome una decisión (aceptar o rechazar).
+4.  El botón de aceptar solo se activa cuando el usuario ha podido leer el texto completo:
+     — En móvil: cuando ha llegado al final del scroll del texto.
+     — En web: tras un mínimo de 10 segundos desde que aparece la pantalla, o al llegar al final del scroll.
+5.  Al pulsar 'Aceptar', el sistema registra inmediatamente en base de datos antes de mostrar confirmación.
+6.  El sistema envía automáticamente un email de confirmación al usuario con el resumen de lo aceptado.
+7.  Si hay varias solicitudes pendientes, se muestran de una en una, nunca agrupadas.
+
+L3 — Gestor Responsable
+
+Disparador del evento
+La pantalla se muestra cuando la Administración de Lotería ejecuta la acción asignar_gestor_responsable para una Entidad, y el usuario designado no ha aceptado aún el cargo.
+
+Contenido de la pantalla
+Elemento
+Contenido
+Req.
+Título
+Tienes una solicitud pendiente
+🔴
+Datos contextuales
+Nombre de la Entidad · Nombre de la Administración · Fecha de la designación
+🔴
+Texto principal
+Ver documento 'Textos de Aceptación de Rol v1' — Sección Gestor Responsable
+🔴
+Frase introductoria
+«Al registrarte en PARTILOT ya aceptaste las condiciones generales...»
+🔴
+Enlace legal
+'Ver condiciones legales completas' → Marco Legal Integral (Capítulo II, Art. 2.3)
+🔴
+Botón principal
+✅ Acepto el cargo de Gestor Responsable  (verde, prominente)
+🔴
+Botón secundario
+❌ Rechazar esta designación  (gris, mismo tamaño)
+🔴
+Nota de registro
+🔒 El sistema registrará tu aceptación con fecha, hora y dispositivo.
+🔴
+
+Comportamiento al rechazar
+Se registra la decisión como RECHAZADO en base de datos.
+Se notifica automáticamente a la Administración de Lotería que el designado ha rechazado el cargo.
+La Entidad queda sin Gestor Responsable activo hasta que se designe y acepte uno nuevo, por tanto la entidad no puede estar activa hasta que no se asigne a un gestor responsable
+El usuario vuelve a su pantalla habitual sin ninguna restricción adicional.
+
+Qué registra el sistema
+Campo en BD
+Valor
+Req.
+user_id
+ID del usuario
+🔴
+entidad_id
+ID de la Entidad
+🔴
+administracion_id
+ID de la Administración que designó
+🔴
+action
+ACEPTACION_ROL_GESTOR_RESPONSABLE
+🔴
+version_texto
+v1.0 (versión del texto mostrado)
+🔴
+timestamp
+UTC servidor
+🔴
+ip_address
+IP del dispositivo
+🔴
+canal
+WEB / APP_IOS / APP_ANDROID
+🔴
+resultado
+ACEPTADO / RECHAZADO
+🔴
+
+L4 — Gestor
+
+Disparador del evento
+La pantalla se muestra cuando el Gestor Responsable ejecuta invitar_gestor y el usuario invitado no ha aceptado aún.
+
+Contenido de la pantalla
+Elemento
+Contenido
+Req.
+Título
+Invitación a colaborar
+🔴
+Datos contextuales
+Nombre de la Entidad · Nombre del Gestor Responsable · Fecha
+🔴
+Texto principal
+Ver documento 'Textos de Aceptación de Rol v1' — Sección Gestor
+🔴
+Frase introductoria
+«Al registrarte en PARTILOT ya aceptaste las condiciones generales...»
+🔴
+Enlace legal
+'Ver condiciones legales completas' → Marco Legal Integral (Art. 2.4)
+🔴
+Botón principal
+✅ Aceptar invitación  (verde)
+🔴
+Botón secundario
+❌ Rechazar invitación  (gris)
+🔴
+
+Qué registra el sistema
+Campo en BD
+Valor
+Req.
+user_id
+ID del usuario
+🔴
+entidad_id
+ID de la Entidad
+🔴
+gestor_responsable_id
+ID del Gestor Responsable que invitó
+🔴
+action
+ACEPTACION_ROL_GESTOR
+🔴
+version_texto
+v1.0
+🔴
+timestamp
+UTC servidor
+🔴
+ip_address
+IP del dispositivo
+🔴
+canal
+WEB / APP_IOS / APP_ANDROID
+🔴
+resultado
+ACEPTADO / RECHAZADO
+🔴
+
+L5 — Vendedor
+
+Disparador del evento
+La pantalla se muestra cuando el Gestor Responsable o un Gestor ejecuta invitar_vendedor especificando la Entidad y el sorteo, y el usuario invitado no ha aceptado aún.
+
+Contenido de la pantalla
+Elemento
+Contenido
+Req.
+Título
+Invitación como Vendedor
+🔴
+Datos contextuales
+Nombre Entidad · Nombre sorteo · Fecha sorteo · Nombre del Gestor invitador
+🔴
+Texto principal
+Ver documento 'Textos de Aceptación de Rol v1' — Sección Vendedor
+🔴
+Frase introductoria
+«Al registrarte en PARTILOT ya aceptaste las condiciones generales...»
+🔴
+Enlace legal
+'Ver condiciones legales completas' → Marco Legal Integral (Art. 2.5)
+🔴
+Botón principal
+✅ Acepto ser Vendedor  (verde)
+🔴
+Botón secundario
+❌ Rechazar invitación  (gris)
+🔴
+
+Qué registra el sistema
+Campo en BD
+Valor
+Req.
+user_id
+ID del usuario
+🔴
+entidad_id
+ID de la Entidad
+🔴
+sorteo_id
+ID del sorteo para el que se le invita
+🔴
+gestor_invitador_id
+ID del Gestor o GR que invitó
+🔴
+action
+ACEPTACION_ROL_VENDEDOR
+🔴
+version_texto
+v1.0
+🔴
+timestamp
+UTC servidor
+🔴
+ip_address
+IP del dispositivo
+🔴
+canal
+WEB / APP_IOS / APP_ANDROID
+🔴
+resultado
+ACEPTADO / RECHAZADO
+🔴
+
+L6, L7 y L8 — ACCIONES IRREVERSIBLES
+
+⚠  POR QUÉ ESTAS PANTALLAS SON CRÍTICAS
+Las acciones L6, L7 y L8 son irreversibles por definición. Una vez confirmadas, no pueden deshacerse.
+Si el usuario confirma por error, PARTILOT no puede revertir la operación.
+Por eso estas pantallas deben tener un paso de confirmación adicional, más explícito que un simple botón.
+El registro de estas acciones es especialmente importante porque puede ser requerido en una reclamación legal.
+
+L6 — Cobro de premio: aviso de irrevocabilidad
+
+Cuándo se muestra
+Justo antes de que el usuario confirme la modalidad de cobro de un premio (transferencia bancaria, donación o código de recarga). Se muestra en app y web.
+
+Contenido de la pantalla
+Elemento
+Contenido
+Req.
+Título
+Confirmar cobro de premio
+🔴
+Resumen operación
+Modalidad elegida · Importe · Destino (IBAN / Entidad / Administración)
+🔴
+Aviso irrevocabilidad
+⚠ Esta operación es irreversible. Una vez confirmada no podrá modificarse ni cancelarse.
+🔴
+Enlace legal
+'Ver condiciones de cobro' → Marco Legal Art. 4.3
+🟡
+Botón confirmar
+✅ Confirmar cobro  (requiere segundo tap en móvil o doble click en web)
+🔴
+Botón cancelar
+← Volver  (no ejecuta nada, vuelve a la pantalla anterior)
+🔴
+
+📌  DOBLE CONFIRMACIÓN OBLIGATORIA
+Para evitar confirmaciones accidentales, el botón de confirmar debe requerir:
+— En móvil: dos taps separados. El primero activa el botón, el segundo lo confirma. O un botón con deslizamiento (swipe to confirm).
+— En web: un diálogo de confirmación adicional del tipo '¿Estás seguro? Esta acción no puede deshacerse.'
+Nunca debe ser posible confirmar una operación de cobro con un solo toque accidental.
+
+Qué registra el sistema
+Campo en BD
+Valor
+Req.
+user_id
+ID del usuario
+🔴
+participacion_id
+ID de la participación premiada
+🔴
+modalidad
+TRANSFERENCIA / DONACION / CODIGO_RECARGA
+🔴
+importe
+Importe exacto en euros
+🔴
+destino
+IBAN / ID Entidad / ID Administración según modalidad
+🔴
+action
+COBRO_PREMIO_CONFIRMADO
+🔴
+timestamp
+UTC servidor
+🔴
+ip_address
+IP del dispositivo
+🔴
+canal
+WEB / APP_IOS / APP_ANDROID
+🔴
+
+L7 — Donación de premio: aceptación específica
+
+Cuándo se muestra
+Únicamente cuando el usuario elige la modalidad de donación en el cobro de un premio. Es un paso adicional específico, además del aviso general de irrevocabilidad de L6.
+
+Contenido adicional específico de la donación
+Elemento
+Contenido
+Req.
+Aviso donación
+«El importe donado será transferido íntegramente a [NOMBRE ENTIDAD]. La donación es irreversible.»
+🔴
+Certificado fiscal
+«¿Deseas recibir un certificado de donación con efectos fiscales?»  (Sí / No)
+🔴
+Si elige Sí
+Formulario: Nombre completo · NIF/NIE/TIE  +  aviso de que se transmiten a la Entidad
+🔴
+Aviso RGPD
+Tus datos fiscales se transmitiran a [NOMBRE ENTIDAD] para la emision del certificado.
+🔴
+Botón confirmar
+✅ Confirmar donación  (doble confirmación igual que L6)
+🔴
+
+Qué registra el sistema
+Campo en BD
+Valor
+Req.
+user_id
+ID del usuario
+🔴
+participacion_id
+ID de la participación premiada
+🔴
+entidad_id
+ID de la Entidad destinataria
+🔴
+importe_donado
+Importe exacto en euros
+🔴
+certificado_fiscal
+true / false según elección del usuario
+🔴
+datos_fiscales
+Nombre + NIF si facilita. NULL si no.
+🔴
+action
+DONACION_PREMIO_CONFIRMADA
+🔴
+timestamp
+UTC servidor
+🔴
+ip_address
+IP del dispositivo
+🔴
+
+🔴  DATO CRÍTICO DE PROTECCIÓN DE DATOS
+Los datos fiscales del donante (nombre + NIF) deben conservarse en los sistemas de PARTILOT durante un máximo de 9 meses desde la celebración del sorteo,
+manteniéndolos disponibles para descarga por la Entidad desde su panel. Transcurrido ese plazo deben eliminarse de forma segura e irreversible.
+Debe conservarse: los datos fiscales completos durante 9 meses, el registro de cada descarga por la Entidad (timestamp + user_id del gestor), y el timestamp de eliminación definitiva. Tras la eliminación no deben quedar los datos en sí, solo los metadatos de auditoría.
+
+L8 — Liquidación definitiva: confirmación de irrevocabilidad
+
+Cuándo se muestra
+Cuando el Gestor Responsable va a ejecutar la liquidación definitiva con la Administración de Lotería. Es la acción más crítica de toda la plataforma.
+
+Contenido de la pantalla
+Elemento
+Contenido
+Req.
+Título
+⚠ LIQUIDACIÓN DEFINITIVA — Acción irreversible
+🔴
+Resumen
+Entidad · Sorteo · Participaciones vendidas · Participaciones devueltas · Importe a pagar
+🔴
+Aviso destacado
+«Esta acción es IRREVERSIBLE. Una vez confirmada no podrá modificarse bajo ninguna circunstancia.»  (en rojo, en negrita)
+🔴
+Confirmación manual
+Campo de texto donde el Gestor debe escribir manualmente: CONFIRMO LIQUIDACIÓN
+🔴
+Botón confirmar
+Solo se activa cuando el campo de texto contiene exactamente: CONFIRMO LIQUIDACIÓN
+🔴
+Enlace legal
+'Ver condiciones de liquidación' → Marco Legal Art. 6.2
+🟡
+
+📌  CAMPO DE TEXTO DE CONFIRMACIÓN MANUAL
+La liquidación definitiva requiere que el Gestor Responsable escriba manualmente el texto 'CONFIRMO LIQUIDACIÓN'.
+Este mecanismo, usado por plataformas como GitHub para eliminar repositorios, es la forma más efectiva de evitar
+confirmaciones accidentales en acciones irreversibles. El botón de liquidar permanece desactivado hasta que el
+texto coincide exactamente (mayúsculas incluidas). No se acepta ninguna variación del texto.
+
+Qué registra el sistema
+Campo en BD
+Valor
+Req.
+gestor_responsable_id
+ID del Gestor Responsable
+🔴
+entidad_id
+ID de la Entidad
+🔴
+sorteo_id
+ID del sorteo liquidado
+🔴
+participaciones_vendidas
+Número exacto
+🔴
+participaciones_devueltas
+Número exacto
+🔴
+importe_total
+Importe total a pagar a la Administración
+🔴
+action
+LIQUIDACION_DEFINITIVA_CONFIRMADA
+🔴
+texto_confirmacion
+El texto exacto que escribió el usuario
+🔴
+timestamp
+UTC servidor
+🔴
+ip_address
+IP del dispositivo
+🔴
+canal
+WEB / APP_IOS / APP_ANDROID
+🔴
+
+L9 — ELIMINACIÓN DE CUENTA
+
+L9 — Confirmación de eliminación de cuenta
+
+Cuándo se muestra
+Cuando el usuario solicita la eliminación de su cuenta desde el panel web o desde la app. Es un requisito de Apple App Store y Google Play que la opción de eliminar cuenta esté disponible desde la propia app.
+
+Contenido de la pantalla
+Elemento
+Contenido
+Req.
+Título
+Eliminar cuenta
+🔴
+Aviso principal
+«Esta acción eliminará permanentemente tu cuenta y todos tus datos. No podrá deshacerse.»
+🔴
+Aviso participaciones
+«Antes de continuar, asegúrate de haber gestionado todas tus participaciones premiadas pendientes.»
+🔴
+Verificación
+El sistema comprueba si el usuario tiene participaciones premiadas pendientes de cobro.
+🔴
+Si tiene pendientes
+Bloquear la eliminación y mostrar: «Tienes participaciones premiadas pendientes de cobro. Gestiónalas antes de eliminar tu cuenta.»
+🔴
+Confirmación manual
+Campo de texto: escribe tu email para confirmar
+🔴
+Botón eliminar
+Solo activo cuando el email coincide exactamente con el registrado
+🔴
+Botón cancelar
+← Cancelar — vuelve sin hacer nada
+🔴
+
+Qué registra el sistema
+Campo en BD
+Valor
+Req.
+user_id
+ID del usuario (se conserva aunque se borren los datos personales)
+🔴
+action
+SOLICITUD_BAJA_CUENTA
+🔴
+timestamp
+UTC servidor
+🔴
+ip_address
+IP del dispositivo
+🔴
+estado_baja
+PENDIENTE_REVISION / EJECUTADA / BLOQUEADA_POR_PENDIENTES
+🔴
+
+📌  PROCESO DE ELIMINACIÓN REAL DE DATOS
+La eliminación de cuenta NO es inmediata. El proceso tiene dos fases:
+Fase 1 — Desactivación inmediata: La cuenta queda inaccesible. El usuario no puede entrar.
+Fase 2 — Borrado real: Los datos personales se eliminan pasados 30 días, para permitir resolver
+cualquier incidencia pendiente. Los datos que la ley obliga a conservar (fiscales, contables) se
+mantienen el tiempo legalmente exigido aunque se elimine la cuenta.
+Se conserva siempre: el user_id (para auditoría), el registro de aceptación de TCU y los registros
+de operaciones económicas. NUNCA se eliminan estos registros aunque el usuario lo solicite.
+
+EMAILS AUTOMÁTICOS DEL SISTEMA LEGAL
+
+Emails que el sistema debe enviar automáticamente
+El sistema debe enviar los siguientes emails automáticos como parte del cumplimiento legal. No son emails de marketing. Son comunicaciones de servicio que no requieren consentimiento adicional.
+
+Evento
+Destinatario
+Contenido mínimo
+Req.
+Registro completado
+Usuario
+Confirmación de alta + enlace al Marco Legal aceptado + versión aceptada
+🔴
+Aceptación Gestor Responsable
+Usuario
+Confirmación del cargo + Entidad + fecha + resumen de responsabilidades
+🔴
+Rechazo Gestor Responsable
+Administración
+Notificación de que el designado ha rechazado el cargo
+🔴
+Aceptación rol Gestor
+Usuario
+Confirmación del rol + Entidad + fecha
+🔴
+Aceptación rol Vendedor
+Usuario
+Confirmación + Entidad + Sorteo + fecha
+🔴
+Premio cobrado — Transferencia
+Usuario
+Importe · IBAN · Fecha prevista · Referencia de operación
+🔴
+Premio cobrado — Donación
+Usuario
+Confirmación de donación + importe + Entidad destinataria
+🔴
+Premio cobrado — Código
+Usuario
+Código generado + Administración válida + fecha de caducidad
+🔴
+Liquidación definitiva
+Gestor Responsable
+Resumen completo de la liquidación + timestamp
+🔴
+Sobrante devuelto
+Entidad (GR)
+Importe devuelto + referencia + fecha + informe adjunto
+🔴
+Solicitud de baja
+Usuario
+Confirmación de solicitud + plazo de ejecución + datos que se conservarán
+🔴
+Baja ejecutada
+Usuario
+Confirmación de eliminación de datos personales
+🔴
+Brecha de seguridad
+Usuarios afectados
+Descripción del incidente + datos afectados + medidas tomadas
+🔴
+Premio próximo a caducar
+Usuario
+Aviso 15 días antes del vencimiento del plazo de cobro
+🟡
+Cambio en Marco Legal
+Todos los usuarios
+Notificación 30 días antes de la entrada en vigor de cambios
+🔴
+
+GESTIÓN DE VERSIONES DE DOCUMENTOS LEGALES
+
+Cómo gestionar las actualizaciones del Marco Legal
+El Marco Legal cambiará con el tiempo. El sistema debe gestionar correctamente qué versión aceptó cada usuario y qué hacer cuando hay una nueva versión.
+
+Estructura de versiones en base de datos
+Tabla: documentos_legales
+id              INTEGER PRIMARY KEY
+tipo            VARCHAR  -- TCU / PRIVACIDAD / COOKIES / ATD / ROL_GR / ROL_GESTOR / ROL_VENDEDOR
+version         VARCHAR  -- v8.0 / v1.0 / etc.
+fecha_vigencia  DATETIME -- cuándo entra en vigor
+url_documento   VARCHAR  -- enlace al PDF/HTML del documento
+activo          BOOLEAN  -- solo uno activo por tipo
+
+Tabla: aceptaciones_legales
+id                INTEGER PRIMARY KEY
+user_id           INTEGER  -- referencia al usuario
+documento_id      INTEGER  -- referencia a documentos_legales
+accion            VARCHAR  -- REGISTRO / ROL_GR / ROL_GESTOR / ROL_VENDEDOR / etc.
+entidad_id        INTEGER  -- NULL si no aplica
+sorteo_id         INTEGER  -- NULL si no aplica
+timestamp_utc     DATETIME -- generado por servidor, NUNCA por cliente
+ip_address        VARCHAR
+canal             VARCHAR  -- WEB / APP_IOS / APP_ANDROID / WEB_ENTIDAD
+resultado         VARCHAR  -- ACEPTADO / RECHAZADO
+-- ESTA TABLA NUNCA PERMITE UPDATE NI DELETE --
+
+Qué hacer cuando hay una nueva versión del Marco Legal
+30 días antes de la nueva versión: enviar email a todos los usuarios notificando el cambio con enlace al nuevo documento.
+En el día de entrada en vigor: mostrar a todos los usuarios, en su próximo acceso, una pantalla de 'Hemos actualizado nuestras condiciones' con el resumen de cambios y el botón de aceptar.
+Hasta que acepten: el usuario puede seguir usando la plataforma con funciones básicas pero no puede ejecutar acciones nuevas que requieran aceptación (crear Sets, gestionar premios, etc.).
+Si no aceptan en 30 días: notificación final antes de la restricción de acceso completo.
+Registro: cada nueva aceptación genera un nuevo registro en aceptaciones_legales con la nueva versión.
+
+Acceso al historial de aceptaciones
+El usuario debe poder consultar en su perfil el historial completo de documentos legales que ha aceptado, con fecha, versión y canal. Esto es un requisito del RGPD (derecho de acceso) y una buena práctica de transparencia.
+Sección en el perfil del usuario: 'Mis aceptaciones legales'
+Contenido: lista de todos los documentos aceptados, con versión, fecha y enlace al documento aceptado en esa versión.
+No puede modificarse ni eliminarse desde el perfil. Es solo lectura.
+
+✅  CHECKLIST FINAL ANTES DEL LANZAMIENTO
+□  L1 implementado: registro con checkbox de TCU y enlace funcional al Marco Legal
+□  L2 implementado: banner de cookies con opciones equivalentes y registro de elección
+□  L3 implementado: pantalla de Gestor Responsable con bloqueo hasta decisión y doble confirmación
+□  L4 implementado: pantalla de Gestor con bloqueo hasta decisión
+□  L5 implementado: pantalla de Vendedor con datos del sorteo y bloqueo hasta decisión
+□  L6 implementado: aviso de irrevocabilidad en cobro con doble confirmación
+□  L7 implementado: aceptación específica de donación con formulario fiscal opcional y aviso de conservación 9 meses con derecho de retirada
+□  L8 implementado: liquidación definitiva con campo de texto manual 'CONFIRMO LIQUIDACIÓN'
+□  L9 implementado: eliminación de cuenta con bloqueo si hay premios pendientes
+□  Tabla aceptaciones_legales creada sin permisos de UPDATE ni DELETE
+□  Tabla documentos_legales creada con gestión de versiones
+□  Todos los timestamps generados por servidor (UTC), nunca por el cliente
+□  Emails automáticos configurados para los 15 eventos listados
+□  Sección 'Mis aceptaciones legales' visible en el perfil del usuario
+□  Test de QA legal: simular cada uno de los 9 puntos y verificar el registro en BD
+
+© PARTILOT — Especificaciones de Implementación Legal — v1.0
+Documento de uso interno — Equipo de desarrollo

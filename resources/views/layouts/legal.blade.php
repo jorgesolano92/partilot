@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>@yield('title') — PARTILOT</title>
     <style>
         * { box-sizing: border-box; }
@@ -13,6 +13,19 @@
             margin: 0;
             padding: 40px 16px 64px;
             line-height: 1.6;
+            -webkit-overflow-scrolling: touch;
+            overflow-y: auto;
+        }
+        body.legal-embed {
+            padding: 16px 12px 24px;
+            background: #fff;
+        }
+        body.legal-embed .legal-header { display: none; }
+        body.legal-embed .legal-content {
+            box-shadow: none;
+            border-radius: 0;
+            padding: 8px 4px 16px;
+            max-width: none;
         }
         .legal-header {
             max-width: 800px;
@@ -39,7 +52,7 @@
         }
     </style>
 </head>
-<body>
+<body class="{{ request()->boolean('embed') ? 'legal-embed' : '' }}">
     <header class="legal-header">
         <a href="{{ url('/') }}">
             <img src="{{ url('/logo.svg') }}" alt="PARTILOT">
@@ -48,6 +61,8 @@
     <main class="legal-content">
         @yield('content')
     </main>
-    @include('partials.cookie-consent-banner')
+    @unless(request()->boolean('embed'))
+        @include('partials.cookie-consent-banner')
+    @endunless
 </body>
 </html>
