@@ -21,7 +21,9 @@ use App\Models\BackgroundTask;
 use App\Services\CommunicationEmailService;
 use App\Services\BackgroundTaskService;
 use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\LegalAcceptanceService;
 use App\Services\SellerLiquidationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -363,6 +365,10 @@ class DevolutionsController extends Controller
         // Solo ejecutar en síncrono cuando se fuerce explícitamente.
         $runInBackground = !$forceSync;
         if ($runInBackground) {
+            if ($resp = $this->validateAdministrationLiquidationLegalRequirements($request)) {
+                return $resp;
+            }
+
             $payload = $request->all();
             unset($payload['background']);
             $payload['force_sync'] = true;
@@ -424,6 +430,7 @@ class DevolutionsController extends Controller
                 'liquidacion.special_prize.assignments' => 'nullable|array',
                 'prize_payment_mode' => 'nullable|in:presencial,online',
                 'online_payer' => 'nullable|in:partilot,entity',
+                'confirmacion_liquidacion_definitiva' => 'nullable|string|max:255',
             ]);
 
             $soloDevolucion = !empty($data['solo_devolucion']);
@@ -437,6 +444,12 @@ class DevolutionsController extends Controller
                     'success' => false,
                     'message' => 'Debes seleccionar la modalidad de pago de premios (presencial u online) antes de liquidar.',
                 ], 422);
+            }
+
+            if ($resp = $this->validateDefinitiveLiquidationPhrase($request, $requiresPrizePaymentMode)) {
+                DB::rollBack();
+
+                return $resp;
             }
 
             if ($soloDevolucion) {
@@ -1010,6 +1023,22 @@ class DevolutionsController extends Controller
                     (string) $data['prize_payment_mode'],
                     (int) $userId,
                     $onlinePayer
+                );
+
+                $entity = Entity::find($data['entity_id']);
+                app(LegalAcceptanceService::class)->recordDefinitiveLiquidationConfirmation(
+                    auth()->user(),
+                    $request,
+                    [
+                        'entity_id' => (int) $data['entity_id'],
+                        'lottery_id' => (int) $data['lottery_id'],
+                        'devolution_id' => $devolution->id,
+                        'gestor_responsable_id' => $userId,
+                        'texto_confirmacion' => trim((string) $request->input('confirmacion_liquidacion_definitiva', '')),
+                        'participaciones_devueltas' => $totalParticipations,
+                        'importe_total' => $totalLiquidation,
+                    ],
+                    $entity?->administration_id ? (int) $entity->administration_id : null
                 );
             }
 
@@ -2952,5 +2981,41 @@ class DevolutionsController extends Controller
             'message' => 'Hay vendedores con liquidación pendiente para este sorteo ('.number_format($pending, 2, ',', '.').' €). Puedes continuar, pero conviene que liquiden antes.',
             'seller_pending_amount' => round($pending, 2),
         ], 409);
+    }
+
+    protected function validateAdministrationLiquidationLegalRequirements(Request $request): ?JsonResponse
+    {
+        $soloDevolucion = filter_var($request->input('solo_devolucion', false), FILTER_VALIDATE_BOOLEAN);
+        $tipo = (string) $request->input('tipo_devolucion', 'administracion');
+        if ($tipo === 'anulacion' || $tipo === 'vendedor' || $soloDevolucion) {
+            return null;
+        }
+
+        if (empty($request->input('prize_payment_mode'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes seleccionar la modalidad de pago de premios (presencial u online) antes de liquidar.',
+            ], 422);
+        }
+
+        return $this->validateDefinitiveLiquidationPhrase($request, true);
+    }
+
+    protected function validateDefinitiveLiquidationPhrase(Request $request, bool $required): ?JsonResponse
+    {
+        if (! $required) {
+            return null;
+        }
+
+        $expected = (string) config('legal_prizes.definitive_liquidation.confirmation_phrase', 'CONFIRMO LIQUIDACIÓN');
+        $text = trim((string) $request->input('confirmacion_liquidacion_definitiva', ''));
+        if ($text !== $expected) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes escribir exactamente «'.$expected.'» para confirmar la liquidación definitiva.',
+            ], 422);
+        }
+
+        return null;
     }
 }

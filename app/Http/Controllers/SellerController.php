@@ -2642,6 +2642,14 @@ class SellerController extends Controller
             ]);
         }
 
+        $seller = Seller::find((int) $request->seller_id);
+        if (! $seller || (int) $seller->status !== Seller::STATUS_ACTIVE) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pueden asignar participaciones hasta que el vendedor acepte la invitación y sus responsabilidades legales.',
+            ], 422);
+        }
+
         // Por defecto procesamos en background para evitar bloquear la UI.
         // Solo se procesa en síncrono cuando se fuerza explícitamente.
         $runInBackground = !$request->boolean('force_sync');

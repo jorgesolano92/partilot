@@ -1268,6 +1268,32 @@
     </div>
 </div>
 
+<div class="modal fade" id="modal-liquidacion-definitiva" tabindex="-1" aria-labelledby="modal-liquidacion-definitiva-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-liquidacion-definitiva-label">{{ config('legal_prizes.definitive_liquidation.title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger small mb-3">
+                    <strong>Acci?n irreversible.</strong> {{ config('legal_prizes.definitive_liquidation.warning') }}
+                </div>
+                <label for="confirmacion-liquidacion-definitiva" class="form-label fw-semibold">
+                    {{ config('legal_prizes.definitive_liquidation.confirmation_label') }}
+                </label>
+                <input type="text" class="form-control" id="confirmacion-liquidacion-definitiva" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="btn-confirmar-liquidacion-definitiva" disabled style="border-radius: 30px;">
+                    {{ config('legal_prizes.definitive_liquidation.confirm_button') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modal-modalidad-pago-premios" tabindex="-1" aria-labelledby="modal-modalidad-pago-premios-label" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -3081,20 +3107,51 @@ $(document).ready(function() {
 
         if (tipoDevolucion === 'administracion') {
             pendingLiquidacionData = liquidacionData;
-            $('input[name="prize_payment_mode"]').prop('checked', false);
-            $('#prize-payment-mode-confirm').prop('checked', false);
-            $('#btn-confirmar-modalidad-pago').prop('disabled', true);
-            const modalEl = document.getElementById('modal-modalidad-pago-premios');
-            if (modalEl && window.bootstrap) {
-                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            $('#confirmacion-liquidacion-definitiva').val('');
+            $('#btn-confirmar-liquidacion-definitiva').prop('disabled', true);
+            const l8Modal = document.getElementById('modal-liquidacion-definitiva');
+            if (l8Modal && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(l8Modal).show();
             } else {
-                mostrarMensaje('No se pudo abrir el selector de modalidad de pago.', 'error');
+                mostrarMensaje('No se pudo abrir la confirmaci?n de liquidaci?n definitiva.', 'error');
             }
             return;
         }
 
         $(this).prop('disabled', true).text('Procesando...');
         enviarLiquidacionCompleta(liquidacionData, $(this));
+    });
+
+    const expectedLiquidacionPhrase = @json(config('legal_prizes.definitive_liquidation.confirmation_phrase'));
+
+    $('#confirmacion-liquidacion-definitiva').on('input', function() {
+        const matches = $(this).val().trim() === expectedLiquidacionPhrase;
+        $('#btn-confirmar-liquidacion-definitiva').prop('disabled', !matches);
+    });
+
+    $('#btn-confirmar-liquidacion-definitiva').click(function() {
+        if (!pendingLiquidacionData) {
+            return;
+        }
+        const phrase = $('#confirmacion-liquidacion-definitiva').val().trim();
+        if (phrase !== expectedLiquidacionPhrase) {
+            mostrarMensaje('Debes escribir exactamente ?' + expectedLiquidacionPhrase + '?.', 'warning');
+            return;
+        }
+        pendingLiquidacionData.confirmacion_liquidacion_definitiva = phrase;
+        const l8Modal = document.getElementById('modal-liquidacion-definitiva');
+        if (l8Modal && window.bootstrap) {
+            bootstrap.Modal.getOrCreateInstance(l8Modal).hide();
+        }
+        $('input[name="prize_payment_mode"]').prop('checked', false);
+        $('#prize-payment-mode-confirm').prop('checked', false);
+        $('#btn-confirmar-modalidad-pago').prop('disabled', true);
+        const modalEl = document.getElementById('modal-modalidad-pago-premios');
+        if (modalEl && window.bootstrap) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else {
+            mostrarMensaje('No se pudo abrir el selector de modalidad de pago.', 'error');
+        }
     });
 
     function actualizarBotonModalidadPago() {

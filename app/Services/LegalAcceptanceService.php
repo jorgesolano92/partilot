@@ -154,6 +154,7 @@ class LegalAcceptanceService
             'documents' => $this->listPublicDocuments(),
             'prize_collection' => $this->prizeCollectionClientConfig(),
             'prize_donation' => $this->prizeDonationClientConfig(),
+            'account_deletion' => $this->accountDeletionClientConfig(),
         ];
     }
 
@@ -194,6 +195,52 @@ class LegalAcceptanceService
             'version' => (string) ($cfg['version'] ?? '3'),
             'text_hash' => (string) ($cfg['hash'] ?? 'l7_donacion_premio_v3'),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function accountDeletionClientConfig(): array
+    {
+        $cfg = config('legal.account_deletion', []);
+        $days = (string) ($cfg['grace_days'] ?? 30);
+
+        return [
+            'title' => $cfg['title'] ?? 'Eliminar cuenta',
+            'main_warning' => $cfg['main_warning'] ?? '',
+            'prizes_warning' => $cfg['prizes_warning'] ?? '',
+            'blocked_message' => $cfg['blocked_message'] ?? '',
+            'email_confirm_label' => $cfg['email_confirm_label'] ?? 'Escribe tu email para confirmar',
+            'confirm_button' => $cfg['confirm_button'] ?? 'Eliminar mi cuenta',
+            'cancel_button' => $cfg['cancel_button'] ?? 'Cancelar',
+            'scheduled_notice' => str_replace(':days', $days, $cfg['scheduled_notice'] ?? ''),
+            'version' => (string) ($cfg['version'] ?? '3'),
+            'text_hash' => (string) ($cfg['hash'] ?? 'l9_baja_cuenta_v3'),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function recordDefinitiveLiquidationConfirmation(
+        User $user,
+        Request $request,
+        array $context = [],
+        ?int $administrationId = null
+    ): ?LegalAcceptance {
+        $cfg = config('legal_prizes.definitive_liquidation', []);
+
+        return $this->recordFromRequest(
+            action: LegalAcceptance::ACTION_LIQUIDACION_DEFINITIVA_CONFIRMADA,
+            request: $request,
+            user: $user,
+            version: (string) ($cfg['version'] ?? '3'),
+            textHash: (string) ($cfg['hash'] ?? 'l8_liquidacion_definitiva_v3'),
+            entityId: isset($context['entity_id']) ? (int) $context['entity_id'] : null,
+            lotteryId: isset($context['lottery_id']) ? (int) $context['lottery_id'] : null,
+            administrationId: $administrationId,
+            context: $context,
+        );
     }
 
     /**

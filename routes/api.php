@@ -21,6 +21,7 @@ use App\Http\Controllers\BackgroundTaskController;
 use App\Http\Controllers\ReserveController;
 use App\Http\Controllers\SetController;
 use App\Http\Controllers\LegalApiController;
+use App\Http\Controllers\AccountDeletionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -47,6 +48,11 @@ Route::prefix('legal')->group(function () {
         Route::get('/role-invitations/{key}', [LegalApiController::class, 'showRoleInvitation']);
         Route::post('/role-invitations/{key}/respond', [LegalApiController::class, 'respondRoleInvitation']);
     });
+});
+
+Route::middleware('auth.api')->prefix('account')->group(function () {
+    Route::get('/deletion/status', [AccountDeletionController::class, 'status']);
+    Route::post('/deletion/request', [AccountDeletionController::class, 'request']);
 });
 
 Route::get('/check-delete/{type}/{id}', [ApiController::class, 'checkDelete']);

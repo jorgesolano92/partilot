@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\DB;
 class RoleLegalAcceptanceService
 {
     public function __construct(
-        private readonly LegalAcceptanceService $legalAcceptance
+        private readonly LegalAcceptanceService $legalAcceptance,
+        private readonly RoleLegalNotificationService $roleNotifications,
     ) {}
 
     /**
@@ -122,6 +123,8 @@ class RoleLegalAcceptanceService
         }
 
         $this->recordManagerAcceptance($manager, $user, $request);
+
+        $this->roleNotifications->onManagerAccepted($manager);
 
         return [
             'success' => true,
@@ -361,6 +364,8 @@ class RoleLegalAcceptanceService
         }
 
         if ($manager->pending_primary) {
+            $this->roleNotifications->onManagerRejected($manager);
+
             $manager->update([
                 'pending_primary' => false,
                 'confirmation_token' => null,

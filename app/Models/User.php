@@ -61,6 +61,9 @@ class User extends Authenticatable
         'panel_login_username',
         'password',
         'hide_entity_billing_switches_modal',
+        'deletion_requested_at',
+        'deletion_scheduled_at',
+        'deletion_status',
     ];
 
     /**
@@ -84,6 +87,8 @@ class User extends Authenticatable
         'status' => 'boolean',
         'birthday' => 'date',
         'hide_entity_billing_switches_modal' => 'boolean',
+        'deletion_requested_at' => 'datetime',
+        'deletion_scheduled_at' => 'datetime',
     ];
 
     protected static function booted(): void

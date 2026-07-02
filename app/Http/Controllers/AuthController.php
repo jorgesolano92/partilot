@@ -57,9 +57,15 @@ class AuthController extends Controller
             })
             ->first();
 
-        if (! $user || ! Hash::check($password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             return back()->withErrors([
                 'email' => 'Las credenciales proporcionadas no coinciden con nuestros registros.',
+            ])->withInput($request->only('email'));
+        }
+
+        if ($user->deletion_requested_at) {
+            return back()->withErrors([
+                'email' => 'Esta cuenta está desactivada por solicitud de baja.',
             ])->withInput($request->only('email'));
         }
 
@@ -252,6 +258,13 @@ class AuthController extends Controller
             ], 401);
         }
 
+        if ($user->deletion_requested_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta cuenta está desactivada por solicitud de baja.',
+            ], 403);
+        }
+
         // Obtener el vendedor vinculado al usuario (por tabla sellers, no por rol en users)
         $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
 
@@ -312,6 +325,13 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Las credenciales proporcionadas no coinciden con nuestros registros.'
             ], 401);
+        }
+
+        if ($user->deletion_requested_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta cuenta está desactivada por solicitud de baja.',
+            ], 403);
         }
 
         $payload = [

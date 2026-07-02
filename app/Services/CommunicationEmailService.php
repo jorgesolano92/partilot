@@ -153,7 +153,7 @@ class CommunicationEmailService
 
         if ($mailClass === \App\Mail\SellerConfirmationMail::class) {
             $sellerId = (int) ($mailPayload['seller_id'] ?? 0);
-            $seller = Seller::findOrFail($sellerId);
+            $seller = Seller::with('entities')->findOrFail($sellerId);
 
             Mail::to($recipientEmail)->send(new \App\Mail\SellerConfirmationMail($seller));
             return;

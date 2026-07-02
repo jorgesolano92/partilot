@@ -23,13 +23,18 @@ class EntityManagerInvitationMail extends Mailable
         public User $managerUser,
         public Manager $manager
     ) {
+        $this->entity->loadMissing('administration');
         $this->acceptUrl = route('entity-managers.confirm-accept', ['token' => $manager->confirmation_token]);
         $this->rejectUrl = route('entity-managers.confirm-reject', ['token' => $manager->confirmation_token]);
     }
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Invitación como gestor de entidad - Partilot');
+        $subject = $this->manager->pending_primary || $this->manager->is_primary
+            ? 'Tienes una solicitud pendiente en PARTILOT'
+            : 'Invitación para colaborar en PARTILOT';
+
+        return new Envelope(subject: $subject);
     }
 
     public function content(): Content

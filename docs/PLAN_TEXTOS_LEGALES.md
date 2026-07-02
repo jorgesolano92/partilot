@@ -30,13 +30,13 @@ La aceptación legal debe producirse **antes** de cualquier acto jurídico o eco
 |----|---------|-----------|-------|--------|
 | **L1** | Registro usuario | `REGISTRO_ACEPTACION_TCU` | Web, App, Web entidad | 🟡 Parcial — API + app con config remota; falta prueba E2E |
 | **L2** | Banner cookies | `COOKIES_ACEPTACION` | Web, Web entidad | 🟡 Parcial — panel + diseño externo + gate Firebase |
-| **L3** | Aceptación GR | `ACEPTACION_ROL_GESTOR_RESPONSABLE` | Web, App | 🟡 Parcial — pantalla bloqueante + API; emails G1–G5 pendientes |
-| **L4** | Aceptación Gestor | `ACEPTACION_ROL_GESTOR` | Web, App | 🟡 Parcial |
-| **L5** | Aceptación Vendedor | `ACEPTACION_ROL_VENDEDOR` | Web, App | 🟡 Parcial — pantalla legal web + app bloqueante |
-| **L6** | Cobro premio | `COBRO_PREMIO_CONFIRMADO` | Web, App | 🟡 Parcial — doble confirmación app + registro legal; email opt-in |
-| **L7** | Donación premio | `DONACION_PREMIO_CONFIRMADA` | Web, App | 🟡 Parcial — certificado fiscal opcional + registro legal |
-| **L8** | Liquidación definitiva | `LIQUIDACION_DEFINITIVA_CONFIRMADA` | Panel web | 🔴 Pendiente — campo `CONFIRMO LIQUIDACIÓN` |
-| **L9** | Baja cuenta | `SOLICITUD_BAJA_CUENTA` | Web, App | 🔴 Pendiente — requisito App Store / Play |
+| **L3** | Aceptación GR | `ACEPTACION_ROL_GESTOR_RESPONSABLE` | Web, App | 🟡 Parcial — pantalla + API + emails G1–G3 |
+| **L4** | Aceptación Gestor | `ACEPTACION_ROL_GESTOR` | Web, App | 🟡 Parcial — emails G4 |
+| **L5** | Aceptación Vendedor | `ACEPTACION_ROL_VENDEDOR` | Web, App | 🟡 Parcial — bloqueo asignación si pendiente + email G5 |
+| **L6** | Cobro premio | `COBRO_PREMIO_CONFIRMADO` | Web, App | ✅ App + registro legal |
+| **L7** | Donación premio | `DONACION_PREMIO_CONFIRMADA` | Web, App | ✅ App + registro legal |
+| **L8** | Liquidación definitiva | `LIQUIDACION_DEFINITIVA_CONFIRMADA` | Panel web | ✅ Modal `CONFIRMO LIQUIDACIÓN` + audit |
+| **L9** | Baja cuenta | `SOLICITUD_BAJA_CUENTA` | Web, App | 🟡 Parcial — API + app; fase 2 purge vía cron |
 
 Leyenda: ✅ Hecho · 🟡 Parcial · 🔴 Pendiente
 

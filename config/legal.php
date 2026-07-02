@@ -74,4 +74,21 @@ return [
     | Firebase web (notificaciones push en panel): requiere interacción con banner L2.
     */
     'defer_firebase_until_cookie_banner' => env('LEGAL_DEFER_FIREBASE_UNTIL_COOKIE_BANNER', true),
+
+    /*
+    | Baja de cuenta (L9).
+    */
+    'account_deletion' => [
+        'version' => env('LEGAL_L9_VERSION', '3'),
+        'hash' => env('LEGAL_L9_HASH', 'l9_baja_cuenta_v3'),
+        'title' => 'Eliminar cuenta',
+        'main_warning' => 'Esta acción eliminará permanentemente tu cuenta y todos tus datos. No podrá deshacerse.',
+        'prizes_warning' => 'Antes de continuar, asegúrate de haber gestionado todas tus participaciones premiadas pendientes.',
+        'blocked_message' => 'Tienes participaciones premiadas pendientes de cobro. Gestiónalas antes de eliminar tu cuenta.',
+        'email_confirm_label' => 'Escribe tu email para confirmar',
+        'confirm_button' => 'Eliminar mi cuenta',
+        'cancel_button' => 'Cancelar',
+        'grace_days' => (int) env('LEGAL_ACCOUNT_DELETION_GRACE_DAYS', 30),
+        'scheduled_notice' => 'Tu cuenta quedará desactivada de inmediato. Los datos personales se eliminarán pasados :days días, salvo los que la ley obligue a conservar.',
+    ],
 ];

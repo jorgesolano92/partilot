@@ -28,4 +28,13 @@ return [
         'confirm_checkbox_label' => 'Confirmo la modalidad seleccionada para el cobro de premios de este sorteo.',
         'double_confirm_message' => '¿Confirmas la modalidad de pago? Esta acción no puede deshacerse.',
     ],
+    'definitive_liquidation' => [
+        'version' => env('LEGAL_L8_VERSION', '3'),
+        'hash' => env('LEGAL_L8_HASH', 'l8_liquidacion_definitiva_v3'),
+        'title' => 'Confirmar liquidación definitiva',
+        'warning' => 'Esta liquidación es definitiva e irreversible. Confirma que deseas cerrar la cuenta con la Administración de Lotería.',
+        'confirmation_phrase' => 'CONFIRMO LIQUIDACIÓN',
+        'confirmation_label' => 'Escribe exactamente: CONFIRMO LIQUIDACIÓN',
+        'confirm_button' => 'Continuar con la liquidación',
+    ],
 ];

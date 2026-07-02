@@ -26,7 +26,8 @@ class Seller extends Model
         'group_color',
         'group_priority',
         'confirmation_token',
-        'confirmation_sent_at'
+        'confirmation_sent_at',
+        'role_invitation_reminder_sent_at',
     ];
 
     /** Estados: 0 = Inactivo, 1 = Activo, 2 = Pendiente, 3 = Bloqueado */
@@ -38,6 +39,7 @@ class Seller extends Model
     protected $casts = [
         'birthday' => 'date',
         'confirmation_sent_at' => 'datetime',
+        'role_invitation_reminder_sent_at' => 'datetime',
     ];
 
     /**
