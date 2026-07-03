@@ -100,7 +100,7 @@ class ParticipationTicketReferenceTest extends TestCase
         $ref = ParticipationTicketReference::generate(2, 3);
         $url = ParticipationTicketReference::signedCheckUrl($ref);
 
-        $this->assertStringStartsWith('https://partilot.es/comprobar-participacion?', $url);
+        $this->assertStringStartsWith('https://partilot.es/comprobar-participaciones?', $url);
         $this->assertStringContainsString('ref='.$ref, $url);
         $this->assertStringContainsString('sig=', $url);
         $this->assertNull(ParticipationTicketReference::authenticationError($ref, null));
@@ -114,7 +114,7 @@ class ParticipationTicketReferenceTest extends TestCase
         $ref = ParticipationTicketReference::generate(10, 20);
         $url = ParticipationTicketReference::signedCheckUrl($ref);
 
-        $this->assertStringStartsWith('https://check.example.test/comprobar-participacion?', $url);
+        $this->assertStringStartsWith('https://check.example.test/comprobar-participaciones?', $url);
         $this->assertStringNotContainsString('panel.', $url);
     }
 

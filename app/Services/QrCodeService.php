@@ -13,7 +13,7 @@ class QrCodeService
 
     public function __construct()
     {
-        $this->baseUrl = ParticipationTicketReference::publicCheckBaseUrl().'/comprobar-participacion?ref=';
+        $this->baseUrl = ParticipationTicketReference::publicCheckBaseUrl().'/comprobar-participaciones?ref=';
     }
 
     /**

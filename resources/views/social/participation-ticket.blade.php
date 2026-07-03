@@ -117,6 +117,59 @@
             background: #fff3cd;
             color: #856404;
         }
+
+        .verify-input-group {
+            display: flex;
+            align-items: stretch;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .verify-input {
+            flex: 1;
+            min-width: 0;
+            border: 2px solid #dee2e6;
+            border-right: none;
+            border-radius: 25px 0 0 25px;
+            padding: 12px 20px;
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #212529;
+            background-color: #fff;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .verify-input::placeholder {
+            color: #adb5bd;
+        }
+
+        .verify-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
+        .verify-input-group .btn-verify {
+            border-radius: 0 25px 25px 0;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 576px) {
+            .verify-input-group {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .verify-input {
+                border-right: 2px solid #dee2e6;
+                border-radius: 25px;
+            }
+
+            .verify-input-group .btn-verify {
+                border-radius: 25px;
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -132,7 +185,7 @@
                     <div class="error-container">
                         <h4><i class="ri-error-warning-line me-2"></i>Error</h4>
                         <p>{{ $error }}</p>
-                        <a href="{{ url('/comprobar-participacion') }}" class="btn btn-outline-danger">
+                        <a href="{{ url('/comprobar-participaciones') }}" class="btn btn-outline-danger">
                             <i class="ri-refresh-line me-2"></i>Intentar de nuevo
                         </a>
                     </div>
@@ -220,7 +273,7 @@
                     @endif
                     
                     <div class="text-center mt-4">
-                        <a href="{{ url('/comprobar-participacion') }}" class="btn btn-verify">
+                        <a href="{{ url('/comprobar-participaciones') }}" class="btn btn-verify">
                             <i class="ri-refresh-line me-2"></i>Verificar Otra Participación
                         </a>
                     </div>
@@ -229,11 +282,11 @@
                         <h4><i class="ri-search-line me-2"></i>Verificar Participación</h4>
                         <p>Ingrese la referencia de su participación para verificar si ha resultado premiada.</p>
                         
-                        <form method="GET" action="{{ url('/comprobar-participacion') }}" class="mt-4">
-                            <div class="input-group mb-3">
-                                <input type="text" name="ref" class="form-control form-control-lg" 
-                                       placeholder="Ingrese la referencia de su participación" 
-                                       value="{{ request('ref') }}" required>
+                        <form method="GET" action="{{ url('/comprobar-participaciones') }}" class="mt-4">
+                            <div class="verify-input-group mb-3">
+                                <input type="text" name="ref" class="verify-input"
+                                       placeholder="Ingrese la referencia de su participación"
+                                       value="{{ request('ref') }}" required autocomplete="off">
                                 <button class="btn btn-verify" type="submit">
                                     <i class="ri-search-line me-2"></i>Verificar
                                 </button>

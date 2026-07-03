@@ -168,7 +168,7 @@ class ParticipationTicketReference
         }
 
         return self::publicCheckBaseUrl()
-            .'/comprobar-participacion?ref='.$reference
+            .'/comprobar-participaciones?ref='.$reference
             .'&sig='.self::signature($reference);
     }
 
