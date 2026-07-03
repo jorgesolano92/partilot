@@ -27,7 +27,7 @@ use App\Mail\TransferCollectionVerificationMail;
 use App\Mail\DonationCodeConfirmationMail;
 use App\Services\AppInboxNotificationService;
 use App\Services\PendingDigitalSaleService;
-use App\Services\ParticipationGiftService;
+use App\Support\ParticipationListPagination;
 use App\Support\ParticipationTicketReference;
 use App\Services\ParticipationOwnerService;
 use App\Services\ParticipationWalletValidityService;
@@ -1175,13 +1175,21 @@ class ParticipationController extends Controller
             return response()->json(['success' => false, 'message' => 'Vendedor no encontrado.'], 403);
         }
 
-        $participations = Participation::where('seller_id', $seller->id)
+        $pagination = ParticipationListPagination::parseFromRequest($request);
+        $salesLimit = $pagination['enabled'] ? null : 200;
+        $pendingLimit = $pagination['enabled'] ? null : 50;
+
+        $participationsQuery = Participation::where('seller_id', $seller->id)
             ->where('status', 'vendida')
             ->with(['set.entity', 'set.reserve.lottery.lotteryType', 'set.designFormats'])
             ->orderBy('sale_date', 'desc')
-            ->orderBy('sale_time', 'desc')
-            ->limit(200)
-            ->get();
+            ->orderBy('sale_time', 'desc');
+
+        if ($salesLimit !== null) {
+            $participationsQuery->limit($salesLimit);
+        }
+
+        $participations = $participationsQuery->get();
 
         $historial = $participations->map(function ($p) use ($seller) {
             $set = $p->set;
@@ -1292,12 +1300,16 @@ class ParticipationController extends Controller
             ];
         })->filter()->values()->all();
 
-        $pendingHistorial = PendingDigitalSale::where('seller_id', $seller->id)
+        $pendingQuery = PendingDigitalSale::where('seller_id', $seller->id)
             ->pendingNotExpired()
             ->with(['entity', 'lottery.lotteryType', 'set', 'participations.set'])
-            ->orderByDesc('created_at')
-            ->limit(50)
-            ->get()
+            ->orderByDesc('created_at');
+
+        if ($pendingLimit !== null) {
+            $pendingQuery->limit($pendingLimit);
+        }
+
+        $pendingHistorial = $pendingQuery->get()
             ->map(function (PendingDigitalSale $p) {
                 $smsNotify = app(\App\Services\DigitalSaleSmsService::class);
                 $entity = $p->entity;
@@ -1368,12 +1380,21 @@ class ParticipationController extends Controller
             ->values()
             ->all();
 
+        $listed = ParticipationListPagination::apply($historial, $pagination, 'fecha');
+        $historial = $listed['data'];
+
         $notify = app(\App\Services\DigitalSaleBuyerNotifyService::class);
 
-        return response()->json(array_merge([
+        $payload = array_merge([
             'success' => true,
             'historial' => $historial,
-        ], $notify->configPayload()));
+        ], $notify->configPayload());
+
+        if ($listed['meta'] !== null) {
+            $payload['meta'] = $listed['meta'];
+        }
+
+        return response()->json($payload);
     }
 
     public function apiWhatsAppConfig()
@@ -1755,6 +1776,8 @@ class ParticipationController extends Controller
         if (!$user->isClient() && !$user->isSeller()) {
             return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden ver su cartera.'], 403);
         }
+        $pagination = ParticipationListPagination::parseFromRequest($request);
+        $includeExpired = $pagination['enabled'] && $pagination['includeExpired'];
         $userId = (string) $user->id;
         $items = [];
 
@@ -1793,9 +1816,10 @@ class ParticipationController extends Controller
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
             $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
-            if (! empty($item['wallet_expired'])) {
+            if (! empty($item['wallet_expired']) && ! $includeExpired) {
                 continue;
             }
+            $item['fecha'] = $p->updated_at->toIso8601String();
             $items[] = $item;
         }
 
@@ -1834,9 +1858,10 @@ class ParticipationController extends Controller
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
             $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
-            if (! empty($item['wallet_expired'])) {
+            if (! empty($item['wallet_expired']) && ! $includeExpired) {
                 continue;
             }
+            $item['fecha'] = $gift->created_at->toIso8601String();
             $items[] = $item;
         }
 
@@ -1844,7 +1869,13 @@ class ParticipationController extends Controller
             return ($b['id'] ?? 0) <=> ($a['id'] ?? 0);
         });
 
-        return response()->json(['success' => true, 'participations' => $items]);
+        $listed = ParticipationListPagination::apply($items, $pagination, 'fecha');
+        $payload = ['success' => true, 'participations' => $listed['data']];
+        if ($listed['meta'] !== null) {
+            $payload['meta'] = $listed['meta'];
+        }
+
+        return response()->json($payload);
     }
 
     /**
@@ -2396,6 +2427,7 @@ class ParticipationController extends Controller
         if (!$user->isClient() && !$user->isSeller()) {
             return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden ver su historial.'], 403);
         }
+        $pagination = ParticipationListPagination::parseFromRequest($request);
         $userId = (string) $user->id;
         $historial = [];
 
@@ -2578,7 +2610,13 @@ class ParticipationController extends Controller
             return strcmp($fechaB, $fechaA);
         });
 
-        return response()->json(['success' => true, 'historial' => $historial]);
+        $listed = ParticipationListPagination::apply($historial, $pagination, 'fecha');
+        $payload = ['success' => true, 'historial' => $listed['data']];
+        if ($listed['meta'] !== null) {
+            $payload['meta'] = $listed['meta'];
+        }
+
+        return response()->json($payload);
     }
 
     /**
