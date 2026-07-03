@@ -13,6 +13,7 @@ use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Services\CommunicationEmailService;
 use App\Services\ParticipationGiftService;
+use App\Services\PendingDigitalSaleService;
 use App\Services\RoleLegalAcceptanceService;
 use App\Services\UserConsentService;
 use App\Support\ActiveEntityContext;
@@ -451,6 +452,25 @@ class AuthController extends Controller
         );
 
         app(ParticipationGiftService::class)->attachPendingGiftsToUser($user);
+
+        $claimedByCode = 0;
+        $linkCode = trim((string) $request->input('link_code', ''));
+        if ($linkCode !== '') {
+            try {
+                $pending = app(PendingDigitalSaleService::class)->claimByLinkCode($user, $linkCode);
+                $claimedByCode = (int) $pending->quantity;
+            } catch (\InvalidArgumentException $e) {
+                \Log::info('apiRegister: link_code no vinculado tras registro', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            } catch (\Throwable $e) {
+                \Log::warning('apiRegister: error vinculando link_code', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
 
         try {
             app(CommunicationEmailService::class)->sendAndLog(
