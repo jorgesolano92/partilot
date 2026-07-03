@@ -94,14 +94,28 @@ class ParticipationTicketReferenceTest extends TestCase
         config([
             'lottery.participation_qr_hmac.require_signature' => false,
             'lottery.participation_qr_hmac.allow_legacy_unsigned' => true,
+            'lottery.participation_qr_public_url' => 'https://partilot.es',
         ]);
 
         $ref = ParticipationTicketReference::generate(2, 3);
         $url = ParticipationTicketReference::signedCheckUrl($ref);
 
+        $this->assertStringStartsWith('https://partilot.es/comprobar-participacion?', $url);
         $this->assertStringContainsString('ref='.$ref, $url);
         $this->assertStringContainsString('sig=', $url);
         $this->assertNull(ParticipationTicketReference::authenticationError($ref, null));
+    }
+
+    #[Test]
+    public function signed_url_uses_configurable_public_base_url(): void
+    {
+        config(['lottery.participation_qr_public_url' => 'https://check.example.test']);
+
+        $ref = ParticipationTicketReference::generate(10, 20);
+        $url = ParticipationTicketReference::signedCheckUrl($ref);
+
+        $this->assertStringStartsWith('https://check.example.test/comprobar-participacion?', $url);
+        $this->assertStringNotContainsString('panel.', $url);
     }
 
     #[Test]

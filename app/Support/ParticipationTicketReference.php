@@ -167,7 +167,23 @@ class ParticipationTicketReference
             throw new InvalidArgumentException('Referencia inválida para URL firmada.');
         }
 
-        return url('comprobar-participacion?ref='.$reference.'&sig='.self::signature($reference));
+        return self::publicCheckBaseUrl()
+            .'/comprobar-participacion?ref='.$reference
+            .'&sig='.self::signature($reference);
+    }
+
+    /**
+     * URL base para QR impresos (partilot.es u otra configurada en .env).
+     * Independiente de APP_URL / url() del panel.
+     */
+    public static function publicCheckBaseUrl(): string
+    {
+        $url = config('lottery.participation_qr_public_url', 'https://partilot.es');
+        if (! is_string($url) || trim($url) === '') {
+            $url = 'https://partilot.es';
+        }
+
+        return rtrim(trim($url), '/');
     }
 
     /**

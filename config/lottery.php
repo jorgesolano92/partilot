@@ -65,4 +65,13 @@ return [
             FILTER_VALIDATE_BOOLEAN
         ),
     ],
+
+    /*
+    | URL base embebida en códigos QR impresos (comprobación pública fuera del panel).
+    | Solo afecta a la generación de QR; la app extrae el parámetro ref de la URL.
+    */
+    'participation_qr_public_url' => rtrim(
+        env('PARTICIPATION_QR_PUBLIC_URL', 'https://partilot.es'),
+        '/'
+    ),
 ];

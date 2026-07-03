@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ParticipationTicketReference;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -12,7 +13,7 @@ class QrCodeService
 
     public function __construct()
     {
-        $this->baseUrl = url('comprobar-participacion?ref=');
+        $this->baseUrl = ParticipationTicketReference::publicCheckBaseUrl().'/comprobar-participacion?ref=';
     }
 
     /**
