@@ -1,0 +1,8 @@
+Xcode → Target Partilot → Signing & Capabilities → Associated Domains
+
+Añadir:
+applinks:partilot.es
+
+Bundle ID / App Store: com.partilot.app
+
+Después de publicar, verificar que https://partilot.es/.well-known/apple-app-site-association responde sin redirect y con Content-Type application/json.

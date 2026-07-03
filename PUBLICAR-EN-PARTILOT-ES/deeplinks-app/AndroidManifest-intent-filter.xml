@@ -1,0 +1,13 @@
+<!-- Pegar DENTRO de <activity android:name=".MainActivity" ...> en android/app/src/main/AndroidManifest.xml -->
+
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data
+        android:scheme="https"
+        android:host="partilot.es"
+        android:pathPrefix="/comprobar-participaciones" />
+</intent-filter>
+
+<!-- Paquete publicado en Play Store: com.partilot.app -->

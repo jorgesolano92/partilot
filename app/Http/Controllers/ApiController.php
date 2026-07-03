@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Exception;
 use App\Support\ParticipationTicketReference;
 use App\Support\PanelPassword;
+use App\Services\ParticipationPublicCheckService;
 
 class ApiController extends Controller
 {
@@ -1774,179 +1775,34 @@ class ApiController extends Controller
 
     public function showParticipationTicket(Request $request)
     {
+        $result = app(ParticipationPublicCheckService::class)->check(
+            $request->query('ref'),
+            is_string($request->query('sig')) ? $request->query('sig') : null
+        );
 
-        // Redirigir a la nueva URL externa manteniendo el parámetro ref
-        // if ($request->has('ref')) {
-        //     $ref = $request->query('ref');
-        //     $redirectUrl = 'https://web.elbuholotero.es/loteria-empresas-parti.php?ref=' . urlencode($ref);
-        //     return redirect($redirectUrl);
-        // }
-        
-        // // Si no hay ref, redirigir sin parámetro
-        // return redirect('https://web.elbuholotero.es/loteria-empresas-parti.php');
-        
-        $ticket = null;
-        $error = null;
-        $prizeInfo = null;
-        
-        if ($request->has('ref')) {
-            $ref = ParticipationTicketReference::normalize($request->query('ref'));
-            $sig = $request->query('sig');
-
-            if ($authError = ParticipationTicketReference::authenticationError($ref, is_string($sig) ? $sig : null)) {
-                $error = $authError;
-            } else {
-            
-            // Buscar el set que contiene la referencia en tickets
-            $set = \App\Models\Set::whereNotNull('tickets')
-                ->with(['reserve.lottery', 'reserve.entity'])
-                ->get()
-                ->first(function($set) use ($ref) {
-                    if (!is_array($set->tickets)) return false;
-                    foreach ($set->tickets as $ticket) {
-                        if (isset($ticket['r']) && $ticket['r'] == $ref) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
-            
-            if (!$set) {
-                $error = 'No se encontró ninguna participación con esa referencia.';
-            } else {
-                // Encontrar el número de participación correspondiente a la referencia
-                $participationNumber = null;
-                foreach ($set->tickets as $ticket) {
-                    if (isset($ticket['r']) && $ticket['r'] == $ref) {
-                        $participationNumber = $ticket['n'];
-                            break;
-                        }
-                }
-                
-                /*\Log::info("Set Tickets: " . json_encode($set->tickets));
-                \Log::info("Looking for ref: " . $ref);
-                \Log::info("Found participation number: " . ($participationNumber ?? 'NULL'));*/
-                
-                // Buscar la participación por set_id y participation_number
-                $participation = \App\Models\Participation::where('set_id', $set->id)
-                    ->where('participation_number', $participationNumber)
-                    ->first();
-
-                    // return $participation;
-                
-                if (!$participation) {
-                    $error = 'No se encontró la participación correspondiente a esa referencia.';
-                } else if ($participation->status !== 'vendida' && $participation->status !== 'pagada') {
-                    \Log::info("Participation Status: " . $participation->status);
-                    $error = 'Esta participación no está asignada.';
-                } else {
-                    \Log::info("Participation Status: " . $participation->status . " (OK)");
-                    $reserve = $set->reserve;
-                    $lottery = $reserve->lottery;
-                    
-                    // Obtener los números ganadores desde reservation_numbers
-                    $reservedNumbers = $reserve->reservation_numbers ?? [];
-                    
-                    // Manejar todos los números reservados como posibles ganadores
-                    $winningNumbers = [];
-                    
-                    // Si reservation_numbers tiene solo 1 número, todas las participaciones
-                    // del set tienen el mismo número ganador
-                    if (count($reservedNumbers) == 1) {
-                        $winningNumbers = $reservedNumbers;
-                    } else {
-                        // Si hay múltiples números, usar todos los números reservados
-                        $winningNumbers = $reservedNumbers;
-                    }
-                    
-                    /*\Log::info("Reserved Numbers: " . json_encode($reservedNumbers));
-                    \Log::info("Participation Number: " . $participationNumber);
-                    \Log::info("Winning Number Index: " . ($participationNumber - 1));
-                    \Log::info("Reserved Numbers Count: " . count($reservedNumbers));
-                    \Log::info("Winning Number: " . ($winningNumber ?? 'NULL'));*/
-                
-                // Debug: Log de información
-                /*\Log::info("=== DEBUG PARTICIPATION TICKET ===");
-                \Log::info("Winning Number: " . ($winningNumber ?? 'NULL'));
-                \Log::info("Set ID: " . $set->id);
-                \Log::info("Participation Number: " . $participationNumber);*/
-                
-                // Buscar en los resultados del escrutinio guardado para todos los números ganadores
-                $scrutinyResults = [];
-                $totalPrizeAmount = 0;
-                $allWinningCategories = [];
-                
-                if (!empty($winningNumbers)) {
-                    $scrutinyResults = DB::table('scrutiny_detailed_results')
-                        ->join('administration_lottery_scrutinies', 'scrutiny_detailed_results.scrutiny_id', '=', 'administration_lottery_scrutinies.id')
-                        ->whereIn('scrutiny_detailed_results.winning_number', $winningNumbers)
-                        ->where('scrutiny_detailed_results.set_id', $set->id)
-                        ->where('administration_lottery_scrutinies.is_scrutinized', true) // Buscar en escrutinios procesados, no solo guardados
-                        ->select('scrutiny_detailed_results.*')
-                        ->get();
-                    
-                    \Log::info("Scrutiny Results Found: " . $scrutinyResults->count());
-                    
-                    // Calcular premio total y categorías ganadoras
-                    foreach ($scrutinyResults as $result) {
-                        $totalPrizeAmount += $result->premio_por_participacion;
-                        $categories = json_decode($result->winning_categories, true);
-                        if (is_array($categories)) {
-                            // Construir estructura correcta para la vista
-                            foreach ($categories as $category) {
-                                if (is_array($category) && isset($category['categoria']) && isset($category['premio_decimo'])) {
-                                    $allWinningCategories[] = $category;
-                                } elseif (is_string($category) && !empty(trim($category))) {
-                                    // Si es solo un string, crear estructura básica
-                                    $allWinningCategories[] = [
-                                        'categoria' => $category,
-                                        'premio_decimo' => $result->premio_por_decimo ?? 0
-                                    ];
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                if ($scrutinyResults->count() > 0) {
-                    // Usar datos del escrutinio guardado
-                    $prizeInfo = [
-                        'has_won' => true,
-                        'prize_category' => 'Premio del Escrutinio',
-                        'prize_amount' => $totalPrizeAmount,
-                        'matching_numbers' => $winningNumbers,
-                        'winning_categories' => $allWinningCategories,
-                        'scrutiny_results_count' => $scrutinyResults->count()
-                    ];
-                } else {
-                    // No hay premio en el escrutinio guardado
-                    $prizeInfo = [
-                        'has_won' => false,
-                        'prize_category' => null,
-                        'prize_amount' => 0,
-                        'matching_numbers' => $winningNumbers,
-                        'winning_categories' => []
-                    ];
-                }
-                
-                $ticket = [
-                    'data' => [
-                        'participation_code' => $participation->display_participation_code,
-                        'participation_number' => $ref, // La referencia original buscada (000100061758806276046)
-                        'numbers' => $reservedNumbers,
-                        'winning_numbers' => $winningNumbers
-                    ],
-                    'set' => $set,
-                    'reserve' => $reserve,
-                    'lottery' => $lottery,
-                    'prize_info' => $prizeInfo
-                ];
-                }
-            }
-            }
+        if ($request->wantsJson() || $request->query('format') === 'json') {
+            return response()->json($result);
         }
-        
+
+        $ticket = $result['ticket'];
+        $error = $result['error'];
+
         return view('social.participation-ticket', compact('ticket', 'error'));
+    }
+
+    /**
+     * API JSON para el VPS partilot.es (comprobación pública sin auth).
+     */
+    public function publicParticipationCheckJson(Request $request)
+    {
+        $result = app(ParticipationPublicCheckService::class)->check(
+            $request->query('ref'),
+            is_string($request->query('sig')) ? $request->query('sig') : null
+        );
+
+        return response()
+            ->json($result)
+            ->header('Cache-Control', $result['success'] ? 'public, max-age=60' : 'no-store');
     }
 
     /**

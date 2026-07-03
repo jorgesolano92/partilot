@@ -1,0 +1,142 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #212529;
+}
+
+.container {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -0.75rem;
+}
+
+.col-md-6 { padding: 0 0.75rem; width: 100%; }
+
+@media (min-width: 768px) {
+    .col-md-6 { width: 50%; }
+}
+
+.text-center { text-align: center; }
+.text-muted { color: #6c757d; }
+.mb-0 { margin-bottom: 0; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mt-4 { margin-top: 1.5rem; }
+
+h1, h3, h4, h5, h6 { margin-top: 0; }
+
+.ticket-container {
+    max-width: 600px;
+    margin: 2rem auto;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.ticket-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.ticket-header h1 {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.ticket-body { padding: 2rem; }
+
+.lottery-info {
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.numbers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 10px;
+    margin: 1rem 0;
+}
+
+.number-box {
+    background: #667eea;
+    color: white;
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.prize-info {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.prize-amount {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #155724;
+}
+
+.error-container {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 10px;
+    padding: 1rem;
+    color: #721c24;
+}
+
+.btn {
+    display: inline-block;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.btn-verify {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-weight: bold;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.status-winner { background: #d4edda; color: #155724; }
+.status-no-prize { background: #f8d7da; color: #721c24; }
+.status-pending { background: #fff3cd; color: #856404; }
+
+.store-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 1.5rem;
+}

@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "REEMPLAZAR_TEAM_ID.com.partilot.app",
+        "paths": [
+          "/comprobar-participaciones",
+          "/comprobar-participaciones/*"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Redirección singular → plural (QR antiguos / bookmarks)
+    RewriteRule ^comprobar-participacion/?$ /comprobar-participaciones/ [R=301,L]
+
+    # Apple App Site Association en raíz (algunos servidores)
+    RewriteRule ^apple-app-site-association$ /.well-known/apple-app-site-association [L]
+</IfModule>

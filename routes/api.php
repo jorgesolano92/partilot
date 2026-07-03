@@ -67,6 +67,7 @@ Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name
 // Verificar participación por referencia (pública)
 Route::get('/participation/check', [ApiController::class, 'checkParticipation']);
 Route::get('/participation-ticket', [ApiController::class, 'showParticipationTicket']);
+Route::get('/public/participation-check', [ApiController::class, 'publicParticipationCheckJson']);
 
 // Configuración de Firebase (pública para inicialización)
 Route::get('/notifications/firebase-config', [NotificationController::class, 'getFirebaseConfig']);
