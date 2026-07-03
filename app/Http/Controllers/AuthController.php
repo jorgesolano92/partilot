@@ -381,7 +381,8 @@ class AuthController extends Controller
 
         $request->validate([
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => PasswordRules::registration(),
+            // App móvil (stores en revisión): sin campo confirmación; reactivar confirmed cuando la app lo envíe.
+            'password' => PasswordRules::registration(confirmed: false),
             'phone' => 'nullable|string|max:20',
             'sms_code' => [
                 \Illuminate\Validation\Rule::requiredIf(fn () => app(\App\Services\PhoneVerificationService::class)
