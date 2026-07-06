@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Seller;
 use App\Models\User;
+use App\Rules\ValidCalendarDate;
 use App\Models\Entity;
 use App\Models\Reserve;
 use App\Models\Set;
@@ -170,7 +171,7 @@ class SellerController extends Controller
             'last_name' => 'nullable|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['nullable', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif', 'unique:sellers,nif_cif'],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:255',
             'comment' => 'nullable|string'
         ]);
@@ -247,7 +248,7 @@ class SellerController extends Controller
             'last_name' => 'nullable|string|max:255', // No requerido
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif', 'unique:sellers,nif_cif'],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email',
             'phone' => 'nullable|string|max:255',
             'entity_id' => 'required|exists:entities,id'
@@ -1579,7 +1580,7 @@ class SellerController extends Controller
             'last_name2' => 'nullable|string|max:255',
             'email' => 'required|email',
             'phone' => 'nullable|string|max:255',
-            'birthday' => 'nullable|date',
+            'birthday' => ValidCalendarDate::birthday(false),
             'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument],
         ]);
         $user = $request->user();
@@ -2199,7 +2200,7 @@ class SellerController extends Controller
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['nullable', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif,' . ($seller->user_id ?? 0), 'unique:sellers,nif_cif,' . $seller->id],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email|unique:users,email,' . ($seller->user_id ?? 0),
             'phone' => 'nullable|string|max:255',
             'group_id' => 'nullable|exists:groups,id',

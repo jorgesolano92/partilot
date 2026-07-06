@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\ValidCalendarDate;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CreateManager extends FormRequest
@@ -29,7 +30,7 @@ class CreateManager extends FormRequest
             "last_name" => "required|string|max:255",
             "last_name2" => "nullable|string|max:255",
             "nif_cif" => ["nullable", "string", "max:255", "unique:users,nif_cif"],
-            "birthday" => ["required", "date", new \App\Rules\MinimumAge(18)],
+            "birthday" => ValidCalendarDate::birthday(),
             "email" => "required|string|max:255",
             "phone" => "nullable|string|max:255",
             "comment" => "nullable|string|max:255",

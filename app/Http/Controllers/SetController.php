@@ -10,6 +10,7 @@ use App\Models\Participation;
 use App\Services\CommunicationEmailService;
 use App\Mail\SetCreatedToEntityManagerMail;
 use App\Support\SafeXml;
+use App\Rules\ValidCalendarDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -348,7 +349,7 @@ class SetController extends Controller
             'total_amount' => 'required|numeric|min:0',
             'physical_participations' => 'nullable|integer|min:0',
             'digital_participations' => 'nullable|integer|min:0',
-            'deadline_date' => ['required', 'date', new \App\Rules\DeadlineBeforeLottery($reserve->id)]
+            'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($reserve->id)])
         ]);
 
 
@@ -459,7 +460,7 @@ class SetController extends Controller
         }
 
         $validated = $request->validate([
-            'deadline_date' => ['required', 'date', new \App\Rules\DeadlineBeforeLottery($set->reserve_id)]
+            'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($set->reserve_id)])
         ]);
 
         $set->update(['deadline_date' => $validated['deadline_date']]);

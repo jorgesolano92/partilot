@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Rules\ValidCalendarDate;
 use App\Models\Seller;
 use App\Models\Manager;
 use App\Http\Controllers\ParticipationController;
@@ -76,7 +77,7 @@ class UserController extends Controller
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument, 'unique:users'],
-            'birthday' => ['required', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(),
             'email' => 'required|email|unique:users',
             'phone' => 'required|string|max:20',
             'password' => 'required|string|min:8',
@@ -193,7 +194,7 @@ class UserController extends Controller
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument, 'unique:users,nif_cif,' . $user->id],
-            'birthday' => ['required', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(),
             'email' => 'required|email|unique:users,email,' . $user->id,
             'phone' => 'required|string|max:20',
             'password' => 'nullable|string|min:8',

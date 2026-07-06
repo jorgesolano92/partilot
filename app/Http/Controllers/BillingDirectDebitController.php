@@ -8,6 +8,7 @@ use App\Services\AdministrationBillingService;
 use App\Services\BillingDirectDebitService;
 use App\Services\BillingDirectDebitXmlGeneratorService;
 use Illuminate\Http\Request;
+use App\Rules\ValidCalendarDate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BillingDirectDebitController extends Controller
@@ -31,7 +32,7 @@ class BillingDirectDebitController extends Controller
         $data = $request->validate([
             'charge_ids' => 'required|array|min:1',
             'charge_ids.*' => 'integer|exists:billing_charges,id',
-            'collection_date' => 'required|date|after_or_equal:today',
+            'collection_date' => ValidCalendarDate::onOrAfterToday(),
             'notes' => 'nullable|string|max:1000',
         ]);
 

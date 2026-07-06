@@ -7,6 +7,7 @@ use App\Models\Manager;
 use App\Models\User;
 use App\Services\ManagerAccountService;
 use App\Support\ContactEmailRegistry;
+use App\Rules\ValidCalendarDate;
 use Illuminate\Support\Facades\Validator;
 
 class ManagerController extends Controller
@@ -55,7 +56,7 @@ class ManagerController extends Controller
                     $userId
                 ),
             ],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:20',
             'comment' => 'nullable|string|max:1000',

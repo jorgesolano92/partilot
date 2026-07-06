@@ -204,7 +204,7 @@
                                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                         <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
                                                     </div>
-                                                    <input class="form-control" type="date" name="birthday" value="{{ old('birthday') }}" style="border-radius: 0 30px 30px 0;">
+                                                    <input class="form-control" type="date" name="birthday" value="{{ old('birthday') }}" min="1900-01-01" max="{{ now()->toDateString() }}" style="border-radius: 0 30px 30px 0;">
                                                 </div>
                                             </div>
                                         </div>
@@ -388,7 +388,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="birthday" value="{{ old('birthday', $primaryManagerUser->birthday?->format('Y-m-d') ?? '') }}" class="form-control" type="date" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="birthday" value="{{ old('birthday', $primaryManagerUser->birthday?->format('Y-m-d') ?? '') }}" class="form-control" type="date" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>

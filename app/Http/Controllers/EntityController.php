@@ -16,6 +16,7 @@ use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
 use App\Services\RoleLegalAcceptanceService;
 use App\Support\ContactEmailRegistry;
+use App\Rules\ValidCalendarDate;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -225,7 +226,7 @@ class EntityController extends Controller
             'manager_last_name' => 'required|string|max:255',
             'manager_last_name2' => 'nullable|string|max:255',
             'manager_nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\SpanishDocument],
-            'manager_birthday' => ['required', 'date', new \App\Rules\MinimumAge(18)],
+            'manager_birthday' => ValidCalendarDate::birthday(),
             'manager_email' => 'required|email|max:255',
             'manager_phone' => 'nullable|string|max:20',
         ]);
@@ -595,7 +596,7 @@ class EntityController extends Controller
             'manager_last_name' => 'required|string|max:255',
             'manager_last_name2' => 'nullable|string|max:255',
             'manager_nif_cif' => ['nullable', 'string', 'max:20', 'unique:users,nif_cif' . ($userId ? ',' . $userId : '')],
-            'manager_birthday' => ['required', 'date', new \App\Rules\MinimumAge(18)],
+            'manager_birthday' => ValidCalendarDate::birthday(),
             'manager_email' => 'required|email|max:255',
             'manager_phone' => 'nullable|string|max:20',
             'permission_sellers' => 'nullable|boolean',
@@ -1170,7 +1171,7 @@ class EntityController extends Controller
             'manager_last_name' => 'required|string|max:255',
             'manager_last_name2' => 'nullable|string|max:255',
             'manager_nif_cif' => ['nullable', 'string', 'max:20', 'unique:users,nif_cif' . ($userId ? ',' . $userId : '')],
-            'manager_birthday' => ['required', 'date', new \App\Rules\MinimumAge(18)],
+            'manager_birthday' => ValidCalendarDate::birthday(),
             'manager_email' => 'required|email|max:255',
             'manager_phone' => 'nullable|string|max:20',
             'manager_comment' => 'nullable|string|max:1000',
@@ -1555,7 +1556,7 @@ class EntityController extends Controller
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:20',
             'terms_accepted' => 'accepted',
         ], [

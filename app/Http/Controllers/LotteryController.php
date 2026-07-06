@@ -10,6 +10,7 @@ use App\Jobs\NotifyLotteryResultsPublishedJob;
 use App\Services\EntityLotteryPrizeService;
 use App\Services\NavidadScrapingService;
 use App\Support\LotteryPanelAccess;
+use App\Rules\ValidCalendarDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Validator;
@@ -65,9 +66,9 @@ class LotteryController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'draw_date' => 'required|date|after:today',
+            'draw_date' => ValidCalendarDate::afterToday(),
             'draw_time' => 'required',
-            'deadline_date' => 'nullable|date|after:today|before:draw_date',
+            'deadline_date' => array_merge(ValidCalendarDate::afterToday(false), ['before:draw_date']),
             'ticket_price' => 'required|numeric|min:0',
             // 'lottery_type_code' => 'required|string|in:J,X,S,N,B,V',
             'is_special' => 'nullable|boolean',
@@ -164,9 +165,9 @@ class LotteryController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'draw_date' => 'required|date',
+            'draw_date' => ValidCalendarDate::rules(true),
             'draw_time' => 'required',
-            'deadline_date' => 'nullable|date|before:draw_date',
+            'deadline_date' => array_merge(ValidCalendarDate::rules(false), ['before:draw_date']),
             'ticket_price' => 'required|numeric|min:0',
             // 'lottery_type_code' => 'required|string|in:J,X,S,N,B,V',
             'is_special' => 'nullable|boolean',

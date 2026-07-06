@@ -316,7 +316,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input class="form-control" type="date" name="birthday" value="{{ old('birthday') }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
+				                                    <input class="form-control" type="date" name="birthday" value="{{ old('birthday') }}" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>

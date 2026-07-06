@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Requests\CreateAdmin;
 use App\Models\Administration;
 use App\Support\ContactEmailRegistry;
+use App\Rules\ValidCalendarDate;
 use App\Support\SecureImageUpload;
 use App\Models\User;
 use App\Models\Manager;
@@ -308,7 +309,7 @@ class AdministratorController extends Controller
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\SpanishDocument],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:20',
             'email' => 'required|email|max:255',
         ]);
@@ -438,7 +439,7 @@ class AdministratorController extends Controller
                 new \App\Rules\SpanishDocument,
                 new \App\Rules\ManagerContactNif((int) $administration->id, null, null),
             ],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:20',
             'email' => 'required|email|max:255',
             'comment' => 'nullable|string|max:10000',

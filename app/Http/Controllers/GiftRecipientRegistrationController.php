@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Models\User;
-use App\Rules\MinimumAge;
+use App\Rules\ValidCalendarDate;
 use App\Services\CommunicationEmailService;
 use App\Services\ParticipationGiftService;
 use App\Services\PhoneVerificationService;
@@ -52,7 +52,7 @@ class GiftRecipientRegistrationController extends Controller
             'last_name' => 'nullable|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
-            'birthday' => ['required', 'date', 'before:today', new MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(),
             'password' => PasswordRules::registration(),
             'aceptar_condiciones' => 'required|accepted',
             'sms_code' => [

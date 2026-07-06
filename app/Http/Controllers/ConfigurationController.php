@@ -27,6 +27,7 @@ use App\Services\AdministrationBillingService;
 use App\Services\EntityLotteryPrizePaymentService;
 use App\Services\ManagerAccountService;
 use App\Support\ContactEmailRegistry;
+use App\Rules\ValidCalendarDate;
 use App\Support\PanelSelectionResolver;
 use Illuminate\Support\Facades\Hash;
 
@@ -1199,7 +1200,7 @@ class ConfigurationController extends Controller
         $validated = $request->validate([
             'entity_id' => 'required|exists:entities,id',
             'administration_id' => 'nullable|exists:administrations,id',
-            'execution_date' => 'required|date|after_or_equal:today',
+            'execution_date' => ValidCalendarDate::onOrAfterToday(),
             'debtor_name' => 'required|string|max:255',
             'debtor_nif_cif' => ['nullable', 'string', 'max:50', new \App\Rules\SpanishDocument],
             'debtor_iban' => ['required', 'string', 'max:22', 'regex:/^[0-9]{22}$/'],
@@ -1420,7 +1421,7 @@ class ConfigurationController extends Controller
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['nullable', 'string', 'max:20', 'unique:users,nif_cif'.($userId ? ','.$userId : '')],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:20',
             'comment' => 'nullable|string|max:1000',

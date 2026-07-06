@@ -246,7 +246,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="birthday" value="{{ old('birthday', $entity->manager->user->birthday?->format('Y-m-d') ?? '') }}" class="form-control" type="date" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="birthday" value="{{ old('birthday', $entity->manager->user->birthday?->format('Y-m-d') ?? '') }}" class="form-control" type="date" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
