@@ -1,7 +1,7 @@
 <div class="row mt-4">
     <div class="col-12">
         <h4 class="mb-0 mt-1">Contrato SaaS PARTILOT</h4>
-        <small class="text-muted">Contrato de prestación de servicios entre la administración y PARTILOT (B1).</small>
+        <small class="text-muted">Contrato de prestación de servicios entre la administración titular y PARTILOT. El enlace de firma se envía al correo de acceso al panel de la administración (no al gestor de contacto).</small>
     </div>
     <div class="col-md-4 mt-3">
         <label class="label-control">Estado</label>

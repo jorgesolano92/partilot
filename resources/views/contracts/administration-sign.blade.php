@@ -39,11 +39,11 @@
             @csrf
             <div class="grid">
                 <div>
-                    <label for="signer_name">Nombre y apellidos del firmante (representante)</label>
+                    <label for="signer_name">Nombre del representante de la administración</label>
                     <input type="text" id="signer_name" name="signer_name" value="{{ old('signer_name', $viewData['representativeName'] !== '—' ? $viewData['representativeName'] : '') }}" required>
                 </div>
                 <div>
-                    <label for="signer_nif">DNI / NIE del firmante</label>
+                    <label for="signer_nif">DNI / NIE del titular o representante legal</label>
                     <input type="text" id="signer_nif" name="signer_nif" value="{{ old('signer_nif', $viewData['representativeNif'] !== '—' ? $viewData['representativeNif'] : '') }}" required>
                 </div>
             </div>

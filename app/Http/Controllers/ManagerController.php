@@ -7,6 +7,7 @@ use App\Models\Manager;
 use App\Models\User;
 use App\Services\ManagerAccountService;
 use App\Support\ContactEmailRegistry;
+use Illuminate\Support\Facades\Validator;
 
 class ManagerController extends Controller
 {
@@ -39,30 +40,46 @@ class ManagerController extends Controller
         $user = $manager->user;
         $userId = $user?->id;
 
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['nullable', 'string', 'max:20', 'unique:users,nif_cif'.($userId ? ','.$userId : '')],
+            'nif_cif' => [
+                'nullable',
+                'string',
+                'max:20',
+                new \App\Rules\SpanishDocument,
+                new \App\Rules\ManagerContactNif(
+                    $manager->administration_id ? (int) $manager->administration_id : null,
+                    $manager->entity_id ? (int) $manager->entity_id : null,
+                    $userId
+                ),
+            ],
             'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:20',
             'comment' => 'nullable|string|max:1000',
         ]);
 
+        if ($validator->fails()) {
+            return $this->managerFormRedirect($manager)
+                ->withErrors($validator)
+                ->withInput();
+        }
+
         $managerEmail = trim((string) $request->input('email'));
         $resolvedUser = $user;
 
         if ($resolvedUser && strcasecmp((string) $resolvedUser->email, $managerEmail) !== 0) {
             if (ContactEmailRegistry::isTaken($managerEmail, $resolvedUser->id)) {
-                return back()->withErrors([
+                return $this->managerFormRedirect($manager)->withErrors([
                     'email' => 'Este correo ya está en uso en otra cuenta.',
                 ])->withInput();
             }
         } elseif (! $resolvedUser) {
             $resolvedUser = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [ContactEmailRegistry::normalize($managerEmail)])->first();
             if ($resolvedUser && $resolvedUser->isPanelAccount()) {
-                return back()->withErrors([
+                return $this->managerFormRedirect($manager)->withErrors([
                     'email' => 'Ese email corresponde a una cuenta de acceso al panel.',
                 ])->withInput();
             }
@@ -118,7 +135,7 @@ class ManagerController extends Controller
             return redirect()
                 ->route('administrations.show', $manager->administration_id)
                 ->withFragment('datos_contacto')
-                ->with('success', 'Gestor actualizado correctamente. Puede reenviar el contrato SaaS desde esta ficha si lo necesita.');
+                ->with('success', 'Gestor actualizado correctamente.');
         }
 
         return redirect()->back()->with('success', 'Gestor actualizado correctamente.');
@@ -146,5 +163,18 @@ class ManagerController extends Controller
 
         return redirect()->back()
             ->with('success', 'Gestor eliminado exitosamente.');
+    }
+
+    private function managerFormRedirect(Manager $manager)
+    {
+        if ($manager->administration_id) {
+            return redirect()->route('administrations.edit-manager', $manager->administration_id);
+        }
+
+        if ($manager->entity_id) {
+            return redirect()->route('entities.edit-manager', $manager->entity_id);
+        }
+
+        return redirect()->back();
     }
 } 

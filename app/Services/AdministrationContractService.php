@@ -161,16 +161,15 @@ class AdministrationContractService
      */
     public function buildViewData(Administration $administration, array $signature = []): array
     {
-        $managerUser = $administration->manager?->user;
         $commercialName = trim((string) ($administration->name ?: $administration->society));
         $representativeName = trim((string) ($signature['signer_name'] ?? ''));
-        if ($representativeName === '' && $managerUser) {
-            $representativeName = trim($managerUser->name.' '.($managerUser->last_name ?? ''));
+        if ($representativeName === '') {
+            $representativeName = trim((string) ($administration->society ?: $administration->name ?: ''));
         }
 
         $representativeNif = trim((string) ($signature['signer_nif'] ?? ''));
-        if ($representativeNif === '' && $managerUser?->nif_cif) {
-            $representativeNif = (string) $managerUser->nif_cif;
+        if ($representativeNif === '') {
+            $representativeNif = trim((string) ($administration->nif_cif ?? ''));
         }
 
         $signedAt = $signature['signed_at'] ?? null;

@@ -1312,6 +1312,7 @@
                         $flashSuccess = session()->pull('success');
                         $flashWarning = session()->pull('warning');
                         $flashError = session()->pull('error');
+                        $flashInfo = session()->pull('info');
                         $flashValidationErrors = $errors->any() ? implode("\n", $errors->all()) : null;
                     @endphp
 
@@ -1953,19 +1954,17 @@
                 };
 
                 const notices = [
-                    { type: 'success', text: @json($flashSuccess) },
-                    { type: 'notice', text: @json($flashWarning) },
-                    { type: 'error', text: @json($flashError) },
-                    { type: 'error', text: @json($flashValidationErrors) }
+                    { type: 'success', title: 'Correcto', text: @json($flashSuccess) },
+                    { type: 'notice', title: 'Aviso', text: @json($flashWarning) },
+                    { type: 'info', title: 'Información', text: @json($flashInfo) },
+                    { type: 'error', title: 'Error', text: @json($flashError) },
+                    { type: 'error', title: 'No se pudo guardar', text: @json($flashValidationErrors) }
                 ];
 
                 notices.forEach(function (item) {
                     if (!item.text) return;
-                    if (typeof PNotify.removeAll === 'function') {
-                        PNotify.removeAll();
-                    }
-                    document.querySelectorAll('.ui-pnotify').forEach(function (el) { el.remove(); });
                     new PNotify({
+                        title: item.title || '',
                         type: item.type,
                         addclass: 'partilot-notify' + (item.type === 'error' ? ' partilot-notify-error' : ''),
                         width: '460px',

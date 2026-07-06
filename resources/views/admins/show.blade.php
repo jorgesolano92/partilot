@@ -468,6 +468,10 @@
 
 			                    			@include('admins.partials.billing_payment_card')
 
+			                    			@if(auth()->user()?->isSuperAdmin())
+			                    				@include('admins.partials.contract_card')
+			                    			@endif
+
 			                    		</div>
                     				</div>
 
@@ -486,7 +490,7 @@
 			                    				<img src="{{url('assets/form-groups/edit.svg')}}" alt="">
 			                    				Editar</a>
 			                    			</h4>
-			                    			<small><i>Todos los campos son obligatorios</i></small>
+			                    			<small><i>Persona de contacto operativo de la plataforma. El contrato SaaS se firma en nombre de la administración titular (pestaña Datos administración).</i></small>
 			                    			<div style="clear: both;"></div>
 
 			                    			<div class="form-group mt-2 mb-3 admin-box">
@@ -677,10 +681,6 @@
 			                    				</div>
 
 			                    			</div>
-
-			                    			@if(auth()->user()?->isSuperAdmin())
-			                    				@include('admins.partials.contract_card')
-			                    			@endif
 
 			                    		</div>
                     				</div>
