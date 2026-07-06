@@ -679,7 +679,10 @@
 			                    				</div>
 
 			                    			</div>
-			                    			
+
+			                    			@if(auth()->user()?->isSuperAdmin())
+			                    				@include('admins.partials.contract_card')
+			                    			@endif
 
 			                    		</div>
                     				</div>

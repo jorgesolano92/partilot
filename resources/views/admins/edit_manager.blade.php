@@ -48,6 +48,10 @@
                         <div class="alert alert-success">{{ session('success') }}</div>
                     @endif
 
+                    @if(session('error'))
+                        <div class="alert alert-danger">{{ session('error') }}</div>
+                    @endif
+
                     @if($errors->any())
                         <div class="alert alert-danger">
                             <ul class="mb-0">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
@@ -449,30 +453,36 @@
                     			<small><i>Puedes añadir un comentario si necesitas añadir información adicional <br> sobre el gestor. Puedes añadir comentarios mas tarde.</i></small>
 
                     			<div class="row">
-                    				
                     				<div class="col-8">
-                    					
                     					<div class="form-group mt-2">
 			                    			<label class="label-control">Comentario</label>
-
 			                    			<div class="input-group input-group-merge group-form" style="border: none">
-
 			                                    <textarea name="comment" class="form-control" placeholder="Añade tu comentario" rows="6">{{ $primaryManagerUser->comment ?? '' }}</textarea>
 			                                </div>
 		                    			</div>
-
                     				</div>
-
                     				<div class="col-4 text-end">
                     					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative; top: calc(100% - 51px);" class="btn btn-md btn-light mt-2">Guardar
                     						<i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
                     				</div>
-
                     			</div>
+
+                    			@if(auth()->user()?->isSuperAdmin() && ! $administration->hasSignedSaasContract())
+                    			<div class="form-check mt-3">
+                    				<input class="form-check-input" type="checkbox" name="resend_saas_contract" id="resend_saas_contract" value="1" {{ old('resend_saas_contract') ? 'checked' : '' }}>
+                    				<label class="form-check-label" for="resend_saas_contract">
+                    					Reenviar el contrato SaaS por email al guardar (se envía a <strong>{{ $administration->email }}</strong>)
+                    				</label>
+                    			</div>
+                    			@endif
 
                     		</div>
 
                     </form>
+
+                    @if(auth()->user()?->isSuperAdmin())
+                        @include('admins.partials.contract_card')
+                    @endif
 
                     @endif
 

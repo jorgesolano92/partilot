@@ -525,7 +525,7 @@ class ConfigurationController extends Controller
         }
 
         $partilotBillingSettings = null;
-        if ($section === 'config-factura-auto') {
+        if (in_array($section, ['config-factura-auto', 'datos-partilot'], true)) {
             $partilotBillingSettings = PartilotBillingSetting::current();
         }
 
@@ -823,6 +823,59 @@ class ConfigurationController extends Controller
 
         return redirect()->route('configuration.index', ['section' => 'config-factura-auto'])
             ->with('success', 'Configuración de facturación PARTILOT guardada correctamente.');
+    }
+
+    public function updatePartilotProfile(Request $request)
+    {
+        if (! $request->user()?->isSuperAdmin()) {
+            abort(403, 'Solo super administrador puede modificar los datos PARTILOT.');
+        }
+
+        $data = $request->validate([
+            'company_name' => 'required|string|max:255',
+            'nif_cif' => ['required', 'string', 'max:50', new \App\Rules\SpanishDocument],
+            'address' => 'required|string|max:255',
+            'postal_code' => ['required', 'string', 'max:20'],
+            'province' => 'required|string|max:120',
+            'city' => 'required|string|max:120',
+            'phone' => 'required|string|max:50',
+            'email' => 'required|email|max:255',
+            'access_email' => 'required|email|max:255',
+            'password' => 'nullable|string|min:8|confirmed',
+        ], [
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed' => 'La confirmación de contraseña no coincide.',
+        ]);
+
+        $user = $request->user();
+
+        if (strcasecmp((string) $user->email, (string) $data['access_email']) !== 0
+            && ContactEmailRegistry::isTaken($data['access_email'], $user->id)) {
+            return back()
+                ->withErrors(['access_email' => 'Este correo ya está en uso por otra cuenta.'])
+                ->withInput();
+        }
+
+        $settings = PartilotBillingSetting::current();
+        $settings->update([
+            'company_name' => $data['company_name'],
+            'nif_cif' => $data['nif_cif'],
+            'address' => $data['address'],
+            'postal_code' => $data['postal_code'],
+            'province' => $data['province'],
+            'city' => $data['city'],
+            'phone' => $data['phone'],
+            'email' => $data['email'],
+        ]);
+
+        $userUpdates = ['email' => $data['access_email']];
+        if ($request->filled('password')) {
+            $userUpdates['password'] = Hash::make($data['password']);
+        }
+        $user->update($userUpdates);
+
+        return redirect()->route('configuration.index', ['section' => 'datos-partilot'])
+            ->with('success', 'Datos PARTILOT guardados correctamente.');
     }
 
     public function updatePrintShopPanelAccess(Request $request)

@@ -595,6 +595,7 @@ Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:pa
     Route::post('/administration-settings/billing', [App\Http\Controllers\ConfigurationController::class, 'updateAdministrationBilling'])->name('configuration.administration-billing.update');
     Route::post('/imprenta', [App\Http\Controllers\ConfigurationController::class, 'updateImprenta'])->name('configuration.imprenta.update');
     Route::post('/partilot-billing', [App\Http\Controllers\ConfigurationController::class, 'updatePartilotBilling'])->name('configuration.partilot-billing.update');
+    Route::post('/partilot-profile', [App\Http\Controllers\ConfigurationController::class, 'updatePartilotProfile'])->name('configuration.partilot-profile.update');
     Route::post('/imprenta/panel-access', [App\Http\Controllers\ConfigurationController::class, 'updatePrintShopPanelAccess'])->name('configuration.imprenta.panel-access');
     Route::post('/print-orders/{printOrder}/status', [App\Http\Controllers\ConfigurationController::class, 'updatePrintOrderStatus'])->name('configuration.print-orders.status');
     Route::post('/print-orders/{printOrder}/reconcile-payment', [App\Http\Controllers\ConfigurationController::class, 'reconcilePrintOrderPayment'])->name('configuration.print-orders.reconcile-payment');
