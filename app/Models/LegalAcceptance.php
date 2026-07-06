@@ -29,6 +29,8 @@ class LegalAcceptance extends Model
 
     public const ACTION_VENTA_DIGITAL_TERMINOS = 'VENTA_DIGITAL_TERMINOS';
 
+    public const ACTION_CONTRATO_SAAS_ADMINISTRACION = 'CONTRATO_SAAS_ADMINISTRACION';
+
     public const RESULT_ACEPTADO = 'ACEPTADO';
 
     public const RESULT_RECHAZADO = 'RECHAZADO';

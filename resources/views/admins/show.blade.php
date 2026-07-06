@@ -468,6 +468,8 @@
 
 			                    			@include('admins.partials.billing_payment_card')
 
+			                    			@include('admins.partials.contract_card')
+
 			                    		</div>
                     				</div>
 

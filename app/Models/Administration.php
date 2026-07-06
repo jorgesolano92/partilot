@@ -9,7 +9,11 @@ use App\Models\User;
 class Administration extends Model
 {
     use HasFactory;
-    
+
+    public const CONTRACT_PENDING = 'pending';
+
+    public const CONTRACT_SIGNED = 'signed';
+
     protected $fillable = [
         "web",
         "name",
@@ -38,6 +42,16 @@ class Administration extends Model
         "billing_remittance_frequency",
         "billing_sepa_mandate_id",
         "billing_sepa_mandate_signed_at",
+        "contract_status",
+        "contract_reference",
+        "contract_version",
+        "contract_token",
+        "contract_sent_at",
+        "contract_signed_at",
+        "contract_signed_by_user_id",
+        "contract_signer_name",
+        "contract_signer_nif",
+        "contract_pdf_path",
     ];
 
     protected $casts = [
@@ -46,6 +60,8 @@ class Administration extends Model
         'prepago_use_partilot_default' => 'boolean',
         'prepago_integration_enabled' => 'boolean',
         'billing_sepa_mandate_signed_at' => 'date',
+        'contract_sent_at' => 'datetime',
+        'contract_signed_at' => 'datetime',
     ];
 
     protected $hidden = [
@@ -200,5 +216,24 @@ class Administration extends Model
         }
 
         return $query->whereIn('id', $administrationIds);
+    }
+
+    public function hasSignedSaasContract(): bool
+    {
+        return $this->contract_status === self::CONTRACT_SIGNED;
+    }
+
+    public function getContractStatusTextAttribute(): string
+    {
+        return match ($this->contract_status) {
+            self::CONTRACT_SIGNED => 'Firmado',
+            self::CONTRACT_PENDING => 'Pendiente de firma',
+            default => 'Pendiente de firma',
+        };
+    }
+
+    public function getContractStatusClassAttribute(): string
+    {
+        return $this->hasSignedSaasContract() ? 'success' : 'warning';
     }
 }

@@ -30,6 +30,7 @@ use App\Http\Controllers\PrizePaymentSuperAdminController;
 use App\Http\Controllers\EntityLotteryPrizeSettingsController;
 use App\Http\Controllers\BackgroundTaskController;
 use App\Http\Controllers\LegalController;
+use App\Http\Controllers\AdministrationContractController;
 use App\Models\Administration;
 use App\Models\User;
 /*
@@ -133,6 +134,8 @@ Route::middleware(['throttle:20,1'])->group(function () {
 });
 Route::get('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'show'])->name('prize-contract.sign');
 Route::post('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'store'])->name('prize-contract.sign.submit');
+Route::get('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'show'])->name('administration-contract.sign');
+Route::post('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'store'])->name('administration-contract.sign.submit');
 
 // Registro web comprador (venta digital pendiente)
 Route::get('/registro-comprador/{token}', [\App\Http\Controllers\DigitalBuyerRegistrationController::class, 'show'])->name('digital-buyer.register');
@@ -161,7 +164,10 @@ Route::get('/design/external/thank-you', [\App\Http\Controllers\DesignController
 Route::get('/design/external/file/{id}/download', [\App\Http\Controllers\DesignController::class, 'externalDownloadFileSession'])->name('design.external.downloadFile');
 
 // Rutas protegidas por autenticación (cuenta panel entidad: solo lectura vía entity_panel.readonly)
-Route::middleware(['auth', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
+Route::middleware(['auth', 'administration_saas_contract', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
+
+    Route::get('/contrato-administracion/pendiente', [AdministrationContractController::class, 'pending'])->name('administration-contract.pending');
+    Route::post('/contrato-administracion/reenviar', [AdministrationContractController::class, 'resend'])->name('administration-contract.resend');
     
     Route::get('dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     Route::post('panel/switch-entity', [\App\Http\Controllers\PanelEntitySwitchController::class, 'switch'])
@@ -229,6 +235,12 @@ Route::group(['prefix' => 'administrations', 'middleware' => 'role:super_admin']
     })->name('administrations.show');
     Route::post('/{administration}/send-panel-access', [AdministratorController::class, 'sendPanelAccessEmail'])
         ->name('administrations.send-panel-access');
+    Route::post('/{administration}/send-contract', [AdministratorController::class, 'sendContract'])
+        ->name('administrations.send-contract');
+    Route::get('/{administration}/contract-preview', [AdministrationContractController::class, 'preview'])
+        ->name('administrations.contract-preview');
+    Route::get('/{administration}/contract-download', [AdministrationContractController::class, 'download'])
+        ->name('administrations.contract-download');
     Route::get('/edit/{id}', [AdministratorController::class, 'edit'])->name('administrations.edit');
     Route::put('/update/{id}', [AdministratorController::class, 'update'])->name('administrations.update');
     Route::post('/{administration}/toggle-status', [AdministratorController::class, 'toggleStatus'])->name('administrations.toggle-status');

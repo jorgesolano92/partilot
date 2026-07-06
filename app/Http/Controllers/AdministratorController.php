@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\Manager;
 use App\Mail\AdministrationWelcomeMail;
 use App\Services\AdministrationBillingService;
+use App\Services\AdministrationContractService;
 use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
 use App\Services\ManagerAccountService;
@@ -200,6 +201,22 @@ class AdministratorController extends Controller
         return back()->with('success', 'Se ha enviado el correo con el usuario de acceso y el enlace para establecer la contraseña.');
     }
 
+    /**
+     * Reenvío manual del contrato SaaS (superadmin).
+     */
+    public function sendContract(Administration $administration)
+    {
+        $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
+
+        try {
+            app(AdministrationContractService::class)->sendContractInvitation($administration, (int) auth()->id());
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Se ha enviado el correo con el enlace para firmar el contrato SaaS.');
+    }
+
     public function editApi($id)
     {
         $administration = Administration::forUser(auth()->user())->findOrFail($id);
@@ -381,9 +398,11 @@ class AdministratorController extends Controller
 
         $request->session()->forget(['administration', 'manager']);
 
+        app(AdministrationContractService::class)->initializeForNewAdministration($newAdministration->fresh(['manager.user']));
+
         return redirect('administrations')->with(
             'success',
-            'Administración creada correctamente. Envíe el correo de acceso al panel desde la ficha de la administración cuando corresponda.'
+            'Administración creada correctamente. Se ha enviado el contrato SaaS al correo de contacto. Envíe el correo de acceso al panel desde la ficha cuando corresponda.'
         );
     }
 

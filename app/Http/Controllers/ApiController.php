@@ -21,6 +21,29 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('administrations', function (Blueprint $table) {
+            $table->string('contract_status', 32)->default('pending')->after('billing_sepa_mandate_signed_at');
+            $table->string('contract_reference', 32)->nullable()->after('contract_status');
+            $table->string('contract_version', 32)->default('saas_v1')->after('contract_reference');
+            $table->string('contract_token', 80)->nullable()->after('contract_version');
+            $table->timestamp('contract_sent_at')->nullable()->after('contract_token');
+            $table->timestamp('contract_signed_at')->nullable()->after('contract_sent_at');
+            $table->unsignedBigInteger('contract_signed_by_user_id')->nullable()->after('contract_signed_at');
+            $table->string('contract_signer_name', 255)->nullable()->after('contract_signed_by_user_id');
+            $table->string('contract_signer_nif', 32)->nullable()->after('contract_signer_name');
+            $table->string('contract_pdf_path', 500)->nullable()->after('contract_signer_nif');
+        });
+
+        // Administraciones ya existentes: no bloquear operativa actual.
+        if (Schema::hasTable('administrations')) {
+            DB::table('administrations')->update([
+                'contract_status' => 'signed',
+                'contract_signed_at' => now(),
+            ]);
+        }
+
+        return "ok";
+        
         Schema::table('phone_verification_codes', function (Blueprint $table) {
             $table->unsignedTinyInteger('failed_attempts')->default(0)->after('code_hash');
             $table->timestamp('locked_until')->nullable()->after('failed_attempts');
