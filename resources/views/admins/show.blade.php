@@ -468,8 +468,6 @@
 
 			                    			@include('admins.partials.billing_payment_card')
 
-			                    			@include('admins.partials.contract_card')
-
 			                    		</div>
                     				</div>
 
@@ -820,8 +818,9 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.location.hash === '#configuracion_api') {
-        var tabEl = document.querySelector('[data-bs-target="#configuracion_api"]');
+    const hash = window.location.hash;
+    if (hash === '#configuracion_api' || hash === '#datos_contacto') {
+        var tabEl = document.querySelector('[data-bs-target="' + hash + '"]');
         if (tabEl) {
             bootstrap.Tab.getOrCreateInstance(tabEl).show();
         }

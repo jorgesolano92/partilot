@@ -3,10 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Administration;
 use App\Models\Manager;
 use App\Models\User;
-use App\Services\AdministrationContractService;
 use App\Services\ManagerAccountService;
 use App\Support\ContactEmailRegistry;
 
@@ -50,7 +48,6 @@ class ManagerController extends Controller
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:20',
             'comment' => 'nullable|string|max:1000',
-            'resend_saas_contract' => 'nullable|boolean',
         ]);
 
         $managerEmail = trim((string) $request->input('email'));
@@ -117,33 +114,14 @@ class ManagerController extends Controller
             $manager->update(['user_id' => $resolvedUser->id]);
         }
 
-        $successMessage = 'Gestor actualizado correctamente.';
-
-        if ($request->boolean('resend_saas_contract')
-            && $manager->administration_id
-            && $request->user()?->isSuperAdmin()) {
-            $administration = Administration::query()->find($manager->administration_id);
-            if ($administration && ! $administration->hasSignedSaasContract()) {
-                try {
-                    app(AdministrationContractService::class)->sendContractInvitation(
-                        $administration->fresh(['manager.user']),
-                        (int) $request->user()->id
-                    );
-                    $successMessage .= ' Se ha reenviado el correo del contrato SaaS.';
-                } catch (\Throwable $e) {
-                    return redirect()->back()
-                        ->with('success', $successMessage)
-                        ->with('error', 'No se pudo reenviar el contrato: '.$e->getMessage());
-                }
-            }
-        }
-
         if ($manager->administration_id) {
-            return redirect()->route('administrations.edit-manager', $manager->administration_id)
-                ->with('success', $successMessage);
+            return redirect()
+                ->route('administrations.show', $manager->administration_id)
+                ->withFragment('datos_contacto')
+                ->with('success', 'Gestor actualizado correctamente. Puede reenviar el contrato SaaS desde esta ficha si lo necesita.');
         }
 
-        return redirect()->back()->with('success', $successMessage);
+        return redirect()->back()->with('success', 'Gestor actualizado correctamente.');
     }
 
     /**

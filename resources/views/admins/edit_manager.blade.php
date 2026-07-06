@@ -467,22 +467,9 @@
                     				</div>
                     			</div>
 
-                    			@if(auth()->user()?->isSuperAdmin() && ! $administration->hasSignedSaasContract())
-                    			<div class="form-check mt-3">
-                    				<input class="form-check-input" type="checkbox" name="resend_saas_contract" id="resend_saas_contract" value="1" {{ old('resend_saas_contract') ? 'checked' : '' }}>
-                    				<label class="form-check-label" for="resend_saas_contract">
-                    					Reenviar el contrato SaaS por email al guardar (se envía a <strong>{{ $administration->email }}</strong>)
-                    				</label>
-                    			</div>
-                    			@endif
-
                     		</div>
 
                     </form>
-
-                    @if(auth()->user()?->isSuperAdmin())
-                        @include('admins.partials.contract_card')
-                    @endif
 
                     @endif
 
