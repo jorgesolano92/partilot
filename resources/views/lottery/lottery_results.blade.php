@@ -57,7 +57,7 @@
 
             						<h4 class="mt-0 mb-0">{{ session('selected_administration.name', 'Administración no seleccionada') }}</h4>
 
-            						<small>{{ session('selected_administration.manager.name', 'Gestor no asignado') }}</small> <br>
+            						<small>{{ session('selected_administration')?->manager?->resolvedContactFullName() ?: 'Gestor no asignado' }}</small> <br>
 
             						<i style="position: relative; top: 3px; font-size: 16px; color: #333" class="ri-computer-line"></i> {{ session('selected_administration.receiving', 'N/A') }}
             						

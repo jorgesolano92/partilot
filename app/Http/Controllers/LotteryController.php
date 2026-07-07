@@ -854,8 +854,15 @@ class LotteryController extends Controller
     /**
      * Mostrar vista de resultados de lotería (después de seleccionar administración)
      */
-    public function showLotteryResults()
+    public function showLotteryResults(Request $request)
     {
+        if ($request->filled('administration_id')) {
+            $administration = Administration::with('manager')
+                ->forUser(auth()->user())
+                ->findOrFail((int) $request->administration_id);
+            $request->session()->put('selected_administration', $administration);
+        }
+
         $lotteries = Lottery::with(['result', 'lotteryType'])
             ->orderBy('draw_date', 'desc')
             ->orderBy('id', 'desc')
