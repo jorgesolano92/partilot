@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\CommunicationEmailTypeLabel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -73,6 +74,18 @@ class EmailCommunicationLog extends Model
         if ($this->status === self::STATUS_CANCELLED) return $this->cancelled_at;
 
         return $this->last_attempt_at ?? $this->created_at;
+    }
+
+    public function displayMessageType(): string
+    {
+        return CommunicationEmailTypeLabel::label($this->message_type, $this->template_key);
+    }
+
+    public function messageTypeKey(): ?string
+    {
+        $key = trim((string) ($this->message_type ?: $this->template_key));
+
+        return $key !== '' ? $key : null;
     }
 }
 

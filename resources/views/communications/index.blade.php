@@ -62,7 +62,12 @@
                                     @endphp
                                     <tr id="email-log-{{ $log->id }}">
                                         <td><a href="#">#NO{{ str_pad($log->id, 5, '0', STR_PAD_LEFT) }}</a></td>
-                                        <td>{{ $log->message_type ?? ($log->template_key ?? '-') }}</td>
+                                        <td>
+                                            <span @if($log->messageTypeKey()) title="Key: {{ $log->messageTypeKey() }}" @endif>{{ $log->displayMessageType() }}</span>
+                                            @if($log->messageTypeKey())
+                                                <span class="visually-hidden">{{ $log->messageTypeKey() }}</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $log->sender_type }}</td>
                                         <td>{{ $log->recipient_email }}</td>
                                         <td>{{ $log->recipient_role ?? '-' }}</td>
