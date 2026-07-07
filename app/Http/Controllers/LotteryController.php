@@ -23,15 +23,18 @@ class LotteryController extends Controller
     /**
      * Mostrar lista de sorteos
      */
-    public function index()
+    public function index(Request $request)
     {
-        $lotteryAccess = LotteryPanelAccess::for(auth()->user());
+        $user = auth()->user();
+        $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+
+        $lotteryAccess = LotteryPanelAccess::for($user);
         $query = Lottery::with(['lotteryType'])
             ->orderBy('draw_date', 'desc')
             ->orderBy('id', 'desc');
 
         if ($lotteryAccess['canViewEntityPrizesOnly'] ?? false) {
-            $entityIds = auth()->user()->accessibleEntityIds();
+            $entityIds = $user->accessibleEntityIds();
             if (empty($entityIds)) {
                 $query->whereRaw('1 = 0');
             } else {
@@ -39,9 +42,13 @@ class LotteryController extends Controller
             }
         }
 
+        if ($filterAdministration) {
+            $query->whereHas('reserves.entity', fn ($q) => $q->where('administration_id', $filterAdministration->id));
+        }
+
         $lotteries = $query->get();
 
-        return view('lottery.index', compact('lotteries', 'lotteryAccess'));
+        return view('lottery.index', compact('lotteries', 'lotteryAccess', 'filterAdministration'));
     }
 
     /**

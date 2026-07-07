@@ -33,12 +33,18 @@ class EntityController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
 
+        $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+
         $query = Entity::with(['administration', 'manager.user'])
             ->forUser($user);
+
+        if ($filterAdministration) {
+            $query->where('administration_id', $filterAdministration->id);
+        }
 
         // Los gestores de entidad (sin cuenta panel) solo ven entidades activas en el listado.
         if ($user && $user->isEntityManagerWithoutPanelAccount()) {
@@ -56,7 +62,7 @@ class EntityController extends Controller
         );
         $canAddEntity = $user && ($user->isSuperAdmin() || $user->isAdministration());
 
-        return view('entities.index', compact('entities', 'hideAdministrationColumn', 'canAddEntity'));
+        return view('entities.index', compact('entities', 'hideAdministrationColumn', 'canAddEntity', 'filterAdministration'));
     }
 
     /**

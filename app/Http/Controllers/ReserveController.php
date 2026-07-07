@@ -19,14 +19,23 @@ class ReserveController extends Controller
     /**
      * Mostrar lista de reservas
      */
-    public function index()
+    public function index(Request $request)
     {
-        $reserves = Reserve::with(['entity', 'lottery'])
-            ->forUser(auth()->user())
+        $user = auth()->user();
+        $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+
+        $query = Reserve::with(['entity', 'lottery'])
+            ->forUser($user);
+
+        if ($filterAdministration) {
+            $query->whereHas('entity', fn ($q) => $q->where('administration_id', $filterAdministration->id));
+        }
+
+        $reserves = $query
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('reserves.index', compact('reserves'));
+        return view('reserves.index', compact('reserves', 'filterAdministration'));
     }
 
     /**

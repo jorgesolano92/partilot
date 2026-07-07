@@ -25,6 +25,11 @@
             <div class="card">
                 <div class="card-body">
 
+                    @include('partials.administration-list-filter-banner', [
+                        'filterAdministration' => $filterAdministration ?? null,
+                        'clearFilterUrl' => route('sets.index'),
+                    ])
+
                     <div class="{{$sets->count() > 0 ? '' : 'd-none'}}">
                         <h4 class="header-title">
 

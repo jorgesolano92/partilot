@@ -25,6 +25,11 @@
             <div class="card">
                 <div class="card-body">
 
+                    @include('partials.administration-list-filter-banner', [
+                        'filterAdministration' => $filterAdministration ?? null,
+                        'clearFilterUrl' => route('entities.index'),
+                    ])
+
                     @if($entities->count() > 0)
                         <h4 class="header-title">
 

@@ -22,14 +22,23 @@ class SetController extends Controller
     /**
      * Mostrar lista de sets
      */
-    public function index()
+    public function index(Request $request)
     {
-        $sets = Set::with(['entity', 'reserve'])
-            ->forUser(auth()->user())
+        $user = auth()->user();
+        $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+
+        $query = Set::with(['entity', 'reserve'])
+            ->forUser($user);
+
+        if ($filterAdministration) {
+            $query->whereHas('entity', fn ($q) => $q->where('administration_id', $filterAdministration->id));
+        }
+
+        $sets = $query
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('sets.index', compact('sets'));
+        return view('sets.index', compact('sets', 'filterAdministration'));
     }
 
     /**
