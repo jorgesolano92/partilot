@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Requests\CreateAdmin;
 use App\Models\Administration;
 use App\Support\ContactEmailRegistry;
+use App\Support\FormRedirectNotify;
 use App\Rules\ValidCalendarDate;
 use App\Support\SecureImageUpload;
 use App\Models\User;
@@ -449,9 +450,10 @@ class AdministratorController extends Controller
         $managerEmail = trim((string) $request->input('email'));
 
         if ($panelEmail !== '' && strcasecmp($panelEmail, $managerEmail) === 0) {
-            return back()->withErrors([
-                'email' => 'El email del gestor debe ser distinto al correo de acceso al panel de la administración.',
-            ])->withInput();
+            return FormRedirectNotify::withErrors(
+                redirect()->route('administrations.edit-manager', $administration->id),
+                ['email' => 'El email del gestor debe ser distinto al correo de acceso al panel de la administración.']
+            );
         }
 
         $norm = ContactEmailRegistry::normalize($managerEmail);
@@ -459,15 +461,17 @@ class AdministratorController extends Controller
 
         if ($managerUser) {
             if ($managerUser->isPanelAccount()) {
-                return back()->withErrors([
-                    'email' => 'Ese email corresponde a una cuenta de acceso al panel. Use otro email para el gestor.',
-                ])->withInput();
+                return FormRedirectNotify::withErrors(
+                    redirect()->route('administrations.edit-manager', $administration->id),
+                    ['email' => 'Ese email corresponde a una cuenta de acceso al panel. Use otro email para el gestor.']
+                );
             }
         } else {
             if (ContactEmailRegistry::isTaken($managerEmail)) {
-                return back()->withErrors([
-                    'email' => 'Este correo no puede usarse (duplicado en el sistema).',
-                ])->withInput();
+                return FormRedirectNotify::withErrors(
+                    redirect()->route('administrations.edit-manager', $administration->id),
+                    ['email' => 'Este correo no puede usarse (duplicado en el sistema).']
+                );
             }
 
             $managerUser = app(ManagerAccountService::class)->createUser([

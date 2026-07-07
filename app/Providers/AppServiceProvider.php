@@ -11,6 +11,7 @@ use App\Services\ManagementFeeService;
 use App\Models\Participation;
 use App\Observers\UserObserver;
 use App\Observers\ParticipationObserver;
+use App\View\Composers\FlashNotifyComposer;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -37,6 +38,8 @@ class AppServiceProvider extends ServiceProvider
         if (config('mail.debug_mode') && filled(config('mail.debug_to'))) {
             Mail::alwaysTo(config('mail.debug_to'));
         }
+
+        View::composer('layouts.layout', FlashNotifyComposer::class);
 
         View::composer('layouts.layout', function ($view) {
             $user = auth()->user();

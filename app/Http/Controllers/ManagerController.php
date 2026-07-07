@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Manager;
 use App\Models\User;
+use App\Models\Administration;
 use App\Services\ManagerAccountService;
 use App\Support\ContactEmailRegistry;
+use App\Support\FormRedirectNotify;
 use App\Rules\ValidCalendarDate;
 use Illuminate\Support\Facades\Validator;
 
@@ -62,10 +64,31 @@ class ManagerController extends Controller
             'comment' => 'nullable|string|max:1000',
         ]);
 
+        $validator->after(function ($v) use ($manager, $request, $userId) {
+            $managerEmail = ContactEmailRegistry::normalize((string) $request->input('email'));
+            if ($managerEmail === '') {
+                return;
+            }
+
+            if ($manager->administration_id) {
+                $administration = Administration::query()->find($manager->administration_id);
+                if ($administration
+                    && ContactEmailRegistry::normalize((string) $administration->email) === $managerEmail) {
+                    $v->errors()->add(
+                        'email',
+                        'El email del gestor debe ser distinto al correo de acceso al panel de la administración.'
+                    );
+
+                    return;
+                }
+            }
+        });
+
         if ($validator->fails()) {
-            return $this->managerFormRedirect($manager)
-                ->withErrors($validator)
-                ->withInput();
+            return FormRedirectNotify::withErrors(
+                $this->managerFormRedirect($manager),
+                $validator
+            );
         }
 
         $managerEmail = trim((string) $request->input('email'));
@@ -73,16 +96,16 @@ class ManagerController extends Controller
 
         if ($resolvedUser && strcasecmp((string) $resolvedUser->email, $managerEmail) !== 0) {
             if (ContactEmailRegistry::isTaken($managerEmail, $resolvedUser->id)) {
-                return $this->managerFormRedirect($manager)->withErrors([
+                return FormRedirectNotify::withErrors($this->managerFormRedirect($manager), [
                     'email' => 'Este correo ya está en uso en otra cuenta.',
-                ])->withInput();
+                ]);
             }
         } elseif (! $resolvedUser) {
             $resolvedUser = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [ContactEmailRegistry::normalize($managerEmail)])->first();
             if ($resolvedUser && $resolvedUser->isPanelAccount()) {
-                return $this->managerFormRedirect($manager)->withErrors([
+                return FormRedirectNotify::withErrors($this->managerFormRedirect($manager), [
                     'email' => 'Ese email corresponde a una cuenta de acceso al panel.',
-                ])->withInput();
+                ]);
             }
         }
 

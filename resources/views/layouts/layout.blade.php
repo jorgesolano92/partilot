@@ -1307,15 +1307,6 @@
 
                 <div class="content">
 
-                    @php
-                        // Consumir flashes para mostrarlos por PNotify (sin alerts HTML).
-                        $flashSuccess = session()->pull('success');
-                        $flashWarning = session()->pull('warning');
-                        $flashError = session()->pull('error');
-                        $flashInfo = session()->pull('info');
-                        $flashValidationErrors = $errors->any() ? implode("\n", $errors->all()) : null;
-                    @endphp
-
                     @if(Auth::check() && Auth::user()->isEntityPanelReadOnly())
                         <div class="alert alert-info border-0 rounded-0 mb-0 text-center py-2" role="alert" style="font-size: 0.9rem;">
                             <strong>Modo solo consulta.</strong>
@@ -1906,6 +1897,9 @@
                         document.documentElement.classList.remove('partilot-loading');
 
                         if (!preloader) {
+                            if (typeof window.partilotShowPageFlashes === 'function') {
+                                window.partilotShowPageFlashes();
+                            }
                             return;
                         }
 
@@ -1913,6 +1907,9 @@
                         window.setTimeout(function () {
                             if (preloader.parentNode) {
                                 preloader.parentNode.removeChild(preloader);
+                            }
+                            if (typeof window.partilotShowPageFlashes === 'function') {
+                                window.partilotShowPageFlashes();
                             }
                         }, 380);
                     }, delay);
@@ -1940,46 +1937,66 @@
         </script>
 
         <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                if (typeof PNotify === 'undefined') return;
+            window.partilotPageFlashes = [
+                { type: 'success', title: 'Correcto', text: @json($flashSuccess ?? null) },
+                { type: 'notice', title: 'Aviso', text: @json($flashWarning ?? null) },
+                { type: 'info', title: 'Información', text: @json($flashInfo ?? null) },
+                { type: 'error', title: 'Error', text: @json($flashError ?? null) },
+                { type: 'error', title: 'No se pudo guardar', text: @json($flashValidationErrors ?? null) }
+            ];
+        </script>
 
-                PNotify.prototype.options.styling = 'bootstrap3';
-                PNotify.prototype.options.delay = 5000;
-                PNotify.prototype.options.opacity = 1;
-                PNotify.prototype.options.animate = false;
-                PNotify.prototype.options.stack = {
-                    dir1: 'down',
-                    dir2: 'left',
-                    firstpos1: 90,
-                    firstpos2: 12
-                };
+        <script>
+            (function () {
+                function showPartilotPageFlashes() {
+                    if (typeof PNotify === 'undefined' || !Array.isArray(window.partilotPageFlashes)) {
+                        return;
+                    }
 
-                const notices = [
-                    { type: 'success', title: 'Correcto', text: @json($flashSuccess) },
-                    { type: 'notice', title: 'Aviso', text: @json($flashWarning) },
-                    { type: 'info', title: 'Información', text: @json($flashInfo) },
-                    { type: 'error', title: 'Error', text: @json($flashError) },
-                    { type: 'error', title: 'No se pudo guardar', text: @json($flashValidationErrors) }
-                ];
+                    PNotify.prototype.options.styling = 'bootstrap3';
+                    PNotify.prototype.options.delay = 7000;
+                    PNotify.prototype.options.opacity = 1;
+                    PNotify.prototype.options.animate = false;
+                    PNotify.prototype.options.stack = {
+                        dir1: 'down',
+                        dir2: 'left',
+                        firstpos1: 90,
+                        firstpos2: 12
+                    };
 
-                notices.forEach(function (item) {
-                    if (!item.text) return;
-                    new PNotify({
-                        title: item.title || '',
-                        type: item.type,
-                        addclass: 'partilot-notify' + (item.type === 'error' ? ' partilot-notify-error' : ''),
-                        width: '460px',
-                        text: item.text,
-                        hide: true,
-                        buttons: {
-                            closer: true,
-                            sticker: false,
-                            closer_hover: false
+                    window.partilotPageFlashes.forEach(function (item) {
+                        if (!item || !item.text) {
+                            return;
                         }
+                        new PNotify({
+                            title: item.title || '',
+                            type: item.type,
+                            addclass: 'partilot-notify' + (item.type === 'error' ? ' partilot-notify-error' : ''),
+                            width: '460px',
+                            text: item.text,
+                            hide: true,
+                            icon: false,
+                            delay: item.type === 'error' ? 9000 : 7000,
+                            buttons: {
+                                closer: true,
+                                sticker: false,
+                                closer_hover: false
+                            }
+                        });
                     });
+
+                    window.partilotPageFlashes = [];
+                }
+
+                window.partilotShowPageFlashes = showPartilotPageFlashes;
+
+                document.addEventListener('DOMContentLoaded', function () {
+                    if (document.documentElement.classList.contains('partilot-loading')) {
+                        return;
+                    }
+                    showPartilotPageFlashes();
                 });
 
-                // Fallback: algunos temas no enlazan bien el closer de PNotify con Bootstrap.
                 document.addEventListener('click', function (e) {
                     const closer = e.target.closest('.ui-pnotify .ui-pnotify-closer');
                     if (!closer) return;
@@ -1988,7 +2005,7 @@
                         notice.remove();
                     }
                 });
-            });
+            })();
         </script>
         @include('partials.lottery-deadline-reminder-modal')
         @include('partials.lottery-deadline-admin-decision-modal')
