@@ -13,18 +13,21 @@ class FormRedirectNotify
      */
     public static function withErrors(RedirectResponse $redirect, Validator|MessageBag|array $errors): RedirectResponse
     {
-        $redirect = $redirect->withErrors($errors)->withInput();
-
         $message = match (true) {
             $errors instanceof Validator => $errors->errors()->first(),
             $errors instanceof MessageBag => $errors->first(),
             default => collect($errors)->flatten()->filter()->first(),
         };
 
-        if (is_string($message) && $message !== '') {
-            $redirect->with('error', $message);
-        }
+        $message = is_string($message) ? trim($message) : '';
 
-        return $redirect;
+        return $redirect
+            ->withErrors($errors)
+            ->withInput()
+            ->with('partilot_notify', [
+                'type' => 'error',
+                'title' => 'No se pudo guardar',
+                'text' => $message !== '' ? $message : 'Revisa los datos del formulario.',
+            ]);
     }
 }

@@ -1814,6 +1814,7 @@
         <script src="{{url('default')}}/assets/js/vendor.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.buttons.js"></script>
+        @include('partials.partilot-flash-notify')
 
         <!-- App js -->
         <script src="{{url('default')}}/assets/js/app.min.js"></script>
@@ -1897,9 +1898,11 @@
                         document.documentElement.classList.remove('partilot-loading');
 
                         if (!preloader) {
-                            if (typeof window.partilotShowPageFlashes === 'function') {
-                                window.partilotShowPageFlashes();
-                            }
+                            window.setTimeout(function () {
+                                if (typeof window.partilotShowPageFlashes === 'function') {
+                                    window.partilotShowPageFlashes();
+                                }
+                            }, 0);
                             return;
                         }
 
@@ -1908,9 +1911,11 @@
                             if (preloader.parentNode) {
                                 preloader.parentNode.removeChild(preloader);
                             }
-                            if (typeof window.partilotShowPageFlashes === 'function') {
-                                window.partilotShowPageFlashes();
-                            }
+                            window.setTimeout(function () {
+                                if (typeof window.partilotShowPageFlashes === 'function') {
+                                    window.partilotShowPageFlashes();
+                                }
+                            }, 0);
                         }, 380);
                     }, delay);
                 }
@@ -1933,78 +1938,6 @@
 
                 whenReady();
                 window.setTimeout(hidePartilotPreloader, MAX_WAIT_MS);
-            })();
-        </script>
-
-        <script>
-            window.partilotPageFlashes = [
-                { type: 'success', title: 'Correcto', text: @json($flashSuccess ?? null) },
-                { type: 'notice', title: 'Aviso', text: @json($flashWarning ?? null) },
-                { type: 'info', title: 'Información', text: @json($flashInfo ?? null) },
-                { type: 'error', title: 'Error', text: @json($flashError ?? null) },
-                { type: 'error', title: 'No se pudo guardar', text: @json($flashValidationErrors ?? null) }
-            ];
-        </script>
-
-        <script>
-            (function () {
-                function showPartilotPageFlashes() {
-                    if (typeof PNotify === 'undefined' || !Array.isArray(window.partilotPageFlashes)) {
-                        return;
-                    }
-
-                    PNotify.prototype.options.styling = 'bootstrap3';
-                    PNotify.prototype.options.delay = 7000;
-                    PNotify.prototype.options.opacity = 1;
-                    PNotify.prototype.options.animate = false;
-                    PNotify.prototype.options.stack = {
-                        dir1: 'down',
-                        dir2: 'left',
-                        firstpos1: 90,
-                        firstpos2: 12
-                    };
-
-                    window.partilotPageFlashes.forEach(function (item) {
-                        if (!item || !item.text) {
-                            return;
-                        }
-                        new PNotify({
-                            title: item.title || '',
-                            type: item.type,
-                            addclass: 'partilot-notify' + (item.type === 'error' ? ' partilot-notify-error' : ''),
-                            width: '460px',
-                            text: item.text,
-                            hide: true,
-                            icon: false,
-                            delay: item.type === 'error' ? 9000 : 7000,
-                            buttons: {
-                                closer: true,
-                                sticker: false,
-                                closer_hover: false
-                            }
-                        });
-                    });
-
-                    window.partilotPageFlashes = [];
-                }
-
-                window.partilotShowPageFlashes = showPartilotPageFlashes;
-
-                document.addEventListener('DOMContentLoaded', function () {
-                    if (document.documentElement.classList.contains('partilot-loading')) {
-                        return;
-                    }
-                    showPartilotPageFlashes();
-                });
-
-                document.addEventListener('click', function (e) {
-                    const closer = e.target.closest('.ui-pnotify .ui-pnotify-closer');
-                    if (!closer) return;
-                    const notice = closer.closest('.ui-pnotify');
-                    if (notice) {
-                        notice.remove();
-                    }
-                });
             })();
         </script>
         @include('partials.lottery-deadline-reminder-modal')

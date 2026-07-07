@@ -82,6 +82,15 @@ class ManagerController extends Controller
                     return;
                 }
             }
+
+            if (ContactEmailRegistry::isTaken(
+                $managerEmail,
+                $userId,
+                $manager->administration_id ? (int) $manager->administration_id : null,
+                $manager->entity_id ? (int) $manager->entity_id : null,
+            )) {
+                $v->errors()->add('email', 'Este correo ya está en uso en otra cuenta.');
+            }
         });
 
         if ($validator->fails()) {
@@ -94,13 +103,7 @@ class ManagerController extends Controller
         $managerEmail = trim((string) $request->input('email'));
         $resolvedUser = $user;
 
-        if ($resolvedUser && strcasecmp((string) $resolvedUser->email, $managerEmail) !== 0) {
-            if (ContactEmailRegistry::isTaken($managerEmail, $resolvedUser->id)) {
-                return FormRedirectNotify::withErrors($this->managerFormRedirect($manager), [
-                    'email' => 'Este correo ya está en uso en otra cuenta.',
-                ]);
-            }
-        } elseif (! $resolvedUser) {
+        if (! $resolvedUser) {
             $resolvedUser = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [ContactEmailRegistry::normalize($managerEmail)])->first();
             if ($resolvedUser && $resolvedUser->isPanelAccount()) {
                 return FormRedirectNotify::withErrors($this->managerFormRedirect($manager), [
