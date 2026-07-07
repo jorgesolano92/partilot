@@ -55,6 +55,38 @@ class UserNifRegistry
         return $query->exists();
     }
 
+    public static function isTakenForAdministrationManagerContact(
+        ?string $nif,
+        ?int $administrationId = null,
+        ?int $excludeManagerId = null
+    ): bool {
+        $normalized = self::normalize($nif);
+        if ($normalized === '') {
+            return false;
+        }
+
+        if ($administrationId) {
+            $admin = Administration::query()->find($administrationId);
+            if ($admin && self::normalize($admin->nif_cif) === $normalized) {
+                return false;
+            }
+        }
+
+        $query = Manager::query()
+            ->whereNotNull('administration_id')
+            ->whereNull('entity_id')
+            ->where('is_primary', true)
+            ->whereNotNull('contact_nif_cif')
+            ->where('contact_nif_cif', '!=', '')
+            ->whereRaw('UPPER(REPLACE(REPLACE(contact_nif_cif, " ", ""), "-", "")) = ?', [$normalized]);
+
+        if ($excludeManagerId !== null) {
+            $query->where('id', '!=', $excludeManagerId);
+        }
+
+        return $query->exists();
+    }
+
     public static function isTakenForManager(Manager $manager, ?string $nif, ?int $excludeUserId = null): bool
     {
         return self::isTakenForManagerContact(

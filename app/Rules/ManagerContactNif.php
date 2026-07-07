@@ -12,10 +12,23 @@ class ManagerContactNif implements ValidationRule
         private ?int $administrationId = null,
         private ?int $entityId = null,
         private ?int $excludeUserId = null,
+        private ?int $excludeManagerId = null,
     ) {}
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
+        if ($this->administrationId && $this->entityId === null) {
+            if (UserNifRegistry::isTakenForAdministrationManagerContact(
+                is_string($value) ? $value : null,
+                $this->administrationId,
+                $this->excludeManagerId
+            )) {
+                $fail('Este NIF/CIF ya está registrado en otro gestor de contacto de administración.');
+            }
+
+            return;
+        }
+
         if (UserNifRegistry::isTakenForManagerContact(
             is_string($value) ? $value : null,
             $this->administrationId,

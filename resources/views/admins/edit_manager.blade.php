@@ -37,7 +37,6 @@
 
                     @php
                         $primaryManager = $administration->manager;
-                        $primaryManagerUser = $primaryManager?->user;
                     @endphp
 
                     @php
@@ -110,7 +109,7 @@
 
                     	<div class="col-md-9">
 
-                    @if(!$primaryManager || !$primaryManagerUser)
+                    @if(!$primaryManager || !$primaryManager->hasContactData())
                         <form action="{{ route('administrations.assign-primary-manager', $administration->id) }}" method="POST" class="assign-primary-admin-manager">
                             @csrf
                             <div class="form-card bs" style="min-height: 658px;">
@@ -271,8 +270,8 @@
                     						
 		                    				<div class="photo-preview-2">
 		                    					
-		                    				@if(!empty($primaryManagerUser->image))
-		                    						<img src="{{url('manager/'.$primaryManagerUser->image)}}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
+		                    				@if($primaryManager->resolvedContactImage())
+		                    						<img src="{{url('manager/'.$primaryManager->resolvedContactImage())}}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
 		                    					@else
 		                    						<i class="ri-account-circle-fill"></i>
 		                    					@endif
@@ -286,7 +285,7 @@
 
                     						<h4 class="mt-0 mb-0">{{ $administration->name ?? 'Sin nombre' }}</h4>
 
-                    						<small>{{ $primaryManagerUser->name ?? '' }} {{ $primaryManagerUser->last_name ?? '' }}</small> <br>
+                    						<small>{{ $primaryManager->resolvedContactFullName() }}</small> <br>
 
                     						<i style="position: relative; top: 3px; font-size: 16px; color: #333" class="ri-computer-line"></i> {{ $administration->postal_code ?? '' }}
                     						
@@ -329,7 +328,7 @@
 				                                      	<img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="name" value="{{ old('name', $primaryManagerUser->name ?? '') }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="name" value="{{ old('name', $primaryManager->contactField('name') ?? '') }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -343,7 +342,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="last_name" value="{{ old('last_name', $primaryManagerUser->last_name ?? '') }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="last_name" value="{{ old('last_name', $primaryManager->contactField('last_name') ?? '') }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -358,7 +357,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="last_name2" value="{{ old('last_name2', $primaryManagerUser->last_name2 ?? '') }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="last_name2" value="{{ old('last_name2', $primaryManager->contactField('last_name2') ?? '') }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -373,7 +372,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="nif_cif" id="admin-edit-manager-nif-cif" value="{{ old('nif_cif', $primaryManagerUser->nif_cif ?? '') }}" class="form-control" type="text" placeholder="B26262626" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="nif_cif" id="admin-edit-manager-nif-cif" value="{{ old('nif_cif', $primaryManager->contactField('nif_cif') ?? '') }}" class="form-control" type="text" placeholder="B26262626" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -388,7 +387,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="birthday" value="{{ old('birthday', $primaryManagerUser->birthday?->format('Y-m-d') ?? '') }}" class="form-control" type="date" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="birthday" value="{{ old('birthday', $primaryManager->resolvedContactBirthdayInput()) }}" class="form-control" type="date" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -403,7 +402,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/9.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="email" value="{{ old('email', $primaryManagerUser->email ?? '') }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="email" value="{{ old('email', $primaryManager?->resolvedContactEmail() ?? '') }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -418,7 +417,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/10.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="phone" value="{{ old('phone', $primaryManagerUser->phone ?? '') }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="phone" value="{{ old('phone', $primaryManager->contactField('phone') ?? '') }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -439,7 +438,7 @@
                     					<div class="form-group mt-2">
 			                    			<label class="label-control">Comentario</label>
 			                    			<div class="input-group input-group-merge group-form" style="border: none">
-			                                    <textarea name="comment" class="form-control" placeholder="Añade tu comentario" rows="6">{{ old('comment', $primaryManagerUser->comment ?? '') }}</textarea>
+			                                    <textarea name="comment" class="form-control" placeholder="Añade tu comentario" rows="6">{{ old('comment', $primaryManager->contactField('comment') ?? '') }}</textarea>
 			                                </div>
 		                    			</div>
                     				</div>

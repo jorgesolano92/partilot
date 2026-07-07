@@ -22,7 +22,7 @@ use App\Services\AdministrationBillingService;
 use App\Services\AdministrationContractService;
 use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
-use App\Services\ManagerAccountService;
+use App\Services\AdministrationManagerContactService;
 
 class AdministratorController extends Controller
 {
@@ -338,25 +338,11 @@ class AdministratorController extends Controller
             ])->withInput();
         }
 
-        $managerUser = User::where('email', $request->input('email'))->first();
-        if ($managerUser && $managerUser->isPanelAccount()) {
-            return back()->withErrors([
-                'email' => 'Ese email corresponde a una cuenta de acceso de panel. Use otro email para el gestor.',
-            ])->withInput();
-        }
-
-        if (! $managerUser) {
-            $managerUser = app(ManagerAccountService::class)->createUser([
-                'name' => $request->input('name'),
-                'last_name' => $request->input('last_name'),
-                'last_name2' => $request->input('last_name2'),
-                'email' => $request->input('email'),
-                'role' => User::ROLE_ADMINISTRATION,
-                'status' => true,
-                'phone' => $request->input('phone') ?: null,
-                'nif_cif' => $request->input('nif_cif') ?: null,
-                'birthday' => $request->input('birthday') ?: null,
-            ], 'administración de lotería');
+        $contactService = app(AdministrationManagerContactService::class);
+        $managerContactEmail = trim((string) $request->input('email'));
+        $contactError = $contactService->contactEmailValidationError($managerContactEmail, $newAdministration);
+        if ($contactError) {
+            return back()->withErrors(['email' => $contactError])->withInput();
         }
 
         $panelUser = User::create([
@@ -385,22 +371,19 @@ class AdministratorController extends Controller
             'status' => 1,
         ]);
 
-        Manager::firstOrCreate([
-            'user_id' => $managerUser->id,
-            'administration_id' => $newAdministration->id,
-            'entity_id' => null,
-        ], [
-            'is_primary' => true,
-            'permission_sellers' => true,
-            'permission_design' => true,
-            'permission_statistics' => true,
-            'permission_payments' => true,
-            'status' => 1,
+        $contactService->persistPrimaryContact($newAdministration, [
+            'name' => $request->input('name'),
+            'last_name' => $request->input('last_name'),
+            'last_name2' => $request->input('last_name2'),
+            'email' => $managerContactEmail,
+            'nif_cif' => $request->input('nif_cif') ?: null,
+            'birthday' => $request->input('birthday') ?: null,
+            'phone' => $request->input('phone') ?: null,
         ]);
 
         $request->session()->forget(['administration', 'manager']);
 
-        app(AdministrationContractService::class)->initializeForNewAdministration($newAdministration->fresh(['manager.user']));
+        app(AdministrationContractService::class)->initializeForNewAdministration($newAdministration->fresh(['manager']));
 
         return redirect('administrations')->with(
             'success',
@@ -420,7 +403,7 @@ class AdministratorController extends Controller
             ->where('is_primary', true)
             ->first();
 
-        if ($existingPrimary && User::query()->whereKey($existingPrimary->user_id)->exists()) {
+        if ($existingPrimary && $existingPrimary->hasContactData()) {
             return redirect()->route('administrations.edit-manager', $administration->id)
                 ->with('info', 'Esta administración ya tiene un gestor principal asignado.');
         }
@@ -438,7 +421,7 @@ class AdministratorController extends Controller
                 'string',
                 'max:20',
                 new \App\Rules\SpanishDocument,
-                new \App\Rules\ManagerContactNif((int) $administration->id, null, null),
+                new \App\Rules\ManagerContactNif((int) $administration->id, null, null, $existingPrimary?->id),
             ],
             'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:20',
@@ -449,65 +432,25 @@ class AdministratorController extends Controller
         $panelEmail = trim((string) $administration->email);
         $managerEmail = trim((string) $request->input('email'));
 
-        if ($panelEmail !== '' && strcasecmp($panelEmail, $managerEmail) === 0) {
+        $contactService = app(AdministrationManagerContactService::class);
+        $contactError = $contactService->contactEmailValidationError($managerEmail, $administration);
+        if ($contactError) {
             return FormRedirectNotify::withErrors(
                 redirect()->route('administrations.edit-manager', $administration->id),
-                ['email' => 'El email del gestor debe ser distinto al correo de acceso al panel de la administración.']
+                ['email' => $contactError]
             );
         }
 
-        $norm = ContactEmailRegistry::normalize($managerEmail);
-        $managerUser = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [$norm])->first();
-
-        if ($managerUser) {
-            if ($managerUser->isPanelAccount()) {
-                return FormRedirectNotify::withErrors(
-                    redirect()->route('administrations.edit-manager', $administration->id),
-                    ['email' => 'Ese email corresponde a una cuenta de acceso al panel. Use otro email para el gestor.']
-                );
-            }
-        } else {
-            if (ContactEmailRegistry::isTaken($managerEmail)) {
-                return FormRedirectNotify::withErrors(
-                    redirect()->route('administrations.edit-manager', $administration->id),
-                    ['email' => 'Este correo no puede usarse (duplicado en el sistema).']
-                );
-            }
-
-            $managerUser = app(ManagerAccountService::class)->createUser([
-                'name' => $request->input('name'),
-                'last_name' => $request->input('last_name'),
-                'last_name2' => $request->input('last_name2'),
-                'email' => $managerEmail,
-                'role' => User::ROLE_ADMINISTRATION,
-                'status' => true,
-                'phone' => $request->input('phone') ?: null,
-                'nif_cif' => $request->input('nif_cif') ?: null,
-                'birthday' => $request->input('birthday') ?: null,
-                'comment' => $request->input('comment') ?: null,
-            ], 'administración de lotería');
-        }
-
-        Manager::query()
-            ->where('administration_id', $administration->id)
-            ->where('user_id', '!=', $managerUser->id)
-            ->update(['is_primary' => false]);
-
-        Manager::updateOrCreate(
-            [
-                'user_id' => $managerUser->id,
-                'administration_id' => $administration->id,
-                'entity_id' => null,
-            ],
-            [
-                'is_primary' => true,
-                'permission_sellers' => true,
-                'permission_design' => true,
-                'permission_statistics' => true,
-                'permission_payments' => true,
-                'status' => 1,
-            ]
-        );
+        $contactService->persistPrimaryContact($administration, [
+            'name' => $request->input('name'),
+            'last_name' => $request->input('last_name'),
+            'last_name2' => $request->input('last_name2'),
+            'email' => $managerEmail,
+            'nif_cif' => $request->input('nif_cif') ?: null,
+            'birthday' => $request->input('birthday') ?: null,
+            'phone' => $request->input('phone') ?: null,
+            'comment' => $request->input('comment') ?: null,
+        ]);
 
         return redirect()->route('administrations.edit-manager', $administration->id)
             ->with('success', 'Gestor principal registrado correctamente.');

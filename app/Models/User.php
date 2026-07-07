@@ -114,6 +114,42 @@ class User extends Authenticatable
     }
 
     /**
+     * Registro legacy o técnico usado solo como gestor de contacto de administración.
+     * No debe listarse, iniciar sesión ni reutilizarse como vendedor/gestor de entidad.
+     */
+    public function isAdministrationContactOnly(): bool
+    {
+        if (str_ends_with(strtolower((string) $this->email), '@no-login.partilot.local')) {
+            return true;
+        }
+
+        if ($this->isPanelAccount() || $this->sellers()->exists()) {
+            return false;
+        }
+
+        return $this->managers()
+            ->whereNotNull('administration_id')
+            ->whereNull('entity_id')
+            ->where('is_primary', true)
+            ->exists()
+            && ! $this->managers()->whereNotNull('entity_id')->exists();
+    }
+
+    public function scopeExcludingAdministrationContactRecords(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereDoesntHave('managers', function (Builder $m) {
+                $m->whereNotNull('administration_id')
+                    ->whereNull('entity_id')
+                    ->where('is_primary', true);
+            })->where(function (Builder $inner) {
+                $inner->whereNull('email')
+                    ->orWhere('email', 'not like', '%@no-login.partilot.local');
+            });
+        });
+    }
+
+    /**
      * Destinatarios de push operativos (app / gestión): no superadmin, no administración del sistema,
      * ni cuenta panel directa de administración o entidad.
      */

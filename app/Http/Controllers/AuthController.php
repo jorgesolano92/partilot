@@ -64,6 +64,12 @@ class AuthController extends Controller
             ])->withInput($request->only('email'));
         }
 
+        if ($user->isAdministrationContactOnly()) {
+            return back()->withErrors([
+                'email' => 'Esta cuenta no tiene acceso al panel.',
+            ])->withInput($request->only('email'));
+        }
+
         if ($user->deletion_requested_at) {
             return back()->withErrors([
                 'email' => 'Esta cuenta está desactivada por solicitud de baja.',
@@ -326,6 +332,13 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Las credenciales proporcionadas no coinciden con nuestros registros.'
             ], 401);
+        }
+
+        if ($user->isAdministrationContactOnly()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta cuenta no tiene acceso a la aplicación.',
+            ], 403);
         }
 
         if ($user->deletion_requested_at) {

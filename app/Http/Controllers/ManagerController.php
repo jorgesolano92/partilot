@@ -7,6 +7,7 @@ use App\Models\Manager;
 use App\Models\User;
 use App\Models\Administration;
 use App\Services\ManagerAccountService;
+use App\Services\AdministrationManagerContactService;
 use App\Support\ContactEmailRegistry;
 use App\Support\FormRedirectNotify;
 use App\Rules\ValidCalendarDate;
@@ -55,7 +56,8 @@ class ManagerController extends Controller
                 new \App\Rules\ManagerContactNif(
                     $manager->administration_id ? (int) $manager->administration_id : null,
                     $manager->entity_id ? (int) $manager->entity_id : null,
-                    $userId
+                    $userId,
+                    $manager->administration_id ? (int) $manager->id : null,
                 ),
             ],
             'birthday' => ValidCalendarDate::birthday(false),
@@ -72,21 +74,21 @@ class ManagerController extends Controller
 
             if ($manager->administration_id) {
                 $administration = Administration::query()->find($manager->administration_id);
-                if ($administration
-                    && ContactEmailRegistry::normalize((string) $administration->email) === $managerEmail) {
-                    $v->errors()->add(
-                        'email',
-                        'El email del gestor debe ser distinto al correo de acceso al panel de la administración.'
-                    );
-
-                    return;
+                if ($administration) {
+                    $error = app(AdministrationManagerContactService::class)
+                        ->contactEmailValidationError($managerEmail, $administration);
+                    if ($error) {
+                        $v->errors()->add('email', $error);
+                    }
                 }
+
+                return;
             }
 
             if (ContactEmailRegistry::isTaken(
                 $managerEmail,
                 $userId,
-                $manager->administration_id ? (int) $manager->administration_id : null,
+                null,
                 $manager->entity_id ? (int) $manager->entity_id : null,
             )) {
                 $v->errors()->add('email', 'Este correo ya está en uso en otra cuenta.');
@@ -101,6 +103,35 @@ class ManagerController extends Controller
         }
 
         $managerEmail = trim((string) $request->input('email'));
+
+        if ($manager->administration_id) {
+            $administration = Administration::query()->findOrFail($manager->administration_id);
+            $contactService = app(AdministrationManagerContactService::class);
+
+            $contactService->persistPrimaryContact($administration, [
+                'name' => $request->name,
+                'last_name' => $request->last_name,
+                'last_name2' => $request->last_name2,
+                'email' => $managerEmail,
+                'nif_cif' => $request->nif_cif ?: null,
+                'birthday' => $request->birthday ?: null,
+                'phone' => $request->phone ?: null,
+                'comment' => $request->comment ?: null,
+            ], $manager);
+
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $filename = $file->hashName();
+                $file->move(public_path('manager'), $filename);
+                $contactService->updateContactImage($manager->fresh(), $filename);
+            }
+
+            return redirect()
+                ->route('administrations.show', $manager->administration_id)
+                ->withFragment('datos_contacto')
+                ->with('success', 'Gestor actualizado correctamente.');
+        }
+
         $resolvedUser = $user;
 
         if (! $resolvedUser) {
@@ -112,9 +143,7 @@ class ManagerController extends Controller
             }
         }
 
-        $role = $manager->administration_id
-            ? User::ROLE_ADMINISTRATION
-            : User::ROLE_ENTITY;
+        $role = User::ROLE_ENTITY;
 
         if (! $resolvedUser) {
             $resolvedUser = app(ManagerAccountService::class)->createUser([
@@ -128,7 +157,7 @@ class ManagerController extends Controller
                 'nif_cif' => $request->nif_cif ?: null,
                 'birthday' => $request->birthday ?: null,
                 'comment' => $request->comment ?: null,
-            ], $manager->administration_id ? 'administración de lotería' : 'gestor de entidad');
+            ], 'gestor de entidad');
         } else {
             $resolvedUser->update([
                 'name' => $request->name,
@@ -156,13 +185,6 @@ class ManagerController extends Controller
 
         if ((int) $manager->user_id !== (int) $resolvedUser->id) {
             $manager->update(['user_id' => $resolvedUser->id]);
-        }
-
-        if ($manager->administration_id) {
-            return redirect()
-                ->route('administrations.show', $manager->administration_id)
-                ->withFragment('datos_contacto')
-                ->with('success', 'Gestor actualizado correctamente.');
         }
 
         return redirect()->back()->with('success', 'Gestor actualizado correctamente.');

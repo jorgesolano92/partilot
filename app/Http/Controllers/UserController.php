@@ -46,7 +46,10 @@ class UserController extends Controller
     {
         $this->authorizeUsersModule();
 
-        $query = User::query()->whereNull('panel_account_type')->orderBy('name');
+        $query = User::query()
+            ->whereNull('panel_account_type')
+            ->excludingAdministrationContactRecords()
+            ->orderBy('name');
         $auth = auth()->user();
         if ($auth && $auth->isAdministration() && ! $auth->isSuperAdmin()) {
             $query->forAdministrationScopedViewer($auth);
@@ -305,21 +308,15 @@ class UserController extends Controller
     {
         $this->authorizeUsersModule();
 
-        $query = User::query()->whereNull('panel_account_type');
+        $query = User::query()
+            ->whereNull('panel_account_type')
+            ->excludingAdministrationContactRecords();
         $auth = auth()->user();
         if ($auth && $auth->isAdministration() && ! $auth->isSuperAdmin()) {
             $query->forAdministrationScopedViewer($auth);
         }
 
         // Aplicar filtros
-        if ($request->filled('province')) {
-            $query->where('province', $request->province);
-        }
-
-        if ($request->filled('city')) {
-            $query->where('city', $request->city);
-        }
-
         if ($request->filled('entity')) {
             // Filtrar por entidad a través de vendedores vinculados
             $query->whereHas('sellers', function($q) use ($request) {
@@ -332,18 +329,6 @@ class UserController extends Controller
         }
 
         return datatables($query)
-            ->addColumn('province', function($user) {
-                // Obtener provincia desde vendedores vinculados
-                $seller = $user->sellers()->first();
-                $entity = $seller?->getPrimaryEntity();
-                return $entity?->province ?? 'Sin provincia';
-            })
-            ->addColumn('city', function($user) {
-                // Obtener ciudad desde vendedores vinculados
-                $seller = $user->sellers()->first();
-                $entity = $seller?->getPrimaryEntity();
-                return $entity?->city ?? 'Sin localidad';
-            })
             ->addColumn('pending_amount', function($user) {
                 // Calcular importe pendiente (implementar lógica según necesidades)
                 return 0.00;
