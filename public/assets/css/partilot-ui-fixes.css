@@ -502,6 +502,6 @@ small.text-muted,
     border-radius: 30px !important;
 }
 
-.form-card .form-control {
+.form-card .input-group .form-control {
     padding-left: 0px !important;
 }
