@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use App\Models\Administration;
 use App\Models\Manager;
+use App\Models\Seller;
 use App\Models\User;
 use App\Models\Entity;
 use Illuminate\Support\Facades\Hash;
@@ -66,7 +67,7 @@ class ApiController extends Controller
         //         $table->dropForeign($foreignKey->CONSTRAINT_NAME);
         //     });
         // }
-        
+
         // Referencias huérfanas (usuario borrado) impiden recrear la FK.
         DB::table('managers')
             ->whereNotNull('user_id')
