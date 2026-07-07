@@ -83,19 +83,16 @@
                     			
                     		</div>
 
-                    		<div class="form-card mb-3 bs">
-                    			
-                    			<div class="form-check form-switch mt-2 mb-2">
-									<input class="form-check-input bg-dark" style="float: right;" type="checkbox" role="switch" id="fin" checked>
-									<label class="form-check-label" style="float: right; margin-right: 50px; width: 100%; padding-left: 16px;" for="fin"><b>Entidad sin fin lucrativo</b></label>
-								</div>
-
-								<div class="form-check form-switch mt-2 mb-2">
-									<input class="form-check-input bg-dark" style="float: right;" type="checkbox" role="switch" id="coste" checked>
-									<label class="form-check-label" style="float: right; margin-right: 50px; width: 100%; padding-left: 16px;" for="coste"><b>Coste gestión</b></label>
-								</div>
-
-                    		</div>
+                    		@include('entities.partials.entity_commercial_settings_card', [
+                    		    'entity' => (object) [],
+                    		    'readonly' => false,
+                    		    'formId' => 'entity-information-form',
+                    		    'defaults' => [
+                    		        'is_non_profit' => (bool) old('is_non_profit', session('entity_information.is_non_profit', true)),
+                    		        'entity_pays_management_fee' => (bool) old('entity_pays_management_fee', session('entity_information.entity_pays_management_fee', false)),
+                    		        'entity_pays_print_fee' => (bool) old('entity_pays_print_fee', session('entity_information.entity_pays_print_fee', false)),
+                    		    ],
+                    		])
 
                     		<div class="form-card bs">
                     			
@@ -142,7 +139,7 @@
                     	</div>
                     	<div class="col-md-9">
                     		<div class="form-card bs" style="min-height: 658px;">
-                    			<form action="{{url('entities/store-information')}}" method="POST" enctype="multipart/form-data">
+                    			<form action="{{url('entities/store-information')}}" method="POST" enctype="multipart/form-data" id="entity-information-form">
                     				@csrf()
 	                    			<h4 class="mb-0 mt-1">
 	                    				Datos legales de la entidad
@@ -542,6 +539,14 @@
 	    initEmailValidation('entity-email', {
 	        context: 'entity',
 	        showMessage: true
+	    });
+
+	    document.querySelectorAll('.entity-commercial-switch').forEach(function (input) {
+	        input.addEventListener('change', function () {
+	            const hint = document.getElementById(input.dataset.hintTarget);
+	            if (!hint) return;
+	            hint.innerHTML = input.checked ? input.dataset.hintOn : input.dataset.hintOff;
+	        });
 	    });
 	});
 

@@ -23,6 +23,7 @@ class Entity extends Model
         'phone',
         'email',
         'comments',
+        'is_non_profit',
         'status',
         'billing_iban',
         'entity_pays_management_fee',
@@ -32,6 +33,7 @@ class Entity extends Model
 
     protected $casts = [
         'status' => 'integer',
+        'is_non_profit' => 'boolean',
         'entity_pays_management_fee' => 'boolean',
         'entity_pays_print_fee' => 'boolean',
     ];

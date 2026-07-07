@@ -13,6 +13,12 @@ return [
     'registration_checkbox_label' => 'He leído y acepto los Términos y Condiciones de Uso, la Política de Privacidad y el Marco Legal Integral de PARTILOT.',
 
     /*
+    | Primer acceso al panel web (cuentas administración / entidad).
+    */
+    'panel_intro_sentence' => 'Para cumplir con la normativa de protección de datos (LOPD/RGPD) y las condiciones de uso de PARTILOT, debe aceptar expresamente la documentación legal antes de utilizar el panel.',
+    'panel_checkbox_label' => 'He leído y acepto los Términos y Condiciones de Uso, la Política de Privacidad y el Marco Legal Integral de PARTILOT.',
+
+    /*
     | Frase introductoria en pantallas de aceptación de rol (L3–L5).
     */
     'role_intro_sentence' => 'Al registrarte en PARTILOT ya aceptaste las condiciones generales. Esta pantalla te recuerda las responsabilidades específicas de este rol para que tomes tu decisión con toda la información.',

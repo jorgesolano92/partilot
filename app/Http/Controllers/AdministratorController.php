@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -315,71 +316,85 @@ class AdministratorController extends Controller
             'email' => 'required|email|max:255',
         ]);
 
-        $email = $administrationData['email'];
-        if (ContactEmailRegistry::isTaken($email)) {
+        $panelEmail = trim((string) $administrationData['email']);
+        $managerContactEmail = trim((string) $request->input('email'));
+
+        if (ContactEmailRegistry::isTaken($panelEmail)) {
             return back()->withErrors([
-                'email' => 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario. Use otro correo en el paso anterior.',
-            ])->withInput();
-        }
-
-        $administrationData['status'] = null;
-
-        $newAdministration = Administration::create($administrationData);
-
-        $panelLoginBase = Administration::panelLoginUsernameFromParts(
-            $newAdministration->receiving,
-            $newAdministration->admin_number
-        );
-        $panelLoginUsername = Administration::ensureUniquePanelLoginUsername($panelLoginBase, null);
-
-        if (strcasecmp((string) $request->input('email'), (string) $email) === 0) {
-            return back()->withErrors([
-                'email' => 'El email del gestor debe ser distinto al email de acceso del panel de la administración.',
+                'email' => 'El correo de acceso al panel ya está en uso en otra administración, entidad o cuenta de usuario. Use otro correo en el paso anterior.',
             ])->withInput();
         }
 
         $contactService = app(AdministrationManagerContactService::class);
-        $managerContactEmail = trim((string) $request->input('email'));
-        $contactError = $contactService->contactEmailValidationError($managerContactEmail, $newAdministration);
+        $contactError = $contactService->contactEmailValidationError(
+            $managerContactEmail,
+            new Administration(['email' => $panelEmail])
+        );
         if ($contactError) {
             return back()->withErrors(['email' => $contactError])->withInput();
         }
 
-        $panelUser = User::create([
-            'name' => Administration::panelDisplayNameFromParts($administrationData['name'] ?? '', $administrationData['society'] ?? ''),
-            'email' => $email,
-            'password' => Str::password(32),
-            'role' => User::ROLE_ADMINISTRATION,
-            'panel_account_type' => 'administration',
-            'panel_account_id' => $newAdministration->id,
-            'panel_login_username' => $panelLoginUsername,
-            'status' => true,
-            'phone' => $administrationData['phone'] ?? null,
-            'nif_cif' => $administrationData['nif_cif'] ?? null,
-        ]);
+        $administrationData['status'] = null;
 
-        Manager::firstOrCreate([
-            'user_id' => $panelUser->id,
-            'administration_id' => $newAdministration->id,
-            'entity_id' => null,
-        ], [
-            'is_primary' => false,
-            'permission_sellers' => true,
-            'permission_design' => true,
-            'permission_statistics' => true,
-            'permission_payments' => true,
-            'status' => 1,
-        ]);
+        try {
+            $newAdministration = DB::transaction(function () use (
+                $administrationData,
+                $panelEmail,
+                $managerContactEmail,
+                $request,
+                $contactService
+            ) {
+                $newAdministration = Administration::create($administrationData);
 
-        $contactService->persistPrimaryContact($newAdministration, [
-            'name' => $request->input('name'),
-            'last_name' => $request->input('last_name'),
-            'last_name2' => $request->input('last_name2'),
-            'email' => $managerContactEmail,
-            'nif_cif' => $request->input('nif_cif') ?: null,
-            'birthday' => $request->input('birthday') ?: null,
-            'phone' => $request->input('phone') ?: null,
-        ]);
+                $panelLoginBase = Administration::panelLoginUsernameFromParts(
+                    $newAdministration->receiving,
+                    $newAdministration->admin_number
+                );
+                $panelLoginUsername = Administration::ensureUniquePanelLoginUsername($panelLoginBase, null);
+
+                $panelUser = User::create([
+                    'name' => Administration::panelDisplayNameFromParts($administrationData['name'] ?? '', $administrationData['society'] ?? ''),
+                    'email' => $panelEmail,
+                    'password' => Str::password(32),
+                    'role' => User::ROLE_ADMINISTRATION,
+                    'panel_account_type' => 'administration',
+                    'panel_account_id' => $newAdministration->id,
+                    'panel_login_username' => $panelLoginUsername,
+                    'status' => true,
+                    'phone' => $administrationData['phone'] ?? null,
+                    'nif_cif' => $administrationData['nif_cif'] ?? null,
+                ]);
+
+                Manager::firstOrCreate([
+                    'user_id' => $panelUser->id,
+                    'administration_id' => $newAdministration->id,
+                    'entity_id' => null,
+                ], [
+                    'is_primary' => false,
+                    'permission_sellers' => true,
+                    'permission_design' => true,
+                    'permission_statistics' => true,
+                    'permission_payments' => true,
+                    'status' => 1,
+                ]);
+
+                $contactService->persistPrimaryContact($newAdministration, [
+                    'name' => $request->input('name'),
+                    'last_name' => $request->input('last_name'),
+                    'last_name2' => $request->input('last_name2'),
+                    'email' => $managerContactEmail,
+                    'nif_cif' => $request->input('nif_cif') ?: null,
+                    'birthday' => $request->input('birthday') ?: null,
+                    'phone' => $request->input('phone') ?: null,
+                ]);
+
+                return $newAdministration;
+            });
+        } catch (\Throwable $e) {
+            Log::error('Error creando administración: '.$e->getMessage(), ['exception' => $e]);
+
+            return back()->with('error', 'No se pudo crear la administración. Inténtelo de nuevo.')->withInput();
+        }
 
         $request->session()->forget(['administration', 'manager']);
 

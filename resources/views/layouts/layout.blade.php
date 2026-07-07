@@ -1940,12 +1940,21 @@
                 window.setTimeout(hidePartilotPreloader, MAX_WAIT_MS);
             })();
         </script>
+        @include('partials.panel-legal-acceptance-modal')
         @include('partials.lottery-deadline-reminder-modal')
         @include('partials.lottery-deadline-admin-decision-modal')
         @include('partials.entity-management-fee-modal')
 
         @auth
-        @if(!empty($entityManagementFeeModalAlert))
+        @if(!empty($panelLegalAcceptanceModal))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var modalEl = document.getElementById('panelLegalAcceptanceModal');
+                if (!modalEl || typeof bootstrap === 'undefined') return;
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+        </script>
+        @elseif(!empty($entityManagementFeeModalAlert))
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 var modalEl = document.getElementById('entityManagementFeeModal');

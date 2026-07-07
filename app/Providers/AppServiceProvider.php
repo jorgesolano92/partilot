@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\View;
 use App\Models\User;
 use App\Services\LotteryDeadlineReminderService;
 use App\Services\ManagementFeeService;
+use App\Services\PanelLegalAcceptanceService;
 use App\Models\Participation;
 use App\Observers\UserObserver;
 use App\Observers\ParticipationObserver;
@@ -47,25 +48,32 @@ class AppServiceProvider extends ServiceProvider
                 $view->with('lotteryDeadlineModalAlerts', []);
                 $view->with('lotteryDeadlineAdminDecisionAlerts', []);
                 $view->with('entityManagementFeeModalAlert', null);
+                $view->with('panelLegalAcceptanceModal', null);
 
                 return;
             }
 
             $reminderService = app(LotteryDeadlineReminderService::class);
 
+            $panelLegalService = app(PanelLegalAcceptanceService::class);
+            $panelLegalModal = $panelLegalService->userMustAcceptBeforeAccess($user)
+                ? $panelLegalService->buildViewData($user)
+                : null;
+
+            $view->with(
+                'entityManagementFeeModalAlert',
+                $panelLegalModal || $this->shouldSuppressEntityManagementFeeModal()
+                    ? null
+                    : app(ManagementFeeService::class)->getEntityManagementFeeModalAlert($user)
+            );
+            $view->with('panelLegalAcceptanceModal', $panelLegalModal);
             $view->with(
                 'lotteryDeadlineModalAlerts',
-                $reminderService->getModalAlertsForUser($user)
+                $panelLegalModal ? [] : $reminderService->getModalAlertsForUser($user)
             );
             $view->with(
                 'lotteryDeadlineAdminDecisionAlerts',
-                $reminderService->getAdminDecisionModalsForUser($user)
-            );
-            $view->with(
-                'entityManagementFeeModalAlert',
-                $this->shouldSuppressEntityManagementFeeModal()
-                    ? null
-                    : app(ManagementFeeService::class)->getEntityManagementFeeModalAlert($user)
+                $panelLegalModal ? [] : $reminderService->getAdminDecisionModalsForUser($user)
             );
         });
     }

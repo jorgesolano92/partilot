@@ -164,10 +164,11 @@ Route::get('/design/external/thank-you', [\App\Http\Controllers\DesignController
 Route::get('/design/external/file/{id}/download', [\App\Http\Controllers\DesignController::class, 'externalDownloadFileSession'])->name('design.external.downloadFile');
 
 // Rutas protegidas por autenticación (cuenta panel entidad: solo lectura vía entity_panel.readonly)
-Route::middleware(['auth', 'administration_saas_contract', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
+Route::middleware(['auth', 'administration_saas_contract', 'panel_legal_accepted', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
 
     Route::get('/contrato-administracion/pendiente', [AdministrationContractController::class, 'pending'])->name('administration-contract.pending');
     Route::post('/contrato-administracion/reenviar', [AdministrationContractController::class, 'resend'])->name('administration-contract.resend');
+    Route::post('/panel/aceptacion-legal', [\App\Http\Controllers\PanelLegalAcceptanceController::class, 'store'])->name('panel-legal.submit');
     
     Route::get('dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     Route::post('panel/switch-entity', [\App\Http\Controllers\PanelEntitySwitchController::class, 'switch'])

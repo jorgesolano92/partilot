@@ -114,7 +114,7 @@
                             @csrf
                             <div class="form-card bs" style="min-height: 658px;">
                                 <h4 class="mb-0 mt-1">Datos del gestor principal</h4>
-                                <small><i>Complete los campos obligatorios. El correo del gestor debe ser distinto al de acceso al panel ({{ $administration->email }}).</i></small>
+                                <small><i>Complete los campos obligatorios. El gestor es solo contacto y puede usar el mismo correo que el acceso al panel u otro email ya existente en usuarios.</i></small>
 
                                 <div class="alert alert-warning mt-2 mb-0">
                                     No hay gestor principal asignado (p. ej. usuario eliminado). Registre uno nuevo con los datos siguientes.

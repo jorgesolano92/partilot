@@ -20,11 +20,6 @@ class AdministrationManagerContactService
             return null;
         }
 
-        $panelEmail = ContactEmailRegistry::normalize((string) $administration->email);
-        if ($panelEmail !== '' && $panelEmail === $norm) {
-            return 'El email del gestor debe ser distinto al correo de acceso al panel de la administración.';
-        }
-
         $panelUser = User::query()
             ->whereRaw('LOWER(TRIM(email)) = ?', [$norm])
             ->whereNotNull('panel_account_type')
@@ -32,11 +27,17 @@ class AdministrationManagerContactService
             ->whereNotNull('panel_account_id')
             ->first();
 
-        if ($panelUser) {
-            return 'Ese email corresponde a una cuenta de acceso al panel.';
+        if (! $panelUser) {
+            return null;
         }
 
-        return null;
+        if ($administration->id
+            && $panelUser->panel_account_type === 'administration'
+            && (int) $panelUser->panel_account_id === (int) $administration->id) {
+            return null;
+        }
+
+        return 'Ese email corresponde a una cuenta de acceso al panel de otra administración o entidad.';
     }
 
     /**

@@ -144,11 +144,17 @@ class EntityController extends Controller
             'email' => 'required|email|max:255',
             'panel_password' => 'required|string|min:8',
             'comments' => 'nullable|string|max:1000',
+            'is_non_profit' => 'nullable|boolean',
+            'entity_pays_management_fee' => 'nullable|boolean',
+            'entity_pays_print_fee' => 'nullable|boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'remove_image' => 'nullable|in:0,1'
         ]);
 
         $validated['comments'] = \App\Support\HtmlText::sanitizePlainText($validated['comments'] ?? null);
+        $validated['is_non_profit'] = $request->boolean('is_non_profit');
+        $validated['entity_pays_management_fee'] = $request->boolean('entity_pays_management_fee');
+        $validated['entity_pays_print_fee'] = $request->boolean('entity_pays_print_fee');
 
         // Manejo de imagen: nueva subida o marcar para quitar
         if ($request->boolean('remove_image')) {
@@ -1060,12 +1066,14 @@ class EntityController extends Controller
             'panel_password' => 'nullable|string|min:8|confirmed',
             'entity_pays_management_fee' => 'nullable|boolean',
             'entity_pays_print_fee' => 'nullable|boolean',
+            'is_non_profit' => 'nullable|boolean',
         ]);
 
         // Convertir status: -1 = null (pendiente), 1 = activo, 0 = inactivo
         $validated['status'] = $validated['status'] === '-1' ? null : ($validated['status'] ?? null);
         $validated['entity_pays_management_fee'] = $request->boolean('entity_pays_management_fee');
         $validated['entity_pays_print_fee'] = $request->boolean('entity_pays_print_fee');
+        $validated['is_non_profit'] = $request->boolean('is_non_profit');
 
         // Eliminar imagen si el usuario pulsó "Eliminar imagen"
         if ($request->input('remove_image') === '1') {

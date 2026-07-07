@@ -579,24 +579,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function updateBillingSwitchHints() {
-        const paysManagement = document.getElementById('entity_pays_management_fee')?.checked ?? false;
-        const paysPrint = document.getElementById('entity_pays_print_fee')?.checked ?? false;
-        const mgmtLabel = document.querySelector('label[for="entity_pays_management_fee"] small');
-        const printLabel = document.querySelector('label[for="entity_pays_print_fee"] small');
-        if (mgmtLabel) {
-            mgmtLabel.innerHTML = paysManagement
-                ? 'ON — La <strong>Entidad</strong> paga la cuota de gestión.'
-                : 'OFF — La <strong>Administración</strong> paga la cuota de gestión.';
-        }
-        if (printLabel) {
-            printLabel.innerHTML = paysPrint
-                ? 'ON — La <strong>Entidad</strong> paga diseño e impresión en imprenta PARTILOT.'
-                : 'OFF — La <strong>Administración</strong> paga diseño e impresión.';
-        }
+        document.querySelectorAll('.entity-commercial-switch').forEach(function (input) {
+            const hint = document.getElementById(input.dataset.hintTarget);
+            if (!hint) return;
+            hint.innerHTML = input.checked ? input.dataset.hintOn : input.dataset.hintOff;
+        });
     }
 
-    document.getElementById('entity_pays_management_fee')?.addEventListener('change', updateBillingSwitchHints);
-    document.getElementById('entity_pays_print_fee')?.addEventListener('change', updateBillingSwitchHints);
+    document.querySelectorAll('.entity-commercial-switch').forEach(function (input) {
+        input.addEventListener('change', updateBillingSwitchHints);
+    });
 });
 </script>
 
