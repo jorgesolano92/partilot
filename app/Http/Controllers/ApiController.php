@@ -22,51 +22,51 @@ class ApiController extends Controller
 
     public function test()
     {
-        // Schema::table('managers', function (Blueprint $table) {
-        //     $table->string('contact_email', 255)->nullable()->after('user_id');
-        // });
+        Schema::table('managers', function (Blueprint $table) {
+            $table->string('contact_email', 255)->nullable()->after('user_id');
+        });
 
-        // Schema::table('managers', function (Blueprint $table) {
-        //     if (! Schema::hasColumn('managers', 'contact_name')) {
-        //         $table->string('contact_name')->nullable()->after('contact_email');
-        //     }
-        //     if (! Schema::hasColumn('managers', 'contact_last_name')) {
-        //         $table->string('contact_last_name')->nullable()->after('contact_name');
-        //     }
-        //     if (! Schema::hasColumn('managers', 'contact_last_name2')) {
-        //         $table->string('contact_last_name2')->nullable()->after('contact_last_name');
-        //     }
-        //     if (! Schema::hasColumn('managers', 'contact_nif_cif')) {
-        //         $table->string('contact_nif_cif', 20)->nullable()->after('contact_last_name2');
-        //     }
-        //     if (! Schema::hasColumn('managers', 'contact_birthday')) {
-        //         $table->date('contact_birthday')->nullable()->after('contact_nif_cif');
-        //     }
-        //     if (! Schema::hasColumn('managers', 'contact_phone')) {
-        //         $table->string('contact_phone', 20)->nullable()->after('contact_birthday');
-        //     }
-        //     if (! Schema::hasColumn('managers', 'contact_comment')) {
-        //         $table->text('contact_comment')->nullable()->after('contact_phone');
-        //     }
-        //     if (! Schema::hasColumn('managers', 'contact_image')) {
-        //         $table->string('contact_image')->nullable()->after('contact_comment');
-        //     }
-        // });
+        Schema::table('managers', function (Blueprint $table) {
+            if (! Schema::hasColumn('managers', 'contact_name')) {
+                $table->string('contact_name')->nullable()->after('contact_email');
+            }
+            if (! Schema::hasColumn('managers', 'contact_last_name')) {
+                $table->string('contact_last_name')->nullable()->after('contact_name');
+            }
+            if (! Schema::hasColumn('managers', 'contact_last_name2')) {
+                $table->string('contact_last_name2')->nullable()->after('contact_last_name');
+            }
+            if (! Schema::hasColumn('managers', 'contact_nif_cif')) {
+                $table->string('contact_nif_cif', 20)->nullable()->after('contact_last_name2');
+            }
+            if (! Schema::hasColumn('managers', 'contact_birthday')) {
+                $table->date('contact_birthday')->nullable()->after('contact_nif_cif');
+            }
+            if (! Schema::hasColumn('managers', 'contact_phone')) {
+                $table->string('contact_phone', 20)->nullable()->after('contact_birthday');
+            }
+            if (! Schema::hasColumn('managers', 'contact_comment')) {
+                $table->text('contact_comment')->nullable()->after('contact_phone');
+            }
+            if (! Schema::hasColumn('managers', 'contact_image')) {
+                $table->string('contact_image')->nullable()->after('contact_comment');
+            }
+        });
 
-        // $foreignKeys = DB::select(
-        //     "SELECT CONSTRAINT_NAME
-        //     FROM information_schema.KEY_COLUMN_USAGE
-        //     WHERE TABLE_SCHEMA = DATABASE()
-        //       AND TABLE_NAME = 'managers'
-        //       AND COLUMN_NAME = 'user_id'
-        //       AND REFERENCED_TABLE_NAME IS NOT NULL"
-        // );
+        $foreignKeys = DB::select(
+            "SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'managers'
+              AND COLUMN_NAME = 'user_id'
+              AND REFERENCED_TABLE_NAME IS NOT NULL"
+        );
 
-        // foreach ($foreignKeys as $foreignKey) {
-        //     Schema::table('managers', function (Blueprint $table) use ($foreignKey) {
-        //         $table->dropForeign($foreignKey->CONSTRAINT_NAME);
-        //     });
-        // }
+        foreach ($foreignKeys as $foreignKey) {
+            Schema::table('managers', function (Blueprint $table) use ($foreignKey) {
+                $table->dropForeign($foreignKey->CONSTRAINT_NAME);
+            });
+        }
 
         // Referencias huérfanas (usuario borrado) impiden recrear la FK.
         DB::table('managers')

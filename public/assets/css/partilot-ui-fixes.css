@@ -142,8 +142,37 @@ small.text-muted,
     box-shadow: 0 0 0 0.15rem rgba(220, 53, 69, 0.25) !important;
 }
 
-/* Botones de acción en tablas */
-.table .btn[title] {
+/* Botones de acción en tablas: esquinas poco redondeadas; btn-light con borde visible */
+.content-page .table .btn.btn-sm,
+.content-page .dataTables_wrapper table .btn.btn-sm {
+    padding: 0.28rem 0.5rem;
+    min-width: 2rem;
+    line-height: 1.15;
+    box-shadow: none !important;
+}
+
+.content-page .table .btn.btn-sm + .btn.btn-sm,
+.content-page .dataTables_wrapper table .btn.btn-sm + .btn.btn-sm {
+    margin-left: 4px;
+}
+
+.content-page .table .btn.btn-sm.btn-light,
+.content-page .dataTables_wrapper table .btn.btn-sm.btn-light {
+    background-color: #fff !important;
+    border: 1px solid #cfd4dc !important;
+    color: #333 !important;
+}
+
+.content-page .table .btn.btn-sm.btn-light:hover,
+.content-page .table .btn.btn-sm.btn-light:focus,
+.content-page .dataTables_wrapper table .btn.btn-sm.btn-light:hover,
+.content-page .dataTables_wrapper table .btn.btn-sm.btn-light:focus {
+    background-color: #f3f4f7 !important;
+    border-color: #b8bec8 !important;
+    color: #1a1a1a !important;
+}
+
+.content-page .table .btn[title] {
     min-width: 2rem;
 }
 
@@ -422,6 +451,12 @@ small.text-muted,
     border-radius: 30px !important;
 }
 
+/* Tablas: menos redondeado — debe ir después y con más especificidad que la regla anterior */
+.content-page .table .btn.btn-sm:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button),
+.content-page .dataTables_wrapper table .btn.btn-sm:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button) {
+    border-radius: 6px !important;
+}
+
 /* Herramientas del editor de diseño: grupo continuo (solo esquinas exteriores redondeadas) */
 .content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button),
 .content-page .format-btn-group label.btn:not(.btn-link):not(.page-link) {
@@ -465,4 +500,8 @@ small.text-muted,
 
 .content-page .input-group > .btn:first-child:only-child {
     border-radius: 30px !important;
+}
+
+.form-card .form-control {
+    padding-left: 0px !important;
 }
