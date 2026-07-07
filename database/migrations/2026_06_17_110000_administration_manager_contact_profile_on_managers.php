@@ -54,25 +54,11 @@ return new class extends Migration
             });
         }
 
-        Schema::table('managers', function (Blueprint $table) {
-            $table->unsignedBigInteger('user_id')->nullable()->change();
-        });
-
-        $hasUserForeign = DB::selectOne(
-            "SELECT CONSTRAINT_NAME
-            FROM information_schema.KEY_COLUMN_USAGE
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'managers'
-              AND COLUMN_NAME = 'user_id'
-              AND REFERENCED_TABLE_NAME = 'users'
-            LIMIT 1"
-        );
-
-        if (! $hasUserForeign) {
-            Schema::table('managers', function (Blueprint $table) {
-                $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
-            });
-        }
+        // Referencias huérfanas (usuario borrado) impiden recrear la FK.
+        DB::table('managers')
+            ->whereNotNull('user_id')
+            ->whereNotIn('user_id', User::query()->select('id'))
+            ->update(['user_id' => null]);
 
         $primaryAdminManagers = Manager::query()
             ->whereNotNull('administration_id')
@@ -107,6 +93,26 @@ return new class extends Migration
             if (! $otherManagers && ! $hasSellers) {
                 $user->delete();
             }
+        }
+
+        Schema::table('managers', function (Blueprint $table) {
+            $table->unsignedBigInteger('user_id')->nullable()->change();
+        });
+
+        $hasUserForeign = DB::selectOne(
+            "SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'managers'
+              AND COLUMN_NAME = 'user_id'
+              AND REFERENCED_TABLE_NAME = 'users'
+            LIMIT 1"
+        );
+
+        if (! $hasUserForeign) {
+            Schema::table('managers', function (Blueprint $table) {
+                $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+            });
         }
     }
 
