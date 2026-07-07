@@ -22,6 +22,11 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('entities', function (Blueprint $table) {
+            $table->boolean('is_non_profit')->default(true)->after('comments');
+        });
+
+        return "ok";
         Schema::table('managers', function (Blueprint $table) {
             $table->string('contact_email', 255)->nullable()->after('user_id');
         });
