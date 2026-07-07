@@ -91,8 +91,8 @@
 
         <!-- Icons css -->
         <link href="{{url('assets')}}/css/icons.min.css" rel="stylesheet" type="text/css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.buttons.css" />
+        <link rel="stylesheet" href="{{ url('assets/libs/pnotify/pnotify.css') }}" />
+        <link rel="stylesheet" href="{{ url('assets/libs/pnotify/pnotify.buttons.css') }}" />
         <style>
             .ui-pnotify {
                 opacity: 1 !important;
@@ -179,7 +179,7 @@
             }
         </style>
 
-        <link rel="stylesheet" href="https://code.jquery.com/ui/1.14.1/themes/base/jquery-ui.css">
+        <link rel="stylesheet" href="{{ url('assets/libs/jquery-ui/themes/base/jquery-ui.css') }}">
 
         <link rel="stylesheet" href="{{url('style.css')}}">
         <link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/45.2.0/ckeditor5.css" crossorigin>
@@ -1812,8 +1812,8 @@
         
         <!-- Vendor js -->
         <script src="{{url('default')}}/assets/js/vendor.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.buttons.js"></script>
+        <script src="{{ url('assets/libs/pnotify/pnotify.js') }}"></script>
+        <script src="{{ url('assets/libs/pnotify/pnotify.buttons.js') }}"></script>
         @include('partials.partilot-flash-notify')
 
         <!-- App js -->
@@ -1845,7 +1845,7 @@
         <script src="{{url('assets')}}/libs/pdfmake/build/pdfmake.min.js"></script>
         <script src="{{url('assets')}}/libs/pdfmake/build/vfs_fonts.js"></script>
 
-        <script src="https://code.jquery.com/ui/1.14.1/jquery-ui.js"></script>
+        <script src="{{ url('assets/libs/jquery-ui/jquery-ui.js') }}"></script>
         <!-- third party js ends -->
 
         <!-- Datatables init -->

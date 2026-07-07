@@ -9,8 +9,8 @@
     <link href="{{ url('default') }}/assets/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
     <link href="{{ url('default') }}/assets/css/app.min.css" rel="stylesheet" type="text/css" />
     <link href="{{ url('assets') }}/css/icons.min.css" rel="stylesheet" type="text/css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.buttons.css" />
+    <link rel="stylesheet" href="{{ url('assets/libs/pnotify/pnotify.css') }}" />
+    <link rel="stylesheet" href="{{ url('assets/libs/pnotify/pnotify.buttons.css') }}" />
     <style>
         .ui-pnotify {
             opacity: 1 !important;
@@ -87,7 +87,7 @@
             border-color: #ffe69c !important;
         }
     </style>
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.14.1/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="{{ url('assets/libs/jquery-ui/themes/base/jquery-ui.css') }}">
     <link rel="stylesheet" href="{{ url('style.css') }}">
     <link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/45.2.0/ckeditor5.css" crossorigin>
     @yield('styles')
@@ -116,10 +116,10 @@
         </div>
     </div>
     <script src="{{ url('default') }}/assets/js/vendor.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.buttons.js"></script>
+    <script src="{{ url('assets/libs/pnotify/pnotify.js') }}"></script>
+    <script src="{{ url('assets/libs/pnotify/pnotify.buttons.js') }}"></script>
     {{-- app.min.js no se carga aquí: espera DOM del layout completo (sidebar/topbar) y daría "reading 'href' of null" --}}
-    <script src="https://code.jquery.com/ui/1.14.1/jquery-ui.js"></script>
+    <script src="{{ url('assets/libs/jquery-ui/jquery-ui.js') }}"></script>
     <script src="{{ url('ckeditor/ckeditor.js') }}"></script>
     <script src="{{ url('ckeditor/adapters/jquery.js') }}"></script>
     <script>
