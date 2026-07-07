@@ -31,11 +31,10 @@ final class SecureImageUpload
      */
     public static function rules(string $field = 'image', bool $required = false): array
     {
-        $prefix = $required ? 'required|' : 'nullable|';
-
         return [
             $field => [
-                $prefix.'image',
+                $required ? 'required' : 'nullable',
+                'image',
                 'mimes:jpeg,png,jpg,gif,webp',
                 'max:'.self::MAX_KB,
             ],
