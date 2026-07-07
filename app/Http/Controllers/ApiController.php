@@ -22,6 +22,10 @@ class ApiController extends Controller
     public function test()
     {
         Schema::table('managers', function (Blueprint $table) {
+            $table->string('contact_email', 255)->nullable()->after('user_id');
+        });
+        
+        Schema::table('managers', function (Blueprint $table) {
             if (! Schema::hasColumn('managers', 'contact_name')) {
                 $table->string('contact_name')->nullable()->after('contact_email');
             }
@@ -117,10 +121,6 @@ class ApiController extends Controller
                 $user->delete();
             }
         }
-
-        Schema::table('managers', function (Blueprint $table) {
-            $table->string('contact_email', 255)->nullable()->after('user_id');
-        });
 
         return "ok";
 
