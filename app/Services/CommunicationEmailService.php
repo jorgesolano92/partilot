@@ -46,7 +46,7 @@ class CommunicationEmailService
             'recipient_role' => $recipientRole,
             'recipient_user_id' => $recipientUser?->id,
             'mail_class' => $mailClass,
-            'mail_payload' => $mailPayload,
+            'mail_payload' => $this->sanitizeMailPayloadForLog($mailPayload),
             'status' => EmailCommunicationLog::STATUS_PENDING,
             'last_attempt_at' => now(),
             'context' => $context,
@@ -231,6 +231,20 @@ class CommunicationEmailService
             return;
         }
 
+        if ($mailClass === \App\Mail\EntityWelcomeMail::class) {
+            $entityId = (int) ($mailPayload['entity_id'] ?? 0);
+            $userId = (int) ($mailPayload['user_id'] ?? 0);
+            $entity = \App\Models\Entity::with('administration')->findOrFail($entityId);
+            $user = User::findOrFail($userId);
+            $plainPassword = (string) ($mailPayload['plain_password'] ?? '');
+            if ($plainPassword === '') {
+                $plainPassword = app(ProvisionalPasswordService::class)->assignToUser($user);
+            }
+            $loginUrl = route('login', absolute: true);
+            Mail::to($recipientEmail)->send(new \App\Mail\EntityWelcomeMail($entity, $user, $plainPassword, $loginUrl));
+            return;
+        }
+
         if ($mailClass === \App\Mail\EntityManagerInvitationMail::class) {
             $entityId = (int) ($mailPayload['entity_id'] ?? 0);
             $userId = (int) ($mailPayload['user_id'] ?? 0);
@@ -240,7 +254,11 @@ class CommunicationEmailService
             $manager = $managerId > 0
                 ? \App\Models\Manager::findOrFail($managerId)
                 : \App\Models\Manager::where('entity_id', $entityId)->where('user_id', $userId)->latest('id')->firstOrFail();
-            Mail::to($recipientEmail)->send(new \App\Mail\EntityManagerInvitationMail($entity, $user, $manager));
+            $plainPassword = (string) ($mailPayload['plain_password'] ?? '');
+            if ($plainPassword === '' && $user->must_change_password) {
+                $plainPassword = app(ProvisionalPasswordService::class)->assignToUser($user);
+            }
+            Mail::to($recipientEmail)->send(new \App\Mail\EntityManagerInvitationMail($entity, $user, $manager, $plainPassword));
             return;
         }
 
@@ -339,6 +357,17 @@ class CommunicationEmailService
         }
 
         throw new \RuntimeException("mail_class no soportado para reenviar: {$mailClass}");
+    }
+
+    /**
+     * @param  array<string, mixed>  $mailPayload
+     * @return array<string, mixed>
+     */
+    protected function sanitizeMailPayloadForLog(array $mailPayload): array
+    {
+        unset($mailPayload['plain_password']);
+
+        return $mailPayload;
     }
 }
 

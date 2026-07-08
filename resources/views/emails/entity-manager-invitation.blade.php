@@ -24,10 +24,13 @@
 </ul>
 @endif
 <div class="info-box">
-    @if($manager->requires_password_setup)
-        <p>Para activar tu acceso, abre el enlace <strong>Ver detalles y aceptar</strong>, confirma la solicitud y define tu contraseña.</p>
+    @if(!empty($provisionalPassword))
+        <p><strong>Email de acceso al panel:</strong> {{ $managerUser->email }}</p>
+        <p><strong>Contraseña provisional:</strong> {{ $provisionalPassword }}</p>
+        <p>Esta contraseña es temporal. Al iniciar sesión podrá cambiarla o posponer el cambio.</p>
+        <p>Además, debe <strong>aceptar o rechazar</strong> la invitación como gestor usando los botones de abajo.</p>
     @else
-        <p>Para activar tu acceso, abre el enlace y confirma o rechaza la solicitud.</p>
+        <p>Para activar tu acceso como gestor, abre el enlace y <strong>confirma o rechaza</strong> la solicitud. No necesitas definir una nueva contraseña: usa la de tu cuenta existente.</p>
     @endif
 </div>
 <p style="text-align:center; margin: 24px 0;">

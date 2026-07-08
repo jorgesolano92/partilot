@@ -60,6 +60,7 @@ class User extends Authenticatable
         'panel_account_id',
         'panel_login_username',
         'password',
+        'must_change_password',
         'hide_entity_billing_switches_modal',
         'deletion_requested_at',
         'deletion_scheduled_at',
@@ -85,6 +86,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'status' => 'boolean',
+        'must_change_password' => 'boolean',
         'birthday' => 'date',
         'hide_entity_billing_switches_modal' => 'boolean',
         'deletion_requested_at' => 'datetime',
@@ -948,6 +950,14 @@ class User extends Authenticatable
         }
 
         return Hash::check(self::ENTITY_MANAGER_LEGACY_DEFAULT_PASSWORD, $hash);
+    }
+
+    /**
+     * True si el usuario debe cambiar la contraseña provisional enviada por correo.
+     */
+    public function mustChangeProvisionalPassword(): bool
+    {
+        return (bool) $this->must_change_password;
     }
 
     /**

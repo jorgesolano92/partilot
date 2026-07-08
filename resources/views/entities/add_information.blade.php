@@ -321,7 +321,7 @@
 
 	                    					<div class="col-4">
 	                    						<div class="form-group mt-2 mb-3">
-	                    							<label class="label-control">Email</label>
+	                    							<label class="label-control">Email acceso panel</label>
 
 					                    			<div class="input-group input-group-merge group-form">
 
@@ -331,27 +331,10 @@
 
 					                                    <input class="form-control" type="email" id="entity-email" name="email" placeholder="ejemplo@cuentaemail.com" value="{{ old('email', session('entity_information.email')) }}" required style="border-radius: 0 30px 30px 0;">
 					                                    @error('email')
-					                                        <div class="text-danger small mt-1">{{ $message }}</div>
+					                                        <div class="text-danger small mt-1 field-error">{{ $message }}</div>
 					                                    @enderror
 					                                </div>
-				                    			</div>
-	                    					</div>
-
-	                    					<div class="col-4">
-	                    						<div class="form-group mt-2 mb-3">
-	                    							<label class="label-control">Contraseña acceso panel</label>
-
-					                    			<div class="input-group input-group-merge group-form">
-
-					                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
-					                                        <i class="ri-lock-line"></i>
-					                                    </div>
-
-					                                    <input class="form-control" type="password" name="panel_password" required autocomplete="new-password" style="border-radius: 0 30px 30px 0;">
-					                                    @error('panel_password')
-					                                        <div class="text-danger small mt-1">{{ $message }}</div>
-					                                    @enderror
-					                                </div>
+					                                <small class="text-muted">Se enviará un correo a esta dirección con una contraseña provisional para acceder al panel. Al iniciar sesión podrá cambiarla o posponer el cambio.</small>
 				                    			</div>
 	                    					</div>
 
@@ -422,6 +405,10 @@
     }
     .group-form .ts-wrapper.single .ts-control input::placeholder {
         color: #6c757d !important;
+    }
+    .group-form .form-control.is-invalid,
+    .group-form .ts-wrapper.is-invalid .ts-control {
+        border-color: #dc3545 !important;
     }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
@@ -548,6 +535,75 @@
 	            hint.innerHTML = input.checked ? input.dataset.hintOn : input.dataset.hintOff;
 	        });
 	    });
+
+	    const entityForm = document.getElementById('entity-information-form');
+	    if (entityForm) {
+	        const fieldRules = {
+	            name: { label: 'Nombre comercial', test: (v) => v.trim() !== '' },
+	            province: { label: 'Provincia', test: (v) => v.trim() !== '' },
+	            city: { label: 'Localidad', test: (v) => v.trim() !== '' },
+	            postal_code: { label: 'Código postal', test: (v) => v.trim() !== '' },
+	            address: { label: 'Dirección', test: (v) => v.trim() !== '' },
+	            nif_cif: { label: 'NIF/CIF', test: (v) => v.trim() !== '' },
+	            phone: { label: 'Teléfono', test: (v) => v.trim() !== '' },
+	            email: { label: 'Email acceso panel', test: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) },
+	        };
+
+	        const clearFieldError = function (field) {
+	            field.classList.remove('is-invalid');
+	            const group = field.closest('.input-group') || field.closest('.group-form');
+	            if (group) {
+	                group.classList.remove('is-invalid');
+	            }
+	            const wrapper = field.closest('.form-group');
+	            if (wrapper) {
+	                const inline = wrapper.querySelector('.client-field-error');
+	                if (inline) inline.remove();
+	            }
+	        };
+
+	        const showFieldError = function (field, message) {
+	            field.classList.add('is-invalid');
+	            const group = field.closest('.input-group') || field.closest('.group-form');
+	            if (group) {
+	                group.classList.add('is-invalid');
+	            }
+	            const wrapper = field.closest('.form-group');
+	            if (!wrapper) return;
+	            let inline = wrapper.querySelector('.client-field-error');
+	            if (!inline) {
+	                inline = document.createElement('div');
+	                inline.className = 'text-danger small mt-1 client-field-error';
+	                wrapper.appendChild(inline);
+	            }
+	            inline.textContent = message;
+	        };
+
+	        entityForm.querySelectorAll('input, select, textarea').forEach(function (field) {
+	            if (!field.name || !fieldRules[field.name]) return;
+	            field.addEventListener('input', function () { clearFieldError(field); });
+	            field.addEventListener('change', function () { clearFieldError(field); });
+	        });
+
+	        entityForm.addEventListener('submit', function (event) {
+	            let firstInvalid = null;
+	            Object.keys(fieldRules).forEach(function (name) {
+	                const field = entityForm.querySelector('[name="' + name + '"]');
+	                if (!field) return;
+	                clearFieldError(field);
+	                const rule = fieldRules[name];
+	                if (!rule.test(field.value || '')) {
+	                    if (!firstInvalid) firstInvalid = field;
+	                    showFieldError(field, 'Revise el campo ' + rule.label + '.');
+	                }
+	            });
+	            if (firstInvalid) {
+	                event.preventDefault();
+	                firstInvalid.focus();
+	                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	            }
+	        });
+	    }
 	});
 
 </script>

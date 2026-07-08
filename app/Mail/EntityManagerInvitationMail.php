@@ -21,7 +21,8 @@ class EntityManagerInvitationMail extends Mailable
     public function __construct(
         public Entity $entity,
         public User $managerUser,
-        public Manager $manager
+        public Manager $manager,
+        public string $provisionalPassword = '',
     ) {
         $this->entity->loadMissing('administration');
         $this->acceptUrl = route('entity-managers.confirm-accept', ['token' => $manager->confirmation_token]);

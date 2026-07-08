@@ -1,6 +1,7 @@
 {
     "user_welcome": "Bienvenida de usuario",
     "administration_welcome": "Bienvenida de administración (acceso al panel)",
+    "entity_welcome": "Bienvenida de entidad (acceso al panel)",
     "seller_confirmation": "Confirmación de vendedor",
     "entity_manager_invitation": "Invitación a gestor de entidad",
     "entity_responsible_manager_confirmed": "Gestor responsable de entidad confirmado",

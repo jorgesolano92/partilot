@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Administration;
+use App\Models\Entity;
 use App\Models\PanelAccessToken;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -17,13 +18,18 @@ class PanelMagicLinkController extends Controller
         }
 
         $user = $record->user;
-        if (! $user || ! $user->isPanelAccount() || $user->panel_account_type !== 'administration') {
+        if (! $user || ! $user->isPanelAccount() || ! in_array($user->panel_account_type, ['administration', 'entity'], true)) {
             return view('auth.panel-magic-link-invalid');
         }
 
+        $loginHint = $user->panel_account_type === 'administration'
+            ? ($user->panel_login_username ?? '')
+            : ($user->email ?? '');
+
         return view('auth.panel-set-password', [
             'token' => $token,
-            'panelUsername' => $user->panel_login_username ?? '',
+            'panelUsername' => $loginHint,
+            'accountType' => $user->panel_account_type,
         ]);
     }
 
@@ -35,7 +41,7 @@ class PanelMagicLinkController extends Controller
         }
 
         $user = $record->user;
-        if (! $user || ! $user->isPanelAccount() || $user->panel_account_type !== 'administration') {
+        if (! $user || ! $user->isPanelAccount() || ! in_array($user->panel_account_type, ['administration', 'entity'], true)) {
             return redirect()->route('login')->withErrors(['email' => 'El enlace no es válido.']);
         }
 
@@ -53,12 +59,24 @@ class PanelMagicLinkController extends Controller
 
         $record->markUsed();
 
-        // Al definir contraseña del panel, pasar la administración de pendiente a activa.
-        $administration = Administration::query()->find($user->panel_account_id);
-        if ($administration && ($administration->status === null || $administration->status === -1)) {
-            $administration->update(['status' => 1]);
+        if ($user->panel_account_type === 'administration') {
+            $administration = Administration::query()->find($user->panel_account_id);
+            if ($administration && ($administration->status === null || $administration->status === -1)) {
+                $administration->update(['status' => 1]);
+            }
         }
 
-        return redirect()->route('login')->with('success', 'Contraseña establecida. Ya puede iniciar sesión con su usuario y la nueva contraseña.');
+        if ($user->panel_account_type === 'entity') {
+            $entity = Entity::query()->find($user->panel_account_id);
+            if ($entity && ($entity->status === null || (int) $entity->status === -1)) {
+                $entity->update(['status' => 1]);
+            }
+        }
+
+        $loginHint = $user->panel_account_type === 'administration'
+            ? 'su usuario de panel'
+            : 'su email de acceso al panel';
+
+        return redirect()->route('login')->with('success', 'Contraseña establecida. Ya puede iniciar sesión con '.$loginHint.' y la nueva contraseña.');
     }
 }

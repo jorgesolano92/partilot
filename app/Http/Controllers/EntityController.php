@@ -10,7 +10,9 @@ use App\Models\PendingEntityManagerInvitation;
 use App\Models\User;
 use App\Mail\EntityManagerInvitationMail;
 use App\Mail\EntityManagerPreregisterInviteMail;
+use App\Services\EntityPanelAccessService;
 use App\Services\ManagerAccountService;
+use App\Services\ProvisionalPasswordService;
 use App\Mail\EntityResponsibleManagerConfirmedMail;
 use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
@@ -130,13 +132,22 @@ class EntityController extends Controller
             'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\EntityDocument],
             'phone' => 'required|string|max:20',
             'email' => 'required|email|max:255',
-            'panel_password' => 'required|string|min:8',
             'comments' => 'nullable|string|max:1000',
             'is_non_profit' => 'nullable|boolean',
             'entity_pays_management_fee' => 'nullable|boolean',
             'entity_pays_print_fee' => 'nullable|boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'remove_image' => 'nullable|in:0,1'
+            'remove_image' => 'nullable|in:0,1',
+        ], [
+            'name.required' => 'Indique el nombre comercial de la entidad.',
+            'province.required' => 'Seleccione una provincia.',
+            'city.required' => 'Seleccione una localidad.',
+            'postal_code.required' => 'Indique el código postal.',
+            'address.required' => 'Indique la dirección.',
+            'nif_cif.required' => 'Indique el NIF/CIF.',
+            'phone.required' => 'Indique un teléfono de contacto.',
+            'email.required' => 'Indique el email de acceso al panel.',
+            'email.email' => 'El email de acceso al panel no es válido.',
         ]);
 
         $validated['comments'] = \App\Support\HtmlText::sanitizePlainText($validated['comments'] ?? null);
@@ -239,12 +250,6 @@ class EntityController extends Controller
                 ->with('error', 'Sesión expirada o permisos insuficientes. Por favor, vuelva a empezar.');
         }
 
-        $panelPassword = $entityInformation['panel_password'] ?? null;
-        if (! $panelPassword) {
-            return redirect()->route('entities.add-information')
-                ->with('error', 'Debe definir la contraseña de acceso al panel en el paso de Datos Entidad.');
-        }
-
         $email = $entityInformation['email'] ?? null;
         if (! $email || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return redirect()->route('entities.add-information')
@@ -253,7 +258,7 @@ class EntityController extends Controller
 
         if (ContactEmailRegistry::isTaken($email)) {
             return back()->withErrors([
-                'panel_password' => 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario. Cambie el email en el paso anterior.',
+                'manager_email' => 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario. Cambie el email en el paso anterior.',
             ])->withInput();
         }
 
@@ -265,6 +270,7 @@ class EntityController extends Controller
 
         $managerUser = User::where('email', $request->input('manager_email'))->first();
         $managerUserWasNew = false;
+        $managerPlainPassword = null;
         if ($managerUser && $managerUser->isPanelAccount()) {
             return back()->withErrors([
                 'manager_email' => 'Ese email corresponde a una cuenta de acceso de panel. Use otro email para el gestor.',
@@ -273,13 +279,14 @@ class EntityController extends Controller
 
         if (! $managerUser) {
             $managerUserWasNew = true;
-            // Contraseña aleatoria hasta que el gestor la defina al aceptar el correo.
+            $managerPlainPassword = app(ProvisionalPasswordService::class)->generate();
             $managerUser = User::create([
                 'name' => $request->input('manager_name'),
                 'last_name' => $request->input('manager_last_name'),
                 'last_name2' => $request->input('manager_last_name2'),
                 'email' => $request->input('manager_email'),
-                'password' => Str::password(60),
+                'password' => $managerPlainPassword,
+                'must_change_password' => true,
                 'role' => User::ROLE_ENTITY,
                 'status' => true,
                 'phone' => $request->input('manager_phone') ?: null,
@@ -288,36 +295,15 @@ class EntityController extends Controller
             ]);
         }
 
-        $entityData = array_merge($entityInformation, [
-            'administration_id' => is_object($administration) ? $administration->id : ($administration['id'] ?? null),
-        ]);
-        unset($entityData['panel_password']);
-
-        $entity = Entity::create($entityData);
-
-        $panelUser = User::create([
-            'name' => trim((string) ($entityInformation['name'] ?? '')) ?: 'Entidad',
-            'email' => $email,
-            'password' => $panelPassword,
-            'role' => User::ROLE_ENTITY,
-            'panel_account_type' => 'entity',
-            'panel_account_id' => $entity->id,
-            'status' => true,
-            'phone' => $entityInformation['phone'] ?? null,
-            'nif_cif' => $entityInformation['nif_cif'] ?? null,
-        ]);
-
-        Manager::firstOrCreate([
-            'user_id' => $panelUser->id,
-            'entity_id' => $entity->id,
-        ], [
-            'is_primary' => false,
-            'permission_sellers' => true,
-            'permission_design' => true,
-            'permission_statistics' => true,
-            'permission_payments' => true,
-            'status' => 1,
-        ]);
+        try {
+            $entity = DB::transaction(function () use ($administration, $entityInformation) {
+                return app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+            });
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->route('entities.add-information')->with('error', $e->getMessage());
+        } catch (\RuntimeException $e) {
+            return redirect()->route('entities.add-information')->with('error', $e->getMessage());
+        }
 
         // Gestor responsable: pendiente de aceptación por email (mismo flujo que invitar gestor).
         $primaryManager = Manager::create([
@@ -330,7 +316,8 @@ class EntityController extends Controller
             'permission_payments' => true,
             'confirmation_token' => Str::random(64),
             'confirmation_sent_at' => now(),
-            'requires_password_setup' => $managerUserWasNew,
+            'requires_password_setup' => false,
+            'user_created_for_invitation' => $managerUserWasNew,
             'status' => null,
         ]);
 
@@ -347,7 +334,12 @@ class EntityController extends Controller
                     messageType: 'entity_manager_invitation',
                     templateKey: null,
                     mailClass: EntityManagerInvitationMail::class,
-                    mailPayload: ['entity_id' => $entity->id, 'user_id' => $managerUser->id, 'manager_id' => $primaryManager->id],
+                    mailPayload: array_filter([
+                        'entity_id' => $entity->id,
+                        'user_id' => $managerUser->id,
+                        'manager_id' => $primaryManager->id,
+                        'plain_password' => $managerPlainPassword,
+                    ]),
                     context: ['entity_id' => $entity->id],
                 );
             }
@@ -360,7 +352,7 @@ class EntityController extends Controller
         return redirect()->route('entities.index')
             ->with(
                 'success',
-                'Entidad creada. Se ha enviado un correo al gestor responsable para que acepte la invitación. La cuenta de acceso al panel de la entidad ya puede usarse para gestionar datos e invitar a otros gestores.'
+                'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. También se ha enviado un correo al gestor responsable con sus datos de acceso y la invitación.'
             );
     }
 
@@ -445,48 +437,21 @@ class EntityController extends Controller
                     ->with('error', 'Sesión expirada. Vuelva a iniciar la creación de la entidad.');
             }
 
-            $panelPassword = $entityInformation['panel_password'] ?? null;
             $panelEmail = $entityInformation['email'] ?? null;
-            if (! $panelPassword || ! $panelEmail) {
+            if (! $panelEmail) {
                 return redirect()->route('entities.add-information')
-                    ->with('error', 'Faltan datos de acceso de panel para crear la entidad.');
+                    ->with('error', 'Falta el email de acceso al panel para crear la entidad.');
             }
 
-            if (ContactEmailRegistry::isTaken($panelEmail)) {
-                return redirect()->route('entities.add-information')
-                    ->with('error', 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario. Cambie el email en Datos Entidad.');
+            try {
+                $entity = DB::transaction(function () use ($administration, $entityInformation) {
+                    return app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+                });
+            } catch (\InvalidArgumentException $e) {
+                return redirect()->route('entities.add-information')->with('error', $e->getMessage());
+            } catch (\RuntimeException $e) {
+                return redirect()->route('entities.add-information')->with('error', $e->getMessage());
             }
-
-            $entityData = array_merge($entityInformation, [
-                'administration_id' => is_object($administration) ? $administration->id : ($administration['id'] ?? null),
-            ]);
-            unset($entityData['panel_password']);
-
-            $entity = Entity::create($entityData);
-
-            $panelUser = User::create([
-                'name' => trim((string) ($entityInformation['name'] ?? '')) ?: 'Entidad',
-                'email' => $panelEmail,
-                'password' => $panelPassword,
-                'role' => User::ROLE_ENTITY,
-                'panel_account_type' => 'entity',
-                'panel_account_id' => $entity->id,
-                'status' => true,
-                'phone' => $entityInformation['phone'] ?? null,
-                'nif_cif' => $entityInformation['nif_cif'] ?? null,
-            ]);
-
-            Manager::firstOrCreate([
-                'user_id' => $panelUser->id,
-                'entity_id' => $entity->id,
-            ], [
-                'is_primary' => false,
-                'permission_sellers' => true,
-                'permission_design' => true,
-                'permission_statistics' => true,
-                'permission_payments' => true,
-                'status' => 1,
-            ]);
         }
 
         if (! $isCreationFlow && $request->filled('pending_invite_email') && ! $request->filled('user_id')) {
@@ -527,6 +492,8 @@ class EntityController extends Controller
             'permission_payments' => $request->boolean('permission_payments'),
             'confirmation_token' => Str::random(64),
             'confirmation_sent_at' => now(),
+            'requires_password_setup' => false,
+            'user_created_for_invitation' => false,
             'status' => null, // Pendiente por defecto
         ]);
 
@@ -559,7 +526,9 @@ class EntityController extends Controller
         }
 
         return redirect()->route('entities.show', $entity->id)
-            ->with('success', 'Gestor invitado exitosamente.');
+            ->with('success', $isCreationFlow
+                ? 'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. Gestor invitado exitosamente.'
+                : 'Gestor invitado exitosamente.');
     }
 
     /**
@@ -605,12 +574,15 @@ class EntityController extends Controller
             'permission_payments' => 'nullable|boolean',
         ]);
         $userWasNew = false;
+        $managerPlainPassword = null;
         if (! $user) {
             $userWasNew = true;
+            $managerPlainPassword = app(ProvisionalPasswordService::class)->generate();
             $user = new User;
             $user->name = $validated['manager_name'] . ' ' . $validated['manager_last_name'];
             $user->email = $validated['manager_email'];
-            $user->password = Str::password(60);
+            $user->password = $managerPlainPassword;
+            $user->must_change_password = true;
             $user->role = User::ROLE_ENTITY;
             $user->save();
         }
@@ -647,7 +619,8 @@ class EntityController extends Controller
             'permission_payments' => $request->has('permission_payments') ? true : false,
             'confirmation_token' => Str::random(64),
             'confirmation_sent_at' => now(),
-            'requires_password_setup' => $userWasNew,
+            'requires_password_setup' => false,
+            'user_created_for_invitation' => $userWasNew,
             'status' => null, // Pendiente por defecto
         ]);
 
@@ -661,7 +634,12 @@ class EntityController extends Controller
                     messageType: 'entity_manager_invitation',
                     templateKey: null,
                     mailClass: EntityManagerInvitationMail::class,
-                    mailPayload: ['entity_id' => $entity->id, 'user_id' => $user->id, 'manager_id' => $manager->id],
+                    mailPayload: array_filter([
+                        'entity_id' => $entity->id,
+                        'user_id' => $user->id,
+                        'manager_id' => $manager->id,
+                        'plain_password' => $managerPlainPassword,
+                    ]),
                     context: ['entity_id' => $entity->id],
                 );
             }
@@ -670,7 +648,9 @@ class EntityController extends Controller
         }
 
         return redirect()->route('entities.show', $entity->id)
-            ->with('success', 'Gestor registrado exitosamente.');
+            ->with('success', $userWasNew
+                ? 'Gestor registrado. Se ha enviado un correo con los datos de acceso y la invitación para aceptar o rechazar.'
+                : 'Gestor invitado exitosamente.');
     }
 
     /**
@@ -692,16 +672,10 @@ class EntityController extends Controller
                 ->with('error', 'Sesión expirada. Por favor, vuelva a empezar.');
         }
 
-        $panelPassword = $entityInformation['panel_password'] ?? null;
         $panelEmail = $entityInformation['email'] ?? null;
-        if (! $panelPassword || ! $panelEmail) {
+        if (! $panelEmail) {
             return redirect()->route('entities.add-information')
-                ->with('error', 'Faltan datos de acceso de panel para crear la entidad.');
-        }
-
-        if (ContactEmailRegistry::isTaken($panelEmail)) {
-            return redirect()->route('entities.add-information')
-                ->with('error', 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario. Cambie el email en Datos Entidad.');
+                ->with('error', 'Falta el email de acceso al panel para crear la entidad.');
         }
 
         if (strcasecmp($inviteEmail, strtolower(trim((string) $panelEmail))) === 0) {
@@ -714,36 +688,15 @@ class EntityController extends Controller
                 ->with('error', 'Ese email ya está registrado. Use “Invitar gestor” cuando haya coincidencia.');
         }
 
-        $entityData = array_merge($entityInformation, [
-            'administration_id' => is_object($administration) ? $administration->id : ($administration['id'] ?? null),
-        ]);
-        unset($entityData['panel_password']);
-
-        $entity = Entity::create($entityData);
-
-        $panelUser = User::create([
-            'name' => trim((string) ($entityInformation['name'] ?? '')) ?: 'Entidad',
-            'email' => $panelEmail,
-            'password' => $panelPassword,
-            'role' => User::ROLE_ENTITY,
-            'panel_account_type' => 'entity',
-            'panel_account_id' => $entity->id,
-            'status' => true,
-            'phone' => $entityInformation['phone'] ?? null,
-            'nif_cif' => $entityInformation['nif_cif'] ?? null,
-        ]);
-
-        Manager::firstOrCreate([
-            'user_id' => $panelUser->id,
-            'entity_id' => $entity->id,
-        ], [
-            'is_primary' => false,
-            'permission_sellers' => true,
-            'permission_design' => true,
-            'permission_statistics' => true,
-            'permission_payments' => true,
-            'status' => 1,
-        ]);
+        try {
+            $entity = DB::transaction(function () use ($administration, $entityInformation) {
+                return app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+            });
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->route('entities.add-information')->with('error', $e->getMessage());
+        } catch (\RuntimeException $e) {
+            return redirect()->route('entities.add-information')->with('error', $e->getMessage());
+        }
 
         PendingEntityManagerInvitation::query()->updateOrCreate(
             [
@@ -770,7 +723,7 @@ class EntityController extends Controller
         return redirect()->route('entities.index')
             ->with(
                 'success',
-                'Entidad creada. Se ha enviado un correo al futuro gestor: debe registrarse con ese email y luego aceptar la invitación para definir su contraseña de acceso al panel.'
+                'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. También se ha enviado un correo al futuro gestor para que se registre con ese email.'
             );
     }
 
@@ -1605,7 +1558,9 @@ class EntityController extends Controller
         }
 
         return view('entities.manager-confirmation-success', [
-            'message' => '¡Invitación aceptada! Ya puede iniciar sesión en el panel con su email y la contraseña indicada.',
+            'message' => $manager->requires_password_setup
+                ? '¡Invitación aceptada! Ya puede iniciar sesión en el panel con su email y la contraseña indicada.'
+                : '¡Invitación aceptada correctamente! Ya puede iniciar sesión y gestionar la entidad.',
             'type' => 'accept',
             'manager' => $manager,
         ]);
@@ -1804,7 +1759,7 @@ class EntityController extends Controller
         }
 
         return redirect()->route('entities.show', $entity->id)
-            ->with('success', 'Invitación registrada. Cuando se dé de alta con ese email, recibirá el correo para aceptar y definir su contraseña de acceso al panel.');
+            ->with('success', 'Invitación registrada. Cuando se registre con ese email, recibirá el correo para aceptar o rechazar la invitación (sin nueva contraseña si ya tiene cuenta).');
     }
 
     /**

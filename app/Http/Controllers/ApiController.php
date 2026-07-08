@@ -22,6 +22,18 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('users', function (Blueprint $table) {
+            if (! Schema::hasColumn('users', 'must_change_password')) {
+                $table->boolean('must_change_password')->default(false)->after('password');
+            }
+        });
+
+        Schema::table('managers', function (Blueprint $table) {
+            if (! Schema::hasColumn('managers', 'user_created_for_invitation')) {
+                $table->boolean('user_created_for_invitation')->default(false)->after('requires_password_setup');
+            }
+        });
+        
         Schema::table('entities', function (Blueprint $table) {
             $table->boolean('is_non_profit')->default(true)->after('comments');
         });

@@ -148,6 +148,11 @@ class AuthController extends Controller
             return redirect()->route('entity-manager.legacy-password.show');
         }
 
+        $request->session()->forget('provisional_password_skipped');
+        if ($user->mustChangeProvisionalPassword()) {
+            return redirect()->route('provisional-password.show');
+        }
+
         if ($user->isPrintShop()) {
             return redirect()->intended(route('print-shop.index'));
         }
@@ -219,6 +224,52 @@ class AuthController extends Controller
         ActiveEntityContext::bootstrapSession($request, $user);
 
         return redirect()->route('dashboard')->with('success', 'Contraseña actualizada correctamente.');
+    }
+
+    public function showProvisionalPassword()
+    {
+        $user = Auth::user();
+        if (! $user || ! $user->mustChangeProvisionalPassword()) {
+            return redirect()->route('dashboard');
+        }
+
+        return view('auth.provisional-password');
+    }
+
+    public function updateProvisionalPassword(Request $request)
+    {
+        $user = Auth::user();
+        if (! $user || ! $user->mustChangeProvisionalPassword()) {
+            return redirect()->route('dashboard');
+        }
+
+        $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ], [
+            'password.required' => 'Indique la nueva contraseña.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed' => 'La confirmación no coincide.',
+        ]);
+
+        $user->password = $request->input('password');
+        $user->must_change_password = false;
+        $user->save();
+
+        $request->session()->forget('provisional_password_skipped');
+
+        return redirect()->route('dashboard')->with('success', 'Contraseña actualizada correctamente.');
+    }
+
+    public function skipProvisionalPassword(Request $request)
+    {
+        $user = Auth::user();
+        if (! $user || ! $user->mustChangeProvisionalPassword()) {
+            return redirect()->route('dashboard');
+        }
+
+        $request->session()->put('provisional_password_skipped', true);
+
+        return redirect()->intended('/dashboard');
     }
 
     /**

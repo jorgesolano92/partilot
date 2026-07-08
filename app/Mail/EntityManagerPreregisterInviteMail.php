@@ -22,7 +22,7 @@ class EntityManagerPreregisterInviteMail extends Mailable
         public Entity $entity,
         public string $invitedEmail
     ) {
-        $this->registerHintUrl = rtrim((string) config('app.url'), '/');
+        $this->registerHintUrl = (string) (config('app.manager_registration_url') ?: route('login', absolute: true));
     }
 
     public function envelope(): Envelope

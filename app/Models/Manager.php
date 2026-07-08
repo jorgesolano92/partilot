@@ -32,6 +32,7 @@ class Manager extends Model
         "confirmation_sent_at",
         "role_invitation_reminder_sent_at",
         "requires_password_setup",
+        "user_created_for_invitation",
         "status",
     ];
 
@@ -45,6 +46,7 @@ class Manager extends Model
         'confirmation_sent_at' => 'datetime',
         'role_invitation_reminder_sent_at' => 'datetime',
         'requires_password_setup' => 'boolean',
+        'user_created_for_invitation' => 'boolean',
         'contact_birthday' => 'date',
     ];
 

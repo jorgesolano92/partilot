@@ -366,16 +366,57 @@ class RoleLegalAcceptanceService
         if ($manager->pending_primary) {
             $this->roleNotifications->onManagerRejected($manager);
 
-            $manager->update([
-                'pending_primary' => false,
-                'confirmation_token' => null,
-                'confirmation_sent_at' => null,
-            ]);
+            $userCreatedForInvitation = (bool) $manager->user_created_for_invitation;
+            $invitedUser = $manager->user;
+            $managerId = $manager->id;
+
+            if ($userCreatedForInvitation) {
+                $manager->delete();
+                if ($invitedUser) {
+                    $this->deleteInvitationOnlyUser($invitedUser, $managerId);
+                }
+            } else {
+                $manager->update([
+                    'pending_primary' => false,
+                    'confirmation_token' => null,
+                    'confirmation_sent_at' => null,
+                ]);
+            }
         } else {
+            $userCreatedForInvitation = (bool) $manager->user_created_for_invitation;
+            $invitedUser = $manager->user;
+            $managerId = $manager->id;
+
             $manager->delete();
+
+            if ($userCreatedForInvitation && $invitedUser) {
+                $this->deleteInvitationOnlyUser($invitedUser, $managerId);
+            }
         }
 
         return ['success' => true, 'message' => 'Invitación rechazada.'];
+    }
+
+    protected function deleteInvitationOnlyUser(User $user, int $exceptManagerId): void
+    {
+        if ($user->isPanelAccount()) {
+            return;
+        }
+
+        $hasOtherManagers = Manager::query()
+            ->where('user_id', $user->id)
+            ->where('id', '!=', $exceptManagerId)
+            ->exists();
+
+        if ($hasOtherManagers) {
+            return;
+        }
+
+        if (Seller::query()->where('user_id', $user->id)->exists()) {
+            return;
+        }
+
+        $user->delete();
     }
 
     /**

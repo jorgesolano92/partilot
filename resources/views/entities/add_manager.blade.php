@@ -126,7 +126,7 @@
                     				Email de invitación
                     			</h4>
                     			<small><i>Asegúrese de que el email sea el correcto</i></small>
-                    			<p class="text-muted small mt-2 mb-0">El <strong>gestor responsable</strong> recibirá un <strong>correo</strong> para aceptar el cargo. La cuenta de acceso al <strong>panel de la entidad</strong> (email de la entidad) puede usarse desde ya para datos e invitaciones; las <strong>devoluciones y anulaciones</strong> solo las podrá tramitar el responsable una vez aceptada la invitación (o un usuario de la administración).</p>
+                    			<p class="text-muted small mt-2 mb-0">El <strong>gestor responsable</strong> recibirá un correo para <strong>aceptar o rechazar</strong> el cargo. Si es usuario nuevo (registrar gestor), el correo incluirá también email y contraseña provisional. La cuenta de panel de la entidad recibe su contraseña provisional por correo por separado.</p>
 
                     			<div class="form-group mt-2 mb-3 admin-box">
 
@@ -197,9 +197,6 @@
                     								<div class="row">
                     									
                     									<div class="col-7">
-										<button type="button" class="btn btn-light btn-sm mb-2 return-manager-options" style="border-radius:30px;">
-											<i class="ri-arrow-left-circle-line"></i> Volver a opciones
-										</button>
 		                    								<div class="card bs" style="border-radius: 16px;">
 		                    									<div class="card-body">
 		                    										<h4 class="mb-0 mt-1">
@@ -285,6 +282,15 @@
 
 
 
+                    								<div class="row mt-3">
+                    									<div class="col-12 text-end">
+                    										<button type="button" class="btn btn-md btn-light mt-2 return-manager-options" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;">
+                    											<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i>
+                    											<span style="display: block; margin-left: 16px;">Volver</span>
+                    										</button>
+                    									</div>
+                    								</div>
+
                     							</div>
 
                     							<div class="d-none" id="accept-invite">
@@ -346,9 +352,6 @@
                     			<div id="register-manager-selected" class="d-none">
                     				<form action="{{url('entities/store-manager')}}" method="POST" enctype="multipart/form-data">
                     					@csrf()
-	                    					<button type="button" class="btn btn-light btn-sm mb-3 return-manager-options" style="border-radius:30px; display:block;">
-	                    						<i class="ri-arrow-left-circle-line"></i> Volver a opciones
-	                    					</button>
                     					<div class="row">
                     						
                     						<div class="col-4">
@@ -528,8 +531,12 @@
             								</div>
     									</div>
 
-	                    				<div class="col-4 text-end">
-	                    					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative; top: calc(100% - 51px);" class="btn btn-md btn-light mt-2">Guardar
+	                    				<div class="col-8 text-end">
+	                    					<button type="button" class="btn btn-md btn-light mt-2 return-manager-options" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative; margin-right: 12px;">
+	                    						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i>
+	                    						<span style="display: block; margin-left: 16px;">Volver</span>
+	                    					</button>
+	                    					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2">Guardar
 	                    						<i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
 	                    				</div>
 
