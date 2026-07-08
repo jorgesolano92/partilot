@@ -90,6 +90,15 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
+        // Cuenta panel de entidad: al primer acceso con credenciales válidas, activar entidad pendiente
+        // (sustituye la activación que antes hacía el enlace mágico al establecer contraseña).
+        if ($user->isPanelAccount() && $user->panel_account_type === 'entity') {
+            $entity = \App\Models\Entity::query()->find($user->panel_account_id);
+            if ($entity && ($entity->status === null || (int) $entity->status === -1)) {
+                $entity->update(['status' => 1]);
+            }
+        }
+
         // Bloquear login si la administración/entidad asociada está pendiente o inactiva.
         // Regla: solo se permite acceso si el panel asociado tiene status == 1 (Activo).
         if (! $user->isSuperAdmin()) {

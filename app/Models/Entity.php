@@ -98,6 +98,11 @@ class Entity extends Model
         return $this->hasMany(Manager::class,'entity_id','id');
     }
 
+    public function pendingManagerInvitations()
+    {
+        return $this->hasMany(PendingEntityManagerInvitation::class, 'entity_id', 'id');
+    }
+
     /**
      * Relación con Reservas
      */

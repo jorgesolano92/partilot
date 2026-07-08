@@ -301,7 +301,7 @@
 		                    								<h2>¡Hay 0 coincidencias!</h2>
 
 		                    								<p>
-		                    									No hemos encontrado un <b>usuario registrado con el email "<span id="no-coincidence-email"></span>"</b>. Si haces clic en <b>Aceptar</b>, se guardará la invitación: al <b>registrarse con ese mismo email</b> (web o app) recibirá el correo para aceptar y <b>definir su contraseña</b> de acceso al panel.
+		                    									No hemos encontrado un <b>usuario registrado con el email "<span id="no-coincidence-email"></span>"</b>. Si haces clic en <b>Aceptar</b>, se enviará un correo con enlaces para <b>aceptar y registrarse</b> o <b>rechazar</b> la invitación como gestor.
 		                    								</p>
                     									</div>
 

@@ -354,7 +354,14 @@
 			                    			
 			                    			@if(!$entity->manager || !$entity->manager->user)
 			                    				<div class="alert alert-warning mt-3">
-			                    					<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal asignado. Por favor, agrega un gestor para poder gestionar esta entidad correctamente.
+			                    					@if($primaryPendingInvitation ?? null)
+			                    						<strong>Gestor responsable pendiente:</strong> Se ha enviado una invitación a <strong>{{ $primaryPendingInvitation->email }}</strong>. El destinatario debe aceptar y completar el registro desde el correo recibido.
+			                    						@if($primaryPendingInvitation->confirmation_sent_at)
+			                    							<br><small class="text-muted">Invitación enviada: {{ $primaryPendingInvitation->confirmation_sent_at->format('d/m/Y H:i') }}</small>
+			                    						@endif
+			                    					@else
+			                    						<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal asignado. Por favor, agrega un gestor para poder gestionar esta entidad correctamente.
+			                    					@endif
 			                    				</div>
 			                    			@endif
 
@@ -584,6 +591,39 @@
 							                    
 							                    
 							                        <tbody>
+							                            @foreach($pendingManagerInvitations ?? [] as $pendingInvite)
+							                            <tr class="table-warning">
+							                                <td>#IN{{ str_pad($pendingInvite->id, 4, '0', STR_PAD_LEFT) }}</td>
+							                                <td>
+							                                	{{ $pendingInvite->email }}
+							                                	<br><small class="text-muted">Sin cuenta registrada</small>
+							                                </td>
+							                                <td>
+							                                	@if($pendingInvite->is_primary)
+							                                		<span class="badge bg-primary">Gestor responsable</span>
+							                                	@else
+							                                		Gestor
+							                                	@endif
+							                                	<span class="badge bg-warning text-dark ms-1">Invitación enviada</span>
+							                                </td>
+							                                <td>
+							                                	@php
+							                                		$allPermissions = $pendingInvite->permission_sellers
+							                                			&& $pendingInvite->permission_design
+							                                			&& $pendingInvite->permission_statistics
+							                                			&& $pendingInvite->permission_payments;
+							                                	@endphp
+							                                	{{ $pendingInvite->is_primary ? 'Total' : ($allPermissions ? 'Total' : 'Parcial') }}
+							                                </td>
+							                                <td><label class="badge bg-secondary">Pendiente registro</label></td>
+							                                <td>
+							                                	<span class="text-warning fw-semibold">Esperando aceptación</span>
+							                                	@if($pendingInvite->confirmation_sent_at)
+							                                		<br><small class="text-muted">{{ $pendingInvite->confirmation_sent_at->format('d/m/Y H:i') }}</small>
+							                                	@endif
+							                                </td>
+							                            </tr>
+							                            @endforeach
 							                            @forelse($managersVisible ?? $entity->managers as $manager)
 							                            <tr>
 							                                <td>#GE{{ str_pad($manager->id, 4, '0', STR_PAD_LEFT) }}</td>
@@ -696,6 +736,7 @@
 							                                </td>
 							                            </tr>
 							                            @empty
+							                            @if(($pendingManagerInvitations ?? collect())->isEmpty())
 							                            <tr>
 							                                <td colspan="6" class="text-center">
 									@if(!empty($entityPanelUser))
@@ -705,6 +746,7 @@
 									@endif
 								</td>
 							                            </tr>
+							                            @endif
 							                            @endforelse
 							                        </tbody>
 						                        </table>

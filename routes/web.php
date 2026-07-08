@@ -127,6 +127,10 @@ Route::post('/entity-managers/confirm/accept/{token}', [EntityController::class,
 Route::post('/entity-managers/confirm/respond/{token}', [EntityController::class, 'confirmManagerRespond'])->name('entity-managers.confirm-respond');
 Route::get('/entity-managers/confirm/reject/{token}', [EntityController::class, 'confirmManagerReject'])->name('entity-managers.confirm-reject');
 
+Route::get('/entity-managers/pending/register/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'showRegister'])->name('entity-managers.pending.register');
+Route::post('/entity-managers/pending/register/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'storeRegister'])->name('entity-managers.pending.register.store');
+Route::get('/entity-managers/pending/reject/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'reject'])->name('entity-managers.pending.reject');
+
 // Confirmación doble opt-in cobro por transferencia (sin autenticación)
 Route::middleware(['throttle:20,1'])->group(function () {
     Route::get('/cobro-transferencia/confirmar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'confirm'])->name('transfer-collection.confirm');

@@ -22,6 +22,15 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('pending_entity_manager_invitations', function (Blueprint $table) {
+            if (! Schema::hasColumn('pending_entity_manager_invitations', 'confirmation_token')) {
+                $table->string('confirmation_token', 64)->nullable()->unique()->after('permission_payments');
+            }
+            if (! Schema::hasColumn('pending_entity_manager_invitations', 'confirmation_sent_at')) {
+                $table->timestamp('confirmation_sent_at')->nullable()->after('confirmation_token');
+            }
+        });
+        
         Schema::table('users', function (Blueprint $table) {
             if (! Schema::hasColumn('users', 'must_change_password')) {
                 $table->boolean('must_change_password')->default(false)->after('password');
@@ -33,7 +42,7 @@ class ApiController extends Controller
                 $table->boolean('user_created_for_invitation')->default(false)->after('requires_password_setup');
             }
         });
-        
+
         Schema::table('entities', function (Blueprint $table) {
             $table->boolean('is_non_profit')->default(true)->after('comments');
         });

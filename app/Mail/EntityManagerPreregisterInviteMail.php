@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Entity;
+use App\Models\PendingEntityManagerInvitation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -10,25 +11,34 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Invitación a gestor que aún no tiene cuenta: debe registrarse con el mismo email.
+ * Invitación a gestor sin cuenta: aceptar (registro) o rechazar desde el correo.
  */
 class EntityManagerPreregisterInviteMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public string $registerHintUrl;
+    public string $acceptUrl;
+    public string $rejectUrl;
+    public string $invitedEmail;
 
     public function __construct(
         public Entity $entity,
-        public string $invitedEmail
+        public PendingEntityManagerInvitation $pending,
     ) {
-        $this->registerHintUrl = (string) (config('app.manager_registration_url') ?: route('login', absolute: true));
+        $this->entity->loadMissing('administration');
+        $this->invitedEmail = (string) $pending->email;
+        $this->acceptUrl = route('entity-managers.pending.register', [
+            'token' => $pending->confirmation_token,
+        ], absolute: true);
+        $this->rejectUrl = route('entity-managers.pending.reject', [
+            'token' => $pending->confirmation_token,
+        ], absolute: true);
     }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Invitación como gestor de entidad (registro pendiente) - Partilot',
+            subject: 'Invitación como gestor de entidad - Partilot',
         );
     }
 

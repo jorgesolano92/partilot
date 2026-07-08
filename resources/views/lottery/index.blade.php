@@ -118,10 +118,12 @@
                             <img src="{{url('assets/form-groups/results.svg')}}" alt="" width="18px" style="position: relative; top: -1px;">
                          Tabla Resultados</a> --}}
                     @else
+                        @if($lotteryAccess['canViewLotteryTypes'] ?? false)
                         <a href="{{url('lottery_types')}}" style="border-radius: 30px; width: 180px; top: -12px; left: -12px; position: relative;" class="btn btn-md btn-dark float-start">
                             <img src="{{url('icons_/tipos_sorteos.svg')}}" alt="" width="18px" style="position: relative; top: -1px;">
                          Tipos de Sorteo</a>
                          <div style="clear: both;"></div>
+                        @endif
                         <div class="d-flex align-items-center gap-1">
                             
                             <div class="empty-tables">
@@ -130,13 +132,19 @@
                                     <img src="{{url('icons_/sorteos.svg')}}" alt="" width="80px">
                                 </div>
 
+                                @if($lotteryAccess['canViewEntityPrizesOnly'] ?? false)
+                                <h3 class="mb-0">No hay sorteos con participación</h3>
+                                <small class="text-muted" style="max-width: 420px; display: inline-block;">
+                                    Esta cuenta solo muestra sorteos en los que la entidad tiene una <strong>reserva</strong>.
+                                    Cuando el gestor cree una reserva, el sorteo aparecerá aquí para consultar premios y resultados.
+                                </small>
+                                @else
                                 <h3 class="mb-0">No hay Sorteos</h3>
-
                                 <small>Añade Sorteos</small>
-
                                 <br>
-
                                 <a href="{{url('lottery/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                @endif
+
                             </div>
 
                         </div>

@@ -698,22 +698,16 @@ class EntityController extends Controller
             return redirect()->route('entities.add-information')->with('error', $e->getMessage());
         }
 
-        PendingEntityManagerInvitation::query()->updateOrCreate(
-            [
-                'entity_id' => $entity->id,
-                'email' => $inviteEmail,
-            ],
-            [
-                'is_primary' => true,
-                'permission_sellers' => true,
-                'permission_design' => true,
-                'permission_statistics' => true,
-                'permission_payments' => true,
-            ]
-        );
+        $pending = PendingEntityManagerInvitation::storeInvitation($entity->id, $inviteEmail, [
+            'is_primary' => true,
+            'permission_sellers' => true,
+            'permission_design' => true,
+            'permission_statistics' => true,
+            'permission_payments' => true,
+        ]);
 
         try {
-            Mail::to($inviteEmail)->send(new EntityManagerPreregisterInviteMail($entity, $inviteEmail));
+            Mail::to($inviteEmail)->send(new EntityManagerPreregisterInviteMail($entity, $pending));
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando invitación pre-registro (alta entidad): '.$e->getMessage());
         }
@@ -723,7 +717,7 @@ class EntityController extends Controller
         return redirect()->route('entities.index')
             ->with(
                 'success',
-                'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. También se ha enviado un correo al futuro gestor para que se registre con ese email.'
+                'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. El futuro gestor recibirá un correo para aceptar o rechazar y completar su registro.'
             );
     }
 
@@ -780,9 +774,13 @@ class EntityController extends Controller
      */
     public function show($id)
     {
-        $entity = Entity::with(['administration', 'manager.user', 'managers.user'])
+        $entity = Entity::with(['administration', 'manager.user', 'managers.user', 'pendingManagerInvitations'])
             ->forUser(auth()->user())
             ->findOrFail($id);
+
+        $pendingManagerInvitations = $entity->pendingManagerInvitations;
+        $primaryPendingInvitation = $pendingManagerInvitations->firstWhere('is_primary', true)
+            ?? $pendingManagerInvitations->first();
 
         $managersVisible = $entity->managers->filter(function ($m) use ($entity) {
             $u = $m->user;
@@ -823,6 +821,8 @@ class EntityController extends Controller
         return view('entities.show', compact(
             'entity',
             'managersVisible',
+            'pendingManagerInvitations',
+            'primaryPendingInvitation',
             'entityPanelUser',
             'canManageManagers',
             'canToggleEntityStatus',
@@ -1738,28 +1738,22 @@ class EntityController extends Controller
                 ->with('error', 'Ese email ya está registrado. Use la búsqueda de invitación cuando aparezca la coincidencia.');
         }
 
-        PendingEntityManagerInvitation::query()->updateOrCreate(
-            [
-                'entity_id' => $entity->id,
-                'email' => $email,
-            ],
-            [
-                'is_primary' => false,
-                'permission_sellers' => $request->boolean('permission_sellers'),
-                'permission_design' => $request->boolean('permission_design'),
-                'permission_statistics' => $request->boolean('permission_statistics'),
-                'permission_payments' => $request->boolean('permission_payments'),
-            ]
-        );
+        $pending = PendingEntityManagerInvitation::storeInvitation($entity->id, $email, [
+            'is_primary' => false,
+            'permission_sellers' => $request->boolean('permission_sellers'),
+            'permission_design' => $request->boolean('permission_design'),
+            'permission_statistics' => $request->boolean('permission_statistics'),
+            'permission_payments' => $request->boolean('permission_payments'),
+        ]);
 
         try {
-            Mail::to($email)->send(new EntityManagerPreregisterInviteMail($entity, $email));
+            Mail::to($email)->send(new EntityManagerPreregisterInviteMail($entity, $pending));
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando invitación pre-registro gestor: '.$e->getMessage());
         }
 
         return redirect()->route('entities.show', $entity->id)
-            ->with('success', 'Invitación registrada. Cuando se registre con ese email, recibirá el correo para aceptar o rechazar la invitación (sin nueva contraseña si ya tiene cuenta).');
+            ->with('success', 'Invitación enviada. El destinatario recibirá un correo para aceptar (registro) o rechazar la invitación.');
     }
 
     /**
