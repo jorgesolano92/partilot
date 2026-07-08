@@ -1878,7 +1878,7 @@ class EntityController extends Controller
 
         return response()->json(['success' => true]);
     }
-
+    // Modificar esta funcion para acceder tanto con email como con usuario
     private function resolveWizardAdministration(): ?Administration
     {
         $user = auth()->user();

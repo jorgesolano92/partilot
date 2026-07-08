@@ -57,7 +57,7 @@ class AuthController extends Controller
                     ->orWhere('panel_login_username', $login);
             })
             ->first();
-
+        // Modificar esta condición para acceder tanto con email como con usuario
         if ($user && $user->isAdministrationPanelAccount()) {
             $panelUsername = trim((string) ($user->panel_login_username ?? ''));
             if ($panelUsername === '' || strcasecmp($login, $panelUsername) !== 0) {
