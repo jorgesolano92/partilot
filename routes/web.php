@@ -281,7 +281,7 @@ Route::group(['prefix' => 'prize-payments', 'middleware' => 'role:super_admin', 
 Route::group(['prefix' => 'entities'], function() {
     //
     Route::get('/', [EntityController::class, 'index'])->name('entities.index');
-    Route::get('/add', [EntityController::class, 'create']);
+    Route::get('/add', [EntityController::class, 'create'])->name('entities.create');
     Route::post('/store-administration', [EntityController::class, 'store_administration']);
     Route::get('/add/information', [EntityController::class, 'create_information'])->name('entities.add-information');
     Route::post('/store-information', [EntityController::class, 'store_information']);

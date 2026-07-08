@@ -58,6 +58,15 @@ class AuthController extends Controller
             })
             ->first();
 
+        if ($user && $user->isAdministrationPanelAccount()) {
+            $panelUsername = trim((string) ($user->panel_login_username ?? ''));
+            if ($panelUsername === '' || strcasecmp($login, $panelUsername) !== 0) {
+                return back()->withErrors([
+                    'email' => 'Para acceder al panel use el usuario asignado en el correo de bienvenida, no el email de la administración.',
+                ])->withInput($request->only('email'));
+            }
+        }
+
         if (! $user || ! Hash::check($request->password, $user->password)) {
             return back()->withErrors([
                 'email' => 'Las credenciales proporcionadas no coinciden con nuestros registros.',

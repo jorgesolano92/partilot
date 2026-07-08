@@ -16,6 +16,7 @@ use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
 use App\Services\RoleLegalAcceptanceService;
 use App\Support\ContactEmailRegistry;
+use App\Support\PanelSelectionResolver;
 use App\Rules\ValidCalendarDate;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -103,25 +104,12 @@ class EntityController extends Controller
      */
     public function create_information()
     {
-        $administrationSession = session('selected_administration');
+        $administration = $this->resolveWizardAdministration();
 
-        if (!$administrationSession) {
+        if (! $administration) {
             return redirect()->route('entities.create')
                 ->with('error', 'Sesión expirada. Por favor, seleccione una administración.');
         }
-
-        // Recargar la administración con las relaciones necesarias
-        $administration = Administration::with('manager.user')
-            ->forUser(auth()->user())
-            ->find($administrationSession->id ?? $administrationSession['id'] ?? null);
-
-        if (!$administration || !auth()->user()->canAccessAdministration($administration->id)) {
-            return redirect()->route('entities.create')
-                ->with('error', 'Sesión expirada. Por favor, seleccione una administración.');
-        }
-
-        // Actualizar la sesión con la administración recargada
-        session(['selected_administration' => $administration]);
 
         [$provinces, $provinceCityMap] = $this->getProvinceCityData();
 
@@ -186,10 +174,10 @@ class EntityController extends Controller
      */
     public function create_manager()
     {
-        $administration = session('selected_administration');
+        $administration = $this->resolveWizardAdministration();
         $entityInformation = session('entity_information');
 
-        if (!$administration || !auth()->user()->canAccessAdministration($administration->id) || !$entityInformation) {
+        if (! $administration || ! $entityInformation) {
             return redirect()->route('entities.create')
                 ->with('error', 'Sesión expirada. Por favor, vuelva a empezar.');
         }
@@ -1889,5 +1877,39 @@ class EntityController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    private function resolveWizardAdministration(): ?Administration
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return null;
+        }
+
+        $session = session('selected_administration');
+        if ($session) {
+            $id = is_object($session) ? ($session->id ?? null) : ($session['id'] ?? null);
+            if ($id) {
+                $administration = Administration::with('manager.user')
+                    ->forUser($user)
+                    ->find($id);
+
+                if ($administration && $user->canAccessAdministration((int) $administration->id)) {
+                    session(['selected_administration' => $administration]);
+
+                    return $administration;
+                }
+            }
+        }
+
+        $administration = PanelSelectionResolver::resolveAdministration($user);
+        if (! $administration) {
+            return null;
+        }
+
+        $administration->loadMissing('manager.user');
+        session(['selected_administration' => $administration]);
+
+        return $administration;
     }
 }

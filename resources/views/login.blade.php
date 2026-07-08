@@ -97,7 +97,7 @@
                                         <span class="ri-user-line"></span>
                                     </div>
 
-                                    <input class="form-control @error('email') is-invalid @enderror" type="text" name="email" id="emailaddress" placeholder="Usuario de panel o email" value="{{ old('email') }}" style="border-radius: 0 30px 30px 0;" required autocomplete="username">
+                                    <input class="form-control @error('email') is-invalid @enderror" type="text" name="email" id="emailaddress" placeholder="Usuario de panel o email" value="{{ old('email') }}" style="border-radius: 0 30px 30px 0;" required autocomplete="username" title="Las cuentas de administración deben usar el usuario de panel del correo de bienvenida">
                                 </div>
                             </div>
                             <div class="mb-3">
