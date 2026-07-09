@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\EntityResponsibleManagerConfirmedMail;
 use App\Models\Manager;
 use App\Models\PendingEntityManagerInvitation;
 use App\Models\User;
 use App\Rules\SpanishDocument;
 use App\Rules\ValidCalendarDate;
-use App\Services\CommunicationEmailService;
 use App\Services\RoleLegalAcceptanceService;
 use App\Support\PasswordRules;
 use Illuminate\Http\Request;
@@ -129,10 +127,6 @@ class EntityManagerPendingInvitationController extends Controller
 
         $manager->refresh()->load('entity');
 
-        if ($manager->is_primary && $manager->entity) {
-            $this->notifyEntityResponsibleManagerConfirmed($manager->entity, $manager);
-        }
-
         return view('entities.manager-confirmation-success', [
             'message' => '¡Cuenta creada e invitación aceptada! Ya puede iniciar sesión en el panel con su email y la contraseña elegida.',
             'type' => 'accept',
@@ -158,28 +152,4 @@ class EntityManagerPendingInvitationController extends Controller
         ]);
     }
 
-    private function notifyEntityResponsibleManagerConfirmed(\App\Models\Entity $entity, Manager $newPrimary): void
-    {
-        try {
-            $newPrimary->loadMissing('user');
-            $entityContactUser = User::where('panel_account_type', 'entity')
-                ->where('panel_account_id', $entity->id)
-                ->first();
-
-            if ($entityContactUser && ! empty($entityContactUser->email) && $newPrimary->user) {
-                app(CommunicationEmailService::class)->sendAndLog(
-                    recipientEmail: (string) $entityContactUser->email,
-                    recipientRole: 'entidad',
-                    recipientUser: $entityContactUser,
-                    messageType: 'entity_responsible_manager_confirmed',
-                    templateKey: null,
-                    mailClass: EntityResponsibleManagerConfirmedMail::class,
-                    mailPayload: ['entity_id' => $entity->id, 'responsible_manager_user_id' => $newPrimary->user->id],
-                    context: ['entity_id' => $entity->id],
-                );
-            }
-        } catch (\Throwable $e) {
-            \Log::warning('Fallo enviando confirmación de gestor responsable: '.$e->getMessage());
-        }
-    }
 }
