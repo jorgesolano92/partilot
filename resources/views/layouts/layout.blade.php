@@ -182,7 +182,7 @@
         <link rel="stylesheet" href="{{ url('assets/libs/jquery-ui/themes/base/jquery-ui.css') }}">
 
         <link rel="stylesheet" href="{{url('style.css')}}">
-        <link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/45.2.0/ckeditor5.css" crossorigin>
+        <link rel="stylesheet" href="{{ asset('assets/libs/ckeditor5/ckeditor5.css') }}">
 
         <style>
             .container-fluid .alert {

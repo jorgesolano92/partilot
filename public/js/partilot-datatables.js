@@ -2,7 +2,12 @@
  * Listados del panel: un solo scroll horizontal (contenedor .dataTables_wrapper).
  * Evita doble barra por scrollX + overflow en card-body/table-responsive.
  */
-(function ($) {
+(function (factory) {
+    if (typeof jQuery === 'undefined') {
+        return;
+    }
+    factory(jQuery);
+}(function ($) {
     if (typeof $.fn.dataTable !== 'function') {
         return;
     }
