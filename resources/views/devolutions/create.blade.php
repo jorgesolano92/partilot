@@ -781,8 +781,8 @@
                                                             <h6 class="mb-0">Impacto en la Reserva</h6>
                                                         </div>
                                                         <div class="card-body">
-                                                            <p><strong>Monto Liberado:</strong> <span id="anulacion-monto-liberado" class="text-success fw-bold">0.00ÿÿÿ</span></p>
-                                                            <p><strong>Cr?dito Disponible:</strong> <span id="anulacion-credito-disponible" class="text-info fw-bold">0.00ÿÿÿ</span></p>
+                                                            <p><strong>Monto Liberado:</strong> <span id="anulacion-monto-liberado" class="text-success fw-bold">0.00???</span></p>
+                                                            <p><strong>Cr?dito Disponible:</strong> <span id="anulacion-credito-disponible" class="text-info fw-bold">0.00???</span></p>
                                                             <small class="text-muted">Este monto podr? ser utilizado para crear nuevos sets</small>
                                                         </div>
                                                     </div>
@@ -847,8 +847,8 @@
                                                             <div class="card-header">Resumen de Participaciones</div>
                                                             <div class="card-body">
                                                                 <p><strong>Total Participaciones Asignadas:</strong> <span id="vendedor-settlement-total-participations" class="fw-bold fs-4">0</span></p>
-                                                                <p><strong>Precio por Participaci?n:</strong> <span id="vendedor-settlement-price-per-participation">0.00ÿÿÿ</span></p>
-                                                                <p><strong>Total a Liquidar:</strong> <span id="vendedor-settlement-total-amount" class="text-danger fw-bold">0.00ÿÿÿ</span></p>
+                                                                <p><strong>Precio por Participaci?n:</strong> <span id="vendedor-settlement-price-per-participation">0.00???</span></p>
+                                                                <p><strong>Total a Liquidar:</strong> <span id="vendedor-settlement-total-amount" class="text-danger fw-bold">0.00???</span></p>
                                                 </div>
                                                 </div>
                                                     </div>
@@ -856,9 +856,9 @@
                                                         <div class="card">
                                                             <div class="card-header">Liquidaci?n Actual</div>
                                                             <div class="card-body">
-                                                                <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00ÿÿÿ</span></p>
+                                                                <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00???</span></p>
                                                                 <p><strong>Participaciones Liquidadas:</strong> <span id="vendedor-settlement-liquidated-participations">0</span></p>
-                                                                <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00ÿÿÿ</span></p>
+                                                                <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00???</span></p>
                                                                 <p><strong>Participaciones Pendientes:</strong> <span id="vendedor-settlement-pending-participations">0</span></p>
                                                             </div>
                                                         </div>
@@ -882,7 +882,7 @@
                                                                         <strong>Pago en Efectivo</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00ÿÿÿ" id="vendedor-settlement-pago-efectivo">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00???" id="vendedor-settlement-pago-efectivo">
                                         </div>
                                     </div>
 
@@ -895,7 +895,7 @@
                                                                         <strong>Pago por Bizum</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00ÿÿÿ" id="vendedor-settlement-pago-bizum">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00???" id="vendedor-settlement-pago-bizum">
                                                                     </div>
                                                                 </div>
 
@@ -908,7 +908,7 @@
                                                                         <strong>Pago por Transferencia</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00ÿÿÿ" id="vendedor-settlement-pago-transferencia">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00???" id="vendedor-settlement-pago-transferencia">
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -917,15 +917,15 @@
                                                                 <div class="text-center">
                                                                     <div class="border rounded p-3 mb-3 bg-light">
                                                                         <small class="text-muted">Pendiente a Pagar</small>
-                                                                        <div class="text-danger h4" id="vendedor-settlement-pendiente-display">0,00ÿÿÿ</div>
+                                                                        <div class="text-danger h4" id="vendedor-settlement-pendiente-display">0,00???</div>
                                                                     </div>
                                                                     <div class="border rounded p-3 mb-3 bg-success bg-opacity-10">
                                                                         <small class="text-muted">A Pagar Ahora</small>
-                                                                        <div class="text-success h4" id="vendedor-settlement-pagar-ahora">0,00ÿÿÿ</div>
+                                                                        <div class="text-success h4" id="vendedor-settlement-pagar-ahora">0,00???</div>
                                                                     </div>
                                                                     <div class="border rounded p-3 mb-3" id="vendedor-settlement-quedara-pendiente-container">
                                                                         <small class="text-muted">Quedar? Pendiente</small>
-                                                                        <div class="h5" id="vendedor-settlement-quedara-pendiente">0,00ÿÿÿ</div>
+                                                                        <div class="h5" id="vendedor-settlement-quedara-pendiente">0,00???</div>
                                                                     </div>
                                                                     <button type="button" class="btn btn-warning" id="btn-registrar-liquidacion-vendedor" style="border-radius: 30px; width: 100%;">
                                                                         <i class="ri-add-line"></i> Registrar Liquidaci?n
@@ -950,7 +950,7 @@
                                                 </div> <!-- Cierre vendedor-resumen-liquidacion-container -->
                                             </div> <!-- Cierre liquidacion-vendedor-container -->
 
-                                            <!-- Contenedor para liquidaci?n de ADMINISTRACIÿÿN -->
+                                            <!-- Contenedor para liquidaci?n de ADMINISTRACI??N -->
                                             <div id="liquidacion-administracion-container" style="display: none;">
                                                     <!-- Resumen Devoluci?n -->
                                                     <div class="card mb-3">
@@ -1004,19 +1004,19 @@
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
                                                                         <strong>Total Liquidaci?n:</strong>
-                                                                        <span id="liquidacion-total-liquidacion">0,00ÿÿÿ</span>
+                                                                        <span id="liquidacion-total-liquidacion">0,00???</span>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
                                                                         <strong>Pagos Registrados:</strong>
-                                                                        <span id="liquidacion-pagos-registrados">0,00ÿÿÿ</span>
+                                                                        <span id="liquidacion-pagos-registrados">0,00???</span>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
                                                                         <strong>Total a Pagar:</strong>
-                                                                        <span id="liquidacion-total-pagar">0,00ÿÿÿ</span>
+                                                                        <span id="liquidacion-total-pagar">0,00???</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1141,12 +1141,12 @@
                                                                         <div class="form-card bs" style="background:#f8f8f8;">
                                                                             <div class="text-center fw-bold mb-2">RESTANTE</div>
                                                                             <div class="d-flex justify-content-between">
-                                                                                <small class="text-muted">DÿÿCIMOS</small>
+                                                                                <small class="text-muted">D??CIMOS</small>
                                                                                 <small class="text-muted">IMPORTE RESTANTE</small>
                                                                             </div>
                                                                             <div class="d-flex justify-content-between align-items-center">
                                                                                 <div id="special-prize-restante-decimos" class="fw-bold fs-5 text-dark">0</div>
-                                                                                <div id="special-prize-restante-importe" class="fw-bold fs-4 text-success">0,00ÿÿÿ</div>
+                                                                                <div id="special-prize-restante-importe" class="fw-bold fs-4 text-success">0,00???</div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -1178,7 +1178,7 @@
                                                                             <strong>Pago en Efectivo</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00ÿÿÿ" id="pago-efectivo-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00???" id="pago-efectivo-monto">
                                                                         </div>
                                                                     </div>
 
@@ -1191,7 +1191,7 @@
                                                                             <strong>Pago por Bizum</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00ÿÿÿ" id="pago-bizum-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00???" id="pago-bizum-monto">
                                                                         </div>
                                                                     </div>
 
@@ -1204,7 +1204,7 @@
                                                                             <strong>Pago por Transferencia</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00ÿÿÿ" id="pago-transferencia-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00???" id="pago-transferencia-monto">
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -1213,15 +1213,15 @@
                                                                     <div class="text-center">
                                                                         <div class="border rounded p-3 mb-3 bg-light">
                                                                             <small class="text-muted">Total a Pagar</small>
-                                                                            <div class="text-danger h4" id="liquidacion-importe-total">0,00ÿÿÿ</div>
+                                                                            <div class="text-danger h4" id="liquidacion-importe-total">0,00???</div>
                                                                         </div>
                                                                         <div class="border rounded p-3 mb-3 bg-success bg-opacity-10">
                                                                             <small class="text-muted">Total Pagado</small>
-                                                                            <div class="text-success h4" id="total-pagado">0,00ÿÿÿ</div>
+                                                                            <div class="text-success h4" id="total-pagado">0,00???</div>
                                                                         </div>
                                                                         <div class="border rounded p-3 mb-3" id="pendiente-container" style="display: none;">
                                                                             <small class="text-muted">Pendiente</small>
-                                                                            <div class="h5" id="total-pendiente">0,00ÿÿÿ</div>
+                                                                            <div class="h5" id="total-pendiente">0,00???</div>
                                                                         </div>
                                                                         <div class="d-flex gap-2 justify-content-center flex-wrap">
                                                                             <button type="button" class="btn btn-warning" id="btn-aceptar-liquidacion" style="border-radius: 30px;">
@@ -1312,7 +1312,7 @@
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-presencial" value="presencial">
-                                <span class="form-check-label fw-semibold">Opci?n A ÿÿÿ Pago presencial</span>
+                                <span class="form-check-label fw-semibold">Opci?n A ??? Pago presencial</span>
                             </div>
                             <small class="text-muted d-block mt-2">La entidad paga en sus instalaciones (app gestor). Sin ingreso en PARTILOT salvo participaciones digitales vendidas.</small>
                         </label>
@@ -1321,7 +1321,7 @@
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online" value="online" data-online-payer="partilot">
-                                <span class="form-check-label fw-semibold">Opci?n B ÿÿÿ Pago online (PARTILOT)</span>
+                                <span class="form-check-label fw-semibold">Opci?n B ??? Pago online (PARTILOT)</span>
                             </div>
                             <small class="text-muted d-block mt-2">PARTILOT gestiona la remesa. Requiere ingreso del 100% del importe premiado, contrato y activaci?n por superadministrador.</small>
                         </label>
@@ -1330,7 +1330,7 @@
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online-entity" value="online" data-online-payer="entity">
-                                <span class="form-check-label fw-semibold">Opci?n C ÿÿÿ Pago online (entidad)</span>
+                                <span class="form-check-label fw-semibold">Opci?n C ??? Pago online (entidad)</span>
                             </div>
                             <small class="text-muted d-block mt-2">La entidad gestiona sus remesas desde su panel. Los usuarios cobran online tras el escrutinio, sin bloqueo PARTILOT.</small>
                         </label>
@@ -1510,7 +1510,7 @@ $(document).ready(function() {
         // Actualizar indicadores de pasos con l?gica de progreso
         actualizarIndicadoresPasos(pasoId);
         
-        // En paso sorteo: texto del bot?n volver seg?n tipo (Vendedor ÿÿÿ Vendedores, Administraci?n/Anulaci?n ÿÿÿ Opciones)
+        // En paso sorteo: texto del bot?n volver seg?n tipo (Vendedor ??? Vendedores, Administraci?n/Anulaci?n ??? Opciones)
         if (pasoId === 'paso-sorteo') {
             const textoVolver = tipoDevolucion === 'vendedor' ? 'Volver a Vendedores' : 'Volver a Opciones';
             $('#btn-volver-desde-sorteo-text').text(textoVolver);
@@ -1574,7 +1574,7 @@ $(document).ready(function() {
         
         // Encontrar el ?ndice del paso actual
         const indiceActual = pasosOrden.indexOf(pasoActual);
-        console.log('ÿÿndice encontrado:', indiceActual);
+        console.log('??ndice encontrado:', indiceActual);
         
         if (indiceActual === -1) {
             console.error('Paso no encontrado:', pasoActual);
@@ -1594,7 +1594,7 @@ $(document).ready(function() {
             elemento.addClass('active');
         }
         
-        console.log('=== FIN ACTUALIZACIÿÿN ===');
+        console.log('=== FIN ACTUALIZACI??N ===');
     }
 
 
@@ -2081,7 +2081,7 @@ $(document).ready(function() {
 
     // Funci?n para actualizar el resumen de liquidaci?n
     function actualizarResumenLiquidacion() {
-        console.log('=== ACTUALIZANDO RESUMEN LIQUIDACIÿÿN ===');
+        console.log('=== ACTUALIZANDO RESUMEN LIQUIDACI??N ===');
         console.log('entidadSeleccionada:', entidadSeleccionada);
         console.log('sorteoSeleccionado:', sorteoSeleccionado);
         console.log('participacionesAsignadas:', participacionesAsignadas);
@@ -2094,10 +2094,10 @@ $(document).ready(function() {
             $('#liquidacion-ventas-registradas').text('0');
             $('#liquidacion-participaciones-devueltas').text('0');
             $('#liquidacion-disponibles').text('0');
-            $('#liquidacion-total-liquidacion').text('0,00ÿÿÿ');
-            $('#liquidacion-pagos-registrados').text('0,00ÿÿÿ');
-            $('#liquidacion-total-pagar').text('0,00ÿÿÿ');
-            $('#liquidacion-importe-total').text('0,00ÿÿÿ');
+            $('#liquidacion-total-liquidacion').text('0,00???');
+            $('#liquidacion-pagos-registrados').text('0,00???');
+            $('#liquidacion-total-pagar').text('0,00???');
+            $('#liquidacion-importe-total').text('0,00???');
             liquidacionSummaryActual = null;
             specialPrizeRequirement = { required: false, max_series: 0 };
             specialPrizeRequirementKey = null;
@@ -2155,10 +2155,10 @@ $(document).ready(function() {
                     } else {
                         $('#liquidacion-devueltas-detalle').text('');
                     }
-                    $('#liquidacion-total-liquidacion').text(summary.total_liquidation.toFixed(2) + 'ÿÿÿ');
-                    $('#liquidacion-pagos-registrados').text(summary.registered_payments.toFixed(2) + 'ÿÿÿ');
-                    $('#liquidacion-total-pagar').text(summary.total_to_pay.toFixed(2) + 'ÿÿÿ');
-                    $('#liquidacion-importe-total').text(summary.total_to_pay.toFixed(2) + 'ÿÿÿ');
+                    $('#liquidacion-total-liquidacion').text(summary.total_liquidation.toFixed(2) + '???');
+                    $('#liquidacion-pagos-registrados').text(summary.registered_payments.toFixed(2) + '???');
+                    $('#liquidacion-total-pagar').text(summary.total_to_pay.toFixed(2) + '???');
+                    $('#liquidacion-importe-total').text(summary.total_to_pay.toFixed(2) + '???');
                     
                     // Actualizar informaci?n del ticket
                     $('#liquidacion-ticket-number').text('#' + summary.total_participations);
@@ -2236,7 +2236,7 @@ $(document).ready(function() {
         });
     }
 
-    // Funci?n para cargar reservas del vendedor (devoluci?n vendedor ÿÿÿ entidad)
+    // Funci?n para cargar reservas del vendedor (devoluci?n vendedor ??? entidad)
     function cargarReservasVendedor() {
         if (!entidadSeleccionada || !sorteoSeleccionado || !vendedorSeleccionado) return;
         
@@ -2529,7 +2529,7 @@ $(document).ready(function() {
     // Funci?n para configurar la liquidaci?n seg?n el tipo
     function configurarLiquidacionPorTipo() {
         if (tipoDevolucion === 'vendedor') {
-            // Devoluci?n vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 x 6ÿÿÿ = 540ÿÿÿ)
+            // Devoluci?n vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 x 6??? = 540???)
             $('#liquidacion-titulo').text('Liquidaci?n de Vendedor');
             $('#liquidacion-subtitulo').html('<i>Registra pagos por las participaciones que siguen asignadas al vendedor</i>');
             $('#liquidacion-resumen-subtitulo').text('Resumen Devoluci?n Vendedor');
@@ -2577,7 +2577,7 @@ $(document).ready(function() {
                         </div>
                         <div class="liquidacion-stats">
                             <div class="stat-item">
-                                <div class="stat-number">5ÿÿÿ</div>
+                                <div class="stat-number">5???</div>
                                 <div class="stat-label">Valor</div>
                             </div>
                         </div>
@@ -2642,6 +2642,9 @@ $(document).ready(function() {
                 data: payloadData,
                 success: function(response) {
                     if (response.queued && response.success) {
+                        if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                            window.partilotWatchBackgroundTask(response.task_uuid);
+                        }
                         try {
                             sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                                 title: 'Tramitaci?n en segundo plano',
@@ -2724,13 +2727,13 @@ $(document).ready(function() {
         const transferenciaMonto = parseFloat($('#pago-transferencia-monto').val()) || 0;
         
         const totalPagado = efectivoMonto + bizumMonto + transferenciaMonto;
-        $('#total-pagado').text(totalPagado.toFixed(2) + 'ÿÿÿ');
+        $('#total-pagado').text(totalPagado.toFixed(2) + '???');
         
         // Calcular pendiente
-        const totalAPagar = parseFloat($('#liquidacion-total-pagar').text().replace('ÿÿÿ', '').replace(',', '.')) || 0;
+        const totalAPagar = parseFloat($('#liquidacion-total-pagar').text().replace('???', '').replace(',', '.')) || 0;
         const pendiente = totalAPagar - totalPagado;
         
-        $('#total-pendiente').text(pendiente.toFixed(2) + 'ÿÿÿ');
+        $('#total-pendiente').text(pendiente.toFixed(2) + '???');
         
         if (totalPagado > 0) {
             $('#pendiente-container').show();
@@ -2821,7 +2824,7 @@ $(document).ready(function() {
             $('#special-prize-resumen-text').text(`Rango de series permitido: 1-${maxSeries > 0 ? maxSeries : 'N/A'}.`);
         }
         $('#special-prize-restante-decimos').text(restantes);
-        $('#special-prize-restante-importe').text(importeRestante.toFixed(2).replace('.', ',') + 'ÿÿÿ');
+        $('#special-prize-restante-importe').text(importeRestante.toFixed(2).replace('.', ',') + '???');
 
         renderSpecialPrizeTable();
 
@@ -2969,7 +2972,7 @@ $(document).ready(function() {
         $('html, body').animate({ scrollTop: $('#bloque-premio-especial').offset().top - 120 }, 250);
     });
 
-    // Event listener para solo devoluci?n (sin liquidar) ÿÿÿ bot?n "Aceptar" #333
+    // Event listener para solo devoluci?n (sin liquidar) ??? bot?n "Aceptar" #333
     $('#btn-aceptar-solo-devolucion').click(function() {
         if (participacionesAsignadas.length === 0) {
             mostrarMensaje('Selecciona al menos una participaci?n para devolver', 'warning');
@@ -2999,6 +3002,9 @@ $(document).ready(function() {
                 data: payloadData,
                 success: function(response) {
                     if (response.queued && response.success) {
+                        if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                            window.partilotWatchBackgroundTask(response.task_uuid);
+                        }
                         try {
                             sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                                 title: 'Tramitaci?n en segundo plano',
@@ -3198,6 +3204,9 @@ $(document).ready(function() {
             data: payloadData,
             success: function(response) {
                 if (response.queued && response.success) {
+                    if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                        window.partilotWatchBackgroundTask(response.task_uuid);
+                    }
                     try {
                         sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                             title: 'Tramitacion en segundo plano',
@@ -3239,7 +3248,7 @@ $(document).ready(function() {
         window.location.href = "{{ route('devolutions.index') }}";
     });
 
-    // ==================== LIQUIDACIÿÿN DE VENDEDOR ====================
+    // ==================== LIQUIDACI??N DE VENDEDOR ====================
     
     let sorteoSeleccionadoLiquidacionVendedor = null;
 
@@ -3319,13 +3328,13 @@ $(document).ready(function() {
                     const pendingParticipations = parseFloat(summary.pending_participations) || 0;
                     
                     $('#vendedor-settlement-total-participations').text(summary.total_participations);
-                    $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + 'ÿÿÿ');
-                    $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + 'ÿÿÿ');
-                    $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + 'ÿÿÿ');
+                    $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '???');
+                    $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + '???');
+                    $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + '???');
                     $('#vendedor-settlement-liquidated-participations').text(liquidatedParticipations.toFixed(2));
-                    $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + 'ÿÿÿ');
+                    $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + '???');
                     $('#vendedor-settlement-pending-participations').text(pendingParticipations.toFixed(2));
-                    $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + 'ÿÿÿ');
+                    $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + '???');
                     
                     console.log('Datos actualizados en la vista');
                     
@@ -3349,12 +3358,12 @@ $(document).ready(function() {
         const transferencia = parseFloat($('#vendedor-settlement-pago-transferencia').val()) || 0;
         
         const totalPagarAhora = efectivo + bizum + transferencia;
-        $('#vendedor-settlement-pagar-ahora').text(totalPagarAhora.toFixed(2) + 'ÿÿÿ');
+        $('#vendedor-settlement-pagar-ahora').text(totalPagarAhora.toFixed(2) + '???');
         
-        const pendiente = parseFloat($('#vendedor-settlement-pending-amount').text().replace('ÿÿÿ', '').replace(',', '.')) || 0;
+        const pendiente = parseFloat($('#vendedor-settlement-pending-amount').text().replace('???', '').replace(',', '.')) || 0;
         const quedaraPendiente = pendiente - totalPagarAhora;
         
-        $('#vendedor-settlement-quedara-pendiente').text(quedaraPendiente.toFixed(2) + 'ÿÿÿ');
+        $('#vendedor-settlement-quedara-pendiente').text(quedaraPendiente.toFixed(2) + '???');
         
         if (quedaraPendiente <= 0 && totalPagarAhora > 0) {
             $('#vendedor-settlement-quedara-pendiente').removeClass('text-warning').addClass('text-success');
@@ -3465,7 +3474,7 @@ $(document).ready(function() {
                                 icono = '<i class="ri-bank-line text-primary"></i>';
                             }
                             const paymentAmount = parseFloat(payment.amount) || 0;
-                            metodos.push(`${icono} ${paymentAmount.toFixed(2)}ÿÿÿ`);
+                            metodos.push(`${icono} ${paymentAmount.toFixed(2)}???`);
                         });
                         
                         const calculatedParts = parseFloat(settlement.calculated_participations) || 0;
@@ -3475,7 +3484,7 @@ $(document).ready(function() {
                             <tr>
                                 <td>${fecha}</td>
                                 <td>${calculatedParts.toFixed(2)}</td>
-                                <td class="fw-bold text-success">${paidAmount.toFixed(2)}ÿÿÿ</td>
+                                <td class="fw-bold text-success">${paidAmount.toFixed(2)}???</td>
                                 <td>${metodos.join(', ')}</td>
                             </tr>
                         `;
@@ -3494,7 +3503,7 @@ $(document).ready(function() {
         });
     }
 
-    // ===== PASO DE ANULACIÿÿN =====
+    // ===== PASO DE ANULACI??N =====
     
     // Event listeners para el paso de anulaci?n
     $('#btn-volver-anulacion').click(function() {
@@ -3588,7 +3597,7 @@ $(document).ready(function() {
 
     // Funci?n para configurar el paso de anulaci?n
     function configurarPasoAnulacion() {
-        console.log('=== CONFIGURANDO PASO DE ANULACIÿÿN ===');
+        console.log('=== CONFIGURANDO PASO DE ANULACI??N ===');
         console.log('Entidad seleccionada:', entidadSeleccionada);
         console.log('Sorteo seleccionado:', sorteoSeleccionado);
         console.log('Set seleccionado:', setSeleccionado);
@@ -3615,13 +3624,13 @@ $(document).ready(function() {
                     console.log('Precio obtenido del backend:', precio);
                     console.log('Monto liberado recalculado:', montoLiberado);
                     
-                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + 'ÿÿÿ');
-                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + 'ÿÿÿ');
+                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '???');
+                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '???');
                 } else {
                     console.log('No se pudo obtener precio del backend, usando valor por defecto');
                     const montoLiberado = participacionesAsignadas.length * 5;
-                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + 'ÿÿÿ');
-                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + 'ÿÿÿ');
+                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '???');
+                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '???');
                 }
             });
         }
@@ -3632,8 +3641,8 @@ $(document).ready(function() {
         console.log('N?mero de participaciones:', participacionesAsignadas.length);
         console.log('Monto liberado calculado:', montoLiberado);
         
-        $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + 'ÿÿÿ');
-        $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + 'ÿÿÿ');
+        $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '???');
+        $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '???');
 
         // Generar resumen de participaciones
         let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>N?mero</th><th>C?digo</th><th>Estado</th></tr></thead><tbody>';

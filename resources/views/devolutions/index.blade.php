@@ -283,6 +283,9 @@ $(document).ready(function() {
                 },
                 success: function(response) {
                     if (response.queued && response.success) {
+                        if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                            window.partilotWatchBackgroundTask(response.task_uuid);
+                        }
                         try {
                             sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                                 title: 'Eliminación en segundo plano',

@@ -877,7 +877,7 @@
                             </li>
                         @endif
 
-                        @if($canSeeAdminModules)
+                        @if($currentUser && $currentUser->isSuperAdmin())
                             <li class="menu-item @if (Request::is('users/*') || Request::is('users')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('/users')}}" class="menu-link">
                                     <span class="menu-icon">
@@ -2126,13 +2126,82 @@
             });
         </script>
         @endif
+        @php
+            $backgroundTasksPollUrl = route('background-tasks.index', ['mine' => 1, 'active' => 1, 'limit' => 20]);
+            $backgroundTasksAckUrl = route('background-tasks.index', ['mine' => 1, 'limit' => 50]);
+            $backgroundTasksShowBaseUrl = url('background-tasks');
+            $devolutionsIndexUrlForBg = route('devolutions.index');
+        @endphp
         <script>
             document.addEventListener('DOMContentLoaded', function () {
-                const pollUrl = @json(route('background-tasks.index', ['mine' => 1, 'limit' => 20]));
-                const devolutionsIndexUrl = @json(route('devolutions.index'));
+                const pollUrl = @json($backgroundTasksPollUrl);
+                const ackUrl = @json($backgroundTasksAckUrl);
+                const taskShowBaseUrl = @json($backgroundTasksShowBaseUrl);
+                const taskShowUrl = function (uuid) {
+                    return taskShowBaseUrl + '/' + encodeURIComponent(uuid);
+                };
+                const devolutionsIndexUrl = @json($devolutionsIndexUrlForBg);
                 const notifiedPrefix = 'background_task_notified_';
                 const PARTILOT_PENDING_NOTIFY_KEY = 'partilot_pending_background_notify';
                 const PARTILOT_BG_JOB_STARTED_KEY = 'partilot_bg_job_started';
+                const PARTILOT_WATCHED_TASKS_KEY = 'partilot_watched_background_tasks';
+
+                window.partilotWatchBackgroundTask = function (uuid) {
+                    if (!uuid) return;
+                    var list = [];
+                    try {
+                        list = JSON.parse(sessionStorage.getItem(PARTILOT_WATCHED_TASKS_KEY) || '[]');
+                    } catch (e) {}
+                    if (!Array.isArray(list)) list = [];
+                    if (list.indexOf(uuid) === -1) {
+                        list.push(uuid);
+                        sessionStorage.setItem(PARTILOT_WATCHED_TASKS_KEY, JSON.stringify(list));
+                    }
+                };
+
+                const getWatchedTaskUuids = function () {
+                    try {
+                        var list = JSON.parse(sessionStorage.getItem(PARTILOT_WATCHED_TASKS_KEY) || '[]');
+                        return Array.isArray(list) ? list.filter(Boolean) : [];
+                    } catch (e) {
+                        return [];
+                    }
+                };
+
+                const unwatchBackgroundTask = function (uuid) {
+                    var list = getWatchedTaskUuids().filter(function (id) { return id !== uuid; });
+                    try {
+                        if (list.length) {
+                            sessionStorage.setItem(PARTILOT_WATCHED_TASKS_KEY, JSON.stringify(list));
+                        } else {
+                            sessionStorage.removeItem(PARTILOT_WATCHED_TASKS_KEY);
+                        }
+                    } catch (e) {}
+                };
+
+                const markTaskNotified = function (task) {
+                    if (!task || !task.uuid || !task.status) return;
+                    localStorage.setItem(notifiedPrefix + task.uuid + '_' + task.status, '1');
+                };
+
+                const acknowledgeHistoricalTasks = function () {
+                    fetch(ackUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    })
+                        .then(function (res) { return res.ok ? res.json() : null; })
+                        .then(function (data) {
+                            var items = Array.isArray(data?.items) ? data.items : [];
+                            items.forEach(function (item) {
+                                if (item.status === 'completed' || item.status === 'failed') {
+                                    markTaskNotified(item);
+                                }
+                            });
+                        })
+                        .catch(function () {});
+                };
 
                 const queuePendingNotify = function (title, text, pnotifyType) {
                     try {
@@ -2223,7 +2292,7 @@
                     if (!task || !task.uuid) return;
                     const notifyKey = notifiedPrefix + task.uuid + '_' + task.status;
                     if (localStorage.getItem(notifyKey)) return;
-                    localStorage.setItem(notifyKey, '1');
+                    markTaskNotified(task);
 
                     if (typeof PNotify === 'undefined') return;
 
@@ -2283,6 +2352,29 @@
                     }
                 };
 
+                const pollWatchedTasks = function () {
+                    var watched = getWatchedTaskUuids();
+                    if (!watched.length) return;
+
+                    watched.forEach(function (uuid) {
+                        fetch(taskShowUrl(uuid), {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json'
+                            }
+                        })
+                            .then(function (res) { return res.ok ? res.json() : null; })
+                            .then(function (task) {
+                                if (!task || !task.uuid) return;
+                                if (task.status === 'completed' || task.status === 'failed') {
+                                    unwatchBackgroundTask(uuid);
+                                    notifyTask(task);
+                                }
+                            })
+                            .catch(function () {});
+                    });
+                };
+
                 const pollBackgroundTasks = () => {
                     fetch(pollUrl, {
                         headers: {
@@ -2294,16 +2386,21 @@
                         .then((data) => {
                             const items = Array.isArray(data?.items) ? data.items : [];
                             items.forEach(function (item) {
-                                if (item.status === 'completed' || item.status === 'failed') {
-                                    notifyTask(item);
+                                if (item.uuid && (item.status === 'pending' || item.status === 'running')) {
+                                    window.partilotWatchBackgroundTask(item.uuid);
                                 }
                             });
                         })
                         .catch(() => {});
                 };
 
+                acknowledgeHistoricalTasks();
+                pollWatchedTasks();
                 pollBackgroundTasks();
-                setInterval(pollBackgroundTasks, 3000);
+                setInterval(function () {
+                    pollWatchedTasks();
+                    pollBackgroundTasks();
+                }, 3000);
             });
         </script>
         @endauth

@@ -168,7 +168,13 @@
                 <div class="page-title-right">
                     <ol class="breadcrumb m-0">
                         <li class="breadcrumb-item"><a href="{{ route('sellers.index') }}">Vendedores/Asignación</a></li>
-                        <li class="breadcrumb-item active">Ver Vendedor</li>
+                        <li class="breadcrumb-item active">
+                            @if(!empty($hideSellerPersonalData))
+                                #VE{{ str_pad($seller->id, 4, '0', STR_PAD_LEFT) }}
+                            @else
+                                Ver Vendedor
+                            @endif
+                        </li>
                     </ol>
                 </div>
                 <h4 class="page-title">Vendedores/Asignación</h4>
@@ -182,7 +188,11 @@
                 <div class="card-body">
 
                     <h4 class="header-title">
-                        Detalles del Vendedor
+                        @if(!empty($hideSellerPersonalData))
+                            Vendedor #VE{{ str_pad($seller->id, 4, '0', STR_PAD_LEFT) }}
+                        @else
+                            Detalles del Vendedor
+                        @endif
                     </h4>
 
                     <br>
@@ -462,6 +472,7 @@
                                             </div>
 
                                             <div class="row show-content">
+                                                @if(empty($hideSellerNif))
                                                 <div class="col-md-3">
                                                     <div class="form-group mt-2 mb-3">
                                                         <label class="label-control">NIF/CIF</label>
@@ -473,6 +484,7 @@
                                                         </div>
                                                     </div>
                                                 </div>
+                                                @endif
                                                 <div class="col-md-3">
                                                     <div class="form-group mt-2 mb-3">
                                                         <label class="label-control">F. Nacimiento</label>
@@ -1954,6 +1966,9 @@ function initDatatable()
           success: function(response) {
             if (response.success) {
               if (response.queued) {
+                if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                  window.partilotWatchBackgroundTask(response.task_uuid);
+                }
                 try {
                   sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                     title: 'Asignación en segundo plano',
@@ -2427,7 +2442,7 @@ function initDatatable()
                   </td>
                   <td>${participation.participation_code}</td>
                   <td><label class="badge ${statusClass}">${statusLabel}</label></td>
-                  <td>{{ $seller->name ?? 'N/A' }}</td>
+                  <td>@if(!empty($hideSellerPersonalData))#VE{{ str_pad($seller->id, 4, '0', STR_PAD_LEFT) }}@else{{ $seller->name ?? 'N/A' }}@endif</td>
                   <td>${saleDate}</td>
                   <td>${saleTime}</td>
                   <td>

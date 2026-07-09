@@ -15,7 +15,7 @@ class DashboardService
 {
     public function build(User $user): array
     {
-        $showUsers = $user->isSuperAdmin() || $user->isAdministration();
+        $showUsers = $user->isSuperAdmin();
         $showAdministrations = $user->isSuperAdmin();
         $showSellersPanel = ! $showUsers && $user->isEntity();
 

@@ -77,9 +77,10 @@ class SellerController extends Controller
 
         $user = auth()->user();
         $hideEntityColumn = $user && $user->isEntity() && ! $user->isSuperAdmin() && ! $user->isAdministration();
-        $canManageSellers = $user && ($user->isSuperAdmin() || $user->isAdministration());
+        $hideSellerListPersonalData = $user && $user->isAdministration() && ! $user->isSuperAdmin();
+        $canManageSellers = $user && $user->isSuperAdmin();
 
-        return view('sellers.index', compact('sellers', 'hideEntityColumn', 'canManageSellers'));
+        return view('sellers.index', compact('sellers', 'hideEntityColumn', 'hideSellerListPersonalData', 'canManageSellers'));
     }
 
     /**
@@ -115,6 +116,8 @@ class SellerController extends Controller
      */
     public function create(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         if ($redirect = $this->redirectIfImplicitEntity($request, 'sellers.add-information', [], 'sellers')) {
             return $redirect;
         }
@@ -130,6 +133,8 @@ class SellerController extends Controller
      */
     public function store_entity(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         $request->validate([
             'entity_id' => 'required|exists:entities,id'
         ]);
@@ -152,6 +157,8 @@ class SellerController extends Controller
      */
     public function add_information()
     {
+        $this->denyAdministrationSellerManagement();
+
         $entity = session('selected_entity');
 
         if (!$entity || !auth()->user()->canAccessEntity($entity->id)) {
@@ -166,6 +173,8 @@ class SellerController extends Controller
      */
     public function store_existing_user(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         $validator = \Validator::make($request->all(), [
             'email' => 'required|email',
             'entity_id' => 'required|exists:entities,id',
@@ -245,6 +254,8 @@ class SellerController extends Controller
      */
     public function store_new_user(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         $validator = \Validator::make($request->all(), [
             'name' => 'nullable|string|max:255', // No requerido
             'last_name' => 'nullable|string|max:255', // No requerido
@@ -413,6 +424,7 @@ class SellerController extends Controller
         $canEditSeller = $user && $user->isSuperAdmin();
         $canEditSellerObservations = $user && ($user->isSuperAdmin() || $isEntityRole);
         $hideSellerPersonalData = $user && $user->isAdministration() && ! $user->isSuperAdmin();
+        $hideSellerNif = $isEntityRole;
         $hideDatosVendedorTab = $hideSellerPersonalData;
         $hideSellerSidebarProfile = $hideSellerPersonalData;
         $defaultSellerTab = $hideDatosVendedorTab ? 'asignacion' : 'datos_vendedor';
@@ -428,6 +440,7 @@ class SellerController extends Controller
             'canEditSeller',
             'canEditSellerObservations',
             'hideSellerPersonalData',
+            'hideSellerNif',
             'hideDatosVendedorTab',
             'hideSellerSidebarProfile',
             'defaultSellerTab',
@@ -2279,6 +2292,11 @@ class SellerController extends Controller
      */
     public function destroy($id)
     {
+        $user = auth()->user();
+        if (! $user || ! $user->isSuperAdmin()) {
+            abort(403, 'Solo el superadministrador puede eliminar vendedores.');
+        }
+
         try {
             $seller = Seller::forUser(auth()->user())->findOrFail($id);
             $seller->delete();
@@ -3517,5 +3535,13 @@ class SellerController extends Controller
         return $participationNumber !== null
             ? ['set' => $set, 'participation_number' => $participationNumber]
             : null;
+    }
+
+    private function denyAdministrationSellerManagement(): void
+    {
+        $user = auth()->user();
+        if ($user && $user->isAdministration() && ! $user->isSuperAdmin()) {
+            abort(403, 'La administración no puede gestionar vendedores desde el panel.');
+        }
     }
 } 

@@ -63,7 +63,9 @@
                                 <option value="Bloqueado">Bloqueado</option>
                             </select>
                             <input type="text" class="form-control form-control-sm" style="max-width: 180px;" id="filter-busqueda" placeholder="Búsqueda">
+                            @if($canManageSellers ?? false)
                             <a href="{{ route('sellers.create') }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark ms-auto"><i class="ri-add-line me-1"></i> Añadir</a>
+                            @endif
                         </h4>
 
 
@@ -75,8 +77,10 @@
                             <thead class="filters">
                                 <tr>
                                     <th>ID</th>
+                                    @if(empty($hideSellerListPersonalData))
                                     <th>Nombre</th>
                                     <th>Email</th>
+                                    @endif
                                     <th>T. Vendedor</th>
                                     <th>P. Asig.</th>
                                     <th>P. Ven.</th>
@@ -101,8 +105,10 @@
                                 @endphp
                                 <tr class="row-clickable" data-href="{{ route('sellers.show', $seller->id) }}" data-provincia="{{ $entidadesProvincias ?: ($entidad?->province ?? '') }}" data-status="{{ $seller->getRawOriginal('status') ?? 0 }}" style="cursor: pointer;">
                                     <td><a href="{{ route('sellers.show', $seller->id) }}" class="text-dark text-decoration-none">#VE{{ str_pad($seller->id, 4, '0', STR_PAD_LEFT) }}</a></td>
+                                    @if(empty($hideSellerListPersonalData))
                                     <td>{{ $seller->full_name }}</td>
                                     <td>{{ $seller->display_email ?: '—' }}</td>
+                                    @endif
                                     <td>
                                         @if($seller->seller_type === 'partilot')
                                             <span class="badge bg-warning text-dark">Partilot</span>
@@ -167,7 +173,9 @@
 
                                 <br>
 
+                                @if($canManageSellers ?? false)
                                 <a href="{{ route('sellers.create') }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                @endif
                             </div>
 
                         </div>

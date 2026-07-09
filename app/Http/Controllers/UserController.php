@@ -16,18 +16,19 @@ use Illuminate\Support\Facades\Log;
 class UserController extends Controller
 {
     /**
-     * Solo super_admin y administración pueden acceder al módulo de usuarios.
+     * Solo super_admin puede acceder al módulo de usuarios.
      */
     private function authorizeUsersModule(): void
     {
         $auth = auth()->user();
-        if (! $auth || ! ($auth->isSuperAdmin() || $auth->isAdministration())) {
+        if (! $auth || ! $auth->isSuperAdmin()) {
             abort(403, 'No autorizado.');
         }
     }
 
     /**
      * Perfil administración (no superadmin): solo usuarios de su red (gestores/vendedores).
+     * @deprecated La administración ya no accede al módulo de usuarios.
      */
     private function authorizeUserVisibleToAdministration(User $user): void
     {

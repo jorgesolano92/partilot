@@ -67,6 +67,17 @@
     .dashboard-panel .panel-row-paired .panel-card {
         min-height: 260px;
     }
+    .dashboard-panel .panel-row-entity .panel-card {
+        height: 260px !important;
+        min-height: 260px !important;
+    }
+    .dashboard-panel .panel-row-entity .panel-card .card-body {
+        height: 100%;
+        overflow: auto;
+    }
+    .dashboard-panel .panel-row-entity .panel-empty {
+        min-height: 120px;
+    }
     .dashboard-panel .panel-card--auto {
         min-height: auto;
     }
@@ -122,17 +133,21 @@
     }
 
     /* El layout global estira la última fila al viewport; en el panel no aplica */
-    .dashboard-panel > .row:last-child,
-    .dashboard-panel > .row:last-child > [class*="col-"],
-    .dashboard-panel > .row:last-child > [class*="col-"] > .card {
+    .dashboard-panel > .row:last-child:not(.panel-row-entity),
+    .dashboard-panel > .row:last-child:not(.panel-row-entity) > [class*="col-"],
+    .dashboard-panel > .row:last-child:not(.panel-row-entity) > [class*="col-"] > .card {
         flex: none !important;
         display: block !important;
         min-height: auto !important;
         height: auto !important;
     }
-    .dashboard-panel > .row:last-child > [class*="col-"] > .card > .card-body {
+    .dashboard-panel > .row:last-child:not(.panel-row-entity) > [class*="col-"] > .card > .card-body {
         flex: none !important;
         min-height: auto !important;
+    }
+    .dashboard-panel .panel-row-entity > [class*="col-"] > .panel-card {
+        height: 260px !important;
+        min-height: 260px !important;
     }
 </style>
 @endsection
@@ -185,9 +200,15 @@
         @endforeach
     </div>
 
-    <div class="row g-3 mt-1 panel-row-paired">
-        <div class="col-xl-{{ ($dashboard['show_users_panel'] ?? false) || ($dashboard['show_sellers_panel'] ?? false) ? '7' : '12' }}">
-            <div class="panel-card card">
+    <div class="row g-3 mt-1 panel-row-paired @if($dashboard['show_sellers_panel'] ?? false) panel-row-entity @endif">
+        @php
+            $entitiesPanelCol = ($dashboard['show_users_panel'] ?? false) || ($dashboard['show_sellers_panel'] ?? false)
+                ? (($dashboard['show_sellers_panel'] ?? false) ? 'col-md-6' : 'col-xl-7')
+                : 'col-12';
+            $sidePanelCol = ($dashboard['show_sellers_panel'] ?? false) ? 'col-md-6' : 'col-xl-5';
+        @endphp
+        <div class="{{ $entitiesPanelCol }}" style="height: 260px !important;">
+            <div class="panel-card card" style="height: 100% !important;">
                 <div class="card-body">
                     <div class="panel-head">
                         <div>
@@ -216,7 +237,7 @@
         </div>
 
         @if($dashboard['show_users_panel'] ?? false)
-            <div class="col-xl-5">
+            <div class="{{ $sidePanelCol }}">
                 <div class="panel-card card">
                     <div class="card-body">
                         <div class="panel-head">
@@ -245,7 +266,7 @@
                 </div>
             </div>
         @elseif($dashboard['show_sellers_panel'] ?? false)
-            <div class="col-xl-5">
+            <div class="{{ $sidePanelCol }}" style="height: 260px !important;">
                 <div class="panel-card card">
                     <div class="card-body">
                         <div class="panel-head">
