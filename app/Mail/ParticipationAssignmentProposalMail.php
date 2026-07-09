@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\ParticipationAssignmentProposal;
+use App\Support\PanelUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -24,9 +25,9 @@ class ParticipationAssignmentProposalMail extends Mailable
     public function __construct(ParticipationAssignmentProposal $proposal)
     {
         $this->proposal = $proposal;
-        $this->conditionsUrl = route('legal.terminos-y-condiciones');
-        $this->acceptUrl = route('participation-assignment.accept', ['token' => $proposal->token]);
-        $this->rejectUrl = route('participation-assignment.reject', ['token' => $proposal->token]);
+        $this->conditionsUrl = PanelUrl::route('legal.terminos-y-condiciones');
+        $this->acceptUrl = PanelUrl::route('participation-assignment.accept', ['token' => $proposal->token]);
+        $this->rejectUrl = PanelUrl::route('participation-assignment.reject', ['token' => $proposal->token]);
     }
 
     public function envelope(): Envelope

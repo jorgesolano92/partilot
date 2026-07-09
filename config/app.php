@@ -57,6 +57,15 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Panel URL (emails y cola)
+    |--------------------------------------------------------------------------
+    | URL pública del panel para enlaces en correos y jobs en segundo plano.
+    | En local suele ser http://127.0.0.1:8000 si usas php artisan serve.
+    */
+    'panel_url' => env('PANEL_URL', env('APP_URL', 'http://localhost')),
+
     'asset_url' => env('ASSET_URL'),
 
     /*

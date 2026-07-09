@@ -27,28 +27,44 @@ class ParticipationAssignmentReceiptService
         private readonly LegalAcceptanceService $legalAcceptance,
     ) {}
 
+    public function setRequiresReceipt(Set $set): bool
+    {
+        $digital = (int) ($set->digital_participations ?? 0);
+        $physical = (int) ($set->physical_participations ?? 0);
+
+        if ($digital > 0 && $physical === 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function participationRequiresReceipt(Participation $participation): bool
+    {
+        return $participation->requiresAssignmentReceipt();
+    }
+
     /**
      * @param  array<int, array<string, mixed>>  $participationPayloads
-     * @return array{physical: array<int, array<string, mixed>>, digital: array<int, array<string, mixed>>}
      */
     public function splitPayloadsByReceiptRequirement(array $participationPayloads): array
     {
-        $setIds = array_values(array_unique(array_filter(array_map(
-            fn ($p) => (int) ($p['set_id'] ?? 0),
+        $ids = array_values(array_unique(array_filter(array_map(
+            fn ($p) => (int) ($p['id'] ?? 0),
             $participationPayloads
         ))));
 
-        $sets = $setIds === []
+        $participations = $ids === []
             ? collect()
-            : Set::query()->whereIn('id', $setIds)->get()->keyBy('id');
+            : Participation::with('set')->whereIn('id', $ids)->get()->keyBy('id');
 
         $physical = [];
         $digital = [];
 
         foreach ($participationPayloads as $payload) {
-            $setId = (int) ($payload['set_id'] ?? 0);
-            $set = $sets->get($setId);
-            if ($set && $this->setRequiresReceipt($set)) {
+            $id = (int) ($payload['id'] ?? 0);
+            $participation = $participations->get($id);
+            if ($participation instanceof Participation && $this->participationRequiresReceipt($participation)) {
                 $physical[] = $payload;
             } else {
                 $digital[] = $payload;
@@ -56,6 +72,16 @@ class ParticipationAssignmentReceiptService
         }
 
         return ['physical' => $physical, 'digital' => $digital];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $participationPayloads
+     */
+    public function requiresReceiptFlow(array $participationPayloads): bool
+    {
+        $split = $this->splitPayloadsByReceiptRequirement($participationPayloads);
+
+        return $split['physical'] !== [];
     }
 
     /**
@@ -109,43 +135,6 @@ class ParticipationAssignmentReceiptService
     /**
      * @param  array<int, array<string, mixed>>  $participationPayloads
      */
-    public function requiresReceiptFlow(array $participationPayloads): bool
-    {
-        if ($participationPayloads === []) {
-            return false;
-        }
-
-        $setIds = array_values(array_unique(array_filter(array_map(
-            fn ($p) => (int) ($p['set_id'] ?? 0),
-            $participationPayloads
-        ))));
-
-        if ($setIds === []) {
-            return false;
-        }
-
-        $sets = Set::query()->whereIn('id', $setIds)->get(['id', 'digital_participations', 'physical_participations']);
-
-        foreach ($sets as $set) {
-            if ($this->setRequiresReceipt($set)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public function setRequiresReceipt(Set $set): bool
-    {
-        $digital = (int) ($set->digital_participations ?? 0);
-        $physical = (int) ($set->physical_participations ?? 0);
-
-        return ! ($digital > 0 && $physical === 0);
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $participationPayloads
-     */
     public function createProposal(Seller $seller, array $participationPayloads, ?User $createdBy = null): ParticipationAssignmentProposal
     {
         $seller->loadMissing(['entities', 'user']);
@@ -168,7 +157,7 @@ class ParticipationAssignmentReceiptService
         }
 
         foreach ($participations as $participation) {
-            if (! $participation->set || ! $this->setRequiresReceipt($participation->set)) {
+            if (! $this->participationRequiresReceipt($participation)) {
                 continue;
             }
 
@@ -180,7 +169,7 @@ class ParticipationAssignmentReceiptService
         }
 
         $physicalIds = $participations
-            ->filter(fn (Participation $p) => $p->set && $this->setRequiresReceipt($p->set))
+            ->filter(fn (Participation $p) => $this->participationRequiresReceipt($p))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->values()

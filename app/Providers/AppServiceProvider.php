@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Support\PanelUrl;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use App\Models\User;
 use App\Services\LotteryDeadlineReminderService;
@@ -29,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if ($this->app->runningInConsole()) {
+            URL::forceRootUrl(PanelUrl::root());
+        }
+
         // Registrar Observer para vinculación automática de vendedores
         User::observe(UserObserver::class);
         

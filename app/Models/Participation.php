@@ -357,6 +357,30 @@ class Participation extends Model
     }
 
     /**
+     * En BD los digitales se guardan como 1D/00001; en UI se muestran sin la D (1/00001).
+     */
+    public function isStoredAsDigitalCode(): bool
+    {
+        return str_starts_with((string) ($this->participation_code ?? ''), '1D/');
+    }
+
+    /**
+     * Participaciones físicas requieren aceptación de recibo antes de asignar al vendedor.
+     */
+    public function requiresAssignmentReceipt(): bool
+    {
+        if ($this->isStoredAsDigitalCode()) {
+            return false;
+        }
+
+        if ($this->isWalletDigital()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Código de participación para mostrar en UI. Los digitales se guardan como 1D/00001 y se muestran como 1/00001.
      */
     public function getDisplayParticipationCodeAttribute()

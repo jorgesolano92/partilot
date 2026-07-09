@@ -177,6 +177,34 @@
                 border-color: #9eeaf9 !important;
                 opacity: 1 !important;
             }
+            .ui-pnotify .ui-pnotify-container.brighttheme-success,
+            .ui-pnotify.brighttheme-success .ui-pnotify-container {
+                background-color: #c7efe9 !important;
+                color: #0f766e !important;
+                border-color: #8fd7cd !important;
+            }
+            .ui-pnotify .ui-pnotify-container.brighttheme-error,
+            .ui-pnotify.brighttheme-error .ui-pnotify-container {
+                background-color: #f8d7da !important;
+                color: #842029 !important;
+                border-color: #f1aeb5 !important;
+            }
+            .ui-pnotify .ui-pnotify-container.brighttheme-notice,
+            .ui-pnotify.brighttheme-notice .ui-pnotify-container {
+                background-color: #fff3cd !important;
+                color: #7a5a00 !important;
+                border-color: #ffe69c !important;
+            }
+            .ui-pnotify .ui-pnotify-container.brighttheme-info,
+            .ui-pnotify.brighttheme-info .ui-pnotify-container {
+                background-color: #cff4fc !important;
+                color: #055160 !important;
+                border-color: #9eeaf9 !important;
+            }
+            .ui-pnotify .ui-pnotify-title,
+            .ui-pnotify .ui-pnotify-text {
+                color: inherit !important;
+            }
         </style>
 
         <link rel="stylesheet" href="{{ url('assets/libs/jquery-ui/themes/base/jquery-ui.css') }}">

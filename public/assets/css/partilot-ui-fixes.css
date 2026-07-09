@@ -121,16 +121,37 @@ small.text-muted,
     pointer-events: none;
 }
 
-/* Avisos PNotify error más visibles */
+/* Avisos PNotify (brighttheme + partilot) */
+.ui-pnotify .ui-pnotify-container.brighttheme-success,
+.ui-pnotify.brighttheme-success .ui-pnotify-container,
+.ui-pnotify.partilot-notify .ui-pnotify-container.brighttheme-success {
+    background-color: #c7efe9 !important;
+    color: #0f766e !important;
+    border-color: #8fd7cd !important;
+}
+.ui-pnotify .ui-pnotify-container.brighttheme-error,
+.ui-pnotify.brighttheme-error .ui-pnotify-container,
+.ui-pnotify.partilot-notify-error .ui-pnotify-container,
 .ui-pnotify.partilot-notify-error,
 .ui-pnotify.partilot-notify-error .alert {
     background-color: #f8d7da !important;
-    /* border: 2px solid #dc3545 !important;
-     0*/
-     border-radius: 50px !important;
+    border-radius: 50px !important;
     color: #842029 !important;
     font-size: 1rem !important;
     font-weight: 600 !important;
+    border-color: #f1aeb5 !important;
+}
+.ui-pnotify .ui-pnotify-container.brighttheme-notice,
+.ui-pnotify.brighttheme-notice .ui-pnotify-container {
+    background-color: #fff3cd !important;
+    color: #7a5a00 !important;
+    border-color: #ffe69c !important;
+}
+.ui-pnotify .ui-pnotify-container.brighttheme-info,
+.ui-pnotify.brighttheme-info .ui-pnotify-container {
+    background-color: #cff4fc !important;
+    color: #055160 !important;
+    border-color: #9eeaf9 !important;
 }
 .ui-pnotify.partilot-notify-error {
     top: 120px !important;
