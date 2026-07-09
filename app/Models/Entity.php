@@ -11,6 +11,10 @@ class Entity extends Model
 {
     use HasFactory;
 
+    public const CONTRACT_PENDING = 'pending';
+
+    public const CONTRACT_SIGNED = 'signed';
+
     protected $fillable = [
         'administration_id',
         'image',
@@ -29,6 +33,16 @@ class Entity extends Model
         'entity_pays_management_fee',
         'entity_pays_print_fee',
         'stripe_customer_id',
+        'contract_status',
+        'contract_reference',
+        'contract_version',
+        'contract_token',
+        'contract_sent_at',
+        'contract_signed_at',
+        'contract_signed_by_user_id',
+        'contract_signer_name',
+        'contract_signer_nif',
+        'contract_pdf_path',
     ];
 
     protected $casts = [
@@ -36,7 +50,23 @@ class Entity extends Model
         'is_non_profit' => 'boolean',
         'entity_pays_management_fee' => 'boolean',
         'entity_pays_print_fee' => 'boolean',
+        'contract_sent_at' => 'datetime',
+        'contract_signed_at' => 'datetime',
     ];
+
+    public function hasSignedFrameworkContract(): bool
+    {
+        return $this->contract_status === self::CONTRACT_SIGNED;
+    }
+
+    public function contractStatusLabel(): string
+    {
+        return match ($this->contract_status) {
+            self::CONTRACT_SIGNED => 'Firmado',
+            self::CONTRACT_PENDING => 'Pendiente de firma',
+            default => 'Sin contrato',
+        };
+    }
 
     protected function name(): Attribute
     {

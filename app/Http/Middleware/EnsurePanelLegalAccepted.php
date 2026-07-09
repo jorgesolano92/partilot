@@ -28,6 +28,9 @@ class EnsurePanelLegalAccepted
             'administration-contract.resend',
             'administration-contract.sign',
             'administration-contract.sign.submit',
+            'entity-contract.pending',
+            'entity-contract.accept-primary',
+            'entity-contract.accept-primary.store',
         ])) {
             return $next($request);
         }

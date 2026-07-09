@@ -237,6 +237,62 @@ class SellerService
     }
 
     /**
+     * Crear o vincular la cuenta de usuario de un vendedor PARTILOT sin user_id.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function ensurePartilotUserAccount(Seller $seller, array $attributes): User
+    {
+        if ($seller->seller_type !== 'partilot') {
+            throw new \InvalidArgumentException('Solo los vendedores PARTILOT pueden tener cuenta de usuario.');
+        }
+
+        $email = trim((string) ($attributes['email'] ?? $seller->email ?? ''));
+        if ($email === '') {
+            throw new \InvalidArgumentException('El email es obligatorio para crear la cuenta del vendedor.');
+        }
+
+        $user = null;
+        if ($seller->user_id > 0) {
+            $user = User::find($seller->user_id);
+        }
+
+        if (! $user) {
+            $user = User::where('email', $email)->first();
+        }
+
+        $userData = [
+            'name' => $attributes['name'] ?? $seller->name,
+            'last_name' => $attributes['last_name'] ?? $seller->last_name,
+            'last_name2' => $attributes['last_name2'] ?? $seller->last_name2,
+            'nif_cif' => $attributes['nif_cif'] ?? $seller->nif_cif,
+            'birthday' => $attributes['birthday'] ?? $seller->birthday,
+            'email' => $email,
+            'phone' => $attributes['phone'] ?? $seller->phone,
+            'role' => User::ROLE_SELLER,
+            'status' => true,
+        ];
+
+        if (! $user) {
+            $user = app(ManagerAccountService::class)->createUser($userData, 'vendedor');
+            Log::info("Cuenta de usuario creada para vendedor PARTILOT {$seller->id}");
+        } else {
+            if ($user->isPanelAccount()) {
+                throw new \InvalidArgumentException('Ese email corresponde a una cuenta de acceso al panel.');
+            }
+
+            $user->update($userData);
+            Log::info("Vendedor PARTILOT {$seller->id} vinculado al usuario existente {$user->id}");
+        }
+
+        if (! $seller->isLinkedToUser() || (int) $seller->user_id !== (int) $user->id) {
+            $seller->update(['user_id' => $user->id]);
+        }
+
+        return $user;
+    }
+
+    /**
      * Obtener estado de vinculación del vendedor
      */
     private function getLinkStatus(Seller $seller): string

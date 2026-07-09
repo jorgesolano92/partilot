@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Mail\EntityManagerInvitationMail;
 use App\Mail\EntityManagerPreregisterInviteMail;
 use App\Services\EntityPanelAccessService;
+use App\Services\EntityContractService;
 use App\Services\ManagerAccountService;
 use App\Services\ProvisionalPasswordService;
 use App\Services\AuditLogService;
@@ -296,7 +297,9 @@ class EntityController extends Controller
 
         try {
             $entity = DB::transaction(function () use ($administration, $entityInformation) {
-                return app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+                $entity = app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+
+                return app(EntityContractService::class)->initializeForNewEntity($entity);
             });
         } catch (\InvalidArgumentException $e) {
             return redirect()->route('entities.add-information')->with('error', $e->getMessage());
@@ -444,7 +447,9 @@ class EntityController extends Controller
 
             try {
                 $entity = DB::transaction(function () use ($administration, $entityInformation) {
-                    return app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+                    $entity = app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+
+                    return app(EntityContractService::class)->initializeForNewEntity($entity);
                 });
             } catch (\InvalidArgumentException $e) {
                 return redirect()->route('entities.add-information')->with('error', $e->getMessage());
@@ -689,7 +694,9 @@ class EntityController extends Controller
 
         try {
             $entity = DB::transaction(function () use ($administration, $entityInformation) {
-                return app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+                $entity = app(EntityPanelAccessService::class)->createEntityWithPanelAccess($administration, $entityInformation);
+
+                return app(EntityContractService::class)->initializeForNewEntity($entity);
             });
         } catch (\InvalidArgumentException $e) {
             return redirect()->route('entities.add-information')->with('error', $e->getMessage());
@@ -1420,6 +1427,13 @@ class EntityController extends Controller
             ]);
         }
 
+        $manager->loadMissing('entity.administration');
+        if (($manager->is_primary || $manager->pending_primary)
+            && $manager->entity
+            && $manager->entity->contract_status === \App\Models\Entity::CONTRACT_PENDING) {
+            return redirect()->route('entity-contract.accept-primary', ['token' => $token]);
+        }
+
         $invitation = $roleService->buildWebManagerPayload($manager);
 
         if ($manager->requires_password_setup) {
@@ -1464,6 +1478,13 @@ class EntityController extends Controller
                 'type' => 'reject',
                 'manager' => null,
             ]);
+        }
+
+        $manager->loadMissing('entity');
+        if (($manager->is_primary || $manager->pending_primary)
+            && $manager->entity
+            && $manager->entity->contract_status === Entity::CONTRACT_PENDING) {
+            return redirect()->route('entity-contract.accept-primary', ['token' => $token]);
         }
 
         $request->validate([
@@ -1538,6 +1559,13 @@ class EntityController extends Controller
                 ]);
             }
         });
+
+        $manager->loadMissing('entity');
+        if (($manager->is_primary || $manager->pending_primary)
+            && $manager->entity
+            && $manager->entity->contract_status === Entity::CONTRACT_PENDING) {
+            return redirect()->route('entity-contract.accept-primary', ['token' => $token]);
+        }
 
         $result = $roleService->finalizeManagerActivation($manager, $request, $manager->user);
         if (! $result['success']) {

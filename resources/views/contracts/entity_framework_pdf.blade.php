@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Contrato SaaS Administración {{ $contractReference }}</title>
+    <title>Contrato Marco Entidad {{ $contractReference }}</title>
     <style>
         @page { margin: 20mm 16mm; }
         body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 10.5px; line-height: 1.45; color: #111; }
@@ -20,6 +20,6 @@
     </style>
 </head>
 <body>
-    @include('contracts.administration_saas_content')
+    @include('contracts.entity_framework_content')
 </body>
 </html>

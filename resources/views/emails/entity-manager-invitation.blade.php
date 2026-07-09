@@ -12,7 +12,7 @@
 <p>Hola {{ $managerUser->name ?? 'Gestor' }},</p>
 @if($manager->pending_primary)
 <p><strong>{{ $adminName }}</strong> te ha designado <strong>Gestor Responsable</strong> de la entidad <strong>{{ $entity->name }}</strong> en PARTILOT.</p>
-<p>Este cargo implica responsabilidades importantes. Léelas antes de aceptar:</p>
+<p>Para aceptar el cargo deberás leer y firmar el <strong>Contrato Marco de Uso de la Plataforma</strong> en nombre de la entidad.</p>
 @else
 <p>Te han invitado a colaborar como <strong>Gestor</strong> en la entidad <strong>{{ $entity->name }}</strong> en PARTILOT.</p>
 @endif

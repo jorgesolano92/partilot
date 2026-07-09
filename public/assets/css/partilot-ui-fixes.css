@@ -502,6 +502,6 @@ small.text-muted,
     border-radius: 30px !important;
 }
 
-.form-card .input-group input.form-control {
+.form-card .input-group:has(.input-group-text + input.form-control) input.form-control {
     padding-left: 0px !important;
 }

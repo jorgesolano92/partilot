@@ -27,6 +27,7 @@ use Carbon\Carbon;
 use App\Models\EmailCommunicationLog;
 use App\Services\CommunicationEmailService;
 use App\Services\RoleLegalAcceptanceService;
+use App\Services\ParticipationAssignmentReceiptService;
 use App\Mail\SellerSettlementStatusMail;
 use App\Support\ParticipationTicketReference;
 
@@ -2232,21 +2233,18 @@ class SellerController extends Controller
                 }
             }
 
-            // Actualizar el usuario si existe
-            if ($seller->user_id) {
-                $user = User::find($seller->user_id);
-                if ($user) {
-                    $user->update([
-                        'name' => $request->name,
-                        'last_name' => $request->last_name,
-                        'last_name2' => $request->last_name2,
-                        'nif_cif' => $request->nif_cif,
-                        'birthday' => $request->birthday,
-                        'email' => $request->email,
-                        'phone' => $request->phone,
-                        'role' => User::ROLE_SELLER
-                    ]);
-                }
+            // Vendedores PARTILOT: crear o actualizar la cuenta de usuario vinculada
+            if ($seller->seller_type === 'partilot') {
+                app(SellerService::class)->ensurePartilotUserAccount($seller, [
+                    'name' => $request->name,
+                    'last_name' => $request->last_name,
+                    'last_name2' => $request->last_name2,
+                    'nif_cif' => $request->nif_cif,
+                    'birthday' => $request->birthday,
+                    'email' => $request->email,
+                    'phone' => $request->phone,
+                ]);
+                $seller->refresh();
             }
 
             DB::commit();
@@ -2718,99 +2716,22 @@ class SellerController extends Controller
                 ]);
             }
 
-            $assignedCount = 0;
-            $assignedParticipations = []; // Para agrupar por set
-
-            // Una sola consulta: obtener todas las participaciones candidatas (disponible sin vendedor o ya asignadas a este vendedor)
-            $ids = array_column($participations, 'id');
-            $setIds = array_unique(array_column($participations, 'set_id'));
-            $participationsToUpdate = Participation::with(['set.reserve.lottery'])
-                ->whereIn('id', $ids)
-                ->whereIn('set_id', $setIds)
-                ->where(function ($query) use ($seller) {
-                    $query->where(function ($q) {
-                        $q->where('status', 'disponible')->whereNull('seller_id');
-                    })->orWhere(function ($q) use ($seller) {
-                        $q->where('status', 'asignada')->where('seller_id', $seller->id);
-                    });
-                })
-                ->get()
-                ->keyBy('id');
-
-            foreach ($participations as $participationData) {
-                $participation = $participationsToUpdate->get($participationData['id']);
-                if (!$participation || $participation->set_id != $participationData['set_id']) {
-                    continue;
-                }
-                // USAR update() del modelo para disparar el Observer
-                $participation->update([
-                    'seller_id' => $seller->id,
-                    'sale_date' => now()->toDateString(),
-                    'sale_time' => now()->toTimeString(),
-                    'status' => 'asignada'
-                ]);
-                $assignedCount++;
-                $assignedParticipations[] = $participation;
-            }
+            $batch = app(ParticipationAssignmentReceiptService::class)->processAssignmentBatch(
+                $seller,
+                $participations,
+                auth()->user()
+            );
 
             DB::commit();
 
-            // Enviar email de notificación si se asignaron participaciones
-            if ($assignedCount > 0 && $seller->email) {
-                // Agrupar participaciones por set
-                $assignmentsBySet = [];
-                foreach ($assignedParticipations as $participation) {
-                    $setId = $participation->set_id;
-
-                    if (!isset($assignmentsBySet[$setId])) {
-                        // Usar el set ya cargado desde la participación
-                        $set = $participation->set;
-
-                        $assignmentsBySet[$setId] = [
-                            'set' => $set,
-                            'lottery' => $set->reserve->lottery ?? null,
-                            'count' => 0,
-                        ];
-                    }
-
-                    $assignmentsBySet[$setId]['count']++;
-                }
-
-                $assignmentsList = [];
-                foreach ($assignmentsBySet as $setId => $data) {
-                    $assignmentsList[] = [
-                        'set_id' => (int) $setId,
-                        'count' => (int) ($data['count'] ?? 0),
-                    ];
-                }
-
-                $communicationEmailService = app(CommunicationEmailService::class);
-                $log = $communicationEmailService->sendAndLog(
-                    recipientEmail: (string) $seller->email,
-                    recipientRole: 'vendedor',
-                    recipientUser: null,
-                    messageType: 'participation_assignment',
-                    templateKey: null,
-                    mailClass: \App\Mail\ParticipationAssignmentMail::class,
-                    mailPayload: [
-                        'seller_id' => $seller->id,
-                        'assignments' => $assignmentsList,
-                    ],
-                    context: [
-                        'seller_id' => $seller->id,
-                        'assigned_count' => $assignedCount,
-                    ],
-                );
-
-                if ($log->status === EmailCommunicationLog::STATUS_CANCELLED) {
-                    \Log::error('Error enviando email de asignación de participaciones: ' . ($log->error_message ?? 'unknown'));
-                }
-            }
+            $message = $this->buildAssignmentBatchMessage($batch);
 
             return response()->json([
                 'success' => true,
-                'message' => "Se asignaron {$assignedCount} participaciones correctamente",
-                'assigned_count' => $assignedCount
+                'message' => $message,
+                'assigned_count' => $batch['assigned_count'],
+                'proposal_count' => $batch['proposal_count'],
+                'pending_receipt' => $batch['proposal_count'] > 0,
             ]);
 
         } catch (\Exception $e) {
@@ -2820,6 +2741,29 @@ class SellerController extends Controller
                 'message' => 'Error al guardar las asignaciones: ' . $e->getMessage()
             ]);
         }
+    }
+
+    /**
+     * @param  array{proposal: ?\App\Models\ParticipationAssignmentProposal, proposal_count: int, assigned_count: int, assigned_participation_ids: array<int, int>}  $batch
+     */
+    private function buildAssignmentBatchMessage(array $batch): string
+    {
+        $parts = [];
+
+        if (($batch['proposal_count'] ?? 0) > 0) {
+            $parts[] = 'Se ha enviado un email al vendedor para aceptar el recibo de '
+                .$batch['proposal_count'].' participación(es) física(s).';
+        }
+
+        if (($batch['assigned_count'] ?? 0) > 0) {
+            $parts[] = 'Se asignaron '.$batch['assigned_count'].' participación(es) digitales correctamente.';
+        }
+
+        if ($parts === []) {
+            return 'No se procesó ninguna asignación.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

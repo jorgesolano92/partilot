@@ -152,6 +152,15 @@ class RoleLegalAcceptanceService
         ]);
 
         $user = $actingUser ?? $seller->user;
+        if (! $user && filled($seller->email)) {
+            $user = User::where('email', $seller->email)->first();
+            if ($user && ! $user->isPanelAccount()) {
+                $seller->update(['user_id' => $user->id]);
+                if ($user->role !== User::ROLE_SELLER) {
+                    $user->update(['role' => User::ROLE_SELLER]);
+                }
+            }
+        }
         if ($user) {
             $this->recordSellerAcceptance($seller, $user, $request);
         }
@@ -180,6 +189,17 @@ class RoleLegalAcceptanceService
 
             if ($action === 'reject') {
                 return $this->rejectManager($manager, $request, $user);
+            }
+
+            $manager->loadMissing('entity');
+            if (($manager->is_primary || $manager->pending_primary)
+                && $manager->entity
+                && $manager->entity->contract_status === Entity::CONTRACT_PENDING) {
+                return [
+                    'success' => false,
+                    'message' => 'Debe firmar el contrato marco de la entidad en la web antes de aceptar el cargo.',
+                    'requires_entity_contract' => true,
+                ];
             }
 
             $result = $this->finalizeManagerActivation($manager, $request, $user);

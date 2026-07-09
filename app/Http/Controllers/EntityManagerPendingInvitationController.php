@@ -7,6 +7,7 @@ use App\Models\PendingEntityManagerInvitation;
 use App\Models\User;
 use App\Rules\SpanishDocument;
 use App\Rules\ValidCalendarDate;
+use App\Services\LegalAcceptanceService;
 use App\Services\RoleLegalAcceptanceService;
 use App\Support\PasswordRules;
 use Illuminate\Http\Request;
@@ -62,9 +63,9 @@ class EntityManagerPendingInvitationController extends Controller
             'phone' => 'nullable|string|max:20',
             'birthday' => ValidCalendarDate::birthday(),
             'password' => PasswordRules::registration(),
-            'role_terms' => 'accepted',
+            'marco_legal' => 'accepted',
         ], array_merge(PasswordRules::messages(), [
-            'role_terms.accepted' => 'Debe aceptar las responsabilidades del rol para continuar.',
+            'marco_legal.accepted' => 'Debe aceptar el Marco Legal de PARTILOT para continuar.',
             'nif_cif.required' => 'Indique su NIF/CIF.',
         ]));
 
@@ -117,6 +118,25 @@ class EntityManagerPendingInvitationController extends Controller
                 'status' => null,
             ]);
         });
+
+        $entity->refresh();
+        $manager->load('user');
+
+        $meta = app(LegalAcceptanceService::class)->registrationDocumentMeta();
+        app(LegalAcceptanceService::class)->recordFromRequest(
+            action: \App\Models\LegalAcceptance::ACTION_REGISTRO_ACEPTACION_TCU,
+            request: $request,
+            user: $manager->user,
+            version: $meta['version'],
+            textHash: $meta['text_hash'],
+            entityId: (int) $entity->id,
+            administrationId: $entity->administration_id ? (int) $entity->administration_id : null,
+            context: ['via' => 'entity_manager_register'],
+        );
+
+        if ($manager->is_primary && $entity->contract_status === \App\Models\Entity::CONTRACT_PENDING) {
+            return redirect()->route('entity-contract.accept-primary', ['token' => $manager->confirmation_token]);
+        }
 
         $result = $roleService->finalizeManagerActivation($manager, $request, $manager->user);
         if (! $result['success']) {

@@ -9,7 +9,9 @@
         .card { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
         h1 { font-size: 24px; margin: 0 0 8px; }
         .meta { color: #6c757d; margin-bottom: 24px; }
-        .terms { background: #f8f9fa; border-radius: 12px; padding: 20px; max-height: 420px; overflow-y: auto; font-size: 13px; line-height: 1.55; margin-bottom: 20px; }
+        .terms { background: #f8f9fa; border-radius: 12px; padding: 20px; max-height: 520px; overflow-y: auto; font-size: 12px; line-height: 1.55; margin-bottom: 20px; }
+        .terms .contract-annex-table { font-size: 11px; }
+        .terms .contract-annex-table th { background: #e9ecef; }
         label { display: block; margin-bottom: 8px; font-weight: 600; }
         input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid #ced4da; border-radius: 8px; margin-bottom: 16px; box-sizing: border-box; }
         .checkbox { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 20px; font-size: 14px; }
@@ -28,6 +30,7 @@
         </p>
 
         <div class="terms">
+            @include('contracts.partials.contract_table_styles')
             @include('contracts.administration_saas_content', $viewData)
         </div>
 

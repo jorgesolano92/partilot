@@ -28,7 +28,7 @@ class EntityPanelAccessService
 
         $entityData = array_merge($entityInformation, [
             'administration_id' => is_object($administration) ? $administration->id : ($administration['id'] ?? null),
-            'status' => 1,
+            'status' => 0,
         ]);
         unset($entityData['panel_password']);
 

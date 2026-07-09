@@ -5,7 +5,7 @@ return [
         'version' => env('LEGAL_ROLE_GR_VERSION', '3'),
         'hash' => env('LEGAL_ROLE_GR_HASH', 'role_gr_v3'),
         'screen_title' => 'Tienes una solicitud pendiente',
-        'accept_label' => 'Acepto el cargo de Gestor Responsable',
+        'accept_label' => 'Acepto el cargo y el contrato en nombre de la entidad',
         'reject_label' => 'Rechazar esta designación',
         'summary_bullets' => [
             'Serás el único autorizado para ejecutar la liquidación definitiva con la Administración de Lotería. Este acto es irreversible.',
@@ -40,6 +40,18 @@ return [
             'Estás obligado a verificar que los compradores son mayores de 18 años.',
             'Los datos de los compradores son confidenciales.',
             'Está terminantemente prohibido fotocopiar o reproducir las participaciones físicas asignadas.',
+        ],
+    ],
+    'recibo_participaciones' => [
+        'version' => env('LEGAL_RECIBO_PARTICIPACIONES_VERSION', '1'),
+        'hash' => env('LEGAL_RECIBO_PARTICIPACIONES_HASH', 'recibo_participaciones_v1'),
+        'accept_label' => 'Acepto recibo de participaciones',
+        'summary_bullets' => [
+            'Desde el momento en que firmes el recibo de las participaciones físicas, eres responsable de ellas.',
+            'El dinero que recojas de las ventas es de la Entidad, no tuyo.',
+            'Debes verificar que los compradores son mayores de 18 años.',
+            'Está prohibido fotocopiar o reproducir las participaciones físicas.',
+            'La Administración puede ver tus datos operativos para resolver incidencias.',
         ],
     ],
 ];

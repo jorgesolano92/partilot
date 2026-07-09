@@ -31,6 +31,7 @@ use App\Http\Controllers\EntityLotteryPrizeSettingsController;
 use App\Http\Controllers\BackgroundTaskController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\AdministrationContractController;
+use App\Http\Controllers\EntityContractController;
 use App\Models\Administration;
 use App\Models\User;
 /*
@@ -122,6 +123,8 @@ Route::get('/sellers/confirm/accept/{token}', [SellerController::class, 'confirm
 Route::post('/sellers/confirm/accept/{token}', [SellerController::class, 'confirmAcceptStore'])->name('sellers.confirm-accept.store');
 Route::get('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmReject'])->name('sellers.confirm-reject');
 Route::post('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmRejectStore'])->name('sellers.confirm-reject.store');
+Route::get('/asignacion-participaciones/aceptar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'accept'])->name('participation-assignment.accept');
+Route::get('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'reject'])->name('participation-assignment.reject');
 Route::get('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAccept'])->name('entity-managers.confirm-accept');
 Route::post('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAcceptStore'])->name('entity-managers.confirm-accept.store');
 Route::post('/entity-managers/confirm/respond/{token}', [EntityController::class, 'confirmManagerRespond'])->name('entity-managers.confirm-respond');
@@ -140,6 +143,8 @@ Route::get('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymen
 Route::post('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'store'])->name('prize-contract.sign.submit');
 Route::get('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'show'])->name('administration-contract.sign');
 Route::post('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'store'])->name('administration-contract.sign.submit');
+Route::get('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'acceptPrimaryManager'])->name('entity-contract.accept-primary');
+Route::post('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'storePrimaryManagerAcceptance'])->name('entity-contract.accept-primary.store');
 
 // Registro web comprador (venta digital pendiente)
 Route::get('/registro-comprador/{token}', [\App\Http\Controllers\DigitalBuyerRegistrationController::class, 'show'])->name('digital-buyer.register');
@@ -168,10 +173,13 @@ Route::get('/design/external/thank-you', [\App\Http\Controllers\DesignController
 Route::get('/design/external/file/{id}/download', [\App\Http\Controllers\DesignController::class, 'externalDownloadFileSession'])->name('design.external.downloadFile');
 
 // Rutas protegidas por autenticación (cuenta panel entidad: solo lectura vía entity_panel.readonly)
-Route::middleware(['auth', 'administration_saas_contract', 'panel_legal_accepted', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
+Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_contract', 'panel_legal_accepted', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
 
     Route::get('/contrato-administracion/pendiente', [AdministrationContractController::class, 'pending'])->name('administration-contract.pending');
     Route::post('/contrato-administracion/reenviar', [AdministrationContractController::class, 'resend'])->name('administration-contract.resend');
+    Route::get('/contrato-entidad/pendiente', [EntityContractController::class, 'pending'])->name('entity-contract.pending');
+    Route::get('/contrato-entidad/{entity}/preview', [EntityContractController::class, 'preview'])->name('entity-contract.preview');
+    Route::get('/contrato-entidad/{entity}/download', [EntityContractController::class, 'download'])->name('entity-contract.download');
     Route::post('/panel/aceptacion-legal', [\App\Http\Controllers\PanelLegalAcceptanceController::class, 'store'])->name('panel-legal.submit');
     
     Route::get('dashboard', [AuthController::class, 'dashboard'])->name('dashboard');

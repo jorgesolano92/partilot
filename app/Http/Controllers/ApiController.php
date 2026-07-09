@@ -22,6 +22,44 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::create('participation_assignment_proposals', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('seller_id')->constrained('sellers')->cascadeOnDelete();
+            $table->foreignId('entity_id')->nullable()->constrained('entities')->nullOnDelete();
+            $table->foreignId('lottery_id')->nullable()->constrained('lotteries')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->json('participation_ids');
+            $table->unsignedInteger('participation_count');
+            $table->string('token', 64)->unique();
+            $table->string('status', 20)->default('pending'); // pending, accepted, rejected, expired
+            $table->timestamp('expires_at');
+            $table->timestamp('responded_at')->nullable();
+            $table->timestamps();
+
+            $table->index(['seller_id', 'status']);
+            $table->index(['status', 'expires_at']);
+        });
+        
+        Schema::table('entities', function (Blueprint $table) {
+            $table->string('contract_status', 32)->default('pending')->after('stripe_customer_id');
+            $table->string('contract_reference', 32)->nullable()->after('contract_status');
+            $table->string('contract_version', 32)->default('marco_v5')->after('contract_reference');
+            $table->string('contract_token', 80)->nullable()->after('contract_version');
+            $table->timestamp('contract_sent_at')->nullable()->after('contract_token');
+            $table->timestamp('contract_signed_at')->nullable()->after('contract_sent_at');
+            $table->unsignedBigInteger('contract_signed_by_user_id')->nullable()->after('contract_signed_at');
+            $table->string('contract_signer_name', 255)->nullable()->after('contract_signed_by_user_id');
+            $table->string('contract_signer_nif', 32)->nullable()->after('contract_signer_name');
+            $table->string('contract_pdf_path', 500)->nullable()->after('contract_signer_nif');
+        });
+
+        if (Schema::hasTable('entities')) {
+            DB::table('entities')->update([
+                'contract_status' => 'signed',
+                'contract_signed_at' => now(),
+            ]);
+        }
+        return "ok";
         Schema::table('pending_entity_manager_invitations', function (Blueprint $table) {
             if (! Schema::hasColumn('pending_entity_manager_invitations', 'confirmation_token')) {
                 $table->string('confirmation_token', 64)->nullable()->unique()->after('permission_payments');

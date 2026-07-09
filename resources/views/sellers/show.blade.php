@@ -1963,7 +1963,7 @@ function initDatatable()
                 } catch (e) {}
                 window.location.reload();
               } else {
-                mostrarMensaje('Asignaciones guardadas correctamente', 'success');
+                mostrarMensaje(response.message || 'Asignaciones guardadas correctamente', 'success');
                 
                 // Limpiar el array temporal y recargar las participaciones existentes
                 participacionesAsignadas = [];

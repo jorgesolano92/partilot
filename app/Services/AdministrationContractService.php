@@ -101,6 +101,7 @@ class AdministrationContractService
             'signer_name' => $signerName,
             'signer_nif' => $signerNif,
             'signed_at' => $signedAt,
+            'signer_ip' => $ip ?? $request?->ip(),
         ];
 
         $pdfBinary = $this->documents->renderPdfBinary(
@@ -156,7 +157,7 @@ class AdministrationContractService
     }
 
     /**
-     * @param  array{signer_name?: string, signer_nif?: string, signed_at?: \Illuminate\Support\Carbon}  $signature
+     * @param  array{signer_name?: string, signer_nif?: string, signed_at?: \Illuminate\Support\Carbon, signer_ip?: string|null}  $signature
      * @return array<string, mixed>
      */
     public function buildViewData(Administration $administration, array $signature = []): array
@@ -173,6 +174,9 @@ class AdministrationContractService
         }
 
         $signedAt = $signature['signed_at'] ?? null;
+        $signerName = trim((string) ($signature['signer_name'] ?? ''));
+        $isSigned = $signerName !== '' && $signedAt !== null;
+
         $account = (string) ($administration->account ?? '');
         if ($account !== '' && ! str_starts_with($account, 'ES')) {
             $account = 'ES'.$account;
@@ -182,7 +186,7 @@ class AdministrationContractService
             'administration' => $administration,
             'contractReference' => $administration->contract_reference ?: $this->generateReference($administration),
             'contractVersion' => self::VERSION_LABEL,
-            'commercialName' => $commercialName,
+            'commercialName' => $commercialName !== '' ? $commercialName : '—',
             'society' => trim((string) $administration->society),
             'selaeCode' => trim((string) ($administration->admin_number ?? '')) ?: '—',
             'receivingCode' => trim((string) ($administration->receiving ?? '')) ?: '—',
@@ -196,10 +200,21 @@ class AdministrationContractService
             'iban' => $account !== '' ? $account : '—',
             'representativeName' => $representativeName !== '' ? $representativeName : '—',
             'representativeNif' => $representativeNif !== '' ? $representativeNif : '—',
+            'paymentMode' => 'Pago puntual por TPV y domiciliación bancaria, configurable por la Administración',
+            'billingSwitchDefault' => 'Configurable por set (Administración / Entidad)',
             'activationDate' => ($signedAt ?? now())->format('d/m/Y'),
             'signedAt' => $signedAt,
-            'signerName' => $signature['signer_name'] ?? null,
-            'signerNif' => $signature['signer_nif'] ?? null,
+            'signerName' => $signerName !== '' ? $signerName : '—',
+            'signerNif' => $representativeNif !== '' ? $representativeNif : '—',
+            'signerRole' => 'Titular / Representante',
+            'isSigned' => $isSigned,
+            'acceptanceDate' => $isSigned ? $signedAt->format('d/m/Y H:i') : '—',
+            'acceptanceTimestamp' => $isSigned ? $signedAt->format('d/m/Y H:i:s') : '—',
+            'acceptanceIp' => $isSigned
+                ? (trim((string) ($signature['signer_ip'] ?? '')) ?: '—')
+                : '—',
+            'partilotSignerName' => 'Administrador Único',
+            'partilotSignerRole' => 'Administrador Único',
             'forPdf' => true,
         ];
     }

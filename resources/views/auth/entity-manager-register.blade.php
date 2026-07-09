@@ -15,16 +15,6 @@
     </style>
 </head>
 <body class="auth-fluid-pages pb-0">
-@php
-    $roleType = $pending->is_primary ? 'gestor_responsable' : 'gestor';
-    $role = config("legal_roles.{$roleType}", []);
-    $invitation = [
-        'screen_title' => $role['screen_title'] ?? 'Invitación como gestor',
-        'intro_sentence' => config('legal.role_intro_sentence'),
-        'summary_bullets' => $role['summary_bullets'] ?? [],
-        'accept_label' => $role['accept_label'] ?? 'Aceptar',
-    ];
-@endphp
 <div class="container py-4" style="max-width: 560px;">
     <div class="text-center mb-4">
         <img src="{{ url('/') }}/logo.svg" alt="PARTILOT" height="40">
@@ -35,12 +25,7 @@
                 <p class="mb-0 small text-muted"><strong>Administración:</strong> {{ $pending->entity->administration->name }}</p>
             @endif
         </div>
-        <p class="text-muted small mb-0">Completa el registro con el correo indicado para aceptar la invitación.</p>
-    </div>
-    <div class="card mb-3">
-        <div class="card-body p-4">
-            @include('partials.role-invitation-legal', ['invitation' => $invitation])
-        </div>
+        <p class="text-muted small mb-0">Completa el registro con el correo indicado. En el siguiente paso deberás aceptar el cargo y firmar el contrato marco en nombre de la entidad.</p>
     </div>
     <div class="card">
         <div class="card-body p-4">
@@ -88,10 +73,12 @@
                     <div class="group-login"><input type="password" name="password_confirmation" class="form-control" required minlength="8"></div>
                 </div>
                 <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" name="role_terms" value="1" id="role_terms" required {{ old('role_terms') ? 'checked' : '' }}>
-                    <label class="form-check-label" for="role_terms">He leído las responsabilidades del rol y acepto la invitación como gestor.</label>
+                    <input class="form-check-input" type="checkbox" name="marco_legal" value="1" id="marco_legal" required {{ old('marco_legal') ? 'checked' : '' }}>
+                    <label class="form-check-label" for="marco_legal">
+                        He leído y acepto el <a href="{{ route('legal.terminos-y-condiciones') }}" target="_blank" rel="noopener">Marco Legal de PARTILOT</a>.
+                    </label>
                 </div>
-                <button type="submit" class="btn w-100 text-white" style="background:#F59200;border-radius:30px;font-weight:bold;">Crear cuenta y aceptar invitación</button>
+                <button type="submit" class="btn w-100 text-white" style="background:#F59200;border-radius:30px;font-weight:bold;">Crear cuenta y continuar</button>
             </form>
         </div>
     </div>

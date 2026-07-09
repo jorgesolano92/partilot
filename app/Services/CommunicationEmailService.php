@@ -188,6 +188,25 @@ class CommunicationEmailService
             return;
         }
 
+        if ($mailClass === \App\Mail\ParticipationAssignmentProposalMail::class) {
+            $proposalId = (int) ($mailPayload['proposal_id'] ?? 0);
+            $proposal = \App\Models\ParticipationAssignmentProposal::with(['seller.entities', 'entity', 'lottery'])->findOrFail($proposalId);
+
+            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationAssignmentProposalMail($proposal));
+            return;
+        }
+
+        if ($mailClass === \App\Mail\ParticipationAssignmentAcceptedEntityMail::class) {
+            $proposalId = (int) ($mailPayload['proposal_id'] ?? 0);
+            $sellerId = (int) ($mailPayload['seller_id'] ?? 0);
+            $assignedCount = (int) ($mailPayload['assigned_count'] ?? 0);
+            $proposal = \App\Models\ParticipationAssignmentProposal::with(['entity', 'lottery'])->findOrFail($proposalId);
+            $seller = Seller::findOrFail($sellerId);
+
+            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationAssignmentAcceptedEntityMail($seller, $proposal, $assignedCount));
+            return;
+        }
+
         if ($mailClass === \App\Mail\ReserveSavedToEntityManagerMail::class) {
             $reserveId = (int) ($mailPayload['reserve_id'] ?? 0);
             $reserve = Reserve::with(['entity.administration', 'entity.manager.user', 'lottery.lotteryType'])->findOrFail($reserveId);
