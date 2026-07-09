@@ -52,6 +52,7 @@ class EntityPanelReadOnly
         return in_array($request->route()?->getName(), [
             'lottery-deadline-reminders.dismiss',
             'panel.switch-entity',
+            'panel-legal.submit',
         ], true);
     }
 
