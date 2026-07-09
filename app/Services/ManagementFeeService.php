@@ -8,6 +8,7 @@ use App\Models\Entity;
 use App\Models\PartilotBillingSetting;
 use App\Models\Set;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 
 class ManagementFeeService
 {
@@ -81,6 +82,37 @@ class ManagementFeeService
     public function isManagementFeeSettled(Set $set): bool
     {
         return $this->isPaid($set) || $this->isQueuedForRemittance($set);
+    }
+
+    /**
+     * Venta digital en app: permitida si la cuota está pagada (Stripe) o encolada en remesa.
+     * Sets legacy sin estado de cuota se tratan como vendibles.
+     */
+    public function allowsDigitalSale(Set $set): bool
+    {
+        $status = $set->management_fee_status;
+        if ($status === null || $status === '') {
+            return true;
+        }
+
+        return $this->isManagementFeeSettled($set);
+    }
+
+    /**
+     * @param  Builder<\App\Models\Set>  $query
+     */
+    public function applyDigitalSaleEligibleConstraint(Builder $query, string $column = 'management_fee_status'): Builder
+    {
+        return $query->where(function (Builder $q) use ($column) {
+            $q->whereNull($column)
+                ->orWhere($column, '')
+                ->orWhereIn($column, [self::STATUS_PAID, self::STATUS_QUEUED_REMITTANCE]);
+        });
+    }
+
+    public function digitalSaleBlockedMessage(): string
+    {
+        return 'Las participaciones digitales de este diseño no están disponibles para la venta hasta que se abone la cuota de gestión.';
     }
 
     public function blocksQrExport(Set $set, ?DesignFormat $design = null): bool

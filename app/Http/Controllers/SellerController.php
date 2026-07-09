@@ -28,6 +28,7 @@ use App\Models\EmailCommunicationLog;
 use App\Services\CommunicationEmailService;
 use App\Services\RoleLegalAcceptanceService;
 use App\Services\ParticipationAssignmentReceiptService;
+use App\Services\ManagementFeeService;
 use App\Mail\SellerSettlementStatusMail;
 use App\Support\ParticipationTicketReference;
 
@@ -487,16 +488,21 @@ class SellerController extends Controller
                     'sets.total_participations',
                     'sets.total_participation_amount as played_amount',
                     'sets.physical_participations',
-                    'sets.digital_participations'
+                    'sets.digital_participations',
+                    'sets.management_fee_status'
                 );
             }])
             ->orderBy('reservation_date', 'desc')
             ->get();
 
         $pendingService = app(\App\Services\PendingDigitalSaleService::class);
+        $feeService = app(ManagementFeeService::class);
         foreach ($reserves as $reserve) {
-            foreach ($reserve->sets as $set) {
+            $reserve->setRelation('sets', $reserve->sets->filter(function ($set) use ($pendingService, $feeService, $seller) {
                 $isDigital = ($set->digital_participations ?? 0) > 0 && (int) ($set->physical_participations ?? 0) === 0;
+                if ($isDigital && ! $feeService->allowsDigitalSale($set)) {
+                    return false;
+                }
                 if ($isDigital) {
                     $set->setAttribute('digital_available_to_seller', $pendingService->countDigitalDisponibleForSet((int) $set->id));
                 } elseif ((int) ($set->physical_participations ?? 0) > 0) {
@@ -506,7 +512,9 @@ class SellerController extends Controller
                         ->where('status', 'asignada')
                         ->count());
                 }
-            }
+
+                return true;
+            })->values());
         }
 
         return response()->json([
@@ -656,6 +664,7 @@ class SellerController extends Controller
             ->where('reserves.lottery_id', $request->lottery_id)
             ->where('sets.physical_participations', '<=', 0)
             ->whereRaw('sets.digital_participations > 0');
+        app(ManagementFeeService::class)->applyDigitalSaleEligibleConstraint($priceSetQuery, 'sets.management_fee_status');
         if ($reserveId) {
             $priceSetQuery->where('sets.reserve_id', $reserveId);
         }
@@ -688,6 +697,14 @@ class SellerController extends Controller
         $set = Set::with('reserve')->findOrFail((int) $request->set_id);
         if (($set->digital_participations ?? 0) <= 0) {
             return response()->json(['success' => false, 'message' => 'Este set no es de participaciones digitales.'], 422);
+        }
+
+        if (! app(ManagementFeeService::class)->allowsDigitalSale($set)) {
+            return response()->json([
+                'success' => false,
+                'message' => app(ManagementFeeService::class)->digitalSaleBlockedMessage(),
+                'management_fee_pending' => true,
+            ], 422);
         }
 
         if (! $seller->entities()->where('entities.id', $set->entity_id)->exists()) {

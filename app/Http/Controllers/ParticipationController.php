@@ -27,6 +27,7 @@ use App\Mail\TransferCollectionVerificationMail;
 use App\Mail\DonationCodeConfirmationMail;
 use App\Services\AppInboxNotificationService;
 use App\Services\PendingDigitalSaleService;
+use App\Services\ManagementFeeService;
 use App\Support\ParticipationListPagination;
 use App\Support\ParticipationTicketReference;
 use App\Services\ParticipationOwnerService;
@@ -650,6 +651,13 @@ class ParticipationController extends Controller
             if (($set->digital_participations ?? 0) <= 0) {
                 return response()->json(['success' => false, 'message' => 'Este set no es de participaciones digitales.'], 422);
             }
+            if (! app(ManagementFeeService::class)->allowsDigitalSale($set)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => app(ManagementFeeService::class)->digitalSaleBlockedMessage(),
+                    'management_fee_pending' => true,
+                ], 422);
+            }
             if (! $seller->entities()->where('entities.id', $set->entity_id)->exists()) {
                 return response()->json(['success' => false, 'message' => 'No tienes acceso a esta entidad.'], 403);
             }
@@ -763,6 +771,17 @@ class ParticipationController extends Controller
                 'success' => false,
                 'message' => 'El correo ya está registrado. Usa la venta directa.',
             ], 422);
+        }
+
+        if ($request->filled('set_id')) {
+            $setForFee = \App\Models\Set::query()->find((int) $request->set_id);
+            if ($setForFee && ! app(ManagementFeeService::class)->allowsDigitalSale($setForFee)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => app(ManagementFeeService::class)->digitalSaleBlockedMessage(),
+                    'management_fee_pending' => true,
+                ], 422);
+            }
         }
 
         try {

@@ -86,6 +86,8 @@ class PendingDigitalSaleService
 
     protected function queryDigitalDisponiblePool(int $entityId, int $lotteryId, ?int $reserveId = null)
     {
+        $feeService = app(ManagementFeeService::class);
+
         $query = Participation::query()
             ->join('sets', 'participations.set_id', '=', 'sets.id')
             ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
@@ -95,6 +97,8 @@ class PendingDigitalSaleService
             ->whereRaw('sets.digital_participations > 0')
             ->whereRaw("participations.participation_code LIKE '1D/%'")
             ->where('participations.status', 'disponible');
+
+        $feeService->applyDigitalSaleEligibleConstraint($query, 'sets.management_fee_status');
 
         if ($reserveId) {
             $query->where('sets.reserve_id', $reserveId);
@@ -494,6 +498,11 @@ class PendingDigitalSaleService
      */
     public function queryDigitalDisponibleForSet(int $setId)
     {
+        $set = Set::query()->find($setId);
+        if (! $set || ! app(ManagementFeeService::class)->allowsDigitalSale($set)) {
+            return Participation::query()->whereRaw('1 = 0');
+        }
+
         return Participation::query()
             ->where('set_id', $setId)
             ->whereRaw("participation_code LIKE '1D/%'")
