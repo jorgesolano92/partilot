@@ -638,7 +638,7 @@
                 padding: 0 15px !important;
             }
 
-            .content-page .content .container-fluid:not(.design-editor-page) {
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) {
                 flex: 1 1 auto !important;
                 display: flex !important;
                 flex-direction: column !important;
@@ -646,20 +646,20 @@
                 width: 100%;
             }
 
-            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child {
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child {
                 flex: 1 1 auto !important;
                 display: flex !important;
                 min-height: 0 !important;
             }
 
-            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child > [class*="col-"] {
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] {
                 flex: 1 1 auto !important;
                 display: flex !important;
                 flex-direction: column !important;
                 min-height: 0 !important;
             }
 
-            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child > [class*="col-"] > .card {
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card {
                 flex: 1 1 auto !important;
                 display: flex !important;
                 flex-direction: column !important;
@@ -667,7 +667,7 @@
                 height: auto !important;
             }
 
-            .content-page .content .container-fluid:not(.design-editor-page) > .row:last-child > [class*="col-"] > .card > .card-body {
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card > .card-body {
                 flex: 1 1 auto !important;
                 min-height: calc(100vh - 335px) !important;
             }

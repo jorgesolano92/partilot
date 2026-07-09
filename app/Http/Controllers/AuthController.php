@@ -12,6 +12,7 @@ use App\Models\Manager;
 use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Services\CommunicationEmailService;
+use App\Services\DashboardService;
 use App\Services\ParticipationGiftService;
 use App\Services\PendingDigitalSaleService;
 use App\Services\RoleLegalAcceptanceService;
@@ -284,13 +285,15 @@ class AuthController extends Controller
     /**
      * Mostrar el dashboard
      */
-    public function dashboard()
+    public function dashboard(DashboardService $dashboardService)
     {
         if (auth()->user()?->isPrintShop()) {
             return redirect()->route('print-shop.index');
         }
 
-        return view('welcome');
+        $dashboard = $dashboardService->build(auth()->user());
+
+        return view('welcome', compact('dashboard'));
     }
 
     /**

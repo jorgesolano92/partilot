@@ -11,6 +11,55 @@
     color: #333;
 }
 
+/* Login móvil (< 768px) */
+.partilot-login-mobile {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem 1rem;
+    background: #eef1f5;
+    box-sizing: border-box;
+}
+.partilot-login-mobile-inner {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 24px;
+    padding: 1.75rem 1.25rem 1.5rem;
+    box-shadow: 0 8px 28px rgba(31, 36, 48, 0.08);
+}
+.partilot-login-mobile .auth-brand h4 {
+    font-size: 1.15rem;
+    line-height: 1.4;
+}
+.partilot-login-mobile-form .group-login-mobile {
+    width: 100%;
+}
+.partilot-login-mobile-form .group-login-mobile .form-control {
+    font-size: 16px !important;
+    min-width: 0;
+}
+.partilot-login-mobile-submit {
+    border-radius: 30px;
+    padding: 13px 0;
+}
+
+@media (max-width: 575.98px) {
+    .partilot-login-mobile {
+        padding: 0.85rem 0.75rem;
+    }
+    .partilot-login-mobile-inner {
+        padding: 1.5rem 1rem 1.25rem;
+        border-radius: 20px;
+    }
+    .partilot-login-mobile .group-login div,
+    .partilot-login-mobile .group-login input {
+        padding: 0.65rem 0.75rem !important;
+    }
+}
+
 /* Textos más legibles */
 .text-muted,
 small.text-muted,
