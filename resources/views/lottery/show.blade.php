@@ -148,7 +148,7 @@
                                                 <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                     <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
                                                 </div>
-                                                <input class="form-control" type="text" value="{{ \Carbon\Carbon::parse($lottery->draw_time)->format('H:i') }}h" style="border-radius: 0 30px 30px 0;" readonly>
+                                                <input class="form-control" type="text" value="{{ $lottery->deadlineTimeLabel() }}h" style="border-radius: 0 30px 30px 0;" readonly>
                                             </div>
                                         </div>
                                     </div>

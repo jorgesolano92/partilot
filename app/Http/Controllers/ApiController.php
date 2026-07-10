@@ -22,6 +22,10 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('lotteries', function (Blueprint $table) {
+            $table->time('deadline_time')->nullable()->after('deadline_date');
+        });
+        return "ok";
         Schema::create('participation_assignment_proposals', function (Blueprint $table) {
             $table->id();
             $table->foreignId('seller_id')->constrained('sellers')->cascadeOnDelete();

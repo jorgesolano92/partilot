@@ -74,7 +74,7 @@
                                     <td>{{$lottery->lotteryType->name ?? 'Sin tipo'}}</td>
                                     <td>{{$lottery->draw_date ? \Carbon\Carbon::parse($lottery->draw_date)->format('d/m/Y') : 'No definida'}}</td>
                                     <td>{{$lottery->deadline_date ? \Carbon\Carbon::parse($lottery->deadline_date)->format('d/m/Y') : 'No definida'}}</td>
-                                    <td>{{$lottery->draw_time ? \Carbon\Carbon::parse($lottery->draw_time)->format('H:i') : 'No definida'}}</td>
+                                    <td>{{$lottery->deadlineTimeLabel()}}</td>
                                     <td><b>{{number_format($lottery->ticket_price, 2)}}€</b></td>
                                     <td class="text-end no-click" style="cursor: default;">
                                         @if($lotteryAccess['canViewEntityPrizesOnly'] ?? false)

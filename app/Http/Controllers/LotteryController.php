@@ -74,8 +74,9 @@ class LotteryController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'draw_date' => ValidCalendarDate::afterToday(),
-            'draw_time' => 'required',
+            'draw_time' => 'nullable|date_format:H:i',
             'deadline_date' => array_merge(ValidCalendarDate::afterToday(false), ['before:draw_date']),
+            'deadline_time' => 'required|date_format:H:i',
             'ticket_price' => 'required|numeric|min:0',
             // 'lottery_type_code' => 'required|string|in:J,X,S,N,B,V',
             'is_special' => 'nullable|boolean',
@@ -173,8 +174,9 @@ class LotteryController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'draw_date' => ValidCalendarDate::rules(true),
-            'draw_time' => 'required',
+            'draw_time' => 'nullable|date_format:H:i',
             'deadline_date' => array_merge(ValidCalendarDate::rules(false), ['before:draw_date']),
+            'deadline_time' => 'required|date_format:H:i',
             'ticket_price' => 'required|numeric|min:0',
             // 'lottery_type_code' => 'required|string|in:J,X,S,N,B,V',
             'is_special' => 'nullable|boolean',
@@ -347,24 +349,14 @@ class LotteryController extends Controller
                         continue; // Saltar si no tiene fecha o ID de sorteo
                     }
 
-                    // Extraer fecha y hora del sorteo
-                    $fechaSorteo = $sorteo['fecha_sorteo'];
-                    $horaSorteo = null;
-                    
-                    // Extraer hora de la fecha_sorteo si contiene hora
-                    if (strpos($fechaSorteo, ' ') !== false) {
-                        $fechaHora = explode(' ', $fechaSorteo);
-                        $fechaSorteo = $fechaHora[0];
-                        $horaSorteo = $fechaHora[1];
-                    }
+                    // Extraer fecha y hora del sorteo y del cierre
+                    $drawParts = $this->parseApiDateTime($sorteo['fecha_sorteo']);
+                    $cierreParts = $this->parseApiDateTime($sorteo['cierre'] ?? null);
 
-                    // Convertir fecha y hora a formato datetime
-                    $drawDateTime = null;
-                    if ($horaSorteo) {
-                        $drawDateTime = $fechaSorteo . ' ' . $horaSorteo;
-                    } else {
-                        $drawDateTime = $fechaSorteo . ' 00:00:00';
-                    }
+                    $fechaSorteo = $drawParts['date'];
+                    $horaSorteo = $drawParts['time'];
+                    $fechaCierre = $cierreParts['date'] ?? $fechaSorteo;
+                    $horaCierre = $cierreParts['time'] ?? '23:59:00';
 
                     // Preparar datos del sorteo
                     // Generar nombre del sorteo: num_sorteo/últimas 2 cifras del año
@@ -377,8 +369,9 @@ class LotteryController extends Controller
                         'name' => $nombreSorteo,
                         'description' => $sorteo['nombre'] ?? '', // Usar día de la semana como descripción
                         'draw_date' => $fechaSorteo,
-                        'deadline_date' => $fechaSorteo,
-                        'draw_time' => $horaSorteo ? $horaSorteo : '00:00:00',
+                        'deadline_date' => $fechaCierre,
+                        'deadline_time' => $horaCierre,
+                        'draw_time' => $horaSorteo,
                         'ticket_price' => $sorteo['precioDecimo'], // Precio del décimo desde JSON
                         'lottery_type_code' => $sorteo['tipoSorteo'] ?? 'S', // Código del tipo desde JSON
                         'is_special' => isset($sorteo['premio_especial']) && $sorteo['premio_especial'] > 0, // Es especial si tiene premio especial
@@ -1135,5 +1128,29 @@ class LotteryController extends Controller
             ->get();
 
         return response()->json($lotteries);
+    }
+
+    /**
+     * @return array{date: string, time: string|null}|null
+     */
+    private function parseApiDateTime(?string $value): ?array
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $value = trim($value);
+        $parts = preg_split('/\s+/', $value, 2);
+        $date = $parts[0] ?? null;
+        if (! $date) {
+            return null;
+        }
+
+        $time = isset($parts[1]) ? substr($parts[1], 0, 8) : null;
+
+        return [
+            'date' => $date,
+            'time' => $time,
+        ];
     }
 } 

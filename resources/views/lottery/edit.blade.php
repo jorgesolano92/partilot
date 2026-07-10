@@ -207,7 +207,7 @@
                                                 <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                     <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
                                                 </div>
-                                                <input class="form-control" type="date" id="deadline_date" name="deadline_date" value="{{ old('deadline_date', $lottery->deadline_date->format('Y-m-d')) }}" style="border-radius: 0 30px 30px 0;" max="">
+                                                <input class="form-control" type="date" id="deadline_date" name="deadline_date" value="{{ old('deadline_date', $lottery->deadline_date?->format('Y-m-d')) }}" style="border-radius: 0 30px 30px 0;" max="">
                                             </div>
                                         </div>
                                     </div>
@@ -219,8 +219,26 @@
                                                 <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                     <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
                                                 </div>
-                                                <input class="form-control" type="time" name="draw_time" value="{{ old('draw_time', $lottery->draw_time->format('H:i')) }}" style="border-radius: 0 30px 30px 0;">
+                                                <input class="form-control" type="time" name="deadline_time" value="{{ old('deadline_time', $lottery->deadline_time ? \Carbon\Carbon::parse($lottery->deadline_time)->format('H:i') : $lottery->deadlineTimeLabel()) }}" style="border-radius: 0 30px 30px 0;">
                                             </div>
+                                            @error('deadline_time')
+                                                <small class="text-danger">{{ $message }}</small>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="col-2">
+                                        <div class="form-group mt-2 mb-3">
+                                            <label class="label-control">Hora Sorteo</label>
+                                            <div class="input-group input-group-merge group-form">
+                                                <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+                                                    <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
+                                                </div>
+                                                <input class="form-control" type="time" name="draw_time" value="{{ old('draw_time', $lottery->draw_time ? \Carbon\Carbon::parse($lottery->draw_time)->format('H:i') : '') }}" style="border-radius: 0 30px 30px 0;">
+                                            </div>
+                                            @error('draw_time')
+                                                <small class="text-danger">{{ $message }}</small>
+                                            @enderror
                                         </div>
                                     </div>
                                 </div>
