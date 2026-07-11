@@ -89,7 +89,7 @@
 
                                                 <div style="width: 150px; height: 80px; border-radius: 8px; background-color: silver; float: left; margin-right: 20px;">
                                                     @if($lottery->image)
-                                                        <img src="{{ url('storage/' . $lottery->image) }}" alt="Sorteo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+                                                        <img src="{{ url('uploads/' . $lottery->image) }}" alt="Sorteo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
                                                     @endif
                                                 </div>
 
@@ -344,7 +344,7 @@
 
                                         <div class="col-6 text-start">
                                             <a href="{{route('lottery.results')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2">
-                                                <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Cancelar</span></a>
+                                                <i style="top: 5px; left: 25%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Cancelar</span></a>
                                         </div>
                                         
                                         <div class="col-6 text-end">
