@@ -419,8 +419,11 @@ function calculateTotalParticipationAmount() {
 function calculateTotalAmount() {
     const totalParticipations = parseInt($('#total_participations').val()) || 0;
     const playedAmount = parseFloat($('#played_amount').val()) || 0;
-    const totalAmount = totalParticipations * playedAmount;
-    
+    const reservedNumbers = @json($reserve->reservation_numbers ?? []);
+    const numbersCount = reservedNumbers.length;
+    const playedPerParticipation = numbersCount <= 1 ? playedAmount : (playedAmount * numbersCount);
+    const totalAmount = totalParticipations * playedPerParticipation;
+
     $('#total_amount').val(totalAmount.toFixed(2));
 }
 
@@ -454,10 +457,13 @@ function calculatePhysicalParticipations() {
 
 // Event listeners para los cálculos automáticos
 $(document).ready(function() {
-    
+    calculateTotalParticipationAmount();
+    calculateTotalAmount();
+
     // Calcular Importe Total Participación cuando cambian Importe Jugado o Importe Donativo
     $('#played_amount, #donation_amount').on('input', function() {
         calculateTotalParticipationAmount();
+        calculateTotalAmount();
     });
     
     // Calcular Importe Total cuando cambian Participaciones Totales o Importe Jugado
@@ -496,10 +502,10 @@ $(document).ready(function() {
     
     // Validación de Importe Jugado (Número) antes de enviar
     $('form').on('submit', function(e) {
-        var maxPlayed = parseFloat({{ $reserve->total_amount ?? 0 }});
+        var maxPlayed = parseFloat({{ $reserve->reservation_amount ?? 0 }});
         var playedAmount = parseFloat($('#played_amount').val()) || 0;
         if (playedAmount > maxPlayed) {
-            alert('El Importe Jugado (Número) no puede ser mayor al precio del décimo (' + maxPlayed.toFixed(2) + ' €)');
+            alert('El Importe Jugado (Número) no puede ser mayor al importe por número de la reserva (' + maxPlayed.toFixed(2) + ' €)');
             e.preventDefault();
             return false;
         }

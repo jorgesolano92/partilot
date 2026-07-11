@@ -115,6 +115,14 @@ class Reserve extends Model
     }
 
     /**
+     * Importe total ya comprometido en sets de esta reserva.
+     */
+    public function usedAmountInSets(): float
+    {
+        return (float) $this->sets()->sum('total_amount');
+    }
+
+    /**
      * Scope para filtrar reservas accesibles por usuario.
      */
     public function scopeForUser($query, User $user)

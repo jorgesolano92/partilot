@@ -26,11 +26,12 @@
         $managerName = $managerName !== '' ? $managerName : ($reserve->entity?->manager?->user?->email ?? 'Gestor');
         $lottery = $reserve->lottery;
         $lotteryType = $lottery?->lotteryType;
-        $seriesMax = (int)($lotteryType->series ?? 0);
         $fractionsPerSeries = (int)($lotteryType->billetes_serie ?? 0);
         $ticketsPerNumber = (int)($reserve->reservation_tickets ?? 0);
-        $seriesAssigned = ($fractionsPerSeries > 0) ? intdiv($ticketsPerNumber, $fractionsPerSeries) : 0;
         $fractionsAssigned = ($fractionsPerSeries > 0) ? ($ticketsPerNumber % $fractionsPerSeries) : $ticketsPerNumber;
+        if ($fractionsPerSeries > 0 && $fractionsAssigned === 0 && $ticketsPerNumber > 0) {
+            $fractionsAssigned = $fractionsPerSeries;
+        }
         $numbers = $reserve->reservation_numbers ?? [];
     @endphp
 
@@ -50,7 +51,6 @@
         <thead>
             <tr>
                 <th>Número</th>
-                <th>Series</th>
                 <th>Fracciones</th>
                 <th>Total décimos</th>
             </tr>
@@ -59,7 +59,6 @@
         @foreach($numbers as $n)
             <tr>
                 <td>{{ $n }}</td>
-                <td>{{ $seriesAssigned }} @if($fractionsPerSeries > 0) (sobre {{ $fractionsPerSeries }} por serie) @endif</td>
                 <td>{{ $fractionsAssigned }}</td>
                 <td>{{ $ticketsPerNumber }}</td>
             </tr>

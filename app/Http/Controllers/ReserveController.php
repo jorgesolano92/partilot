@@ -8,6 +8,7 @@ use App\Models\Entity;
 use App\Models\Lottery;
 use App\Services\CommunicationEmailService;
 use App\Mail\ReserveSavedToEntityManagerMail;
+use App\Rules\ValidCalendarDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -338,7 +339,10 @@ class ReserveController extends Controller
 
         $entities = Entity::forUser(auth()->user())->get();
         $lotteries = Lottery::all();
-        return view('reserves.edit', compact('reserve', 'entities', 'lotteries'));
+        $setsUsedAmount = $reserve->usedAmountInSets();
+        $minTotalAmount = $setsUsedAmount;
+
+        return view('reserves.edit', compact('reserve', 'entities', 'lotteries', 'setsUsedAmount', 'minTotalAmount'));
     }
 
     /**
@@ -356,11 +360,17 @@ class ReserveController extends Controller
         }
 
         $validated = $request->validate([
-            'reservation_numbers' => 'required|array|min:1',
-            'reservation_numbers.*' => 'required|string|max:10',
             'reservation_amount' => 'required|numeric|min:0',
-            'reservation_tickets' => 'required|integer|min:1'
+            'reservation_tickets' => 'required|integer|min:1',
+            'expiration_date' => ValidCalendarDate::rules(true),
         ]);
+
+        $reservationNumbers = is_array($reserve->reservation_numbers) ? $reserve->reservation_numbers : [];
+        $numNumbers = count($reservationNumbers);
+        if ($numNumbers < 1) {
+            return redirect()->back()->withErrors(['reservation_amount' => 'La reserva no tiene números válidos.'])->withInput();
+        }
+
         // Importe debe ser múltiplo del precio del décimo; siempre redondear al alza
         $ticketPrice = (float) $reserve->lottery->ticket_price;
         if ($ticketPrice > 0) {
@@ -375,14 +385,24 @@ class ReserveController extends Controller
         if (! $capValidation['success']) {
             return redirect()->back()->withErrors($capValidation['messages'])->withInput();
         }
-        // Validar décimos disponibles (excluyendo la reserva actual)
-        $validation = $this->validateReservationTickets($validated['reservation_numbers'], $reserve->lottery_id, $validated['reservation_tickets'], $reserve->id);
+        // Validar décimos disponibles (excluyendo la reserva actual; números no editables)
+        $validation = $this->validateReservationTickets($reservationNumbers, $reserve->lottery_id, $validated['reservation_tickets'], $reserve->id);
         if (!$validation['success']) {
             return redirect()->back()->withErrors($validation['messages'])->withInput();
         }
-        // Recalcular total de la reserva = importe por número × cantidad de números
-        $validated['total_tickets'] = count($validated['reservation_numbers']);
-        $validated['total_amount'] = round($validated['total_tickets'] * (float) $validated['reservation_amount'], 2);
+
+        $newTotalAmount = round($numNumbers * (float) $validated['reservation_amount'], 2);
+        $minTotalAmount = $reserve->usedAmountInSets();
+        if ($newTotalAmount < $minTotalAmount) {
+            return redirect()->back()
+                ->withErrors(['reservation_amount' => 'La reserva mínima es ' . number_format($minTotalAmount, 2, ',', '.') . ' €'])
+                ->withInput($request->except('reservation_amount', 'reservation_tickets'));
+        }
+
+        $validated['total_tickets'] = $numNumbers;
+        $validated['total_amount'] = $newTotalAmount;
+        $validated['expiration_date'] = $validated['expiration_date'] . ' 23:59:59';
+
         $reserve->update($validated);
 
         return redirect()->route('reserves.show',$reserve->id)
@@ -400,6 +420,11 @@ class ReserveController extends Controller
 
         if ($response = $this->redirectIfReserveLotteryBlocked($reserve)) {
             return $response;
+        }
+
+        if ($reserve->sets()->exists()) {
+            return redirect()->back()
+                ->with('error', 'La reserva no se puede borrar porque tiene sets asociados.');
         }
 
         $reserve->delete();

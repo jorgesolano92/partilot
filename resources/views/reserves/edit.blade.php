@@ -54,13 +54,13 @@
                         </div>
                         <div class="col-md-9">
                             <div class="form-card bs" style="min-height: 0px;">
-                                <form action="{{ url('reserves/update/' . $reserve->id) }}" method="POST">
+                                <form action="{{ url('reserves/update/' . $reserve->id) }}" method="POST" id="reserve-edit-form">
                                     @csrf
                                     @method('PUT')
                                     <h4 class="mb-0 mt-1 d-flex align-items-center justify-content-between">
                                         <span>Datos del Sorteo</span>
                                     </h4>
-                                    <small><i>Información del sorteo asociado</i></small>
+                                    <small><i>El sorteo y los números no se pueden modificar</i></small>
                                     <br>
                                     <div class="row show-content">
                                         <div class="col-3 offset-2">
@@ -70,7 +70,7 @@
                                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                         <img src="{{url('assets/form-groups/admin/16.svg')}}" alt="">
                                                     </div>
-                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->name ?? ''}}" placeholder="Número" style="border-radius: 0 30px 30px 0;">
+                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->name ?? ''}}" style="border-radius: 0 30px 30px 0;">
                                                 </div>
                                             </div>
                                         </div>
@@ -81,7 +81,7 @@
                                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                         <img src="{{url('assets/form-groups/admin/17.svg')}}" alt="">
                                                     </div>
-                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->description ?? ''}}" placeholder="Nombre del Sorteo" style="border-radius: 0 30px 30px 0;">
+                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->description ?? ''}}" style="border-radius: 0 30px 30px 0;">
                                                 </div>
                                             </div>
                                         </div>
@@ -94,7 +94,7 @@
                                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                         <img src="{{url('assets/form-groups/admin/14.svg')}}" alt="">
                                                     </div>
-                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->lotteryType->name ?? 'Sin tipo'}}" placeholder="Tipo de Sorteo" style="border-radius: 0 30px 30px 0;">
+                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->lotteryType->name ?? 'Sin tipo'}}" style="border-radius: 0 30px 30px 0;">
                                                 </div>
                                             </div>
                                         </div>
@@ -105,7 +105,7 @@
                                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                         <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
                                                     </div>
-                                                    <input class="form-control" readonly type="number" value="{{$reserve->lottery->ticket_price ?? 0}}" step="0.01" placeholder="0.00€" style="border-radius: 0 30px 30px 0;">
+                                                    <input class="form-control" readonly type="number" value="{{$reserve->lottery->ticket_price ?? 0}}" step="0.01" style="border-radius: 0 30px 30px 0;">
                                                 </div>
                                             </div>
                                         </div>
@@ -116,42 +116,30 @@
                                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                         <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
                                                     </div>
-                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->draw_date ? \Carbon\Carbon::parse($reserve->lottery->draw_date)->format('d/m/Y') : 'No definida'}}" placeholder="Fecha" style="border-radius: 0 30px 30px 0;">
+                                                    <input class="form-control" readonly type="text" value="{{$reserve->lottery->draw_date ? \Carbon\Carbon::parse($reserve->lottery->draw_date)->format('d/m/Y') : 'No definida'}}" style="border-radius: 0 30px 30px 0;">
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                     <h4 class="mb-0 mt-1">Configuración de la Reserva</h4>
-                                    <small><i>Solo puedes editar los números, el importe y los décimos</i></small>
+                                    <small><i>Solo puedes editar el importe y la fecha límite</i></small>
                                     <br><br>
                                     <div style="min-height: 256px;">
                                         <div class="row">
                                             <div class="col-12">
-                                                <div class="row">
-                                                    <div class="col-1 d-flex align-items-start">
-                                                        <button type="button" id="add-number" style="border-radius: 30px; width: 46px; height: 46px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder;" class="btn btn-md btn-light mt-3">
-                                                            <i style="top: 6px; font-size: 18px; color: #fff" class="ri-add-line"></i>
-                                                        </button>
-                                                    </div>
-                                                    <div class="col-11">
-                                                        <div class="row" id="numbers">
-                                                            @if(is_array($reserve->reservation_numbers))
-                                                                @foreach($reserve->reservation_numbers as $i => $num)
-                                                                    <div class="col-3 number-input-group">
-                                                                        <div class="form-group mt-2 mb-3">
-                                                                            <label class="label-control">Número</label>
-                                                                            <div class="input-group input-group-merge group-form">
-                                                                                <input class="form-control reservation-number" type="text" name="reservation_numbers[]" value="{{$num}}" style="border-radius: 30px 0 0 30px;">
-                                                                                <div class="input-group-text remove-number" style="border-radius: 0 30px 30px 0; cursor:pointer;">
-                                                                                    <i class="ri-close-line"></i>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
+                                                <div class="row" id="numbers">
+                                                    @if(is_array($reserve->reservation_numbers))
+                                                        @foreach($reserve->reservation_numbers as $num)
+                                                            <div class="col-3">
+                                                                <div class="form-group mt-2 mb-3">
+                                                                    <label class="label-control">Número</label>
+                                                                    <div class="input-group input-group-merge group-form">
+                                                                        <input class="form-control" type="text" value="{{ $num }}" readonly style="border-radius: 30px;">
                                                                     </div>
-                                                                @endforeach
-                                                            @endif
-                                                        </div>
-                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    @endif
                                                 </div>
                                             </div>
                                         </div>
@@ -160,25 +148,43 @@
                                                 <div class="form-group mt-2 mb-3">
                                                     <label class="label-control">Importe a Reservar</label>
                                                     <div class="input-group input-group-merge group-form">
-                                                        <input class="form-control" id="reservation_amount" type="number" step="0.01" name="reservation_amount" value="{{$reserve->reservation_amount}}" style="border-radius: 30px;">
+                                                        <input class="form-control @error('reservation_amount') is-invalid @enderror" id="reservation_amount" type="number" step="0.01" name="reservation_amount" value="{{ old('reservation_amount', $reserve->reservation_amount) }}" style="border-radius: 30px;">
                                                     </div>
                                                     <small class="text-muted"><i>Por cada número seleccionado</i></small>
+                                                    @error('reservation_amount')
+                                                        <small class="text-danger d-block">{{ $message }}</small>
+                                                    @enderror
                                                 </div>
                                             </div>
                                             <div class="col-3">
                                                 <div class="form-group mt-2 mb-3">
                                                     <label class="label-control">Cantidad de décimos</label>
                                                     <div class="input-group input-group-merge group-form">
-                                                        <input class="form-control" id="reservation_tickets" type="number" name="reservation_tickets" value="{{$reserve->reservation_tickets}}" style="border-radius: 30px;">
+                                                        <input class="form-control" id="reservation_tickets" type="number" name="reservation_tickets" value="{{ old('reservation_tickets', $reserve->reservation_tickets) }}" style="border-radius: 30px;">
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="col-3 offset-3">
+                                            <div class="col-3">
+                                                <div class="form-group mt-2 mb-3">
+                                                    <label class="label-control">Fecha límite</label>
+                                                    <div class="input-group input-group-merge group-form">
+                                                        <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+                                                            <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
+                                                        </div>
+                                                        <input class="form-control @error('expiration_date') is-invalid @enderror" id="expiration_date" type="date" name="expiration_date" value="{{ old('expiration_date', $reserve->expiration_date ? \Carbon\Carbon::parse($reserve->expiration_date)->format('Y-m-d') : '') }}" style="border-radius: 0 30px 30px 0;">
+                                                    </div>
+                                                    @error('expiration_date')
+                                                        <small class="text-danger d-block">{{ $message }}</small>
+                                                    @enderror
+                                                </div>
+                                            </div>
+                                            <div class="col-3">
                                                 <div class="form-group mt-2 mb-3">
                                                     <label class="label-control">Total</label>
                                                     <div class="input-group input-group-merge group-form">
-                                                        <input class="form-control" id="total_amount" type="number" step="0.01" placeholder="0.00" style="border-radius: 30px;" readonly>
+                                                        <input class="form-control" id="total_amount" type="number" step="0.01" style="border-radius: 30px;" readonly>
                                                     </div>
+                                                    <small class="text-muted d-block mt-1"><i>Total en sets: {{ number_format($setsUsedAmount ?? 0, 2, ',', '.') }} €</i></small>
                                                 </div>
                                             </div>
                                         </div>
@@ -193,114 +199,85 @@
                             </div>
                         </div>
                     </div>
-                </div> <!-- end card body-->
-            </div> <!-- end card -->
-        </div><!-- end col-->
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- end row-->
-</div> <!-- container -->
+</div>
 @endsection
 
 @section('scripts')
 <script>
-    function addRemoveListeners() {
-        document.querySelectorAll('.remove-number').forEach(function(btn) {
-            btn.onclick = function() {
-                const numbersDiv = document.getElementById('numbers');
-                if(numbersDiv.querySelectorAll('.number-input-group').length > 1) {
-                    const col = btn.closest('.number-input-group');
-                    if(col) col.remove();
-                }
-            };
-        });
-    }
-    document.getElementById('add-number').addEventListener('click', function(e) {
-        e.preventDefault();
-        const numbersDiv = document.getElementById('numbers');
-        const newCol = document.createElement('div');
-        newCol.className = 'col-3 number-input-group';
-        newCol.innerHTML = `
-            <div class=\"form-group mt-2 mb-3\">
-                <label class=\"label-control\">Número</label>
-                <div class=\"input-group input-group-merge group-form\">
-                    <input class=\"form-control reservation-number\" type=\"text\" name=\"reservation_numbers[]\" placeholder=\"Número\" style=\"border-radius: 30px 0 0 30px;\">
-                    <div class=\"input-group-text remove-number\" style=\"border-radius: 0 30px 30px 0; cursor:pointer;\"><i class=\"ri-close-line\"></i></div>
-                </div>
-            </div>
-        `;
-        numbersDiv.appendChild(newCol);
-        addRemoveListeners();
-    });
-    // Inicializar listeners para los existentes
-    addRemoveListeners();
-    
-    // Función para calcular el total
+    const ticketPrice = {{ (float) ($reserve->lottery->ticket_price ?? 0) }};
+    const numbersCount = {{ count($reserve->reservation_numbers ?? []) }};
+    const minTotalAmount = {{ (float) ($minTotalAmount ?? 0) }};
+    const originalAmount = {{ (float) old('reservation_amount', $reserve->reservation_amount) }};
+    const originalTickets = {{ (int) old('reservation_tickets', $reserve->reservation_tickets) }};
+
     function calculateTotal() {
-        const numbers = document.querySelectorAll('.reservation-number');
         const reservationAmount = parseFloat(document.getElementById('reservation_amount').value) || 0;
-        let totalNumbers = 0;
-        
-        numbers.forEach(function(numberInput) {
-            if (numberInput.value.trim() !== '') {
-                totalNumbers++;
-            }
-        });
-        
-        const total = totalNumbers * reservationAmount;
+        const total = numbersCount * reservationAmount;
         document.getElementById('total_amount').value = total.toFixed(2);
+        return total;
     }
-    
-    // Importe: escribir libremente; recálculo (décimos e importe correcto) solo al salir del campo (blur)
-    document.getElementById('reservation_amount').addEventListener('input', function() {
-        calculateTotal();
-    });
+
+    function calculateTicketsFromAmount() {
+        const amountInput = document.getElementById('reservation_amount');
+        const reservationAmount = parseFloat(amountInput.value) || 0;
+
+        if (ticketPrice > 0 && reservationAmount > 0) {
+            const tickets = Math.ceil(reservationAmount / ticketPrice);
+            const amountRounded = tickets * ticketPrice;
+            document.getElementById('reservation_tickets').value = tickets;
+            amountInput.value = amountRounded.toFixed(2);
+        }
+    }
+
+    function calculateAmountFromTickets() {
+        const tickets = parseInt(document.getElementById('reservation_tickets').value) || 0;
+        document.getElementById('reservation_amount').value = (tickets * ticketPrice).toFixed(2);
+    }
+
+    function validateMinimumTotal(restoreOnFail) {
+        const total = calculateTotal();
+        if (minTotalAmount > 0 && total < minTotalAmount) {
+            alert('La reserva mínima es ' + minTotalAmount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
+            if (restoreOnFail) {
+                document.getElementById('reservation_amount').value = originalAmount.toFixed(2);
+                document.getElementById('reservation_tickets').value = originalTickets;
+                calculateTotal();
+            }
+            return false;
+        }
+        return true;
+    }
+
+    document.getElementById('reservation_amount').addEventListener('input', calculateTotal);
     document.getElementById('reservation_amount').addEventListener('blur', function() {
         calculateTicketsFromAmount();
+        if (!validateMinimumTotal(true)) {
+            return;
+        }
         calculateTotal();
     });
-    
+
     document.getElementById('reservation_tickets').addEventListener('input', function() {
         calculateAmountFromTickets();
         calculateTotal();
     });
-    
-    // Event listener para números (incluyendo los que se añadan dinámicamente)
-    document.addEventListener('input', function(e) {
-        if (e.target.classList.contains('reservation-number')) {
-            calculateTotal();
+    document.getElementById('reservation_tickets').addEventListener('blur', function() {
+        calculateAmountFromTickets();
+        validateMinimumTotal(true);
+        calculateTotal();
+    });
+
+    document.getElementById('reserve-edit-form').addEventListener('submit', function(e) {
+        calculateTicketsFromAmount();
+        if (!validateMinimumTotal(false)) {
+            e.preventDefault();
         }
     });
-    
-    // Event listener para cuando se eliminen números
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.remove-number')) {
-            setTimeout(calculateTotal, 100); // Delay para que se elimine el elemento primero
-        }
-    });
-    
-    // Función para calcular décimos basado en el importe (siempre redondear al alza y ajustar importe al múltiplo)
-    function calculateTicketsFromAmount() {
-        const reservationAmount = parseFloat(document.getElementById('reservation_amount').value) || 0;
-        const ticketPrice = {{$reserve->lottery->ticket_price ?? 0}};
-        
-        if (ticketPrice > 0 && reservationAmount > 0) {
-            const tickets = Math.ceil(reservationAmount / ticketPrice); // Siempre al alza: no fracciones de décimo
-            const amountRounded = tickets * ticketPrice; // Importe = múltiplo del precio
-            document.getElementById('reservation_tickets').value = tickets;
-            document.getElementById('reservation_amount').value = amountRounded.toFixed(2);
-        }
-    }
-    
-    // Función para calcular importe basado en los décimos
-    function calculateAmountFromTickets() {
-        const tickets = parseInt(document.getElementById('reservation_tickets').value) || 0;
-        const ticketPrice = {{$reserve->lottery->ticket_price ?? 0}};
-        
-        const amount = tickets * ticketPrice;
-        document.getElementById('reservation_amount').value = amount.toFixed(2);
-    }
-    
-    // Calcular total inicial
+
     calculateTotal();
 </script>
-@endsection 
+@endsection

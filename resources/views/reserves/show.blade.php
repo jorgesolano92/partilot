@@ -172,6 +172,25 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        <div class="col-3">
+                                            <div class="form-group mt-2 mb-3">
+                                                <label class="label-control">Fecha límite</label>
+                                                <div class="input-group input-group-merge group-form">
+                                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+                                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
+                                                    </div>
+                                                    <input class="form-control" readonly type="text" value="{{ $reserve->expiration_date ? \Carbon\Carbon::parse($reserve->expiration_date)->format('d/m/Y') : 'No definida' }}" style="border-radius: 0 30px 30px 0;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="form-group mt-2 mb-3">
+                                                <label class="label-control">Total</label>
+                                                <div class="input-group input-group-merge group-form">
+                                                    <input class="form-control" type="text" value="{{ number_format((float)($reserve->total_amount ?? 0), 2, ',', '.') }} €" readonly style="border-radius: 30px;">
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
