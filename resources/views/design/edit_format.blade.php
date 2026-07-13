@@ -114,7 +114,9 @@
     .text-right { text-align: right; }
 
     .format-btn-group button, .format-btn-group label {
-      max-width: 55px;
+      flex: 1 1 0;
+      min-width: 36px;
+      max-width: none;
     }
     
     /* Centrar el formato */
@@ -385,9 +387,9 @@
                                 <h4 class="mb-0 mt-1">Diseñar Participación</h4>
                                 <small><i>Edita el diseño de la participación</i></small>
                                 <br>
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
                                     <br>
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="2"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="2"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -434,9 +436,9 @@
                                 <h4 class="mb-0 mt-1">Diseñar Portada</h4>
                                 <small><i>Edita el diseño de la portada</i></small>
                                 <br>
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
                                     <br>
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="3"><i class="ri-zoom-out-line"></i></button>
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="3"><i class="ri-zoom-in-line"></i></button>
                                             <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -480,9 +482,9 @@
                                     <h4 class="mb-0 mt-1">Diseñar Trasera</h4>
                                     <small><i>Edita el diseño de la trasera</i></small>
                                     <br>
-                                    <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                    <div class="format-box-btn">
                                         <br>
-                                        <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                        <div class="btn-group format-btn-group">
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="4"><i class="ri-zoom-out-line"></i></button>
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="4"><i class="ri-zoom-in-line"></i></button>
                                             <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -2035,22 +2037,18 @@ function getMarginBoundsPx() {
                   var oldBoxPx = { w: $box.width(), h: $box.height() };
                   if (oldBoxPx.w > 0 && oldBoxPx.h > 0) {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       var newBoxPx = { w: $box.width(), h: $box.height() };
                       repositionParticipationElementsByScale($box, oldBoxPx, newBoxPx);
                   } else {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
                   }
               } else {
                   $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                  $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                   pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
               }
           } else {
               $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-              $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
           }
       }
       lastTicketDimensions = { w: ticketW, h: ticketH };
@@ -2270,7 +2268,6 @@ $(document).ready(function() {
                         width: w+'mm',
                         height: h+'mm'
                     });
-                    $('.format-box-btn').css('width', '250mm');
                 }
                 let matrix = $('#matrix-box').val() ?? 40;
                 $('#containment-wrapper4').css('padding-right', matrix+'mm');

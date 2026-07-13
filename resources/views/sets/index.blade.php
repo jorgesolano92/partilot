@@ -97,7 +97,7 @@
                                     <td>{{$set->entity->name ?? 'Sin entidad'}}</td>
                                     <td>{{$set->entity->province ?? 'Sin provincia'}}</td>
                                     <td class="no-click" style="cursor: default;">
-                                        <a href="{{ route('design.openEditor', $set->id) }}" class="btn btn-sm btn-light" title="Diseño e impresión"><img src="{{url('icons_/diseno.svg')}}" alt="" width="12"></a>
+                                        <a href="{{ route('design.openChooseType', $set->id) }}" class="btn btn-sm btn-light" title="Diseño e impresión"><img src="{{url('icons_/diseno.svg')}}" alt="" width="12"></a>
                                         @if(auth()->user()?->isSuperAdmin())
                                         <a href="{{ route('sets.download-xml', $set->id) }}" class="btn btn-sm btn-light" title="Descargar XML"><i class="ri-download-line"></i></a>
                                         @endif

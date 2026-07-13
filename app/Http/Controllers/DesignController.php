@@ -3019,14 +3019,63 @@ class DesignController extends Controller
         );
     }
 
-    public function openEditor(Set $set)
+    public function openChooseType(Set $set)
     {
-        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
-            abort(403, 'No tienes permisos para esta operación.');
+        if ($redirect = $this->prepareDesignSessionForSet($set)) {
+            return $redirect;
         }
 
-        $set->load(['reserve', 'entity']);
-        if ($redirect = $this->redirectIfEntityCannotDesign($set->entity)) {
+        $user = auth()->user();
+        $approvalService = app(DesignApprovalService::class);
+        $feeService = app(ManagementFeeService::class);
+
+        $design = DesignFormat::query()
+            ->where('set_id', $set->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $design) {
+            return redirect()->route('design.showChooseType');
+        }
+
+        if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
+            if ($approvalService->isAdministrationSideUser($user)) {
+                return redirect()->route('design.summary', $design->id)
+                    ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+            }
+
+            return redirect()->route('design.managementFee.pay', $set->id)
+                ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+        }
+
+        $setLock = $this->getSetDesignLockContext($set);
+        $printOrderLock = $this->getPrintOrderLockContext($design->id);
+
+        if ($approvalService->canOpenDesignEditor($user, $design, $setLock['locked'], $printOrderLock['locked'])) {
+            if (! $approvalService->designHasParticipationContent($design)) {
+                return $this->redirectToFormatWizardForEmptyDesign($design);
+            }
+
+            return redirect()->route('design.editFormat', $design->id);
+        }
+
+        if ($user->isEntity()
+            && ! $approvalService->userActsAsAdministration($user)
+            && ! $approvalService->isVisibleToEntityViewer($design)) {
+            return redirect()->route('design.index')
+                ->with('info', 'La administración está preparando el diseño de este set.');
+        }
+
+        if ($approvalService->canReviewApproval($user, $design)) {
+            return redirect()->route('design.approval.review', $design->id);
+        }
+
+        return redirect()->route('design.summary', $design->id);
+    }
+
+    public function openEditor(Set $set)
+    {
+        if ($redirect = $this->prepareDesignSessionForSet($set)) {
             return $redirect;
         }
 
@@ -3048,6 +3097,26 @@ class DesignController extends Controller
                 ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
         }
 
+        $request = Request::create(route('design.format'), 'POST', [
+            'set_id' => $set->id,
+            'new_design' => 1,
+        ]);
+        $request->setLaravelSession(session());
+
+        return $this->format($request);
+    }
+
+    private function prepareDesignSessionForSet(Set $set): ?\Illuminate\Http\RedirectResponse
+    {
+        if (! auth()->user()->canAccessEntity((int) $set->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        $set->load(['reserve', 'entity']);
+        if ($redirect = $this->redirectIfEntityCannotDesign($set->entity)) {
+            return $redirect;
+        }
+
         $lotteryId = $set->reserve?->lottery_id ?? session('design_lottery_id');
         if (! $lotteryId) {
             return redirect()->route('design.index')->with('error', 'No se pudo determinar el sorteo del set.');
@@ -3059,13 +3128,7 @@ class DesignController extends Controller
             'design_set_id' => $set->id,
         ]);
 
-        $request = Request::create(route('design.format'), 'POST', [
-            'set_id' => $set->id,
-            'new_design' => 1,
-        ]);
-        $request->setLaravelSession(session());
-
-        return $this->format($request);
+        return null;
     }
 
     public function markManagementFeePaid(Set $set)

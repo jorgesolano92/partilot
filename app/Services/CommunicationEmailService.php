@@ -375,6 +375,13 @@ class CommunicationEmailService
             return;
         }
 
+        if ($mailClass === \App\Mail\DesignApprovalPendingMail::class) {
+            $designId = (int) ($mailPayload['design_format_id'] ?? 0);
+            $design = \App\Models\DesignFormat::findOrFail($designId);
+            Mail::to($recipientEmail)->send(new \App\Mail\DesignApprovalPendingMail($design));
+            return;
+        }
+
         throw new \RuntimeException("mail_class no soportado para reenviar: {$mailClass}");
     }
 

@@ -236,7 +236,9 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
     .text-right { text-align: right; }
 
     .format-btn-group button, .format-btn-group label {
-      max-width: 55px;
+      flex: 1 1 0;
+      min-width: 36px;
+      max-width: none;
     }
     
     .design-zoom-container {
@@ -623,11 +625,11 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                 {{-- <div style="overflow: auto; height: 658px; width: 100%;"> --}}
 
                                 {{-- Tarea 6: barra centrada y que no se salga del ancho de pantalla --}}
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
 
                                     <br>
 
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="2"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="2"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -760,11 +762,11 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 
                                 {{-- <div style="overflow: auto; height: 658px; width: 100%;"> --}}
 
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
 
                                     <br>
 
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="3"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="3"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -850,11 +852,11 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 
                                 {{-- <div style="overflow: auto; height: 658px; width: 100%;"> --}}
 
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
 
                                     <br>
 
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="4"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="4"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -1317,32 +1319,30 @@ function hideDesignLoading() {
   $('#design-loading-overlay').hide();
 }
 
-$(document).ready(function() {
-  // Zoom del diseño (pasos 2, 3, 4)
-  var designZoom = 1;
-  var designZoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 3.5, 4];
-  function applyDesignZoom() {
-    var s = designZoom;
-    // Aplicar zoom solo al contenedor del diseño, no a las herramientas
-    $('.design-zoom-container').css('transform', 'scale(' + s + ')');
-    $('.design-zoom-label').text(Math.round(s * 100) + '%');
-    try { localStorage.setItem('designZoom', s); } catch (e) {}
-  }
-  try { designZoom = parseFloat(localStorage.getItem('designZoom')) || 1; } catch (e) {}
-  designZoom = designZoomSteps.indexOf(designZoom) >= 0 ? designZoom : 1;
-  applyDesignZoom();
-  $(document).on('click', '.design-zoom-in', function() {
-    var i = designZoomSteps.indexOf(designZoom);
-    if (i < 0) { for (i = 0; i < designZoomSteps.length && designZoomSteps[i] < designZoom; i++); i = Math.min(i, designZoomSteps.length - 1); }
-    if (i < designZoomSteps.length - 1) { designZoom = designZoomSteps[i + 1]; applyDesignZoom(); }
-  });
-  $(document).on('click', '.design-zoom-out', function() {
-    var i = designZoomSteps.indexOf(designZoom);
-    if (i < 0) { for (i = designZoomSteps.length - 1; i >= 0 && designZoomSteps[i] > designZoom; i--); i = Math.max(i, 0); }
-    if (i > 0) { designZoom = designZoomSteps[i - 1]; applyDesignZoom(); }
-  });
+// Zoom del diseño (global: setupDraggable vive en otro bloque <script>)
+var designZoom = 1;
+var designZoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 3.5, 4];
+function applyDesignZoom() {
+  var s = designZoom;
+  $('.design-zoom-container').css('transform', 'scale(' + s + ')');
+  $('.design-zoom-label').text(Math.round(s * 100) + '%');
+  try { localStorage.setItem('designZoom', s); } catch (e) {}
+}
+try { designZoom = parseFloat(localStorage.getItem('designZoom')) || 1; } catch (e) {}
+designZoom = designZoomSteps.indexOf(designZoom) >= 0 ? designZoom : 1;
+applyDesignZoom();
+$(document).on('click', '.design-zoom-in', function() {
+  var i = designZoomSteps.indexOf(designZoom);
+  if (i < 0) { for (i = 0; i < designZoomSteps.length && designZoomSteps[i] < designZoom; i++); i = Math.min(i, designZoomSteps.length - 1); }
+  if (i < designZoomSteps.length - 1) { designZoom = designZoomSteps[i + 1]; applyDesignZoom(); }
+});
+$(document).on('click', '.design-zoom-out', function() {
+  var i = designZoomSteps.indexOf(designZoom);
+  if (i < 0) { for (i = designZoomSteps.length - 1; i >= 0 && designZoomSteps[i] > designZoom; i--); i = Math.max(i, 0); }
+  if (i > 0) { designZoom = designZoomSteps[i - 1]; applyDesignZoom(); }
+});
 
-  // Botón Desplegar/Ocultar márgenes
+$(document).ready(function() {
   $('#marginsCollapse').on('show.bs.collapse', function() {
     $('#btn-desplegar-margenes').text('Ocultar');
   }).on('hide.bs.collapse', function() {
@@ -2246,7 +2246,6 @@ $('#format').change(function (e) {
                 width: w+'mm',
                 height: h+'mm'
             });
-            $('.format-box-btn').css('width', '250mm');
             if (typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
         }
         let matrix = $('#matrix-box').val() ?? 40;
@@ -3689,22 +3688,18 @@ $('#format').change(function (e) {
                   var oldBoxPx = { w: $box.width(), h: $box.height() };
                   if (oldBoxPx.w > 0 && oldBoxPx.h > 0) {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       var newBoxPx = { w: $box.width(), h: $box.height() };
                       repositionParticipationElementsByScale($box, oldBoxPx, newBoxPx);
                   } else {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
                   }
               } else {
                   $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                  $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                   pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
               }
           } else {
               $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-              $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
           }
       }
       lastTicketDimensions = { w: ticketW, h: ticketH };

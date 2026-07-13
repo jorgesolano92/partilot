@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\DesignFormat;
 use App\Models\Entity;
+use App\Models\Manager;
 use App\Models\PrintOrder;
 use App\Models\User;
+use App\Mail\DesignApprovalPendingMail;
 
 class DesignApprovalService
 {
@@ -415,7 +417,97 @@ class DesignApprovalService
             'approval_rejection_reason' => null,
         ])->save();
 
-        return $design->refresh();
+        $this->notifyEntityDesignApprovalRequired($design->refresh());
+
+        return $design;
+    }
+
+    private function notifyEntityDesignApprovalRequired(DesignFormat $design): void
+    {
+        if (! $this->requiresEntityApproval($design)) {
+            return;
+        }
+
+        $design->loadMissing(['entity', 'set']);
+        $entity = $design->entity;
+        if (! $entity) {
+            return;
+        }
+
+        $emailsSent = [];
+        $communicationEmailService = app(CommunicationEmailService::class);
+
+        $managers = Manager::query()
+            ->where('entity_id', $entity->id)
+            ->where('status', 1)
+            ->where(function ($query) {
+                $query->where('is_primary', true)
+                    ->orWhere('permission_design', true);
+            })
+            ->with('user')
+            ->get();
+
+        foreach ($managers as $manager) {
+            $email = trim((string) ($manager->user?->email ?? ''));
+            if ($email === '' || isset($emailsSent[$email])) {
+                continue;
+            }
+
+            $communicationEmailService->sendAndLog(
+                recipientEmail: $email,
+                recipientRole: 'entity',
+                recipientUser: $manager->user,
+                messageType: 'design_approval_pending',
+                templateKey: 'design_approval_pending',
+                mailClass: DesignApprovalPendingMail::class,
+                mailPayload: ['design_format_id' => $design->id],
+                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id, 'design_format_id' => $design->id],
+            );
+
+            $emailsSent[$email] = true;
+        }
+
+        $entityEmail = trim((string) ($entity->email ?? ''));
+        if ($entityEmail !== '' && ! isset($emailsSent[$entityEmail])) {
+            $communicationEmailService->sendAndLog(
+                recipientEmail: $entityEmail,
+                recipientRole: 'entity',
+                recipientUser: null,
+                messageType: 'design_approval_pending',
+                templateKey: 'design_approval_pending',
+                mailClass: DesignApprovalPendingMail::class,
+                mailPayload: ['design_format_id' => $design->id],
+                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id, 'design_format_id' => $design->id],
+            );
+
+            $emailsSent[$entityEmail] = true;
+        }
+
+        $panelUsers = User::query()
+            ->where('panel_account_type', 'entity')
+            ->where('panel_account_id', $entity->id)
+            ->where('status', true)
+            ->get();
+
+        foreach ($panelUsers as $panelUser) {
+            $email = trim((string) ($panelUser->email ?? ''));
+            if ($email === '' || isset($emailsSent[$email])) {
+                continue;
+            }
+
+            $communicationEmailService->sendAndLog(
+                recipientEmail: $email,
+                recipientRole: 'entity',
+                recipientUser: $panelUser,
+                messageType: 'design_approval_pending',
+                templateKey: 'design_approval_pending',
+                mailClass: DesignApprovalPendingMail::class,
+                mailPayload: ['design_format_id' => $design->id],
+                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id, 'design_format_id' => $design->id],
+            );
+
+            $emailsSent[$email] = true;
+        }
     }
 
     public function approve(DesignFormat $design, User $user): DesignFormat

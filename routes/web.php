@@ -554,6 +554,7 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::post('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'submitPrintOrder'])->name('design.submitPrintOrder');
     Route::post('/sets/{set}/mark-management-fee-paid', [\App\Http\Controllers\DesignController::class, 'markManagementFeePaid'])->name('design.markManagementFeePaid');
     Route::get('/management-fee/pay/{set}', [\App\Http\Controllers\DesignController::class, 'payManagementFee'])->name('design.managementFee.pay');
+    Route::get('/sets/{set}/start', [\App\Http\Controllers\DesignController::class, 'openChooseType'])->name('design.openChooseType');
     Route::get('/editor/{set}', [\App\Http\Controllers\DesignController::class, 'openEditor'])->name('design.openEditor');
     Route::post('/sets/{set}/management-fee/payment-intent', [\App\Http\Controllers\DesignController::class, 'createManagementFeePaymentIntent'])
         ->middleware('throttle:15,1')
