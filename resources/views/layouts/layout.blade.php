@@ -529,7 +529,7 @@
                 margin: 3px 0 !important;
             }
 
-            /* Listados: un solo scroll horizontal; sin altura forzada en card */
+            /* Listados: scroll horizontal contenido en el wrapper de DataTables */
             html, body {
                 max-width: 100%;
                 overflow-x: hidden;
@@ -555,47 +555,75 @@
                 min-width: 0;
                 height: auto !important;
             }
-            .content-page .content .container-fluid > .row > [class*="col-"] > .card,
-            .content-page .content .container-fluid form > .row > [class*="col-"] > .card {
-                overflow: visible !important;
-                max-width: 100%;
-                height: auto !important;
-            }
             .content-page .content .container-fluid > .row > [class*="col-"],
             .content-page .content .container-fluid form > .row > [class*="col-"] {
                 min-width: 0;
+            }
+            .content-page .content .container-fluid > .row > [class*="col-"] > .card,
+            .content-page .content .container-fluid form > .row > [class*="col-"] > .card {
+                overflow-x: clip;
+                overflow-y: visible;
+                max-width: 100%;
+                min-width: 0;
+                height: auto !important;
             }
             .content-page .content .container-fluid > .row > [class*="col-"] > .card > .card-body,
             .content-page .content .container-fluid form > .row > [class*="col-"] > .card > .card-body {
                 max-width: 100%;
                 min-width: 0;
-                overflow: visible !important;
+                overflow-x: clip;
+                overflow-y: visible;
+            }
+            .content-page .form-card,
+            .content-page .form-card.bs {
+                max-width: 100%;
+                min-width: 0;
+                overflow-x: clip;
+                overflow-y: visible;
             }
             .content-page .table-responsive,
             .content-page .panel-table-scroll {
                 width: 100%;
                 max-width: 100%;
-                overflow: visible !important;
-            }
-            /* Único scroll horizontal del listado */
-            .content-page .card-body > .dataTables_wrapper,
-            .content-page .table-responsive > .dataTables_wrapper {
-                width: 100%;
-                max-width: 100%;
+                min-width: 0;
                 overflow-x: auto;
                 overflow-y: visible;
                 -webkit-overflow-scrolling: touch;
             }
-            .content-page .dataTables_wrapper .dataTables_scroll,
-            .content-page .dataTables_wrapper .dataTables_scrollHead,
+            .content-page .table-responsive:has(> .dataTables_wrapper),
+            .content-page .panel-table-scroll:has(> .dataTables_wrapper) {
+                overflow-x: visible;
+            }
+            /* Cualquier DataTable del panel (no solo hijo directo de .card-body) */
+            .content-page .dataTables_wrapper {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow-x: auto;
+                overflow-y: visible;
+                -webkit-overflow-scrolling: touch;
+            }
+            .content-page .dataTables_wrapper table.dataTable {
+                width: 100% !important;
+                max-width: none;
+            }
+            /* Contención si alguna vista conserva scrollX */
+            .content-page .dataTables_wrapper .dataTables_scroll {
+                width: 100% !important;
+                clear: both;
+            }
+            .content-page .dataTables_wrapper .dataTables_scrollHead {
+                overflow: hidden !important;
+            }
             .content-page .dataTables_wrapper .dataTables_scrollHeadInner,
-            .content-page .dataTables_wrapper .dataTables_scrollBody {
-                overflow: visible !important;
-                max-height: none !important;
-                height: auto !important;
+            .content-page .dataTables_wrapper .dataTables_scrollHeadInner table {
+                width: 100% !important;
             }
             .content-page .dataTables_wrapper .dataTables_scrollBody {
+                width: 100% !important;
                 max-height: none !important;
+                overflow-x: auto !important;
+                overflow-y: visible !important;
             }
             
             @media (max-width: 1200px) {
@@ -610,9 +638,6 @@
             .dt-bootstrap5 {
                 min-height: calc(100vh - 335px);
                 overflow: unset !important;
-            }
-            .content-page .dataTables_wrapper .dataTables_scroll, table.dataTable, .table.dataTable {
-                overflow: auto !important;
             }
 
             .content-page .content .container-fluid > .row > [class*="col-"] > .card,
@@ -664,12 +689,14 @@
                 display: flex !important;
                 flex-direction: column !important;
                 min-height: 0 !important;
+                min-width: 0 !important;
                 height: auto !important;
             }
 
             .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card > .card-body {
                 flex: 1 1 auto !important;
                 min-height: calc(100vh - 335px) !important;
+                min-width: 0 !important;
             }
 
             #wrapper .content-page > footer.footer {
@@ -699,6 +726,11 @@
 
             .header-title {margin: 0 !important;}
             .format-box-btn {text-align: center !important;}
+
+            [class^="col"]:has(.dataTable), 
+            [class*=" col"]:has(.dataTable) { 
+            overflow-x: auto !important; 
+            }
         </style>
 
         @yield('styles')

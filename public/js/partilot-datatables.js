@@ -29,6 +29,16 @@
         },
     };
 
+    function adjustTableColumns(api) {
+        if (!api || typeof api.columns !== 'function') {
+            return;
+        }
+        api.columns.adjust();
+        setTimeout(function () {
+            api.columns.adjust();
+        }, 50);
+    }
+
     function normalizeListTableOptions(opts) {
         if (!opts || typeof opts !== 'object') {
             return opts;
@@ -41,12 +51,22 @@
             o.autoWidth = false;
         }
         o.language = $.extend(true, {}, PARTILOT_DT_LANG, o.language || {});
+
+        var userInitComplete = o.initComplete;
+        o.initComplete = function (settings, json) {
+            if (typeof userInitComplete === 'function') {
+                userInitComplete.call(this, settings, json);
+            }
+            adjustTableColumns(this.api());
+        };
+
         return o;
     }
 
     if ($.fn.dataTable.defaults) {
         $.extend(true, $.fn.dataTable.defaults, {
             language: PARTILOT_DT_LANG,
+            autoWidth: false,
         });
     }
 
@@ -62,11 +82,15 @@
     $.extend($.fn.DataTable, originalDataTable);
     $.fn.DataTable.Api = originalDataTable.Api;
 
-    $(window).on('resize', function () {
-        $('.dataTable').each(function () {
-            if ($.fn.DataTable.isDataTable(this)) {
-                $(this).DataTable().columns.adjust();
-            }
-        });
+    var resizeTimer;
+    $(window).on('resize.partilotDatatables', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            $('.dataTable').each(function () {
+                if ($.fn.DataTable.isDataTable(this)) {
+                    adjustTableColumns($(this).DataTable());
+                }
+            });
+        }, 120);
     });
 })(typeof jQuery !== 'undefined' ? jQuery : null);
