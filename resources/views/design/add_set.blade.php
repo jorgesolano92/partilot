@@ -4,39 +4,6 @@
 
 @section('content')
 
-<style>
-    .design-set-select-panel .design-set-select-table-wrap {
-        width: 100%;
-        max-width: 100%;
-        overflow-x: auto;
-        overflow-y: visible;
-    }
-    .design-set-select-panel .design-set-select-table-wrap .dataTables_wrapper {
-        width: 100% !important;
-        max-width: 100%;
-    }
-    .design-set-select-panel .design-set-select-table-wrap .dataTables_scroll {
-        width: 100% !important;
-        max-width: 100%;
-    }
-    .design-set-select-panel .design-set-select-table-wrap .dataTables_scrollHead,
-    .design-set-select-panel .design-set-select-table-wrap .dataTables_scrollBody {
-        width: 100% !important;
-        max-width: 100%;
-        overflow-x: auto !important;
-    }
-    .design-set-select-panel .design-set-select-table-wrap table.dataTable {
-        width: 100% !important;
-        margin-bottom: 0;
-    }
-    .design-set-select-panel #example2 tbody tr.table-row-selected > td {
-        background-color: #e3f2fd !important;
-    }
-    .design-set-select-panel #example2 tbody tr.table-row-hover > td {
-        background-color: #f8f9fa !important;
-    }
-</style>
-
 <!-- Start Content-->
 <div class="container-fluid">
     
@@ -134,7 +101,7 @@
                     						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                     	</div>
                     	<div class="col-md-9">
-                    		<div class="form-card bs design-set-select-panel" style="min-height: 658px;">
+                    		<div class="form-card bs" style="min-height: 658px;">
                     			<form action="{{ route('design.chooseType') }}" method="POST" id="setSelectForm">
                                     @csrf
                     				<h4 class="mb-0 mt-1">
@@ -143,8 +110,8 @@
                     				<small><i>Selecciona un set</i></small>
                     				<br>
                     				<br>
-                    				<div class="design-set-select-table-wrap">
-                    					<table id="example2" class="table table-striped nowrap w-100 mb-0">
+                    				<div style="min-height: 656px;">
+                    					<table id="example2" class="table table-striped nowrap w-100">
                     						<thead class="">
                     							<tr>
                     								<th>ID</th>
@@ -247,21 +214,18 @@
 
 function initDatatable() 
   {
-    var table = $("#example2").DataTable({
+    $("#example2").DataTable({
 
       "select":{style:"single"},
 
       "ordering": false,
       "sorting": false,
-      "autoWidth": false,
 
-      "scrollX": true,
-      "scrollCollapse": true,
+      "scrollX": true, "scrollCollapse": true,
         orderCellsTop: true,
         fixedHeader: true,
         initComplete: function () {
             var api = this.api();
-            api.columns.adjust();
  
             // For each column
             api
@@ -334,10 +298,6 @@ function initDatatable()
                 });
         }
     });
-
-    $(window).on('resize.designSetSelectTable', function () {
-      table.columns.adjust();
-    });
   }
 
   initDatatable();
@@ -359,18 +319,18 @@ function initDatatable()
   
   // Agregar efecto hover visual
   $(document).on('mouseenter', '#example2 tbody tr.selectable-row', function() {
-    if (!$(this).hasClass('table-row-selected')) {
-      $(this).addClass('table-row-hover');
-    }
+    $(this).css('background-color', '#f8f9fa');
   }).on('mouseleave', '#example2 tbody tr.selectable-row', function() {
-    $(this).removeClass('table-row-hover');
+    if (!$(this).find('input[type="radio"]').is(':checked')) {
+      $(this).css('background-color', '');
+    }
   });
   
-  // Mantener el color cuando está seleccionado (solo celdas visibles, no el ancho total de scroll)
+  // Mantener el color cuando está seleccionado
   $(document).on('change', '#example2 tbody tr.selectable-row input[type="radio"]', function() {
-    $('#example2 tbody tr.selectable-row').removeClass('table-row-selected');
+    $('#example2 tbody tr.selectable-row').css('background-color', '');
     if ($(this).is(':checked')) {
-      $(this).closest('tr').addClass('table-row-selected');
+      $(this).closest('tr').css('background-color', '#e3f2fd');
     }
   });
 
