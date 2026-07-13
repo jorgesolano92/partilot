@@ -111,11 +111,15 @@ Editar `config/pdf_optimization.php`:
 composer require predis/predis
 
 # Configurar .env
-QUEUE_CONNECTION=redis
+QUEUE_CONNECTION=database
+QUEUE_RETRY_AFTER=7200
+PDF_QUEUE=pdf
 
-# Ejecutar worker
-php artisan queue:work
+# Ejecutar worker (PDFs grandes requieren timeout alto o 0)
+php artisan queue:work --queue=pdf,default --timeout=0 --tries=1
 ```
+
+En producción (supervisor), el worker de PDFs debe escuchar la cola `pdf` y usar `--timeout=0` o al menos `7200`. El job `GenerateParticipationPdfJob` calcula su propio timeout según el número de participaciones (p. ej. ~36 min para 1750).
 
 ## Comandos de Mantenimiento
 
@@ -241,8 +245,9 @@ php artisan qr:clear --hours=24
 - Reducir `chunk_size`
 
 ### Timeout de Jobs
-- Verificar que el worker esté ejecutándose
-- Aumentar `job_timeout` en configuración
+- El job define `$timeout` dinámico (≈120 s por cada 100 participaciones, mín. 15 min, máx. 2 h).
+- `QUEUE_RETRY_AFTER` debe ser ≥ timeout del job (por defecto 7200 s en `config/queue.php`).
+- Reiniciar el worker tras desplegar: `php artisan queue:work --queue=pdf,default --timeout=0`
 
 ### Archivos Temporales
 - Ejecutar `php artisan pdf:cleanup` regularmente

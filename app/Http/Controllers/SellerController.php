@@ -1576,7 +1576,7 @@ class SellerController extends Controller
     }
 
     /**
-     * API Gestor: Invitar vendedor (0 coincidencias): crear seller externo con email para invitación.
+     * API Gestor: Invitar vendedor SIPART sin cuenta (0 coincidencias): solo email, como en el panel web.
      */
     public function apiManagerStoreNewUser(Request $request)
     {
@@ -1592,7 +1592,8 @@ class SellerController extends Controller
         }
         try {
             $sellerService = new SellerService();
-            $seller = $sellerService->createSeller($request->only(['email', 'name', 'last_name']), (int) $request->entity_id, 'externo');
+            $seller = $sellerService->createSeller($request->only(['email', 'name', 'last_name']), (int) $request->entity_id, 'partilot');
+
             return response()->json(['success' => true, 'message' => 'Invitación enviada.', 'seller_id' => $seller->id]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);

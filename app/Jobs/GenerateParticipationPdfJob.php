@@ -15,11 +15,17 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class GenerateParticipationPdfJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /** Tiempo máximo del job (segundos); el worker usa este valor si está definido. */
+    public int $timeout;
+
+    public int $tries = 1;
 
     protected int $designId;
 
@@ -35,12 +41,32 @@ class GenerateParticipationPdfJob implements ShouldQueue
         $this->jobId = (string) $jobId;
         $this->participationFrom = $participationFrom;
         $this->participationTo = $participationTo;
+        $this->timeout = self::resolveTimeout($participationFrom, $participationTo);
+        $this->onQueue((string) config('pdf_optimization.queue', 'pdf'));
+    }
+
+    public static function resolveTimeout(int $from, int $to): int
+    {
+        $fixedTimeout = (int) config('pdf_optimization.job_timeout', 0);
+        if ($fixedTimeout > 0) {
+            return $fixedTimeout;
+        }
+
+        $count = max(1, $to - $from + 1);
+        $chunkSize = max(1, (int) config('pdf_optimization.job_chunk_size', 100));
+        $perChunk = max(30, (int) config('pdf_optimization.job_timeout_per_chunk', 120));
+        $min = max(60, (int) config('pdf_optimization.job_timeout_min', 900));
+        $max = max($min, (int) config('pdf_optimization.job_timeout_max', 7200));
+
+        $chunks = (int) ceil($count / $chunkSize);
+
+        return min($max, max($min, $chunks * $perChunk));
     }
 
     public function handle(): void
     {
         ini_set('max_execution_time', '0');
-        ini_set('memory_limit', '2048M');
+        ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
 
         $design = DesignFormat::findOrFail($this->designId);
 
@@ -95,44 +121,91 @@ class GenerateParticipationPdfJob implements ShouldQueue
         $orientation = $design->orientation ?? 'h';
         $pdfOrientation = ($orientation === 'h') ? 'landscape' : 'portrait';
 
-        $chunk_size = 50;
+        $chunk_size = max(1, (int) config('pdf_optimization.job_chunk_size', 100));
         $temp_files = [];
 
-        for ($chunk_start = $from - 1; $chunk_start < $to; $chunk_start += $chunk_size) {
-            $chunk_end = min($chunk_start + $chunk_size, $to);
-            $chunk_tickets = array_slice($tickets, $chunk_start, $chunk_end - $chunk_start);
+        Log::info('GenerateParticipationPdfJob started', [
+            'job_id' => $this->jobId,
+            'design_id' => $this->designId,
+            'from' => $from,
+            'to' => $to,
+            'chunk_size' => $chunk_size,
+            'timeout' => $this->timeout,
+        ]);
 
-            $chunk_pages = $per_page > 0 ? (int) ceil(count($chunk_tickets) / $per_page) : 0;
-            $pages = $this->generatePagesOptimized($chunk_tickets, $chunk_pages, $per_page);
+        try {
+            for ($chunk_start = $from - 1; $chunk_start < $to; $chunk_start += $chunk_size) {
+                $chunk_end = min($chunk_start + $chunk_size, $to);
+                $chunk_tickets = array_slice($tickets, $chunk_start, $chunk_end - $chunk_start);
 
-            $pdf = Pdf::loadView('design.pdf_participation', [
-                'pages' => $pages,
-                'participation_html' => $participation_html,
-                'rows' => $rows,
-                'cols' => $cols,
-                'qrCodes' => $qrCodes,
-            ])->setPaper($page, $pdfOrientation);
+                $chunk_pages = $per_page > 0 ? (int) ceil(count($chunk_tickets) / $per_page) : 0;
+                $pages = $this->generatePagesOptimized($chunk_tickets, $chunk_pages, $per_page);
 
-            $temp_file = storage_path('app/temp_pdf_'.$this->jobId.'_'.$chunk_start.'.pdf');
-            $pdf->save($temp_file);
-            $temp_files[] = $temp_file;
+                $pdf = Pdf::loadView('design.pdf_participation', [
+                    'pages' => $pages,
+                    'participation_html' => $participation_html,
+                    'rows' => $rows,
+                    'cols' => $cols,
+                    'qrCodes' => $qrCodes,
+                ])->setPaper($page, $pdfOrientation);
+
+                $temp_file = storage_path('app/temp_pdf_'.$this->jobId.'_'.$chunk_start.'.pdf');
+                $pdf->save($temp_file);
+                $temp_files[] = $temp_file;
+
+                Log::debug('GenerateParticipationPdfJob chunk saved', [
+                    'job_id' => $this->jobId,
+                    'chunk_start' => $chunk_start,
+                    'chunk_end' => $chunk_end,
+                ]);
+            }
+
+            Storage::makeDirectory('generated_pdfs');
+            $final_path = storage_path('app/generated_pdfs/'.$this->jobId.'.pdf');
+
+            if ($temp_files === []) {
+                $pdf = Pdf::loadHTML('<html><body></body></html>')->setPaper($page, $pdfOrientation);
+                $pdf->save($final_path);
+            } else {
+                FpdiPdfMerge::mergeTemporaryFiles($temp_files, $final_path);
+            }
+
+            GeneratedPdfCatalog::writeMeta(
+                $this->jobId,
+                'participacion-diseno-'.$this->designId.'.pdf',
+                $this->designId
+            );
+
+            Log::info('GenerateParticipationPdfJob completed', [
+                'job_id' => $this->jobId,
+                'design_id' => $this->designId,
+                'chunks' => count($temp_files),
+            ]);
+        } catch (\Throwable $e) {
+            $this->cleanupTempFiles();
+            throw $e;
         }
+    }
 
-        Storage::makeDirectory('generated_pdfs');
-        $final_path = storage_path('app/generated_pdfs/'.$this->jobId.'.pdf');
+    public function failed(\Throwable $e): void
+    {
+        $this->cleanupTempFiles();
 
-        if ($temp_files === []) {
-            $pdf = Pdf::loadHTML('<html><body></body></html>')->setPaper($page, $pdfOrientation);
-            $pdf->save($final_path);
-        } else {
-            FpdiPdfMerge::mergeTemporaryFiles($temp_files, $final_path);
+        Log::error('GenerateParticipationPdfJob failed', [
+            'job_id' => $this->jobId,
+            'design_id' => $this->designId,
+            'from' => $this->participationFrom,
+            'to' => $this->participationTo,
+            'timeout' => $this->timeout,
+            'message' => $e->getMessage(),
+        ]);
+    }
+
+    protected function cleanupTempFiles(): void
+    {
+        foreach (glob(storage_path('app/temp_pdf_'.$this->jobId.'_*.pdf')) ?: [] as $file) {
+            @unlink($file);
         }
-
-        GeneratedPdfCatalog::writeMeta(
-            $this->jobId,
-            'participacion-diseno-'.$this->designId.'.pdf',
-            $this->designId
-        );
     }
 
     /**

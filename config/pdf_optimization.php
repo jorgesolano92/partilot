@@ -17,12 +17,18 @@ return [
     
     // Tamaño de chunks para procesamiento por lotes
     'chunk_size' => 100,        // Procesar de 100 en 100 participaciones
-    'job_chunk_size' => 50,     // Para jobs asíncronos, chunks más pequeños
-    
+    'job_chunk_size' => 100,    // Chunks en jobs asíncronos (menos renders = menos tiempo total)
+
+    // Cola dedicada a PDFs largos (worker: --queue=pdf,default --timeout=0)
+    'queue' => env('PDF_QUEUE', 'pdf'),
+
     // Configuración de memoria y tiempo
     'memory_limit' => '2048M',  // Límite de memoria para PDFs grandes
     'max_execution_time' => 300, // 5 minutos para PDFs síncronos
-    'job_timeout' => 0,         // Sin límite de tiempo para jobs
+    'job_timeout' => 0,         // 0 = calcular según participaciones (ver job_timeout_*)
+    'job_timeout_per_chunk' => 120, // Segundos estimados por chunk DomPDF
+    'job_timeout_min' => 900,   // Mínimo 15 minutos
+    'job_timeout_max' => 7200,    // Máximo 2 horas
     
     // Cache
     'cache_ttl' => 3600,        // TTL del cache en segundos (1 hora)
