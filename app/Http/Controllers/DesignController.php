@@ -3187,10 +3187,10 @@ class DesignController extends Controller
         $defaults = [
             'print_size' => (string) ($output['format'] ?? 'custom'),
             'participations_per_book' => (int) ($output['participations_per_book'] ?? 50),
-            'back_mode' => 'bw',
+            'back_mode' => $design->hasBackDesign() ? 'bw' : 'none',
             'print_configuration_id' => (int) $selectedPrintShop->id,
         ];
-        $quote = $this->calculatePrintOrderQuote($design->set, $defaults, chargeDesignFee: false);
+        $quote = $this->calculatePrintOrderQuote($design->set, $defaults, chargeDesignFee: false, design: $design);
         [$stripePublishableKey, $stripeSecretKey] = $this->resolveStripeKeys($selectedPrintShop);
         $stripePaymentEnabled = $selectedPrintShop->hasStripeConfigured() && ! empty($printPayment['can_pay_stripe']);
 
@@ -3202,7 +3202,7 @@ class DesignController extends Controller
             'stripePublishableKey',
             'stripePaymentEnabled',
             'selectedPrintShop'
-        ));
+        ))->with('includeBackInPrint', $design->hasBackDesign());
     }
 
     public function previewPrintOrderQuote(Request $request, $id)
@@ -3215,10 +3215,13 @@ class DesignController extends Controller
             return response()->json(['ok' => false, 'message' => $blockMessage], 422);
         }
 
-        $data = $request->validate($this->printOrderSubmissionRules());
+        $data = $request->validate($this->printOrderSubmissionRules($design));
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
-        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false);
+        if (! $design->hasBackDesign()) {
+            $data['back_mode'] = 'none';
+        }
+        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false, design: $design);
         $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
         [$publishableKey, $secretKey] = $this->resolveStripeKeys($cfg);
 
@@ -3253,10 +3256,13 @@ class DesignController extends Controller
             ], 422);
         }
 
-        $data = $request->validate($this->printOrderSubmissionRules());
+        $data = $request->validate($this->printOrderSubmissionRules($design));
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
-        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false);
+        if (! $design->hasBackDesign()) {
+            $data['back_mode'] = 'none';
+        }
+        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false, design: $design);
         $total = (float) ($quote['total'] ?? 0);
         if ($total <= 0) {
             return response()->json(['ok' => false, 'message' => 'El importe del pedido debe ser mayor que cero.'], 422);
@@ -3319,13 +3325,16 @@ class DesignController extends Controller
 
         $usesRemittance = ! empty($printPayment['can_queue_remittance']);
 
-        $data = $request->validate(array_merge($this->printOrderSubmissionRules(), [
+        $data = $request->validate(array_merge($this->printOrderSubmissionRules($design), [
             'payment_method' => 'nullable|in:stripe,remittance',
             'stripe_payment_intent_id' => 'nullable|required_if:payment_method,stripe|string',
         ]), [
             'stripe_payment_intent_id.required_if' => 'No se encontró el pago de Stripe confirmado.',
         ]);
         $data['notes'] = $this->sanitizePrintOrderNotes($data['notes'] ?? null);
+        if (! $design->hasBackDesign()) {
+            $data['back_mode'] = 'none';
+        }
 
         if ($usesRemittance) {
             return $this->submitPrintOrderViaRemittance($request, $design, $data);
@@ -3345,7 +3354,7 @@ class DesignController extends Controller
 
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
-        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false);
+        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false, design: $design);
         $expectedTotal = round((float) ($quote['total'] ?? 0), 2);
         if ($expectedTotal <= 0) {
             return redirect()->route('design.sendToPrint', $design->id)
@@ -3460,7 +3469,10 @@ class DesignController extends Controller
 
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
-        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false);
+        if (! $design->hasBackDesign()) {
+            $data['back_mode'] = 'none';
+        }
+        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false, design: $design);
         $expectedTotal = round((float) ($quote['total'] ?? 0), 2);
         if ($expectedTotal <= 0) {
             return redirect()->route('design.sendToPrint', $design->id)
@@ -3598,13 +3610,17 @@ class DesignController extends Controller
     /**
      * @return array<string, string>
      */
-    private function printOrderSubmissionRules(): array
+    private function printOrderSubmissionRules(?DesignFormat $design = null): array
     {
+        $backModeRule = ($design !== null && ! $design->hasBackDesign())
+            ? 'nullable|string|in:none,bw,color'
+            : 'required|string|in:bw,color';
+
         return [
             'print_configuration_id' => ['nullable', 'integer', 'exists:print_configurations,id'],
             'print_size' => 'required|string|in:a3_6,a3_8,custom',
             'participations_per_book' => 'required|integer|min:1|max:1000',
-            'back_mode' => 'required|string|in:bw,color',
+            'back_mode' => $backModeRule,
             'notes' => 'nullable|string|max:4000',
         ];
     }
@@ -3847,8 +3863,13 @@ class DesignController extends Controller
      * @param  bool  $chargeDesignFee  Si es false (por defecto), el usuario ya elaboró el diseño en PARTILOT y no se factura la tarifa de diseño.
      *                                El flujo externo (invitación / sin editor) usa {@see calculateExternalInvitationQuote} e incluye diseño.
      */
-    private function calculatePrintOrderQuote(Set $set, array $input, bool $chargeDesignFee = false): array
+    private function calculatePrintOrderQuote(Set $set, array $input, bool $chargeDesignFee = false, ?DesignFormat $design = null): array
     {
+        if ($design !== null && ! $design->hasBackDesign()) {
+            $input['include_back'] = false;
+            $input['back_mode'] = 'none';
+        }
+
         $cfg = $this->resolveActivePrintConfiguration(
             isset($input['print_configuration_id']) ? (int) $input['print_configuration_id'] : null
         );

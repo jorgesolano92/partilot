@@ -59,10 +59,15 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Trasera</label>
-                                <select name="back_mode" class="form-select quote-input">
-                                    <option value="bw" {{ old('back_mode', $defaults['back_mode'] ?? 'bw') === 'bw' ? 'selected' : '' }}>Blanco y negro</option>
-                                    <option value="color" {{ old('back_mode', $defaults['back_mode'] ?? '') === 'color' ? 'selected' : '' }}>Color</option>
-                                </select>
+                                @if(!empty($includeBackInPrint))
+                                    <select name="back_mode" class="form-select quote-input">
+                                        <option value="bw" {{ old('back_mode', $defaults['back_mode'] ?? 'bw') === 'bw' ? 'selected' : '' }}>Blanco y negro</option>
+                                        <option value="color" {{ old('back_mode', $defaults['back_mode'] ?? '') === 'color' ? 'selected' : '' }}>Color</option>
+                                    </select>
+                                @else
+                                    <input type="hidden" name="back_mode" value="none">
+                                    <div class="form-control bg-light text-muted">Omitida en el diseño</div>
+                                @endif
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Observaciones para imprenta</label>
@@ -99,7 +104,7 @@
                             <strong id="quote-design">{{ number_format(($quote['subtotal']['design'] ?? 0), 2, ',', '.') }}€</strong>
                         </div>
                         <div class="d-flex justify-content-between small mb-2"><span>Participaciones</span><strong id="quote-participation">{{ number_format(($quote['subtotal']['participation'] ?? 0), 2, ',', '.') }}€</strong></div>
-                        <div class="d-flex justify-content-between small mb-2"><span>Trasera</span><strong id="quote-back">{{ number_format(($quote['subtotal']['back'] ?? 0), 2, ',', '.') }}€</strong></div>
+                        <div class="d-flex justify-content-between small mb-2 {{ empty($includeBackInPrint) ? 'd-none' : '' }}" id="quote-back-row"><span>Trasera</span><strong id="quote-back">{{ number_format(($quote['subtotal']['back'] ?? 0), 2, ',', '.') }}€</strong></div>
                         <div class="d-flex justify-content-between small mb-2"><span>Tacos</span><strong id="quote-book">{{ number_format(($quote['subtotal']['book'] ?? 0), 2, ',', '.') }}€</strong></div>
                         <hr>
                         <div class="d-flex justify-content-between mb-3">
@@ -179,6 +184,7 @@ function confirmRemittanceSubmit() {
     let publishableKey = @json($stripePublishableKey ?? '');
     let quoteRefreshTimer = null;
     let usesRemittance = @json(!empty($printPayment['can_queue_remittance']));
+    const includeBackInPrint = @json(!empty($includeBackInPrint));
 
     const fmtMoney = (n) => (Number(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€';
     const fmtInt = (n) => (Number(n) || 0).toLocaleString('es-ES');
@@ -257,7 +263,14 @@ function confirmRemittanceSubmit() {
         document.getElementById('quote-books').textContent = quote.books ?? 0;
         document.getElementById('quote-design').textContent = fmtMoney(quote.subtotal?.design);
         document.getElementById('quote-participation').textContent = fmtMoney(quote.subtotal?.participation);
-        document.getElementById('quote-back').textContent = fmtMoney(quote.subtotal?.back);
+        const backRow = document.getElementById('quote-back-row');
+        const backIncluded = includeBackInPrint && (quote.back_included !== false);
+        if (backRow) {
+            backRow.classList.toggle('d-none', !backIncluded);
+        }
+        if (backIncluded) {
+            document.getElementById('quote-back').textContent = fmtMoney(quote.subtotal?.back);
+        }
         document.getElementById('quote-book').textContent = fmtMoney(quote.subtotal?.book);
         document.getElementById('quote-total-display').textContent = fmtMoney(quote.total);
         setPaymentUi(printPayment, !!stripeEnabled, stripeKey || '');

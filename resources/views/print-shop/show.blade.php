@@ -79,7 +79,11 @@
                                 </div>
                                 <div class="col-md-4">
                                     <div class="text-muted">Trasera</div>
-                                    <div>{{ ($printOrder->back_mode ?? '') === 'color' ? 'Color' : 'Blanco y negro' }}</div>
+                                    <div>{{ match ($printOrder->back_mode ?? '') {
+                                        'color' => 'Color',
+                                        'none' => 'Omitida',
+                                        default => 'Blanco y negro',
+                                    } }}</div>
                                 </div>
                             </div>
 

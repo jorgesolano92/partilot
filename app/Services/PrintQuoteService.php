@@ -29,18 +29,24 @@ class PrintQuoteService
         $totalParticipations = (int) ($set->total_participations ?? 0);
         $perBook = max(1, (int) ($input['participations_per_book'] ?? 50));
         $books = (int) ceil($totalParticipations / $perBook);
-        $backMode = ($input['back_mode'] ?? 'bw') === 'color' ? 'color' : 'bw';
+        $includeBack = ($input['include_back'] ?? true) !== false
+            && ($input['back_mode'] ?? 'bw') !== 'none';
+        $backMode = $includeBack
+            ? ((($input['back_mode'] ?? 'bw') === 'color') ? 'color' : 'bw')
+            : 'none';
 
         $priceDesign = (float) ($cfg->price_design ?? 0);
         $priceParticipation = (float) ($cfg->price_participation ?? 0);
-        $priceBack = $backMode === 'color'
-            ? (float) ($cfg->price_back_color ?? 0)
-            : (float) ($cfg->price_back_bw ?? 0);
+        $priceBack = $includeBack
+            ? ($backMode === 'color'
+                ? (float) ($cfg->price_back_color ?? 0)
+                : (float) ($cfg->price_back_bw ?? 0))
+            : 0.0;
         $pricePerBook = $this->pricePerBook($cfg, $perBook);
 
         $designCost = $chargeDesignFee ? $priceDesign : 0.0;
         $participationCost = $totalParticipations * $priceParticipation;
-        $backCost = $totalParticipations * $priceBack;
+        $backCost = $includeBack ? ($totalParticipations * $priceBack) : 0.0;
         $booksCost = $books * $pricePerBook;
         $total = $designCost + $participationCost + $backCost + $booksCost;
 
@@ -52,6 +58,7 @@ class PrintQuoteService
             'participations_per_book' => $perBook,
             'books' => $books,
             'back_mode' => $backMode,
+            'back_included' => $includeBack,
             'design_fee_waived' => ! $chargeDesignFee,
             'charge_design_fee' => $chargeDesignFee,
             'unit_prices' => [
