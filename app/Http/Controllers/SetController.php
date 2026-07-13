@@ -540,6 +540,8 @@ class SetController extends Controller
      */
     public function downloadXml(Set $set)
     {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Solo el superadministrador puede descargar el XML del set.');
+
         if (!auth()->user()->canAccessEntity($set->entity_id)) {
             abort(403, 'No tienes permisos para exportar este set.');
         }
