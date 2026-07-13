@@ -1320,6 +1320,10 @@ class DesignController extends Controller
         $data['participation_html'] = $data['blocks']['participation_html'];
         $data['cover_html'] = $data['blocks']['cover_html'];
         $data['back_html'] = $data['blocks']['back_html'];
+        if (! empty($data['back_skipped'])) {
+            $data['back_html'] = '';
+            $data['blocks']['back_html'] = '';
+        }
         $data['output'] = $data['blocks']['output'];
         $data['margins'] = $data['blocks']['margins'];
         $data['snapshot_path'] = $data['snapshot_path'] ?? null;
@@ -1456,8 +1460,8 @@ class DesignController extends Controller
         $existing->blocks = $data['blocks'];
         $existing->participation_html = $data['participation_html'];
         $existing->cover_html = $data['cover_html'];
-        $existing->back_html = $data['back_html'];
         $existing->back_skipped = (bool) ($data['back_skipped'] ?? false);
+        $existing->back_html = $existing->back_skipped ? '' : ($data['back_html'] ?? '');
         if (array_key_exists('design_name', $data) && $data['design_name'] !== null && $data['design_name'] !== '') {
             $existing->design_name = $data['design_name'];
         }
@@ -2043,6 +2047,9 @@ class DesignController extends Controller
 
         $design = DesignFormat::findOrFail($id);
         $this->authorizeDesignPdfExport($design);
+        if (! $design->hasBackDesign()) {
+            abort(404, 'Este diseño no incluye trasera.');
+        }
 
         $copies = $this->normalizeBackPdfCopies($request->query('copies', 'all'));
         $exactCount = $this->parseBackPdfExactCount($request);
@@ -4037,12 +4044,13 @@ class DesignController extends Controller
         }
 
         $job_id = 'pdf_part_'.$id.'_'.$from.'_'.$to.'_'.time();
+        \App\Support\PdfJobStatus::markProcessing($job_id);
         Queue::push(new \App\Jobs\GenerateParticipationPdfJob($id, $job_id, $from, $to));
 
         return response()->json([
             'status' => 'processing',
             'job_id' => $job_id,
-            'message' => 'El PDF se está generando en segundo plano. Cuando esté listo podrá descargarlo desde el aviso.',
+            'message' => 'El PDF se está generando en segundo plano. Puede cerrar esta pestaña; el proceso continúa en el servidor.',
             'check_url' => route('design.checkPdfStatus', $job_id),
         ]);
     }
@@ -4077,9 +4085,19 @@ class DesignController extends Controller
      */
     public function checkPdfStatus($job_id)
     {
+        $tracked = \App\Support\PdfJobStatus::get($job_id);
+        if (($tracked['status'] ?? null) === 'failed') {
+            return response()->json([
+                'status' => 'failed',
+                'message' => $tracked['message'] ?? 'La generación del PDF falló.',
+            ]);
+        }
+
         $file_path = storage_path('app/generated_pdfs/' . $job_id . '.pdf');
         
         if (file_exists($file_path)) {
+            \App\Support\PdfJobStatus::markCompleted($job_id);
+
             return response()->json([
                 'status' => 'completed',
                 'download_url' => route('design.downloadPdf', $job_id)
@@ -4088,7 +4106,7 @@ class DesignController extends Controller
         
         return response()->json([
             'status' => 'processing',
-            'message' => 'El PDF aún se está generando...'
+            'message' => 'El PDF aún se está generando. Puede cerrar esta pestaña; el proceso continúa en el servidor. Vuelva a esta página en unos minutos para descargarlo.',
         ]);
     }
 
@@ -4390,11 +4408,11 @@ class DesignController extends Controller
     {
         $design = DesignFormat::findOrFail($id);
         $this->authorizeDesignPdfExport($design);
-        if (empty($design->back_html)) {
+        if (! $design->hasBackDesign()) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Trasera no encontrada',
-            ], 404);
+                'message' => 'Este diseño no incluye trasera (se omitió en el editor).',
+            ], 422);
         }
 
         $copies = $this->normalizeBackPdfCopies($request->query('copies', 'all'));

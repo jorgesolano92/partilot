@@ -2830,8 +2830,12 @@ $('#format').change(function (e) {
         $('#design-back-bg').css({ 'background-color': '#dfdfdf', 'background-image': 'none' });
       }
       localStorage.setItem('step4', $('#containment-wrapper4').html() || '');
+      $('#skip-back-banner').addClass('d-none');
       markDesignDirty();
       persistDraftLocally();
+      if (window.__designId) {
+        persistDesignToServer({ reason: 'autosave', showLoader: false });
+      }
       if (step === 4) {
         syncCurrentStepToLocalStorage();
         stashStepHistory(step);

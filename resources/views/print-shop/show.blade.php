@@ -200,7 +200,7 @@
                                     && ($printOrder->set->digital_participations ?? 0) > 0
                                     && (int) ($printOrder->set->physical_participations ?? 0) === 0;
                                 $hasCover = $design && !empty($design->cover_html);
-                                $hasBack = $design && !empty($design->back_html);
+                                $hasBack = $design && $design->hasBackDesign();
                             @endphp
                             @if(!$design)
                                 <p class="text-muted small mb-0">Esta orden no tiene un diseño vinculado. Contacta con Partilot si necesitas los archivos.</p>

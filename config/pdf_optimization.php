@@ -19,8 +19,8 @@ return [
     'chunk_size' => 100,        // Procesar de 100 en 100 participaciones
     'job_chunk_size' => 100,    // Chunks en jobs asíncronos (menos renders = menos tiempo total)
 
-    // Cola dedicada a PDFs largos (worker: --queue=pdf,default --timeout=0)
-    'queue' => env('PDF_QUEUE', 'pdf'),
+    // Cola de jobs PDF (usar "default" salvo que haya worker dedicado: PDF_QUEUE=pdf)
+    'queue' => env('PDF_QUEUE', 'default'),
 
     // Configuración de memoria y tiempo
     'memory_limit' => '2048M',  // Límite de memoria para PDFs grandes

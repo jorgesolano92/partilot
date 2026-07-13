@@ -52,7 +52,7 @@
     <div class="design-pdf-blocking-card">
         <div class="spinner-border mb-3" role="status"><span class="visually-hidden">Generando...</span></div>
         <h5 class="mb-2" id="design-pdf-blocking-title">Generando PDF</h5>
-        <p class="text-muted mb-0" id="design-pdf-blocking-text">No cierre esta pestaña ni pulse atrás hasta que termine la descarga.</p>
+        <p class="text-muted mb-0" id="design-pdf-blocking-text">El PDF se genera en el servidor. Puede cerrar esta pestaña; vuelva en unos minutos para descargarlo si no termina ahora.</p>
     </div>
 </div>
 
@@ -119,11 +119,17 @@
     if (attemptsLeft <= 0) {
       if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
       partilotHidePdfBlocking();
-      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera para el PDF terminó sin resultado. Revise si el worker de colas está en ejecución.');
+      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si cerró la pestaña, el PDF puede seguir generándose: vuelva a esta página en unos minutos e intente de nuevo. Compruebe también que el worker de colas esté activo.');
       return;
     }
     $.getJSON(checkUrl)
       .done(function (st) {
+        if (st && st.status === 'failed') {
+          if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+          partilotHidePdfBlocking();
+          partilotNotifyPdf('error', notifyTitle || 'PDF', st.message || 'La generación del PDF falló.', false);
+          return;
+        }
         if (st && st.status === 'completed' && st.download_url) {
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
           partilotHidePdfBlocking();
@@ -166,8 +172,8 @@
 
   function partilotStartDesignPdfAjax(url, title, $btn) {
     $btn.prop('disabled', true);
-    partilotShowPdfBlocking(title || 'Generando PDF', 'No cierre esta pestaña ni pulse atrás hasta que termine. Puede tardar varios minutos según el volumen.');
-    partilotNotifyPdf('info', title, 'Generando PDF… Puede tardar varios minutos según el volumen.', true);
+    partilotShowPdfBlocking(title || 'Generando PDF', 'Generando en el servidor. Puede cerrar esta pestaña; el proceso continúa.');
+    partilotNotifyPdf('info', title, 'Generando PDF en segundo plano. Puede cerrar la pestaña y volver más tarde.', true);
     $.ajax({ url: url, method: 'GET', dataType: 'json' })
       .done(function (data) {
         if (data && data.status === 'processing' && data.check_url) {

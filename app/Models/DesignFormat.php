@@ -88,7 +88,11 @@ class DesignFormat extends Model
 
     public function hasBackDesign(): bool
     {
-        return ! $this->back_skipped && ! empty(trim((string) ($this->back_html ?? '')));
+        if ($this->back_skipped) {
+            return false;
+        }
+
+        return ! empty(trim(strip_tags((string) ($this->back_html ?? ''))));
     }
 
     public function participations()

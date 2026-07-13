@@ -9,6 +9,7 @@ use App\Services\DesignApprovalService;
 use App\Services\ManagementFeeService;
 use App\Support\FpdiPdfMerge;
 use App\Support\GeneratedPdfCatalog;
+use App\Support\PdfJobStatus;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -133,6 +134,8 @@ class GenerateParticipationPdfJob implements ShouldQueue
             'timeout' => $this->timeout,
         ]);
 
+        PdfJobStatus::markProcessing($this->jobId);
+
         try {
             for ($chunk_start = $from - 1; $chunk_start < $to; $chunk_start += $chunk_size) {
                 $chunk_end = min($chunk_start + $chunk_size, $to);
@@ -176,6 +179,8 @@ class GenerateParticipationPdfJob implements ShouldQueue
                 $this->designId
             );
 
+            PdfJobStatus::markCompleted($this->jobId);
+
             Log::info('GenerateParticipationPdfJob completed', [
                 'job_id' => $this->jobId,
                 'design_id' => $this->designId,
@@ -190,6 +195,7 @@ class GenerateParticipationPdfJob implements ShouldQueue
     public function failed(\Throwable $e): void
     {
         $this->cleanupTempFiles();
+        PdfJobStatus::markFailed($this->jobId, $e->getMessage());
 
         Log::error('GenerateParticipationPdfJob failed', [
             'job_id' => $this->jobId,

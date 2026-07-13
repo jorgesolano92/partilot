@@ -42,6 +42,7 @@
         }
     }
     $useDefaultBackCanvas = !($isDigitalSet ?? false)
+        && !($format->back_skipped ?? false)
         && empty(trim(strip_tags((string) ($format->back_html ?? ''))));
 @endphp
 
@@ -1173,7 +1174,7 @@ $('#format').change(function (e) {
 
 var step = 1;
 var isDigitalSet = {{ ($isDigitalSet ?? false) ? 'true' : 'false' }};
-window.__backSkipped = @json($useDefaultBackCanvas ? false : (bool) ($format->back_skipped ?? false));
+window.__backSkipped = @json((bool) ($format->back_skipped ?? false));
 window.__defaultDesignName = @json($format->design_name ?: ('Diseño ' . ($set->set_name ?? ('Set ' . $set->id)) . ' ' . now()->format('d/m/Y')));
 window.__pendingDesignName = null;
 var editor;
