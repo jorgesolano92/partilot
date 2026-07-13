@@ -698,6 +698,7 @@
             }
 
             .header-title {margin: 0 !important;}
+            .format-box-btn {text-align: center !important;}
         </style>
 
         @yield('styles')

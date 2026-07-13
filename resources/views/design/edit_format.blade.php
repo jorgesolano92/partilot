@@ -41,6 +41,8 @@
             return $doFormat($numbers);
         }
     }
+    $useDefaultBackCanvas = !($isDigitalSet ?? false)
+        && empty(trim(strip_tags((string) ($format->back_html ?? ''))));
 @endphp
 
 <style>
@@ -515,7 +517,11 @@
                                 </div>
                                 <div class="design-zoom-scroll">
                                     <div class="design-zoom-container" id="design-zoom-wrapper-4" style="transform-origin: top center;">
-                                        {!! $format->back_html ?? '' !!}
+                                        @if($useDefaultBackCanvas)
+                                            @include('design.partials.default_back_canvas')
+                                        @else
+                                            {!! $format->back_html ?? '' !!}
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="mt-2 p-2 small text-muted border-top" id="dimensions-info-step4"></div>
@@ -1167,7 +1173,7 @@ $('#format').change(function (e) {
 
 var step = 1;
 var isDigitalSet = {{ ($isDigitalSet ?? false) ? 'true' : 'false' }};
-window.__backSkipped = @json((bool)($format->back_skipped ?? false));
+window.__backSkipped = @json($useDefaultBackCanvas ? false : (bool) ($format->back_skipped ?? false));
 window.__defaultDesignName = @json($format->design_name ?: ('Diseño ' . ($set->set_name ?? ('Set ' . $set->id)) . ' ' . now()->format('d/m/Y')));
 window.__pendingDesignName = null;
 var editor;
