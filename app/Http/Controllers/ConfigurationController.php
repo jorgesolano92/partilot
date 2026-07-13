@@ -1420,7 +1420,7 @@ class ConfigurationController extends Controller
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['nullable', 'string', 'max:20', 'unique:users,nif_cif'.($userId ? ','.$userId : '')],
+            'nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\UserNif($userId)],
             'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:20',
