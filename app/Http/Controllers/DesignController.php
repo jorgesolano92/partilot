@@ -2633,11 +2633,67 @@ class DesignController extends Controller
         }
 
         $escapedLabel = htmlspecialchars($tacoLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        // DomPDF centra bien en vertical con <table> + vertical-align:middle
-        $labelHtml = '<table style="width:100%;height:100%;border-collapse:collapse;border:0;margin:0;padding:0;">'
-            .'<tr><td style="text-align:center;vertical-align:middle;font-size:14px;font-weight:bold;line-height:1.15;padding:0 6px;margin:0;border:0;font-family:DejaVu Sans, sans-serif;">'
-            .$escapedLabel
-            .'</td></tr></table>';
+        // Letra legible y completa; padding inferior extra centra mejor en DomPDF
+        $buildTacoLabelHtml = function (int $fontPx) use ($escapedLabel): string {
+            $fontPx = max(13, min(24, $fontPx));
+
+            return '<table style="width:100%;height:100%;border-collapse:collapse;border:0;margin:0;padding:0;">'
+                .'<tr><td style="text-align:center;vertical-align:middle;font-size:'.$fontPx.'px;font-weight:bold;line-height:1;padding:0 6px 4px 6px;margin:0;border:0;font-family:DejaVu Sans, sans-serif;white-space:nowrap;">'
+                .$escapedLabel
+                .'</td></tr></table>';
+        };
+
+        $estimateBoxHeightPx = function () use ($coverHtml): float {
+            if (preg_match('/(?:format-box|containment-wrapper)[^>]*style=(["\'])(.*?)\1/is', $coverHtml, $box)
+                && preg_match('/\bheight\s*:\s*([\d.]+)\s*(px|mm)/i', $box[2], $bh)) {
+                $h = (float) $bh[1];
+
+                return strtolower($bh[2]) === 'mm' ? $h * 3.779527559 : $h;
+            }
+
+            return 350.0;
+        };
+
+        $estimateBoxWidthPx = function () use ($coverHtml): float {
+            if (preg_match('/(?:format-box|containment-wrapper)[^>]*style=(["\'])(.*?)\1/is', $coverHtml, $box)
+                && preg_match('/\bwidth\s*:\s*([\d.]+)\s*(px|mm)/i', $box[2], $bw)) {
+                $w = (float) $bw[1];
+
+                return strtolower($bw[2]) === 'mm' ? $w * 3.779527559 : $w;
+            }
+
+            return 750.0;
+        };
+
+        $resolveTacoFontPx = function (string $attrs) use ($estimateBoxHeightPx, $estimateBoxWidthPx, $tacoLabel): int {
+            $boxH = $estimateBoxHeightPx();
+            $boxW = $estimateBoxWidthPx();
+            $barH = 36.0;
+            $barW = max(120.0, $boxW - 80.0);
+
+            if (preg_match('/\bheight\s*:\s*([\d.]+)\s*px/i', $attrs, $hm)) {
+                $barH = (float) $hm[1];
+            } elseif (preg_match('/\bheight\s*:\s*([\d.]+)\s*%/i', $attrs, $hm)) {
+                $barH = $boxH * ((float) $hm[1] / 100);
+            } elseif (preg_match('/\binset\s*:\s*([\d.]+)px\s+[\d.]+px\s+([\d.]+)px/i', $attrs, $im)) {
+                $barH = max(12.0, $boxH - (float) $im[1] - (float) $im[2]);
+            }
+
+            if (preg_match('/\bwidth\s*:\s*([\d.]+)\s*px/i', $attrs, $wm)) {
+                $barW = (float) $wm[1];
+            } elseif (preg_match('/\bwidth\s*:\s*calc\(\s*100%\s*-\s*([\d.]+)px\s*\)/i', $attrs, $wm)) {
+                $barW = max(120.0, $boxW - (float) $wm[1]);
+            }
+
+            // ~58% del alto; limitar también por longitud para no cortar el texto
+            $byHeight = (int) round($barH * 0.58);
+            $chars = max(1, mb_strlen($tacoLabel));
+            $byWidth = (int) floor(($barW * 0.94) / ($chars * 0.55));
+
+            return max(13, min(22, $byHeight, $byWidth));
+        };
+
+        $labelHtml = $buildTacoLabelHtml(18);
 
         // Normalizar marcadores escapados / variantes antes de sustituir
         $coverHtml = str_ireplace(
@@ -2672,6 +2728,9 @@ class DesignController extends Controller
             $pos = $allCtx[$targetIndex][0][1];
             $attrs = $allCtx[$targetIndex][1][0];
             $spanAttrs = $allCtx[$targetIndex][3][0];
+
+            $labelHtml = $buildTacoLabelHtml($resolveTacoFontPx($attrs));
+
             // Contenedor a altura completa para centrar el texto del taco en DomPDF
             if (! preg_match('/\bstyle=/i', $spanAttrs)) {
                 $spanAttrs .= ' style="display:block;height:100%;padding:0;margin:0;text-align:center;"';
