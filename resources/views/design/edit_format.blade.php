@@ -1821,6 +1821,10 @@ function getMarginBoundsPx() {
     var h = $el.outerHeight() || 0;
     left = Math.max(bounds.minLeft, Math.min(bounds.maxRight - w, left));
     top = Math.max(bounds.minTop, Math.min(bounds.maxBottom - h, top));
+    // Fijar solo top/left: bottom/right/inset del placeholder QR/barra rompen el PDF
+    el.style.removeProperty('bottom');
+    el.style.removeProperty('right');
+    el.style.removeProperty('inset');
     $el.css({ left: left + 'px', top: top + 'px' });
   }
   function configMargins()

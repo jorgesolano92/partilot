@@ -166,7 +166,9 @@ class DesignApprovalService
     }
 
     /**
-     * Gestor entidad (sin perfil admin activo) no puede editar diseños de la administración.
+     * Gestor entidad (sin perfil admin activo) solo edita diseños creados por la propia entidad.
+     * Diseños de administración, superadmin o imprenta son de solo lectura para la entidad
+     * (aprobar/rechazar si aplica), aunque el superadmin omita la aprobación.
      * La administración sí puede editar tras la aprobación (vuelve a borrador al guardar).
      */
     public function canEntityEditDesign(User $user, DesignFormat $design): bool
@@ -179,7 +181,7 @@ class DesignApprovalService
             return true;
         }
 
-        return ! $this->requiresEntityApproval($design);
+        return ($design->designer_type ?? self::DESIGNER_ADMINISTRATION) === self::DESIGNER_ENTITY;
     }
 
     public function canOpenDesignEditor(User $user, DesignFormat $design, bool $setLocked = false, bool $printOrderLocked = false): bool

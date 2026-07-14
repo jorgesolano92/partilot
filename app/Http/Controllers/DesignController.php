@@ -2633,73 +2633,109 @@ class DesignController extends Controller
         }
 
         $escapedLabel = htmlspecialchars($tacoLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $labelHtml = '<div style="display:table;width:100%;height:100%;">'
-            .'<div style="display:table-cell;vertical-align:middle;text-align:center;font-size:11px;font-weight:700;line-height:1.2;padding:2px 6px;">'
+        // DomPDF centra bien en vertical con <table> + vertical-align:middle
+        $labelHtml = '<table style="width:100%;height:100%;border-collapse:collapse;border:0;margin:0;padding:0;">'
+            .'<tr><td style="text-align:center;vertical-align:middle;font-size:14px;font-weight:bold;line-height:1.15;padding:0 6px;margin:0;border:0;font-family:DejaVu Sans, sans-serif;">'
             .$escapedLabel
-            .'</div></div>';
+            .'</td></tr></table>';
 
-        // Rellenar barra inferior (elements.context) con el texto del taco
+        // Normalizar marcadores escapados / variantes antes de sustituir
+        $coverHtml = str_ireplace(
+            [
+                '&#123;&#123;taco_label&#125;&#125;',
+                '&#123;&#123; taco_label &#125;&#125;',
+                '&lcub;&lcub;taco_label&rcub;&rcub;',
+                '@{{taco_label}}',
+                '{{ taco_label }}',
+                '{{taco_label}}',
+                '__TACO_LABEL__',
+            ],
+            '%%TACO_LABEL%%',
+            $coverHtml
+        );
+        $coverHtml = preg_replace('/\{\{\s*taco[_\-\s]*label\s*\}\}/iu', '%%TACO_LABEL%%', $coverHtml) ?? $coverHtml;
+
+        // Rellenar barras .context (comillas simples/dobles, class en cualquier orden)
         $contextFilled = false;
-        if (preg_match_all('/<div[^>]*class="[^"]*context[^"]*"[^>]*>\s*<span[^>]*>.*?<\/span>\s*<\/div>/is', $coverHtml, $allCtx, PREG_OFFSET_CAPTURE)) {
+        if (preg_match_all('/<div([^>]*class=(["\'])[^"\']*\bcontext\b[^"\']*\2[^>]*)>\s*<span([^>]*)>(.*?)<\/span>\s*<\/div>/is', $coverHtml, $allCtx, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             $targetIndex = 0;
-            foreach ($allCtx[0] as $i => $match) {
-                $chunk = $match[0];
-                if (preg_match('/\bbottom\s*:/i', $chunk) || preg_match('/inset:\s*[\d.]+px\s+[\d.]+px\s+[\d.]+px/i', $chunk)) {
+            foreach ($allCtx as $i => $match) {
+                $chunk = $match[0][0];
+                if (preg_match('/\bbottom\s*:/i', $chunk) || preg_match('/\binset\s*:/i', $chunk) || stripos($chunk, '%%TACO_LABEL%%') !== false || stripos($chunk, 'taco_label') !== false) {
                     $targetIndex = $i;
                     break;
                 }
                 $targetIndex = $i;
             }
-            $matchHtml = $allCtx[0][$targetIndex][0];
-            $filled = preg_replace_callback(
-                '/(<div[^>]*class="[^"]*context[^"]*"[^>]*>\s*<span[^>]*>)(.*?)(<\/span>\s*<\/div>)/is',
-                function ($m) use ($labelHtml) {
-                    return $m[1] . $labelHtml . $m[3];
-                },
-                $matchHtml,
-                1
-            );
-            if (is_string($filled) && $filled !== $matchHtml) {
-                $pos = $allCtx[0][$targetIndex][1];
-                $coverHtml = substr($coverHtml, 0, $pos) . $filled . substr($coverHtml, $pos + strlen($matchHtml));
-                $contextFilled = true;
+
+            $full = $allCtx[$targetIndex][0][0];
+            $pos = $allCtx[$targetIndex][0][1];
+            $attrs = $allCtx[$targetIndex][1][0];
+            $spanAttrs = $allCtx[$targetIndex][3][0];
+            // Contenedor a altura completa para centrar el texto del taco en DomPDF
+            if (! preg_match('/\bstyle=/i', $spanAttrs)) {
+                $spanAttrs .= ' style="display:block;height:100%;padding:0;margin:0;text-align:center;"';
+            } else {
+                $spanAttrs = preg_replace(
+                    '/style=(["\'])(.*?)(\1)/is',
+                    'style=$1display:block;height:100%;padding:0;margin:0;text-align:center;$2$1',
+                    $spanAttrs,
+                    1
+                );
             }
+            $filled = '<div'.$attrs.'><span'.$spanAttrs.'>'.$labelHtml.'</span></div>';
+            $coverHtml = substr($coverHtml, 0, $pos).$filled.substr($coverHtml, $pos + strlen($full));
+            $contextFilled = true;
         }
 
         if (! $contextFilled) {
-            $contextDiv = '<div class="elements context" style="width:calc(100% - 60px);border-radius:10px;height:10%;position:absolute;bottom:8px;left:0;right:0;margin:auto;background-color:#dfdfdf;border:2px solid #333;overflow:hidden;z-index:6;">'
-                .'<span style="display:block;height:100%;padding:0;">'.$labelHtml.'</span></div>';
+            $contextDiv = '<div class="elements context" style="width:calc(100% - 60px);border-radius:10px;height:12%;position:absolute;bottom:8px;left:0;right:0;margin:auto;background-color:#dfdfdf;border:2px solid #333;overflow:hidden;z-index:6;">'
+                .'<span style="display:block;height:100%;padding:0;margin:0;">'.$labelHtml.'</span></div>';
             if (preg_match('/<div[^>]*containment-wrapper[^>]*>/i', $coverHtml)) {
                 $coverHtml = preg_replace(
                     '/(<div[^>]*containment-wrapper[^>]*>)/i',
                     '$1'.$contextDiv,
                     $coverHtml,
                     1
-                );
+                ) ?? $coverHtml;
             } else {
-                $coverHtml = preg_replace('/(<div[^>]*format-box[^>]*>)/i', '$1'.$contextDiv, $coverHtml, 1);
+                $coverHtml = preg_replace('/(<div[^>]*format-box[^>]*>)/i', '$1'.$contextDiv, $coverHtml, 1) ?? $coverHtml;
             }
         }
 
-        $coverHtml = preg_replace('/\{\{taco_label\}\}/i', $escapedLabel, $coverHtml);
-        $coverHtml = preg_replace('/\{\{taco_number\}\}/i', (string) $bookNumber, $coverHtml);
-        $coverHtml = preg_replace('/\{\{taco_total\}\}/i', (string) max(1, $totalBooks), $coverHtml);
-        $coverHtml = preg_replace('/\{\{participation_from\}\}/i', (string) $from, $coverHtml);
-        $coverHtml = preg_replace('/\{\{participation_to\}\}/i', (string) $to, $coverHtml);
+        $coverHtml = str_replace('%%TACO_LABEL%%', $escapedLabel, $coverHtml);
+        $coverHtml = preg_replace('/\{\{\s*taco_number\s*\}\}/i', (string) $bookNumber, $coverHtml) ?? $coverHtml;
+        $coverHtml = preg_replace('/\{\{\s*taco_total\s*\}\}/i', (string) max(1, $totalBooks), $coverHtml) ?? $coverHtml;
+        $coverHtml = preg_replace('/\{\{\s*participation_from\s*\}\}/i', (string) $from, $coverHtml) ?? $coverHtml;
+        $coverHtml = preg_replace('/\{\{\s*participation_to\s*\}\}/i', (string) $to, $coverHtml) ?? $coverHtml;
 
-        // Posicionar QR existente encima del recuadro inferior (no solapar el texto del taco)
+        // Por si quedó el marcador partido por etiquetas HTML
+        if (stripos($coverHtml, 'taco_label') !== false || stripos($coverHtml, '%%TACO_LABEL%%') !== false) {
+            $coverHtml = str_ireplace('%%TACO_LABEL%%', $escapedLabel, $coverHtml);
+            $coverHtml = preg_replace('/\{\{\s*taco[_\-\s]*label\s*\}\}/iu', $escapedLabel, $coverHtml) ?? $coverHtml;
+            $coverHtml = preg_replace('/__\s*TACO_LABEL\s*__/i', $escapedLabel, $coverHtml) ?? $coverHtml;
+            // Último recurso: token suelto (sin romper clases tipo cover-taco-qr)
+            $coverHtml = preg_replace('/(?<![\w-])taco_label(?![\w-])/i', $escapedLabel, $coverHtml) ?? $coverHtml;
+        }
+
+        // Si el QR tiene top+left (posición del editor), quitar bottom/right/inset residuales
+        // del placeholder para que DomPDF no lo deje anclado abajo a la derecha.
         $coverHtml = preg_replace_callback(
-            '/(<div[^>]*class="[^"]*qr[^"]*"[^>]*)style="([^"]*)"/i',
+            '/(<div[^>]*class=(["\'])[^"\']*\bqr\b[^"\']*\2[^>]*?)style=(["\'])(.*?)(\3)/i',
             function ($m) {
-                $style = preg_replace('/\b(top|left|bottom|right|inset):[^;]+;?/i', '', $m[2]);
-                $style = preg_replace('/\bwidth:\s*[\d.]+px/i', 'width:75px', $style);
-                $style = preg_replace('/\bheight:\s*[\d.]+px/i', 'height:75px', $style);
-                $style = trim(preg_replace('/;+/', ';', $style), '; ') . '; bottom:48px; right:15px;';
-                return $m[1] . 'style="' . $style . '"';
+                $style = $m[4];
+                $hasTopLeft = preg_match('/\btop\s*:/i', $style) && preg_match('/\bleft\s*:/i', $style);
+                if (! $hasTopLeft) {
+                    return $m[0];
+                }
+                $style = preg_replace('/\b(bottom|right|inset)\s*:[^;]+;?/i', '', $style);
+                $style = trim(preg_replace('/;+/', ';', $style), '; ');
+
+                return $m[1].'style='.$m[3].$style.$m[3];
             },
             $coverHtml,
             1
-        );
+        ) ?? $coverHtml;
 
         return $coverHtml;
     }

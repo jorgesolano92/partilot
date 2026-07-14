@@ -2381,6 +2381,10 @@ $('#format').change(function (e) {
     var h = $el.outerHeight() || 0;
     left = Math.max(bounds.minLeft, Math.min(bounds.maxRight - w, left));
     top = Math.max(bounds.minTop, Math.min(bounds.maxBottom - h, top));
+    // Fijar solo top/left: bottom/right/inset del placeholder QR/barra rompen el PDF
+    el.style.removeProperty('bottom');
+    el.style.removeProperty('right');
+    el.style.removeProperty('inset');
     $el.css({ left: left + 'px', top: top + 'px' });
   }
 
@@ -3675,10 +3679,11 @@ $('#format').change(function (e) {
     $wrap = $wrap && $wrap.length ? $wrap : $('#containment-wrapper3');
     if (!$wrap.length) return;
 
-    var labelToken = '{{' + 'taco_label}}';
+    var labelToken = '{' + '{taco_label}' + '}';
     var $ctx = $wrap.find('.elements.context');
     var $withLabel = $ctx.filter(function() {
-      return (($(this).html() || '').indexOf(labelToken) !== -1);
+      var html = ($(this).html() || '');
+      return html.indexOf(labelToken) !== -1 || html.indexOf('__TACO_LABEL__') !== -1;
     });
     if ($withLabel.length) return;
 

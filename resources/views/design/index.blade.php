@@ -159,8 +159,12 @@
                                         <label class="badge bg-warning text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
                                     @elseif($showOperationalLock)
                                         <label class="badge bg-secondary rounded-pill">Bloqueado</label>
-                                    @else
+                                    @elseif($entityViewer && empty($approvalCtx['can_edit']))
+                                        <label class="badge bg-secondary rounded-pill">Solo consulta</label>
+                                    @elseif(!empty($approvalCtx['can_open_editor']))
                                         <label class="badge bg-success rounded-pill">Editable</label>
+                                    @else
+                                        <label class="badge bg-secondary rounded-pill">Solo consulta</label>
                                     @endif
                                 </td>
                                 <td class="no-click" style="cursor: default;">
