@@ -2926,6 +2926,11 @@ class DesignController extends Controller
         if (!auth()->user()->canAccessEntity((int) $format->entity_id)) {
             abort(403, 'No tienes permisos para editar este diseño.');
         }
+        session([
+            'design_entity_id' => $format->entity_id,
+            'design_lottery_id' => $format->lottery_id,
+            'design_set_id' => $format->set_id,
+        ]);
         $approvalService = app(DesignApprovalService::class);
         if (! $approvalService->canEntityEditDesign(auth()->user(), $format)) {
             if ($approvalService->canReviewApproval(auth()->user(), $format)) {
@@ -5572,9 +5577,13 @@ class DesignController extends Controller
         return response()->json(['url' => url('uploads/'.$filename)]);
     }
 
+    /**
+     * Assets del editor (imágenes, snapshot): permitido a quien puede diseñar
+     * (admin, entidad, superadmin, imprenta, invitación externa).
+     */
     private function assertDesignEditorAccess(Request $request): void
     {
-        if (session('design_external_invitation_id')) {
+        if (session('design_external_invitation_id') || session('print_shop_order_id')) {
             return;
         }
 
@@ -5583,15 +5592,57 @@ class DesignController extends Controller
             abort(401, 'No autenticado.');
         }
 
-        if ($user->hasRole('print_shop') || $user->hasRole('super_admin')) {
-            return;
+        $canUseEditor = $user->isSuperAdmin()
+            || $user->isPrintShop()
+            || $user->isAdministration()
+            || $user->isAdministrationPanelAccount()
+            || $user->isEntity()
+            || app(DesignApprovalService::class)->userActsAsAdministration($user)
+            || $user->managers()->where('status', 1)->exists();
+
+        if (! $canUseEditor) {
+            abort(403, 'No tienes permisos para usar el editor de diseño.');
         }
 
-        $entityId = session('design_entity_id');
-        if ($entityId && $user->canAccessEntity((int) $entityId)) {
-            return;
+        // Si hay entidad en contexto, exigir acceso (no aplica a superadmin / imprenta).
+        $entityId = $this->resolveDesignEditorEntityId($request);
+        if ($entityId
+            && ! $user->isSuperAdmin()
+            && ! $user->isPrintShop()
+            && ! $user->canAccessEntity($entityId)) {
+            abort(403, 'No tienes permisos para usar el editor de diseño.');
+        }
+    }
+
+    private function resolveDesignEditorEntityId(Request $request): ?int
+    {
+        foreach ([
+            session('design_entity_id'),
+            $request->input('design_entity_id'),
+            $request->input('entity_id'),
+        ] as $candidate) {
+            if ($candidate !== null && $candidate !== '' && (int) $candidate > 0) {
+                return (int) $candidate;
+            }
         }
 
-        abort(403, 'No tienes permisos para usar el editor de diseño.');
+        $designFormatId = $request->input('design_format_id');
+        if ($designFormatId && ctype_digit((string) $designFormatId)) {
+            $entityId = DesignFormat::query()->whereKey((int) $designFormatId)->value('entity_id');
+            if ($entityId) {
+                return (int) $entityId;
+            }
+        }
+
+        // saveSnapshot envía design_id = set_id
+        $setId = $request->input('design_id') ?? $request->input('set_id');
+        if ($setId && ctype_digit((string) $setId)) {
+            $entityId = Set::query()->whereKey((int) $setId)->value('entity_id');
+            if ($entityId) {
+                return (int) $entityId;
+            }
+        }
+
+        return null;
     }
 }

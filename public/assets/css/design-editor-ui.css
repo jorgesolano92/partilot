@@ -29,6 +29,11 @@
     overflow-y: hidden;
 }
 
+/* [id*="containment-wrapper"]
+{
+    background-size: calc(100% - 20px) calc(100% - 20px) !important;
+} */
+
 .design-editor-page .format-btn-group {
     /* max-width: 100%;
     width: 100%;

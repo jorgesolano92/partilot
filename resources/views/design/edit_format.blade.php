@@ -150,6 +150,7 @@
     /* Mejorar visualización de imágenes de fondo */
     [id*="containment-wrapper"] {
         background-size: cover !important;
+        /* background-size: calc(100% - 20px) calc(100% - 20px) !important; */
         background-repeat: no-repeat !important;
         background-position: center center !important;
         background-attachment: scroll !important;

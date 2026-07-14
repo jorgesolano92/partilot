@@ -28,6 +28,8 @@ class EnsurePrintShopPanelScope
             'print-shop',
             'cuenta',
             'design/pdf',
+            // Assets del editor al diseñar desde una orden de imprenta
+            'design-editor',
         ];
 
         foreach ($allowedPrefixes as $prefix) {
