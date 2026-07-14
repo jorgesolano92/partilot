@@ -31,6 +31,7 @@ use App\Services\ManagementFeeService;
 use App\Support\ParticipationListPagination;
 use App\Support\ParticipationTicketReference;
 use App\Services\ParticipationOwnerService;
+use App\Services\ParticipationGiftService;
 use App\Services\ParticipationWalletValidityService;
 use App\Services\EntityLotteryPrizePaymentService;
 use App\Services\UserConsentService;
