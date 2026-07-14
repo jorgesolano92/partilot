@@ -1791,9 +1791,9 @@ class ParticipationController extends Controller
     public function apiGetWalletParticipations(Request $request)
     {
         $user = $request->user();
-        // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden ver su cartera.'], 403);
+        // Modo Usuario de la app: cualquier cuenta autenticada (cliente, vendedor o gestor).
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $pagination = ParticipationListPagination::parseFromRequest($request);
         $includeExpired = $pagination['enabled'] && $pagination['includeExpired'];
@@ -1905,8 +1905,8 @@ class ParticipationController extends Controller
     {
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden acceder.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $userId = (string) $user->id;
         $apiController = app(ApiController::class);
@@ -2013,8 +2013,8 @@ class ParticipationController extends Controller
 
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $userId = (string) $user->id;
 
@@ -2205,8 +2205,8 @@ class ParticipationController extends Controller
 
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $userId = (string) $user->id;
 
@@ -2442,9 +2442,9 @@ class ParticipationController extends Controller
     public function apiGetUserHistorial(Request $request)
     {
         $user = $request->user();
-        // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden ver su historial.'], 403);
+        // Modo Usuario de la app: cualquier cuenta autenticada (cliente, vendedor o gestor).
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $pagination = ParticipationListPagination::parseFromRequest($request);
         $userId = (string) $user->id;
@@ -2876,8 +2876,8 @@ class ParticipationController extends Controller
         $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         if ($authError = ParticipationTicketReference::authenticationError(
             $request->referencia,
@@ -2967,8 +2967,8 @@ class ParticipationController extends Controller
         $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         if ($authError = ParticipationTicketReference::authenticationError(
             $request->referencia,
@@ -3053,8 +3053,8 @@ class ParticipationController extends Controller
     {
         $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         if ($authError = ParticipationTicketReference::authenticationError(
             $request->referencia,
@@ -3138,8 +3138,8 @@ class ParticipationController extends Controller
         ]);
 
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         try {
@@ -3177,8 +3177,8 @@ class ParticipationController extends Controller
         ]);
 
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         $userId = (string) $user->id;
@@ -3231,8 +3231,8 @@ class ParticipationController extends Controller
     public function apiAcceptGift(Request $request, int $giftId, ParticipationGiftService $giftService)
     {
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         $giftService->attachPendingGiftsToUser($user);
@@ -3261,8 +3261,8 @@ class ParticipationController extends Controller
     public function apiRejectGift(Request $request, int $giftId, ParticipationGiftService $giftService)
     {
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         $giftService->attachPendingGiftsToUser($user);
@@ -3290,8 +3290,8 @@ class ParticipationController extends Controller
     public function apiPendingGifts(Request $request)
     {
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         app(ParticipationGiftService::class)->attachPendingGiftsToUser($user);
@@ -3645,6 +3645,20 @@ class ParticipationController extends Controller
             'success' => false,
             'message' => "Esta participación ha caducado (plazo de {$months} meses desde la fecha del sorteo).",
         ], 422);
+    }
+
+    /**
+     * Modo Usuario (cartera/historial): cualquier cuenta autenticada.
+     * El switch Usuario/Vendedor/Gestor de la app no cambia users.role; un gestor
+     * en modo Usuario antes recibía 403 al exigir solo role=client o seller.
+     */
+    private function denyUnlessPersonalAppUser(?User $user): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'No autenticado.'], 401);
+        }
+
+        return null;
     }
 
     private function recordSaleConsentIfRequested(Request $request, User $user, array $context = []): void
