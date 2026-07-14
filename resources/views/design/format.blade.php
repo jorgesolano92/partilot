@@ -1359,6 +1359,7 @@ $(document).ready(function() {
   // Botón Guardar márgenes (paso 1): feedback visual (los valores se guardan al finalizar el diseño)
   $(document).on('click', '#btn-guardar-margenes', function(e) {
     e.preventDefault();
+    if (typeof configMargins === 'function') configMargins();
     var $ti = $('#ticket-info');
     if ($ti.length) {
       $ti.addClass('alert-success').removeClass('alert-info');
@@ -1445,16 +1446,20 @@ $(document).ready(function() {
   });
 
   function setBgToContainment(color, img) {
-    var $cont = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
-    if (!$cont.length) $cont = $('#containment-wrapper'+step);
-    $cont.css('background-color', color);
-    if(img) {
+    var $cont = (typeof getBackgroundTargetEl === 'function')
+      ? getBackgroundTargetEl(step)
+      : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
+    if (!$cont || !$cont.length) $cont = $('#containment-wrapper'+step);
+    $cont.css('background-color', color || '#ffffff');
+    if (img) {
       $cont.css('background-image', bgImageCssUrl(img));
       $cont.css('background-size', 'cover');
       $cont.css('background-position', 'center');
+      $cont.css('background-repeat', 'no-repeat');
     } else {
       $cont.css('background-image', 'none');
     }
+    if (typeof syncMarginBgLayers === 'function') syncMarginBgLayers();
   }
 });
 // ... existing code ...
@@ -2029,7 +2034,9 @@ $('#format').change(function (e) {
         }, 100);
 
         if ($('#containment-wrapper'+step).length) {
-            var $bgEl = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
+            var $bgEl = (typeof getBackgroundTargetEl === 'function')
+              ? getBackgroundTargetEl(step)
+              : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
             if ($bgEl.length) {
               if(localStorage.getItem('bg-step'+step)){
                 $bgEl.css('background-color', localStorage.getItem('bg-step'+step));
@@ -2039,6 +2046,7 @@ $('#format').change(function (e) {
                 $bgEl.css('background-image', 'none');
               }
             }
+            if (typeof syncMarginBgLayers === 'function') syncMarginBgLayers();
         }
 
         updateDesignActionButtons();
@@ -2125,7 +2133,9 @@ $('#format').change(function (e) {
           }, 100);
 
           if ($('#containment-wrapper'+step).length) {
-              var $bgEl = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
+              var $bgEl = (typeof getBackgroundTargetEl === 'function')
+                ? getBackgroundTargetEl(step)
+                : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
               if ($bgEl.length) {
                 if(localStorage.getItem('bg-step'+step)){
                   $bgEl.css('background-color', localStorage.getItem('bg-step'+step));
@@ -2135,6 +2145,7 @@ $('#format').change(function (e) {
                   $bgEl.css('background-image', 'none');
                 }
               }
+              if (typeof syncMarginBgLayers === 'function') syncMarginBgLayers();
               if(localStorage.getItem('guide-step'+step)){
                   $('.guide'+step).css('border-color', localStorage.getItem('guide-step'+step));
               }else{
@@ -2857,7 +2868,9 @@ $('#format').change(function (e) {
       e.preventDefault();
 
       localStorage.setItem('bg-step'+step,$(this).val());
-      var $bg = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
+      var $bg = (typeof getBackgroundTargetEl === 'function')
+        ? getBackgroundTargetEl(step)
+        : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
       if ($bg.length) $bg.css('background-color', $(this).val());
   });
 
@@ -3393,6 +3406,100 @@ $('#format').change(function (e) {
     }
   });
 
+  /**
+   * Fondo SOLO dentro de márgenes morados (identation).
+   * Capa absoluta inset en mm: fiable en editor, html2canvas y DomPDF (sin calc()).
+   */
+  function marginBgLayerId(stepNum) {
+    if (stepNum === 2) return 'design-participation-bg';
+    if (stepNum === 3) return 'design-cover-bg';
+    if (stepNum === 4) return 'design-back-bg';
+    return null;
+  }
+
+  function ensureMarginBgLayer(stepNum) {
+    var $wrap = $('#containment-wrapper' + stepNum);
+    if (!$wrap.length) return $();
+    var bgId = marginBgLayerId(stepNum);
+    if (!bgId) return $wrap;
+
+    var identationMm = parseFloat($('#identation').val()) || 2.5;
+    var matrixMm = parseFloat($('#matrix-box').val()) || 40;
+    var $bg = $('#' + bgId);
+
+    if (stepNum === 4) {
+      var rightMm = identationMm + matrixMm;
+      if (!$bg.length) {
+        var bgColor4 = $wrap.css('background-color') || '#dfdfdf';
+        var bgImg4 = $wrap.css('background-image');
+        $wrap.prepend(
+          '<div id="design-back-bg" style="position:absolute;left:0;top:0;right:' + rightMm +
+          'mm;bottom:0;z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+        );
+        $bg = $('#design-back-bg');
+        if (bgColor4 && bgColor4 !== 'rgba(0, 0, 0, 0)' && bgColor4 !== 'transparent') {
+          $bg.css('background-color', bgColor4);
+        }
+        if (bgImg4 && bgImg4 !== 'none') $bg.css('background-image', bgImg4);
+        $wrap.css({ 'background-color': '', 'background-image': 'none' });
+      } else {
+        $bg.css({ left: '0', top: '0', right: rightMm + 'mm', bottom: '0' });
+      }
+      return $bg;
+    }
+
+    if (!$bg.length) {
+      var bgColor = $wrap.css('background-color');
+      var bgImg = $wrap.css('background-image');
+      $wrap.prepend(
+        '<div id="' + bgId + '" class="design-margin-bg" style="position:absolute;left:' + identationMm +
+        'mm;top:' + identationMm + 'mm;right:' + identationMm + 'mm;bottom:' + identationMm +
+        'mm;z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+      );
+      $bg = $('#' + bgId);
+      if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+        $bg.css('background-color', bgColor);
+      }
+      if (bgImg && bgImg !== 'none') $bg.css('background-image', bgImg);
+      $wrap.css({ 'background-color': '#ffffff', 'background-image': 'none' });
+    } else {
+      $bg.css({
+        left: identationMm + 'mm',
+        top: identationMm + 'mm',
+        right: identationMm + 'mm',
+        bottom: identationMm + 'mm',
+        position: 'absolute',
+        zIndex: 0,
+        pointerEvents: 'none'
+      });
+      $wrap.css({ 'background-image': 'none' });
+      var wrapBg = $wrap.css('background-color');
+      if (wrapBg && wrapBg !== 'rgba(0, 0, 0, 0)' && wrapBg !== 'transparent' && wrapBg !== 'rgb(255, 255, 255)') {
+        // Migrar fondo residual del wrapper a la capa inset
+        if (!$bg.css('background-image') || $bg.css('background-image') === 'none') {
+          var layerBg = $bg.css('background-color');
+          if (!layerBg || layerBg === 'rgba(0, 0, 0, 0)' || layerBg === 'transparent') {
+            $bg.css('background-color', wrapBg);
+          }
+        }
+        $wrap.css('background-color', '#ffffff');
+      }
+    }
+    return $bg;
+  }
+
+  function syncMarginBgLayers() {
+    [2, 3, 4].forEach(function (n) {
+      if ($('#containment-wrapper' + n).length) ensureMarginBgLayer(n);
+    });
+  }
+
+  function getBackgroundTargetEl(stepNum) {
+    if (stepNum === 4) return ensureMarginBgLayer(4);
+    if (stepNum === 2 || stepNum === 3) return ensureMarginBgLayer(stepNum);
+    return $('#containment-wrapper' + stepNum);
+  }
+
   function configMargins()
   {
     let identation = $('#identation').val() ?? 2.5;
@@ -3405,19 +3512,7 @@ $('#format').change(function (e) {
     $('.caja-matriz').css('width',matrix+'mm')
     $('.caja-matriz-2').css('right',identation+'mm')
     $('.caja-matriz-2').css('width',matrix+'mm')
-    if ($('#containment-wrapper4').length && !$('#design-back-bg').length) {
-      var identationMm = $('#identation').val() || 2.5;
-      var matrixMm = $('#matrix-box').val() || 40;
-      var rightMm = parseFloat(identationMm) + parseFloat(matrixMm);
-      var $wrap = $('#containment-wrapper4');
-      var bgColor = $wrap.css('background-color') || '#dfdfdf';
-      var bgImg = $wrap.css('background-image');
-      $wrap.prepend('<div id="design-back-bg" style="position:absolute;left:0;top:0;right:'+rightMm+'mm;bottom:0;z-index:0;pointer-events:none;background-color:'+bgColor+';background-size:cover;background-position:center;"></div>');
-      if (bgImg && bgImg !== 'none') $('#design-back-bg').css('background-image', bgImg);
-      $wrap.css('background-color','').css('background-image','none');
-    }
-    var identationMm = $('#identation').val() || 2.5;
-    $('#design-back-bg').css('right', (parseFloat(identationMm) + parseFloat(matrix)) + 'mm');
+    syncMarginBgLayers();
     if (step >= 2 && step <= 4) {
       $('#containment-wrapper'+step+' .elements').each(function() { clampElementToMargins(this); });
     }
@@ -3810,10 +3905,15 @@ $('#format').change(function (e) {
           var img = (d.backgrounds[step].image != null && d.backgrounds[step].image !== '') ? d.backgrounds[step].image : '';
           localStorage.setItem('bg-step' + i, color);
           localStorage.setItem('bgimg-step' + i, img);
-          var $cont = (i === 4) ? $('#design-back-bg') : $('#containment-wrapper' + i);
+          var $cont = (typeof getBackgroundTargetEl === 'function')
+            ? getBackgroundTargetEl(i)
+            : ((i === 4) ? $('#design-back-bg') : $('#containment-wrapper' + i));
           if ($cont.length) {
             $cont.css('background-color', color);
             $cont.css('background-image', img ? 'url("' + String(img).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")' : 'none');
+            $cont.css('background-size', 'cover');
+            $cont.css('background-position', 'center');
+            $cont.css('background-repeat', 'no-repeat');
           }
         }
       });
@@ -3831,7 +3931,10 @@ $('#format').change(function (e) {
         applyLoadedDesign();
         updateTicketInfo();
         $('#format,#page,#rows,#cols,#orientation').off('change keyup').on('change keyup', updateTicketInfo);
-        $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#matrix-box,#margin-custom,#page-rigth,#page-bottom').off('change keyup').on('change keyup', function() { if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo(); });
+        $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#matrix-box,#margin-custom,#page-rigth,#page-bottom').off('change keyup').on('change keyup', function() {
+          if (typeof configMargins === 'function') configMargins();
+          else if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
+        });
 
         if (window.__preferServerDesign) {
           markDesignSaved();
@@ -3919,7 +4022,9 @@ $('#format').change(function (e) {
 
     // Fondos: leer del DOM (lo que ve el usuario) para guardar siempre los valores reales
     function getBackgroundFromDom(stepNum) {
-      var $el = (stepNum === 4) ? $('#design-back-bg') : $('#containment-wrapper' + stepNum);
+      var $el = (typeof getBackgroundTargetEl === 'function')
+        ? getBackgroundTargetEl(stepNum)
+        : ((stepNum === 4) ? $('#design-back-bg') : $('#containment-wrapper' + stepNum));
       if (!$el.length) return { color: '#dfdfdf', image: null };
       var color = $el.css('background-color');
       if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') color = '#dfdfdf';

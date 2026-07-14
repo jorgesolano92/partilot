@@ -1575,13 +1575,137 @@ class DesignController extends Controller
      * HTML de participación listo para DomPDF (misma lógica en web y colas).
      * Mantiene el flujo histórico: base de la app -> ruta de public/ y url(uploads/...) en CSS.
      */
-    public function prepareParticipationHtmlForPdf(string $html): string
+    public function prepareParticipationHtmlForPdf(string $html, float $identationMm = 2.5): string
     {
+        $html = $this->insetBackgroundWithinMargins(
+            $html,
+            $identationMm,
+            'containment-wrapper2',
+            'design-participation-bg'
+        );
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
 
         return $this->adjustWidthsForDomPdf($html);
+    }
+
+    /**
+     * Fondo solo dentro de los márgenes (identation): capa absoluta inset en mm.
+     * Evita background-size:calc() (poco fiable en DomPDF).
+     */
+    public function insetBackgroundWithinMargins(
+        string $html,
+        float $identationMm,
+        string $wrapperId = 'containment-wrapper2',
+        string $bgId = 'design-participation-bg'
+    ): string {
+        if ($html === '' || ! preg_match('/id=(["\'])'.preg_quote($wrapperId, '/').'\1/i', $html)) {
+            return $html;
+        }
+
+        $mm = max(0, round($identationMm, 2));
+        $insetCss = "left:{$mm}mm;top:{$mm}mm;right:{$mm}mm;bottom:{$mm}mm";
+
+        if (preg_match('/id=(["\'])'.preg_quote($bgId, '/').'\1/i', $html)) {
+            $html = preg_replace_callback(
+                '/(<div[^>]*\bid=(["\'])'.preg_quote($bgId, '/').'\2[^>]*?\bstyle=(["\']))(.*?)(\3)/is',
+                function ($m) use ($insetCss) {
+                    $style = preg_replace('/\b(left|top|right|bottom|inset)\s*:[^;]+;?/i', '', $m[4]) ?? $m[4];
+                    if (! preg_match('/\bposition\s*:/i', $style)) {
+                        $style = 'position:absolute;'.$style;
+                    }
+                    if (! preg_match('/\bz-index\s*:/i', $style)) {
+                        $style .= 'z-index:0;';
+                    }
+                    if (! preg_match('/\bpointer-events\s*:/i', $style)) {
+                        $style .= 'pointer-events:none;';
+                    }
+                    if (! preg_match('/\bbackground-size\s*:/i', $style)) {
+                        $style .= 'background-size:cover;';
+                    }
+                    if (! preg_match('/\bbackground-position\s*:/i', $style)) {
+                        $style .= 'background-position:center;';
+                    }
+                    $style = trim(preg_replace('/;+/', ';', $style) ?? $style, "; \t\n\r").';'.$insetCss;
+
+                    return $m[1].$style.$m[3];
+                },
+                $html,
+                1
+            ) ?? $html;
+
+            return $this->clearWrapperBackgroundStyles($html, $wrapperId);
+        }
+
+        $bgColor = null;
+        $bgImage = null;
+        if (preg_match(
+            '/<div([^>]*\bid=(["\'])'.preg_quote($wrapperId, '/').'\2[^>]*)>/i',
+            $html,
+            $wm
+        )) {
+            $attrs = $wm[1];
+            if (preg_match('/\bstyle=(["\'])(.*?)\1/is', $attrs, $sm)) {
+                $style = $sm[2];
+                if (preg_match('/\bbackground-color\s*:\s*([^;]+)/i', $style, $cm)) {
+                    $bgColor = trim($cm[1]);
+                }
+                if (preg_match('/\bbackground-image\s*:\s*([^;]+)/i', $style, $im)) {
+                    $candidate = trim($im[1]);
+                    if (strcasecmp($candidate, 'none') !== 0) {
+                        $bgImage = $candidate;
+                    }
+                } elseif (preg_match('/\bbackground\s*:\s*([^;]+)/i', $style, $bm)
+                    && stripos($bm[1], 'url(') !== false) {
+                    $bgImage = trim($bm[1]);
+                }
+            }
+        }
+
+        if ($bgColor === null && $bgImage === null) {
+            // Sin fondo en wrapper: aún así crear capa vacía no hace falta
+            return $html;
+        }
+
+        $layerStyle = 'position:absolute;'.$insetCss.';z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;';
+        if ($bgColor !== null && $bgColor !== '') {
+            $layerStyle .= 'background-color:'.$bgColor.';';
+        }
+        if ($bgImage !== null && $bgImage !== '') {
+            $layerStyle .= 'background-image:'.$bgImage.';';
+        }
+        $layer = '<div id="'.$bgId.'" class="design-margin-bg" style="'.$layerStyle.'"></div>';
+
+        $html = preg_replace(
+            '/(<div[^>]*\bid=(["\'])'.preg_quote($wrapperId, '/').'\2[^>]*>)/i',
+            '$1'.$layer,
+            $html,
+            1
+        ) ?? $html;
+
+        return $this->clearWrapperBackgroundStyles($html, $wrapperId);
+    }
+
+    private function clearWrapperBackgroundStyles(string $html, string $wrapperId): string
+    {
+        return preg_replace_callback(
+            '/(<div[^>]*\bid=(["\'])'.preg_quote($wrapperId, '/').'\2[^>]*?\bstyle=(["\']))(.*?)(\3)/is',
+            function ($m) {
+                $style = $m[4];
+                $style = preg_replace('/\bbackground(-image|-color|-size|-position|-repeat)?\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = trim(preg_replace('/;+/', ';', $style) ?? $style, "; \t\n\r");
+                if ($style === '') {
+                    $style = 'background-color:#ffffff';
+                } elseif (! preg_match('/\bbackground-color\s*:/i', $style)) {
+                    $style .= ';background-color:#ffffff';
+                }
+
+                return $m[1].$style.$m[3];
+            },
+            $html,
+            1
+        ) ?? $html;
     }
 
     /**
@@ -1914,9 +2038,12 @@ class DesignController extends Controller
         }
         
         // Cache del HTML procesado (clave versionada; mismo pipeline que el Job en cola)
-        $cacheKey = 'participation_html_pdf_v9_' . $id;
+        $cacheKey = 'participation_html_pdf_v10_' . $id . '_m' . (string) ((float) ($design->identation ?? 2.5));
         $participation_html = cache()->remember($cacheKey, 3600, function () use ($design) {
-            return $this->prepareParticipationHtmlForPdf($design->participation_html ?? '');
+            return $this->prepareParticipationHtmlForPdf(
+                $design->participation_html ?? '',
+                (float) ($design->identation ?? 2.5)
+            );
         });
 
         // Determinar tamaño y orientación
@@ -2196,6 +2323,14 @@ class DesignController extends Controller
     public function prepareCoverOrBackHtmlForPdf(DesignFormat $design, string $htmlField): string
     {
         $html = $design->$htmlField ?? '';
+        if ($htmlField === 'cover_html') {
+            $html = $this->insetBackgroundWithinMargins(
+                $html,
+                (float) ($design->identation ?? 2.5),
+                'containment-wrapper3',
+                'design-cover-bg'
+            );
+        }
         $imageService = new ImageOptimizationService();
         $html = $imageService->optimizeHtmlImages($html);
         $publicPath = public_path();
@@ -2886,6 +3021,12 @@ class DesignController extends Controller
 
         $reservation_numbers = $set && $set->reserve ? $set->reserve->reservation_numbers : [];
         $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+        $html = $this->insetBackgroundWithinMargins(
+            $html,
+            (float) ($design->identation ?? 2.5),
+            'containment-wrapper2',
+            'design-participation-bg'
+        );
 
         return view('design.digital_participation_image', [
             'design' => $design,
@@ -2908,6 +3049,12 @@ class DesignController extends Controller
         $set = $design->set;
         $reservation_numbers = $set && $set->reserve ? $set->reserve->reservation_numbers : [];
         $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+        $html = $this->insetBackgroundWithinMargins(
+            $html,
+            (float) ($design->identation ?? 2.5),
+            'containment-wrapper2',
+            'design-participation-bg'
+        );
 
         return view('design.marketing_participation_image', [
             'design' => $design,
