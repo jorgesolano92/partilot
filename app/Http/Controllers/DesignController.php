@@ -2128,6 +2128,10 @@ class DesignController extends Controller
 
         usort($tacoQrs, fn ($a, $b) => ((int) ($a['book_number'] ?? 0)) <=> ((int) ($b['book_number'] ?? 0)));
 
+        $perBook = max(1, (int) ($output['participations_per_book'] ?? 50));
+        $totalParticipations = $this->resolveSetTotalParticipations($design);
+        $totalBooks = max(1, count($tacoQrs));
+
         $qrService = new \App\Services\EndroidQrCodeService();
         $items = [];
         foreach ($tacoQrs as $taco) {
@@ -2137,7 +2141,14 @@ class DesignController extends Controller
                 continue;
             }
             $qrBase64 = $qrService->generateQrFromTextBase64($tacoRef);
-            $items[] = $this->replaceCoverQrWithTacoQr($coverTemplate, $qrBase64, $bookNumber);
+            $items[] = $this->replaceCoverQrWithTacoQr(
+                $coverTemplate,
+                $qrBase64,
+                $bookNumber,
+                $totalBooks,
+                $perBook,
+                $totalParticipations
+            );
         }
 
         if ($items === []) {
@@ -2414,14 +2425,25 @@ class DesignController extends Controller
             $coverTemplate = $this->preserveInlineStyles($coverTemplate);
             $coverTemplate = $this->adjustWidthsForDomPdf($coverTemplate);
 
+            $perBook = max(1, (int) ($output['participations_per_book'] ?? 50));
+            $totalParticipations = $this->resolveSetTotalParticipations($design);
+            $totalBooks = max(1, count($tacoQrs));
+
             foreach ($tacoQrs as $taco) {
                 $tacoRef = $taco['taco_ref'] ?? '';
-                $bookNumber = $taco['book_number'] ?? 0;
+                $bookNumber = (int) ($taco['book_number'] ?? 0);
                 if (empty($tacoRef)) {
                     continue;
                 }
                 $qrBase64 = (new \App\Services\EndroidQrCodeService())->generateQrFromTextBase64($tacoRef);
-                $coverHtml = $this->replaceCoverQrWithTacoQr($coverTemplate, $qrBase64, $bookNumber);
+                $coverHtml = $this->replaceCoverQrWithTacoQr(
+                    $coverTemplate,
+                    $qrBase64,
+                    $bookNumber,
+                    $totalBooks,
+                    $perBook,
+                    $totalParticipations
+                );
                 $coverPages[] = $coverHtml;
             }
 
@@ -2488,13 +2510,73 @@ class DesignController extends Controller
     }
 
     /**
+     * Total de participaciones del set asociado al diseño (tickets como fallback).
+     */
+    private function resolveSetTotalParticipations(DesignFormat $design): int
+    {
+        $set = $design->relationLoaded('set')
+            ? $design->set
+            : ($design->set_id ? Set::select('id', 'tickets', 'total_participations')->find($design->set_id) : null);
+
+        $total = (int) ($set->total_participations ?? 0);
+        if ($total <= 0 && $set && ! empty($set->tickets)) {
+            $tickets = is_array($set->tickets) ? $set->tickets : [];
+            $total = count($tickets);
+        }
+
+        return max(0, $total);
+    }
+
+    /**
+     * Texto del recuadro inferior de la portada de taco.
+     * Ejemplo: "Taco 001/050 - Participaciones 00001/00050"
+     */
+    private function buildTacoCoverLabel(int $bookNumber, int $totalBooks, int $perBook, int $totalParticipations): string
+    {
+        $bookNumber = max(1, $bookNumber);
+        $totalBooks = max(1, $totalBooks);
+        $perBook = max(1, $perBook);
+        $from = (($bookNumber - 1) * $perBook) + 1;
+        $to = $bookNumber * $perBook;
+        if ($totalParticipations > 0) {
+            $to = min($to, $totalParticipations);
+        }
+        $to = max($from, $to);
+
+        $tacoPad = max(3, strlen((string) $totalBooks));
+        $partPad = max(5, strlen((string) max($totalParticipations, $to)));
+
+        return sprintf(
+            'Taco %s/%s - Participaciones %s/%s',
+            str_pad((string) $bookNumber, $tacoPad, '0', STR_PAD_LEFT),
+            str_pad((string) $totalBooks, $tacoPad, '0', STR_PAD_LEFT),
+            str_pad((string) $from, $partPad, '0', STR_PAD_LEFT),
+            str_pad((string) $to, $partPad, '0', STR_PAD_LEFT)
+        );
+    }
+
+    /**
      * Reemplaza o inyecta el elemento QR de la portada con el QR del taco.
      * Prueba varios patrones (como participaciones) y si no hay QR, lo inyecta.
+     * También rellena el recuadro inferior (barra context) con número de taco y rango.
      */
-    private function replaceCoverQrWithTacoQr(string $coverHtml, string $qrBase64, int $bookNumber): string
-    {
+    private function replaceCoverQrWithTacoQr(
+        string $coverHtml,
+        string $qrBase64,
+        int $bookNumber,
+        int $totalBooks = 1,
+        int $perBook = 50,
+        int $totalParticipations = 0
+    ): string {
         $qrImg = '<img src="' . $qrBase64 . '" class="qr-code" style="width:100%;height:100%;display:block;" alt="QR Taco ' . (int) $bookNumber . '" />';
         $replaced = false;
+        $tacoLabel = $this->buildTacoCoverLabel($bookNumber, $totalBooks, $perBook, $totalParticipations);
+        $from = (($bookNumber - 1) * max(1, $perBook)) + 1;
+        $to = $bookNumber * max(1, $perBook);
+        if ($totalParticipations > 0) {
+            $to = min($to, $totalParticipations);
+        }
+        $to = max($from, $to);
 
         // 1. Igual que participaciones: div.qr con span ui-draggable-handle vacío
         $before1 = $coverHtml;
@@ -2550,16 +2632,69 @@ class DesignController extends Controller
             }
         }
 
-        $coverHtml = preg_replace('/\{\{taco_number\}\}/i', (string) $bookNumber, $coverHtml);
+        $escapedLabel = htmlspecialchars($tacoLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $labelHtml = '<div style="display:table;width:100%;height:100%;">'
+            .'<div style="display:table-cell;vertical-align:middle;text-align:center;font-size:11px;font-weight:700;line-height:1.2;padding:2px 6px;">'
+            .$escapedLabel
+            .'</div></div>';
 
-        // Posicionar QR existente en esquina inferior derecha y tamaño mayor (75px)
+        // Rellenar barra inferior (elements.context) con el texto del taco
+        $contextFilled = false;
+        if (preg_match_all('/<div[^>]*class="[^"]*context[^"]*"[^>]*>\s*<span[^>]*>.*?<\/span>\s*<\/div>/is', $coverHtml, $allCtx, PREG_OFFSET_CAPTURE)) {
+            $targetIndex = 0;
+            foreach ($allCtx[0] as $i => $match) {
+                $chunk = $match[0];
+                if (preg_match('/\bbottom\s*:/i', $chunk) || preg_match('/inset:\s*[\d.]+px\s+[\d.]+px\s+[\d.]+px/i', $chunk)) {
+                    $targetIndex = $i;
+                    break;
+                }
+                $targetIndex = $i;
+            }
+            $matchHtml = $allCtx[0][$targetIndex][0];
+            $filled = preg_replace_callback(
+                '/(<div[^>]*class="[^"]*context[^"]*"[^>]*>\s*<span[^>]*>)(.*?)(<\/span>\s*<\/div>)/is',
+                function ($m) use ($labelHtml) {
+                    return $m[1] . $labelHtml . $m[3];
+                },
+                $matchHtml,
+                1
+            );
+            if (is_string($filled) && $filled !== $matchHtml) {
+                $pos = $allCtx[0][$targetIndex][1];
+                $coverHtml = substr($coverHtml, 0, $pos) . $filled . substr($coverHtml, $pos + strlen($matchHtml));
+                $contextFilled = true;
+            }
+        }
+
+        if (! $contextFilled) {
+            $contextDiv = '<div class="elements context" style="width:calc(100% - 60px);border-radius:10px;height:10%;position:absolute;bottom:8px;left:0;right:0;margin:auto;background-color:#dfdfdf;border:2px solid #333;overflow:hidden;z-index:6;">'
+                .'<span style="display:block;height:100%;padding:0;">'.$labelHtml.'</span></div>';
+            if (preg_match('/<div[^>]*containment-wrapper[^>]*>/i', $coverHtml)) {
+                $coverHtml = preg_replace(
+                    '/(<div[^>]*containment-wrapper[^>]*>)/i',
+                    '$1'.$contextDiv,
+                    $coverHtml,
+                    1
+                );
+            } else {
+                $coverHtml = preg_replace('/(<div[^>]*format-box[^>]*>)/i', '$1'.$contextDiv, $coverHtml, 1);
+            }
+        }
+
+        $coverHtml = preg_replace('/\{\{taco_label\}\}/i', $escapedLabel, $coverHtml);
+        $coverHtml = preg_replace('/\{\{taco_number\}\}/i', (string) $bookNumber, $coverHtml);
+        $coverHtml = preg_replace('/\{\{taco_total\}\}/i', (string) max(1, $totalBooks), $coverHtml);
+        $coverHtml = preg_replace('/\{\{participation_from\}\}/i', (string) $from, $coverHtml);
+        $coverHtml = preg_replace('/\{\{participation_to\}\}/i', (string) $to, $coverHtml);
+
+        // Posicionar QR existente encima del recuadro inferior (no solapar el texto del taco)
         $coverHtml = preg_replace_callback(
             '/(<div[^>]*class="[^"]*qr[^"]*"[^>]*)style="([^"]*)"/i',
             function ($m) {
-                $style = preg_replace('/\b(top|left):[^;]+;?/i', '', $m[2]);
+                $style = preg_replace('/\b(top|left|bottom|right|inset):[^;]+;?/i', '', $m[2]);
                 $style = preg_replace('/\bwidth:\s*[\d.]+px/i', 'width:75px', $style);
                 $style = preg_replace('/\bheight:\s*[\d.]+px/i', 'height:75px', $style);
-                $style = trim(preg_replace('/;+/', ';', $style), '; ') . '; bottom:3mm; right:3mm;';
+                $style = trim(preg_replace('/;+/', ';', $style), '; ') . '; bottom:48px; right:15px;';
                 return $m[1] . 'style="' . $style . '"';
             },
             $coverHtml,
@@ -5216,12 +5351,17 @@ class DesignController extends Controller
             return $design->refresh();
         }
 
+        $approvalService = app(DesignApprovalService::class);
+        $designerType = auth()->user()
+            ? $approvalService->resolveDesignerTypeForSave(auth()->user(), $entity)
+            : DesignApprovalService::DESIGNER_ADMINISTRATION;
+
         $design = DesignFormat::create([
             'entity_id' => $entity->id,
             'lottery_id' => $lotteryId,
             'set_id' => $set->id,
             'format' => 'A4',
-            'designer_type' => DesignApprovalService::DESIGNER_ADMINISTRATION,
+            'designer_type' => $designerType,
             'approval_status' => DesignApprovalService::STATUS_DRAFT,
             'participation_html' => '',
             'cover_html' => '',

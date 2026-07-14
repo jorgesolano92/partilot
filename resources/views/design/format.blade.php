@@ -818,7 +818,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             <div class="elements text ui-draggable" style="padding: 10px; width: 351px; height: 93px; resize: both; overflow: hidden; position: absolute; top: 59.8295px; left: 378.71px;">
                                                 <span class="ui-draggable-handle"><h4><span style="color:hsl(0,0%,0%);" class="ui-draggable-handle"><u>&nbsp; Nombre: &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</u></span></h4></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-                                            </div><div class="elements context ui-draggable" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; inset: 294.67px 0px 20px 2.83209px; margin: auto; background-color: rgb(223, 223, 223); border: 2px solid #333;"><span style="padding: 20px; display: block;" class="ui-draggable-handle"></span></div><div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 49.7045px; left: 25.7074px; width: 90px; height: 36px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 203px; height: 78px; resize: both; overflow: hidden; position: absolute; top: 29.4034px; left: 106.426px;">
+                                            </div><div class="elements context ui-draggable" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; inset: 294.67px 0px 20px 2.83209px; margin: auto; background-color: rgb(223, 223, 223); border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;" class="ui-draggable-handle">@{{taco_label}}</span></div><div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 49.7045px; left: 25.7074px; width: 90px; height: 36px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 280px; height: 87px; resize: both; overflow: hidden; position: absolute; top: 29.4034px; left: 106.426px;">
                                                 <span class="ui-draggable-handle"><h1><span style="font-size:38px;" class="ui-draggable-handle"><strong>PARTI</strong></span><span style="color:hsl(36,100%,48%);font-size:38px;" class="ui-draggable-handle"><strong>LOT</strong></span></h1></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 257px; height: 165px; resize: both; overflow: hidden; position: absolute; top: 107.724px; left: 24.7074px;">
@@ -1319,6 +1319,13 @@ function hideDesignLoading() {
   $('#design-loading-overlay').hide();
 }
 
+// URL con espacios/caracteres especiales debe ir entre comillas en CSS url()
+// Debe ser global: next/prev-step viven en otro bloque <script>
+function bgImageCssUrl(url) {
+  if (!url) return 'none';
+  return 'url("' + String(url).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
+}
+
 // Zoom del diseño (global: setupDraggable vive en otro bloque <script>)
 var designZoom = 1;
 var designZoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 3.5, 4];
@@ -1360,11 +1367,6 @@ $(document).ready(function() {
     alert('Márgenes aplicados. Se guardarán con el diseño al finalizar.');
   });
 
-  // URL con espacios/caracteres especiales debe ir entre comillas en CSS url()
-  function bgImageCssUrl(url) {
-    if (!url) return 'none';
-    return 'url("' + String(url).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
-  }
   // Botón para abrir el modal
   $(document).on('click', '#open-bg-modal', function() {
     // Cargar valores actuales
@@ -2156,61 +2158,6 @@ $('#format').change(function (e) {
             }, 600);
           }
 
-          $('.up-layer').unbind('click');
-          $('.up-layer').click(function(e) {
-            e.preventDefault();
-            if (selectedElement) {
-              if (selectedElement.hasClass('element-critical')) return;
-              let zindex = parseInt(selectedElement.css('z-index')) || 0;
-              if (zindex >= 9999) return;
-              selectedElement.css('z-index', zindex + 1);
-            }
-          });
-          $('.down-layer').unbind('click');
-          $('.down-layer').click(function(e) {
-            e.preventDefault();
-            if (selectedElement) {
-              let zindex = parseInt(selectedElement.css('z-index')) || 0;
-              if (zindex > 0) selectedElement.css('z-index', zindex - 1);
-            }
-          });
-          $('.delete-element-btn').unbind('click');
-          $('.delete-element-btn').click(function(e) {
-            e.preventDefault();
-            if (selectedElement) {
-              if (selectedElement.hasClass('element-critical')) {
-                alert('Este elemento es obligatorio y no se puede eliminar.');
-                return;
-              }
-              selectedElement.remove();
-              selectedElement = null;
-              $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-              markDesignDirty();
-              
-              saveHistoryState(); // Guardar estado después de eliminar
-              updateUndoRedoButtons(); // Actualizar estado de botones
-            }
-          });
-
-          // Suprimir / Backspace: eliminar elemento seleccionado (salvo en inputs)
-          $(document).off('keydown.designDelete').on('keydown.designDelete', function(e) {
-            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-            if ($(e.target).closest('input, textarea, select, [contenteditable="true"]').length) return;
-            if (!selectedElement || !selectedElement.length) return;
-            if (selectedElement.hasClass('element-critical')) {
-              e.preventDefault();
-              alert('Este elemento es obligatorio y no se puede eliminar.');
-              return;
-            }
-            e.preventDefault();
-            selectedElement.remove();
-            selectedElement = null;
-            $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-            markDesignDirty();
-            saveHistoryState();
-            updateUndoRedoButtons();
-          });
-
       }
 
       if (step == 2) {
@@ -2894,7 +2841,7 @@ $('#format').change(function (e) {
   $('.add-bottom').click(function (e) {
       e.preventDefault();
 
-      $('#containment-wrapper'+step).append(`<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 20px; display: block;"></span></div>`);
+      $('#containment-wrapper'+step).append(`<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">@{{taco_label}}</span></div>`);
 
       addEventsElement();
 
@@ -3712,9 +3659,105 @@ $('#format').change(function (e) {
   }
 
   function ensurePortadaQrPlaceholder() {
-    if (!$('#containment-wrapper3').length || $('#containment-wrapper3 .elements.qr').length > 0) return;
-    var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:60px;height:60px;min-width:60px;min-height:60px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
-    $('#containment-wrapper3').append(qrHtml);
+    var $wrap = $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    if ($wrap.find('.elements.qr').length === 0) {
+      var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:60px;height:60px;min-width:60px;min-height:60px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
+      $wrap.append(qrHtml);
+    }
+
+    ensurePortadaTacoLabelBar($wrap);
+  }
+
+  /** Asegura la barra inferior con el marcador taco_label (borradores locales antiguos pueden no tenerla). */
+  function ensurePortadaTacoLabelBar($wrap) {
+    $wrap = $wrap && $wrap.length ? $wrap : $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    var labelToken = '{{' + 'taco_label}}';
+    var $ctx = $wrap.find('.elements.context');
+    var $withLabel = $ctx.filter(function() {
+      return (($(this).html() || '').indexOf(labelToken) !== -1);
+    });
+    if ($withLabel.length) return;
+
+    var $emptyBottom = $ctx.filter(function() {
+      var text = $.trim($(this).find('span').first().text());
+      var style = ($(this).attr('style') || '');
+      return text === '' && (/bottom\s*:/i.test(style) || /inset\s*:/i.test(style));
+    }).first();
+
+    if ($emptyBottom.length) {
+      $emptyBottom.find('span').first()
+        .attr('style', 'padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;')
+        .text(labelToken);
+      return;
+    }
+
+    $wrap.append(
+      '<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;">'
+      + '<span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">' + labelToken + '</span></div>'
+    );
+  }
+
+  function bindDesignToolbarActions() {
+    $('.up-layer').off('click.designToolbar').on('click.designToolbar', function(e) {
+      e.preventDefault();
+      if (!selectedElement || !selectedElement.length) return;
+      if (selectedElement.hasClass('element-critical')) return;
+      var zindex = parseInt(selectedElement.css('z-index'), 10) || 0;
+      if (zindex >= 9999) return;
+      selectedElement.css('z-index', zindex + 1);
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
+    });
+
+    $('.down-layer').off('click.designToolbar').on('click.designToolbar', function(e) {
+      e.preventDefault();
+      if (!selectedElement || !selectedElement.length) return;
+      var zindex = parseInt(selectedElement.css('z-index'), 10) || 0;
+      if (zindex > 0) {
+        selectedElement.css('z-index', zindex - 1);
+        markDesignDirty();
+        saveHistoryState();
+        updateUndoRedoButtons();
+      }
+    });
+
+    $('.delete-element-btn').off('click.designToolbar').on('click.designToolbar', function(e) {
+      e.preventDefault();
+      if (!selectedElement || !selectedElement.length) return;
+      if (selectedElement.hasClass('element-critical')) {
+        alert('Este elemento es obligatorio y no se puede eliminar.');
+        return;
+      }
+      selectedElement.remove();
+      selectedElement = null;
+      $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
+    });
+
+    $(document).off('keydown.designDelete').on('keydown.designDelete', function(e) {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if ($(e.target).closest('input, textarea, select, [contenteditable="true"]').length) return;
+      if (!selectedElement || !selectedElement.length) return;
+      if (selectedElement.hasClass('element-critical')) {
+        e.preventDefault();
+        alert('Este elemento es obligatorio y no se puede eliminar.');
+        return;
+      }
+      e.preventDefault();
+      selectedElement.remove();
+      selectedElement = null;
+      $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
+    });
   }
 
   // Tarea 7: aplicar diseño cargado por reserva
@@ -3777,6 +3820,8 @@ $('#format').change(function (e) {
 
   // Llamar al cargar y al cambiar cualquier campo relevante
   $(document).ready(function() {
+      bindDesignToolbarActions();
+
       const initDesignEditor = function() {
         applyLoadedDesign();
         updateTicketInfo();

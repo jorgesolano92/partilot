@@ -17,6 +17,8 @@ class DesignApprovalService
 
     public const DESIGNER_PRINT_SHOP = 'print_shop';
 
+    public const DESIGNER_SUPERADMIN = 'superadmin';
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_PENDING = 'pending_approval';
@@ -25,8 +27,17 @@ class DesignApprovalService
 
     public const STATUS_REJECTED = 'rejected';
 
+    public function superadminSkipsEntityApproval(): bool
+    {
+        return (bool) config('design.superadmin_skip_entity_approval', false);
+    }
+
     public function resolveDesignerType(User $user): string
     {
+        if ($user->isSuperAdmin() && $this->superadminSkipsEntityApproval()) {
+            return self::DESIGNER_SUPERADMIN;
+        }
+
         return $user->isEntity() ? self::DESIGNER_ENTITY : self::DESIGNER_ADMINISTRATION;
     }
 
@@ -62,6 +73,10 @@ class DesignApprovalService
             return self::DESIGNER_PRINT_SHOP;
         }
 
+        if ($user && $user->isSuperAdmin() && $this->superadminSkipsEntityApproval()) {
+            return self::DESIGNER_SUPERADMIN;
+        }
+
         if ($user && $this->canEntityActAsDesigner($user, $entity)) {
             return self::DESIGNER_ENTITY;
         }
@@ -93,6 +108,8 @@ class DesignApprovalService
     {
         $type = $design->designer_type ?? self::DESIGNER_ADMINISTRATION;
 
+        // Superadmin (con flag .env): no pasa por aprobación de entidad.
+        // Administración e imprenta: sí requieren aprobación.
         return in_array($type, [self::DESIGNER_ADMINISTRATION, self::DESIGNER_PRINT_SHOP], true);
     }
 
@@ -259,7 +276,21 @@ class DesignApprovalService
                 $design->designer_type = self::DESIGNER_PRINT_SHOP;
                 $dirty = true;
             }
-        } elseif ($user && $entity && $this->isAdministrationSideUser($user)) {
+        } elseif ($user && $user->isSuperAdmin() && $this->superadminSkipsEntityApproval()) {
+            if ($design->designer_type !== self::DESIGNER_SUPERADMIN) {
+                $design->designer_type = self::DESIGNER_SUPERADMIN;
+                $dirty = true;
+            }
+            // Sale del circuito de aprobación de entidad (pendiente/rechazado → borrador).
+            if (in_array($this->normalizedApprovalStatus($design->approval_status), [self::STATUS_PENDING, self::STATUS_REJECTED], true)) {
+                $design->approval_status = self::STATUS_DRAFT;
+                $design->submitted_for_approval_at = null;
+                $design->approval_decided_at = null;
+                $design->approved_by_user_id = null;
+                $design->approval_rejection_reason = null;
+                $dirty = true;
+            }
+        } elseif ($user && $entity && $this->isAdministrationSideUser($user) && ! ($user->isSuperAdmin() && $this->superadminSkipsEntityApproval())) {
             $status = $this->normalizedApprovalStatus($design->approval_status);
             if (in_array($status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true)
                 && $design->designer_type !== self::DESIGNER_ADMINISTRATION) {
@@ -563,8 +594,15 @@ class DesignApprovalService
             ));
     }
 
-    public function invalidateApprovalAfterEdit(DesignFormat $design): void
+    public function invalidateApprovalAfterEdit(DesignFormat $design, ?User $user = null): void
     {
+        $user = $user ?? auth()->user();
+        if ($user instanceof User && $user->isSuperAdmin() && $this->superadminSkipsEntityApproval()) {
+            $this->assignDesignerTypeIfMissing($design, $user);
+
+            return;
+        }
+
         if (! $this->requiresEntityApproval($design)) {
             return;
         }
@@ -685,6 +723,7 @@ class DesignApprovalService
             self::DESIGNER_PRINT_SHOP => 'Imprenta PARTILOT',
             self::DESIGNER_ENTITY => 'Entidad',
             self::DESIGNER_ADMINISTRATION => 'Administración',
+            self::DESIGNER_SUPERADMIN => 'Superadministrador',
             default => '—',
         };
     }
