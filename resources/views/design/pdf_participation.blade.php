@@ -2,6 +2,74 @@
     $use_prebuilt_cells = $use_prebuilt_cells ?? false;
     $pdfDocumentTitle = $pdfDocumentTitle ?? 'Participación PDF';
     $cols = max(1, (int) ($cols ?? 1));
+
+    /**
+     * EXPERIMENTO (ajustar aquí):
+     * Sustituye background-image de #design-participation-bg por <img class="design-pdf-bg-img">.
+     * La capa ya lleva left/top/right/bottom = márgenes virtuales (sangrado).
+     * El img rellena esa capa; tweakea estilos abajo / CSS .design-pdf-bg-img.
+     */
+    $pdfBgAsImgEnabled = true;
+    $pdfBgImgInlineStyle = 'position:absolute;left:0;top:0;width:100%;height:100%;border:0;margin:0;padding:0;display:block;';
+
+    $promotePdfBgToImg = static function (string $html) use ($pdfBgAsImgEnabled, $pdfBgImgInlineStyle): string {
+        if (! $pdfBgAsImgEnabled || $html === '' || stripos($html, 'design-participation-bg') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bid=(["\'])design-participation-bg\2[^>]*>)(.*?)(<\/div>)/is',
+            static function (array $m) use ($pdfBgImgInlineStyle): string {
+                $open = $m[1];
+                $inner = $m[3];
+                $close = $m[4];
+
+                // Evitar doble inyección
+                if (stripos($inner, 'design-pdf-bg-img') !== false || stripos($inner, '<img') !== false) {
+                    return $m[0];
+                }
+
+                if (! preg_match('/\bstyle=(["\'])(.*?)\1/is', $open, $sm)) {
+                    return $m[0];
+                }
+                $style = $sm[2];
+                if (! preg_match('/\bbackground-image\s*:\s*url\s*\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', $style, $um)) {
+                    return $m[0];
+                }
+                $src = trim(html_entity_decode($um[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'), " \t\n\r'\"");
+                if ($src === '' || strcasecmp($src, 'none') === 0) {
+                    return $m[0];
+                }
+
+                // Quitar background-* del div; conservar position + left/top/right/bottom (límites virtuales)
+                $newStyle = preg_replace('/\bbackground-image\s*:[^;]+;?/i', '', $style) ?? $style;
+                $newStyle = preg_replace('/\bbackground-size\s*:[^;]+;?/i', '', $newStyle) ?? $newStyle;
+                $newStyle = preg_replace('/\bbackground-position\s*:[^;]+;?/i', '', $newStyle) ?? $newStyle;
+                $newStyle = preg_replace('/\bbackground-repeat\s*:[^;]+;?/i', '', $newStyle) ?? $newStyle;
+                $newStyle = trim(preg_replace('/;+/', ';', $newStyle) ?? $newStyle, "; \t\n\r");
+                if ($newStyle !== '' && substr($newStyle, -1) !== ';') {
+                    $newStyle .= ';';
+                }
+                if (! preg_match('/\boverflow\s*:/i', $newStyle)) {
+                    $newStyle .= 'overflow:hidden;';
+                }
+
+                $open = preg_replace(
+                    '/\bstyle=(["\'])(.*?)\1/is',
+                    'style=$1'.$newStyle.'$1',
+                    $open,
+                    1
+                ) ?? $open;
+
+                $img = '<img class="design-pdf-bg-img" src="'.htmlspecialchars($src, ENT_QUOTES, 'UTF-8')
+                    .'" alt="" style="'.$pdfBgImgInlineStyle.'" />';
+
+                return $open.$img.$inner.$close;
+            },
+            $html,
+            1
+        ) ?? $html;
+    };
 @endphp
 <!DOCTYPE html>
 <html>
@@ -28,6 +96,27 @@
             background-repeat: no-repeat !important;
             background-position: center center !important;
             width: unset !important;
+        }
+
+        /*
+         * EXPERIMENTO: fondo como <img> dentro de #design-participation-bg
+         * (esa capa ya tiene left/top/right/bottom = márgenes virtuales).
+         * Ajusta width/height/left/top aquí si hace falta afinado fino.
+         */
+        #design-participation-bg {
+            overflow: hidden !important;
+        }
+        #design-participation-bg > img.design-pdf-bg-img {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: calc(100% - 5mm) !important;
+            border: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+            z-index: 0 !important;
         }
 
         .format-box .elements,
@@ -112,7 +201,7 @@
     <div class="participation-page" style="@if($pageIndex < count($pages) - 1) page-break-after: always; @endif">
         @for($i = 0; $i < count($page); $i++)
             @if($use_prebuilt_cells)
-                @php $html = $page[$i]; @endphp
+                @php $html = $promotePdfBgToImg($page[$i]); @endphp
             @else
                 @php
                     $ticket = $page[$i];
@@ -121,6 +210,7 @@
                     $qrCodeBase64 = $qrCodes[$ticket['r']] ?? '';
                     $html = app(\App\Http\Controllers\DesignController::class)
                         ->injectTicketQrIntoParticipationHtml($html, $qrCodeBase64);
+                    $html = $promotePdfBgToImg($html);
                 @endphp
             @endif
             <div class="participation-box">
