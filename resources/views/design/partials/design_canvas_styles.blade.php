@@ -76,6 +76,8 @@
 .format-box .elements {
     z-index: 1000;
     border: 1px solid transparent;
+    /* Editor: border-box. En PDF se fuerza content-box + compensación (ver adjustElementBoxModelForDomPdf). */
+    box-sizing: border-box !important;
 }
 
 .format-box .elements.text,
@@ -83,6 +85,17 @@
 .format-box .elements.participation,
 .format-box .elements.number {
     overflow: hidden;
+    line-height: 1.15;
+    /* DEBUG temp: border ya existe (1px transparent) → solo color, layout idéntico.
+       No usar outline/box-shadow: DomPDF los desplaza y engañan al comparar. */
+    border-color: #e11d48 !important;
+}
+
+.format-box .elements.text *,
+.format-box .elements.reference *,
+.format-box .elements.participation *,
+.format-box .elements.number * {
+    line-height: 1.15 !important;
 }
 
 .format-box .elements.qr {

@@ -1584,6 +1584,8 @@ class DesignController extends Controller
             'design-participation-bg'
         );
         $html = $this->normalizeParticipationElementsForPdf($html);
+        $html = $this->adjustElementBoxModelForDomPdf($html);
+        $html = $this->scaleFontSizesForDomPdf($html);
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
@@ -1591,6 +1593,110 @@ class DesignController extends Controller
         $html = $this->preserveInlineStyles($html);
 
         return $html;
+    }
+
+    /**
+     * El editor guarda width/height con box-sizing:border-box (incluyen padding).
+     * DomPDF suele tratar absolute como content-box → las cajas crecen 2×padding.
+     * Compensación: width/height -= 2×padding, mantener padding y left/top, forzar content-box.
+     * Así el borde exterior coincide con el diseño.
+     */
+    public function adjustElementBoxModelForDomPdf(string $html): string
+    {
+        if ($html === '' || stripos($html, 'elements') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bclass="[^"]*\belements\b[^"]*"[^>]*\bstyle=")([^"]*)(")/i',
+            function (array $m): string {
+                $style = $m[2];
+
+                if (! preg_match('/\bpadding\s*:\s*([\d.]+)\s*px\b/i', $style, $pm)) {
+                    // Sin padding: igualar modelo y dejar dimensiones
+                    if (! preg_match('/\bbox-sizing\s*:/i', $style)) {
+                        $style = 'box-sizing:content-box !important;'.$style;
+                    }
+
+                    return $m[1].$style.$m[3];
+                }
+
+                $pad = (float) $pm[1];
+                if ($pad <= 0 || ! preg_match('/\bpadding\s*:\s*[\d.]+\s*px\s*;?/i', $style)) {
+                    return $m[0];
+                }
+
+                if (
+                    ! preg_match('/\bwidth\s*:\s*([\d.]+)\s*px\b/i', $style, $wm)
+                    || ! preg_match('/\bheight\s*:\s*([\d.]+)\s*px\b/i', $style, $hm)
+                ) {
+                    return $m[0];
+                }
+
+                $outerW = (float) $wm[1];
+                $outerH = (float) $hm[1];
+                $innerW = $outerW - (2 * $pad);
+                $innerH = $outerH - (2 * $pad);
+                if ($innerW < 1 || $innerH < 1) {
+                    return $m[0];
+                }
+
+                $style = preg_replace('/\bwidth\s*:[^;]+;?/i', 'width:'.$this->formatPdfCssPx($innerW).';', $style) ?? $style;
+                $style = preg_replace('/\bheight\s*:[^;]+;?/i', 'height:'.$this->formatPdfCssPx($innerH).';', $style) ?? $style;
+                // Mantener padding y left/top: con content-box el exterior = outerW × outerH del editor
+                $style = preg_replace('/\bbox-sizing\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = 'box-sizing:content-box !important;'.$style;
+                // Evitar que DomPDF estire la caja con el texto
+                if (! preg_match('/\bmax-width\s*:/i', $style)) {
+                    $style .= 'max-width:'.$this->formatPdfCssPx($innerW).';';
+                }
+                if (! preg_match('/\bmax-height\s*:/i', $style)) {
+                    $style .= 'max-height:'.$this->formatPdfCssPx($innerH).';';
+                }
+
+                return $m[1].$style.$m[3];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    private function formatPdfCssPx(float $value): string
+    {
+        $rounded = round($value, 3);
+        if (abs($rounded - round($rounded)) < 0.0001) {
+            return ((int) round($rounded)).'px';
+        }
+
+        return rtrim(rtrim(number_format($rounded, 3, '.', ''), '0'), '.').'px';
+    }
+
+    /**
+     * @deprecated Use adjustElementBoxModelForDomPdf
+     */
+    public function flattenElementPaddingForDomPdf(string $html): string
+    {
+        return $this->adjustElementBoxModelForDomPdf($html);
+    }
+
+    /**
+     * DomPDF (DejaVu) pinta el mismo font-size px más grande que el navegador.
+     * Escala tipografía para acercar el relleno de las cajas al editor.
+     */
+    public function scaleFontSizesForDomPdf(string $html, float $factor = 0.85): string
+    {
+        if ($html === '' || $factor <= 0 || abs($factor - 1.0) < 0.001) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/font-size\s*:\s*([\d.]+)\s*(px|pt|em|rem)/i',
+            function (array $m) use ($factor): string {
+                $scaled = round(((float) $m[1]) * $factor, 2);
+
+                return 'font-size:'.$scaled.$m[2];
+            },
+            $html
+        ) ?? $html;
     }
 
     /**
@@ -2149,14 +2255,11 @@ class DesignController extends Controller
             abort(422, $e->getMessage());
         }
         
-        // Cache del HTML procesado (clave versionada; mismo pipeline que el Job en cola)
-        $cacheKey = 'participation_html_pdf_v17_' . $id . '_m' . (string) ((float) ($design->identation ?? 2.5));
-        $participation_html = cache()->remember($cacheKey, 3600, function () use ($design) {
-            return $this->prepareParticipationHtmlForPdf(
-                $design->participation_html ?? '',
-                (float) ($design->identation ?? 2.5)
-            );
-        });
+        // Sin caché del HTML: cada export reprocesa (iteración rápida de CSS/PDF).
+        $participation_html = $this->prepareParticipationHtmlForPdf(
+            $design->participation_html ?? '',
+            (float) ($design->identation ?? 2.5)
+        );
 
         // Determinar tamaño y orientación
         $page = $design->page ?? 'a3';

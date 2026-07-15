@@ -36,17 +36,29 @@
             position: absolute !important;
             z-index: 1000;
             border: 1px solid transparent;
+            /* content-box: width/height del HTML ya vienen compensados (−2×padding) */
+            box-sizing: content-box !important;
         }
 
         .elements.images {
-            height: auto !important;
+            overflow: hidden !important;
+        }
+        .elements.images > span {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            line-height: 0 !important;
         }
         .elements.images img {
-            max-width: 100% !important;
-            max-height: 100% !important;
-            height: auto !important;
-            width: auto !important;
-            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
         }
 
         .qr-code {
