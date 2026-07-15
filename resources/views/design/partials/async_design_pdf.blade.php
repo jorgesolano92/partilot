@@ -151,7 +151,7 @@
 
   function partilotStartDesignPdfAjax(url, title, $btn) {
     $btn.prop('disabled', true);
-    partilotNotifyPdf('info', title, 'Generando PDF en segundo plano. Puede cerrar la pestaña y volver más tarde.', true);
+    partilotNotifyPdf('info', title, 'Generando PDF en segundo plano. Cuando termine podrá descargarlo aquí y también recibirá el enlace por correo.', true);
     $.ajax({ url: url, method: 'GET', dataType: 'json' })
       .done(function (data) {
         if (data && data.status === 'processing' && data.check_url) {

@@ -87,18 +87,12 @@
       return res.blob();
     }).then(function (blob) {
       var url = URL.createObjectURL(blob);
-      var w = window.open(url, 'designPdfPreview', 'noopener,noreferrer,width=1100,height=800');
+      // Solo una ventana: noopener en window.open hace que retorne null y dispare el fallback.
+      var w = window.open(url, '_blank');
       if (!w) {
-        // Popup bloqueado: forzar descarga/abrir en pestaña
-        var a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        alert('El navegador bloqueó la ventana emergente. Permita popups para este sitio e intente de nuevo.');
       }
-      setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 180000);
     }).catch(function (err) {
       console.error(err);
       alert('No se pudo generar la previsualización. Guarde el diseño e intente de nuevo.');

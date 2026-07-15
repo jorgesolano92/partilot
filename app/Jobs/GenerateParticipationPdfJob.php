@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Http\Controllers\DesignController;
+use App\Mail\DesignPdfReadyMail;
 use App\Models\DesignFormat;
 use App\Models\Set;
 use App\Services\DesignApprovalService;
@@ -17,6 +18,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class GenerateParticipationPdfJob implements ShouldQueue
@@ -36,12 +38,20 @@ class GenerateParticipationPdfJob implements ShouldQueue
 
     protected int $participationTo;
 
-    public function __construct(int $designId, string $jobId, int $participationFrom, int $participationTo)
-    {
+    protected ?string $notifyEmail;
+
+    public function __construct(
+        int $designId,
+        string $jobId,
+        int $participationFrom,
+        int $participationTo,
+        ?string $notifyEmail = null
+    ) {
         $this->designId = $designId;
         $this->jobId = (string) $jobId;
         $this->participationFrom = $participationFrom;
         $this->participationTo = $participationTo;
+        $this->notifyEmail = $notifyEmail ? trim($notifyEmail) : null;
         $this->timeout = self::resolveTimeout($participationFrom, $participationTo);
         $this->onQueue((string) config('pdf_optimization.queue', 'pdf'));
     }
@@ -182,6 +192,7 @@ class GenerateParticipationPdfJob implements ShouldQueue
             );
 
             PdfJobStatus::markCompleted($this->jobId);
+            $this->notifyByEmail();
 
             Log::info('GenerateParticipationPdfJob completed', [
                 'job_id' => $this->jobId,
@@ -191,6 +202,38 @@ class GenerateParticipationPdfJob implements ShouldQueue
         } catch (\Throwable $e) {
             $this->cleanupTempFiles();
             throw $e;
+        }
+    }
+
+    /**
+     * Siempre envía el enlace de descarga al correo del usuario que pidió el PDF.
+     */
+    protected function notifyByEmail(): void
+    {
+        if ($this->notifyEmail === null || $this->notifyEmail === '') {
+            return;
+        }
+        if (PdfJobStatus::wasEmailSent($this->jobId)) {
+            return;
+        }
+
+        try {
+            Mail::to($this->notifyEmail)->send(new DesignPdfReadyMail(
+                route('design.downloadPdf', $this->jobId),
+                'Participaciones PDF',
+                $this->designId
+            ));
+            PdfJobStatus::markEmailSent($this->jobId);
+            Log::info('GenerateParticipationPdfJob emailed download link', [
+                'job_id' => $this->jobId,
+                'email' => $this->notifyEmail,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('GenerateParticipationPdfJob email failed', [
+                'job_id' => $this->jobId,
+                'email' => $this->notifyEmail,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 

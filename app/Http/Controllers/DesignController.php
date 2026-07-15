@@ -1572,11 +1572,45 @@ class DesignController extends Controller
     }
 
     /**
+     * Convierte url(&quot;...&quot;) / url(&apos;...&apos;) a url('...') antes de procesar CSS.
+     * El ";" de &quot; rompe regex que usan [^;]+ sobre declaraciones style.
+     */
+    public function decodeCssUrlHtmlEntities(string $html): string
+    {
+        if ($html === '' || (stripos($html, 'url(') === false && stripos($html, 'url (') === false)) {
+            return $html;
+        }
+
+        $fixed = preg_replace_callback(
+            '/url\s*\(\s*&quot;(.*?)&quot;\s*\)/is',
+            static fn (array $m): string => "url('".str_replace("'", '%27', html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'))."')",
+            $html
+        );
+        $html = $fixed ?? $html;
+
+        $fixed = preg_replace_callback(
+            '/url\s*\(\s*&apos;(.*?)&apos;\s*\)/is',
+            static fn (array $m): string => "url('".str_replace("'", '%27', html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'))."')",
+            $html
+        );
+        $html = $fixed ?? $html;
+
+        $fixed = preg_replace_callback(
+            '/url\s*\(\s*&#0*34;(.*?)&#0*34;\s*\)/is',
+            static fn (array $m): string => "url('".str_replace("'", '%27', html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'))."')",
+            $html
+        );
+
+        return $fixed ?? $html;
+    }
+
+    /**
      * HTML de participación listo para DomPDF (misma lógica en web y colas).
      * Mantiene el flujo histórico: base de la app -> ruta de public/ y url(uploads/...) en CSS.
      */
     public function prepareParticipationHtmlForPdf(string $html, float $identationMm = 2.5): string
     {
+        $html = $this->decodeCssUrlHtmlEntities($html);
         $html = $this->insetBackgroundWithinMargins(
             $html,
             $identationMm,
@@ -1589,10 +1623,187 @@ class DesignController extends Controller
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
+        $html = $this->ensurePdfBackgroundCoverStyles($html, 'design-participation-bg');
+        // Recorte cover a 2× píxeles CSS → DomPDF embebe más resolución sin cambiar layout.
+        $html = $this->materializePdfBackgroundCoverBitmap($html, 'design-participation-bg', $identationMm);
         // Conservar width/height/padding como en el editor (DomPDF 3 + border-box).
         $html = $this->preserveInlineStyles($html);
 
         return $html;
+    }
+
+    /**
+     * Fuerza background-size/position como en el editor (cover + center) en la capa de márgenes.
+     */
+    public function ensurePdfBackgroundCoverStyles(string $html, string $bgId): string
+    {
+        if ($html === '' || stripos($html, $bgId) === false) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bid=(["\'])'.preg_quote($bgId, '/').'\2[^>]*?\bstyle=(["\']))(.*?)(\3)/is',
+            static function (array $m): string {
+                $style = $m[4];
+                if (! preg_match('/\bbackground-image\s*:\s*url\s*\(/i', $style)) {
+                    return $m[0];
+                }
+                $style = preg_replace('/\bbackground-size\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\bbackground-position\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\bbackground-repeat\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = trim(preg_replace('/;+/', ';', $style) ?? $style, "; \t\n\r");
+                if ($style !== '' && substr($style, -1) !== ';') {
+                    $style .= ';';
+                }
+                $style .= 'background-size:cover;background-position:center center;background-repeat:no-repeat;';
+
+                return $m[1].$style.$m[3];
+            },
+            $html,
+            1
+        ) ?? $html;
+    }
+
+    /**
+     * Genera un PNG cover-crop al tamaño de la capa (2× CSS @96dpi) y lo usa como fondo
+     * con background-size:100% 100%. Misma geometría que cover+márgenes, más nítido en DomPDF.
+     */
+    public function materializePdfBackgroundCoverBitmap(
+        string $html,
+        string $bgId,
+        float $identationMm = 2.5,
+        float $pixelScale = 2.0
+    ): string {
+        if ($html === '' || stripos($html, $bgId) === false || ! function_exists('imagecreatetruecolor')) {
+            return $html;
+        }
+
+        [$boxWmm, $boxHmm] = $this->resolveFormatBoxSizeMmFromHtml($html);
+        $innerWmm = max(1.0, $boxWmm - (2 * max(0, $identationMm)));
+        $innerHmm = max(1.0, $boxHmm - (2 * max(0, $identationMm)));
+        $scale = max(1.0, min(3.0, $pixelScale));
+        $targetW = max(32, (int) round(($innerWmm / 25.4) * 96 * $scale));
+        $targetH = max(32, (int) round(($innerHmm / 25.4) * 96 * $scale));
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bid=(["\'])'.preg_quote($bgId, '/').'\2[^>]*?\bstyle=(["\']))(.*?)(\3)/is',
+            function (array $m) use ($targetW, $targetH): string {
+                $style = $m[4];
+                if (! preg_match('/\bbackground-image\s*:\s*url\s*\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)/i', $style, $um)) {
+                    return $m[0];
+                }
+                $src = trim(html_entity_decode($um[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'), " \t\n\r'\"");
+                if ($src === '' || ! is_file($src)) {
+                    return $m[0];
+                }
+
+                $outPath = $this->renderCoverCropBitmap($src, $targetW, $targetH);
+                if ($outPath === null) {
+                    return $m[0];
+                }
+
+                $style = preg_replace('/\bbackground-image\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\bbackground-size\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\bbackground-position\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\bbackground-repeat\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = trim(preg_replace('/;+/', ';', $style) ?? $style, "; \t\n\r");
+                if ($style !== '' && substr($style, -1) !== ';') {
+                    $style .= ';';
+                }
+                $style .= "background-image:url('".$outPath."');background-size:100% 100%;background-position:center center;background-repeat:no-repeat;";
+
+                return $m[1].$style.$m[3];
+            },
+            $html,
+            1
+        ) ?? $html;
+    }
+
+    /**
+     * @return array{0: float, 1: float} widthMm, heightMm
+     */
+    private function resolveFormatBoxSizeMmFromHtml(string $html): array
+    {
+        $w = 200.0;
+        $h = 92.0;
+        if (preg_match('/class=(["\'])[^"\']*format-box[^"\']*\1[^>]*\bstyle=(["\'])(.*?)\2/is', $html, $m)
+            || preg_match('/\bstyle=(["\'])(.*?)\1[^>]*class=(["\'])[^"\']*format-box/is', $html, $mAlt)) {
+            $style = $m[3] ?? ($mAlt[2] ?? '');
+            if (preg_match('/\bwidth\s*:\s*([\d.]+)\s*mm/i', $style, $wm)) {
+                $w = (float) $wm[1];
+            }
+            if (preg_match('/\bheight\s*:\s*([\d.]+)\s*mm/i', $style, $hm)) {
+                $h = (float) $hm[1];
+            }
+        }
+
+        return [max(10.0, $w), max(10.0, $h)];
+    }
+
+    private function renderCoverCropBitmap(string $sourcePath, int $targetW, int $targetH): ?string
+    {
+        $info = @getimagesize($sourcePath);
+        if ($info === false) {
+            return null;
+        }
+        $srcW = (int) $info[0];
+        $srcH = (int) $info[1];
+        if ($srcW < 1 || $srcH < 1) {
+            return null;
+        }
+
+        $mime = $info['mime'] ?? '';
+        $src = match ($mime) {
+            'image/jpeg', 'image/jpg' => @imagecreatefromjpeg($sourcePath),
+            'image/png' => @imagecreatefrompng($sourcePath),
+            'image/gif' => @imagecreatefromgif($sourcePath),
+            'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : false,
+            default => false,
+        };
+        if ($src === false) {
+            return null;
+        }
+
+        $srcRatio = $srcW / $srcH;
+        $dstRatio = $targetW / $targetH;
+        if ($srcRatio > $dstRatio) {
+            $cropH = $srcH;
+            $cropW = (int) round($srcH * $dstRatio);
+            $srcX = (int) max(0, round(($srcW - $cropW) / 2));
+            $srcY = 0;
+        } else {
+            $cropW = $srcW;
+            $cropH = (int) round($srcW / $dstRatio);
+            $srcX = 0;
+            $srcY = (int) max(0, round(($srcH - $cropH) / 2));
+        }
+        $cropW = max(1, min($srcW, $cropW));
+        $cropH = max(1, min($srcH, $cropH));
+
+        $dst = imagecreatetruecolor($targetW, $targetH);
+        if ($dst === false) {
+            imagedestroy($src);
+
+            return null;
+        }
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $targetW, $targetH, $transparent);
+        imagealphablending($dst, true);
+
+        imagecopyresampled($dst, $src, 0, 0, $srcX, $srcY, $targetW, $targetH, $cropW, $cropH);
+        imagedestroy($src);
+
+        $dir = storage_path('app/pdf_bg_cache');
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover').'.png';
+        $ok = imagepng($dst, $out, 6);
+        imagedestroy($dst);
+
+        return $ok ? str_replace('\\', '/', $out) : null;
     }
 
     /**
@@ -2550,6 +2761,7 @@ class DesignController extends Controller
     public function prepareCoverOrBackHtmlForPdf(DesignFormat $design, string $htmlField, ?string $htmlOverride = null): string
     {
         $html = $htmlOverride ?? ($design->$htmlField ?? '');
+        $html = $this->decodeCssUrlHtmlEntities($html);
         if ($htmlField === 'cover_html') {
             $html = $this->insetBackgroundWithinMargins(
                 $html,
@@ -2562,6 +2774,21 @@ class DesignController extends Controller
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
+        if ($htmlField === 'cover_html') {
+            $html = $this->ensurePdfBackgroundCoverStyles($html, 'design-cover-bg');
+            $html = $this->materializePdfBackgroundCoverBitmap(
+                $html,
+                'design-cover-bg',
+                (float) ($design->identation ?? 2.5)
+            );
+        } else {
+            $html = $this->ensurePdfBackgroundCoverStyles($html, 'design-back-bg');
+            $html = $this->materializePdfBackgroundCoverBitmap(
+                $html,
+                'design-back-bg',
+                (float) ($design->identation ?? 2.5)
+            );
+        }
         $html = $this->preserveInlineStyles($html);
         // adjustWidthsForDomPdf asume content-box; cover/back ya usan esa ruta histórica.
         $html = $this->adjustWidthsForDomPdf($html);
@@ -2871,7 +3098,7 @@ class DesignController extends Controller
 
         $publicPath = public_path();
 
-        $backHtml = $design->back_html;
+        $backHtml = $this->decodeCssUrlHtmlEntities($design->back_html);
         $backHtml = $this->replaceApplicationWebRootsWithPublicPath($backHtml, $publicPath);
         $backHtml = $this->ensureLocalPathsForPdf($backHtml, $publicPath);
         $backHtml = $this->preserveInlineStyles($backHtml);
@@ -2885,7 +3112,7 @@ class DesignController extends Controller
 
         if (!empty($tacoQrs)) {
             $coverPages = [];
-            $coverTemplate = $design->cover_html;
+            $coverTemplate = $this->decodeCssUrlHtmlEntities($design->cover_html);
             $coverTemplate = $this->replaceApplicationWebRootsWithPublicPath($coverTemplate, $publicPath);
             $coverTemplate = $this->ensureLocalPathsForPdf($coverTemplate, $publicPath);
             $coverTemplate = $this->preserveInlineStyles($coverTemplate);
@@ -2927,7 +3154,7 @@ class DesignController extends Controller
             ];
             $viewName = 'design.pdf_cover_back_multiple';
         } else {
-            $coverHtml = $design->cover_html;
+            $coverHtml = $this->decodeCssUrlHtmlEntities($design->cover_html);
             $coverHtml = $this->replaceApplicationWebRootsWithPublicPath($coverHtml, $publicPath);
             $coverHtml = $this->ensureLocalPathsForPdf($coverHtml, $publicPath);
             $coverHtml = $this->preserveInlineStyles($coverHtml);
@@ -4800,12 +5027,20 @@ class DesignController extends Controller
 
         $job_id = 'pdf_part_'.$id.'_'.$from.'_'.$to.'_'.time();
         \App\Support\PdfJobStatus::markProcessing($job_id);
-        Queue::push(new \App\Jobs\GenerateParticipationPdfJob($id, $job_id, $from, $to));
+        \App\Support\PdfJobStatus::touchPresence($job_id);
+        $notifyEmail = auth()->user()?->email;
+        Queue::push(new \App\Jobs\GenerateParticipationPdfJob(
+            (int) $id,
+            $job_id,
+            $from,
+            $to,
+            is_string($notifyEmail) && $notifyEmail !== '' ? $notifyEmail : null
+        ));
 
         return response()->json([
             'status' => 'processing',
             'job_id' => $job_id,
-            'message' => 'El PDF se está generando en segundo plano. Puede cerrar esta pestaña; el proceso continúa en el servidor.',
+            'message' => 'El PDF se está generando en segundo plano. Cuando esté listo podrá descargarlo y también recibirá el enlace por correo.',
             'check_url' => route('design.checkPdfStatus', $job_id),
         ]);
     }
@@ -4840,6 +5075,8 @@ class DesignController extends Controller
      */
     public function checkPdfStatus($job_id)
     {
+        \App\Support\PdfJobStatus::touchPresence($job_id);
+
         $tracked = \App\Support\PdfJobStatus::get($job_id);
         if (($tracked['status'] ?? null) === 'failed') {
             return response()->json([
@@ -4861,7 +5098,7 @@ class DesignController extends Controller
         
         return response()->json([
             'status' => 'processing',
-            'message' => 'El PDF aún se está generando. Puede cerrar esta pestaña; el proceso continúa en el servidor. Vuelva a esta página en unos minutos para descargarlo.',
+            'message' => 'El PDF aún se está generando. Cuando esté listo podrá descargarlo y también recibirá el enlace por correo.',
         ]);
     }
 
