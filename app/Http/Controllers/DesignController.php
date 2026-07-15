@@ -1643,8 +1643,8 @@ class DesignController extends Controller
 
                 $style = preg_replace('/\bwidth\s*:[^;]+;?/i', 'width:'.$this->formatPdfCssPx($innerW).';', $style) ?? $style;
                 $style = preg_replace('/\bheight\s*:[^;]+;?/i', 'height:'.$this->formatPdfCssPx($innerH).';', $style) ?? $style;
-                // DomPDF pinta el texto más arriba: misma suma vertical de padding, más arriba / menos abajo
-                // (no agranda la caja; top+bottom = 2×pad).
+                // DomPDF alinea el texto arriba; el editor se ve más centrado.
+                // Misma suma vertical (no agranda la caja): más padding-top / menos bottom.
                 $nudge = max(1, (int) round($pad * 0.4));
                 if ($nudge >= $pad) {
                     $nudge = max(0, (int) floor($pad) - 1);
@@ -1656,10 +1656,8 @@ class DesignController extends Controller
                     'padding:'.$this->formatPdfCssPx($padTop).' '.$this->formatPdfCssPx($pad).' '.$this->formatPdfCssPx($padBottom).' '.$this->formatPdfCssPx($pad).';',
                     $style
                 ) ?? $style;
-                // Mantener left/top: con content-box el exterior = outerW × outerH del editor
                 $style = preg_replace('/\bbox-sizing\s*:[^;]+;?/i', '', $style) ?? $style;
                 $style = 'box-sizing:content-box !important;'.$style;
-                // Evitar que DomPDF estire la caja con el texto
                 if (! preg_match('/\bmax-width\s*:/i', $style)) {
                     $style .= 'max-width:'.$this->formatPdfCssPx($innerW).';';
                 }
@@ -2361,6 +2359,7 @@ class DesignController extends Controller
             'cols' => $cols,
             'qrCodes' => $qrCodes,
         ])->setPaper($page, $pdfOrientation);
+        $this->applyDompdfOptions($pdf);
 
         // Limpiar QR codes temporales después de generar el PDF
         $this->cleanupTempQrCodes();
@@ -2548,9 +2547,9 @@ class DesignController extends Controller
         return array_fill(0, $total, $backHtml);
     }
 
-    public function prepareCoverOrBackHtmlForPdf(DesignFormat $design, string $htmlField): string
+    public function prepareCoverOrBackHtmlForPdf(DesignFormat $design, string $htmlField, ?string $htmlOverride = null): string
     {
-        $html = $design->$htmlField ?? '';
+        $html = $htmlOverride ?? ($design->$htmlField ?? '');
         if ($htmlField === 'cover_html') {
             $html = $this->insetBackgroundWithinMargins(
                 $html,
@@ -2559,12 +2558,12 @@ class DesignController extends Controller
                 'design-cover-bg'
             );
         }
-        $imageService = new ImageOptimizationService();
-        $html = $imageService->optimizeHtmlImages($html);
+        // No recomprimir imágenes aquí: pierde calidad en fondos/logos del PDF.
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
         $html = $this->preserveInlineStyles($html);
+        // adjustWidthsForDomPdf asume content-box; cover/back ya usan esa ruta histórica.
         $html = $this->adjustWidthsForDomPdf($html);
 
         return $html;
@@ -2738,7 +2737,7 @@ class DesignController extends Controller
         return (bool) config('design.pdf_html_preview', false);
     }
 
-    private function applyDompdfOptions($pdf): void
+    public function applyDompdfOptions($pdf): void
     {
         $dompdf = $pdf->getDomPDF();
         $options = $dompdf->getOptions();
@@ -2751,6 +2750,113 @@ class DesignController extends Controller
         $options->set('enable_php', true);
         $options->set('enableCssFloat', true);
         $options->set('enableFontSubsetting', false);
+        // Mantener DPI 96: px del diseño están calibrados al ticket en mm.
+        // Subir DPI encoge los elementos en px respecto al format-box y destroza el layout.
+        $options->set('dpi', 96);
+    }
+
+    /**
+     * Vista previa rápida (1 participación / 1 portada / 1 trasera) del HTML actual del editor.
+     * Abre inline en popup; no encola.
+     */
+    public function previewDesignStepPdf(Request $request)
+    {
+        if (! auth()->check() && ! session()->has('design_external_invitation_id') && ! session()->has('print_shop_order_id')) {
+            abort(403);
+        }
+
+        ini_set('max_execution_time', 120);
+        ini_set('memory_limit', '512M');
+
+        $data = $request->validate([
+            'type' => 'required|in:participation,cover,back',
+            'html' => 'required|string',
+            'design_id' => 'nullable|integer',
+            'page' => 'nullable|string|max:20',
+            'orientation' => 'nullable|in:h,v',
+            'rows' => 'nullable|integer|min:1|max:12',
+            'cols' => 'nullable|integer|min:1|max:12',
+            'identation' => 'nullable|numeric|min:0|max:50',
+        ]);
+
+        $type = $data['type'];
+        $html = $data['html'];
+        $design = ! empty($data['design_id']) ? DesignFormat::find($data['design_id']) : null;
+
+        $page = $data['page'] ?? ($design->page ?? 'a3');
+        $orientation = $data['orientation'] ?? ($design->orientation ?? 'h');
+        $rows = (int) ($data['rows'] ?? ($design->rows ?? 3));
+        $cols = (int) ($data['cols'] ?? ($design->cols ?? 2));
+        $identation = (float) ($data['identation'] ?? ($design->identation ?? 2.5));
+        $pdfOrientation = ($orientation === 'h') ? 'landscape' : 'portrait';
+        $perPage = max(1, $rows * $cols);
+
+        if ($type === 'participation') {
+            $prepared = $this->prepareParticipationHtmlForPdf($html, $identation);
+            $ticket = $this->sampleTicketForPreview($design);
+            $qrService = new \App\Services\EndroidQrCodeService();
+            $qrCodes = [
+                $ticket['r'] => $qrService->generateQrCodeBase64($ticket['r']),
+            ];
+            $pages = $this->generatePagesOptimized([$ticket], 1, $perPage);
+            $pdf = Pdf::loadView('design.pdf_participation', [
+                'pages' => $pages,
+                'participation_html' => $prepared,
+                'rows' => $rows,
+                'cols' => $cols,
+                'qrCodes' => $qrCodes,
+                'pdfDocumentTitle' => 'Vista previa participación',
+            ])->setPaper($page, $pdfOrientation);
+            $this->applyDompdfOptions($pdf);
+            $this->cleanupTempQrCodes();
+
+            return $pdf->stream('preview-participacion.pdf');
+        }
+
+        $shell = $design ? $design->replicate() : new DesignFormat();
+        $shell->page = $page;
+        $shell->orientation = $orientation;
+        $shell->rows = $rows;
+        $shell->cols = $cols;
+        $shell->identation = $identation;
+        $shell->set_id = $design->set_id ?? null;
+        $shell->output = $design->output ?? [];
+
+        if ($type === 'cover') {
+            $shell->cover_html = $html;
+            $prepared = $this->prepareCoverOrBackHtmlForPdf($shell, 'cover_html', $html);
+            $qrService = new \App\Services\EndroidQrCodeService();
+            $qrBase64 = $qrService->generateQrFromTextBase64('PREVIEW-TACO');
+            $item = $this->replaceCoverQrWithTacoQr($prepared, $qrBase64, 1, 1, 50, 50);
+            $pdf = $this->makeGridPdfFromHtmlItems($shell, [$item], 'Vista previa portada');
+
+            return $pdf->stream('preview-portada.pdf');
+        }
+
+        $shell->back_html = $html;
+        $prepared = $this->prepareCoverOrBackHtmlForPdf($shell, 'back_html', $html);
+        $pdf = $this->makeGridPdfFromHtmlItems($shell, [$prepared], 'Vista previa trasera');
+
+        return $pdf->stream('preview-trasera.pdf');
+    }
+
+    /**
+     * @return array{r: string, n: int}
+     */
+    private function sampleTicketForPreview(?DesignFormat $design): array
+    {
+        if ($design && $design->set_id) {
+            $set = Set::select('id', 'tickets')->find($design->set_id);
+            $tickets = is_array($set?->tickets) ? $set->tickets : [];
+            if ($tickets !== [] && isset($tickets[0]['r'])) {
+                return [
+                    'r' => (string) $tickets[0]['r'],
+                    'n' => (int) ($tickets[0]['n'] ?? 1),
+                ];
+            }
+        }
+
+        return ['r' => '00000000000000000001', 'n' => 1];
     }
 
     /**
@@ -2763,11 +2869,9 @@ class DesignController extends Controller
             throw new \InvalidArgumentException('Portada o trasera no encontradas');
         }
 
-        $imageService = new ImageOptimizationService();
         $publicPath = public_path();
 
         $backHtml = $design->back_html;
-        $backHtml = $imageService->optimizeHtmlImages($backHtml);
         $backHtml = $this->replaceApplicationWebRootsWithPublicPath($backHtml, $publicPath);
         $backHtml = $this->ensureLocalPathsForPdf($backHtml, $publicPath);
         $backHtml = $this->preserveInlineStyles($backHtml);
@@ -2782,7 +2886,6 @@ class DesignController extends Controller
         if (!empty($tacoQrs)) {
             $coverPages = [];
             $coverTemplate = $design->cover_html;
-            $coverTemplate = $imageService->optimizeHtmlImages($coverTemplate);
             $coverTemplate = $this->replaceApplicationWebRootsWithPublicPath($coverTemplate, $publicPath);
             $coverTemplate = $this->ensureLocalPathsForPdf($coverTemplate, $publicPath);
             $coverTemplate = $this->preserveInlineStyles($coverTemplate);
@@ -2825,7 +2928,6 @@ class DesignController extends Controller
             $viewName = 'design.pdf_cover_back_multiple';
         } else {
             $coverHtml = $design->cover_html;
-            $coverHtml = $imageService->optimizeHtmlImages($coverHtml);
             $coverHtml = $this->replaceApplicationWebRootsWithPublicPath($coverHtml, $publicPath);
             $coverHtml = $this->ensureLocalPathsForPdf($coverHtml, $publicPath);
             $coverHtml = $this->preserveInlineStyles($coverHtml);
@@ -4661,6 +4763,7 @@ class DesignController extends Controller
                 'cols' => $cols,
                 'qrCodes' => $qrCodes,
             ])->setPaper($page, $pdfOrientation);
+            $this->applyDompdfOptions($pdf);
 
             // Guardar en archivo temporal
 

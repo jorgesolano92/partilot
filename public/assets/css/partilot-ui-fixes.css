@@ -380,36 +380,7 @@ small.text-muted,
     white-space: nowrap;
 }
 
-/* Overlay bloqueante al generar PDF (partial async_design_pdf en listado, resumen, imprenta) */
-#design-pdf-blocking-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 20000;
-    background: rgba(0, 0, 0, 0.65);
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-}
-
-#design-pdf-blocking-overlay.is-visible {
-    display: flex;
-}
-
-#design-pdf-blocking-overlay .design-pdf-blocking-card {
-    background: #fff;
-    border-radius: 16px;
-    padding: 2rem;
-    max-width: 480px;
-    text-align: center;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
-}
-
-#design-pdf-blocking-overlay .spinner-border {
-    width: 3rem;
-    height: 3rem;
-    color: #e78307;
-}
+/* (Overlay bloqueante de PDF eliminado: solo notificación arriba derecha) */
 
 /*
  * Utilidades de panel (card + footer como listado Sorteos).

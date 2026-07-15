@@ -630,6 +630,11 @@
                                       </a>
                                   </div>
                                   <div class="col-6 text-end">
+                                      <div class="d-inline-flex flex-wrap align-items-end justify-content-end gap-2">
+                                      <button type="button" id="design-preview-pdf-btn" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--dark" title="Vista previa del PDF del paso actual">
+                                          <i class="ri-file-pdf-line" aria-hidden="true"></i>
+                                          <span>Previsualizar PDF</span>
+                                      </button>
                                       <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
                                       <button type="button" id="step" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
                                           <span>Siguiente</span>
@@ -643,6 +648,7 @@
                                           <span>Guardar y continuar</span>
                                           <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
                                       </button>
+                                      </div>
                                       </div>
                                   </div>
                               </div>
@@ -1211,6 +1217,9 @@ function updateDesignActionButtons() {
   } else {
     $('#step, #step-edit-next').removeClass('d-none');
     $('#save-step, #save-continue-step').addClass('d-none');
+  }
+  if (typeof window.syncDesignPreviewPdfButton === 'function') {
+    window.syncDesignPreviewPdfButton();
   }
 }
 
@@ -3022,4 +3031,5 @@ $(document).on('click', '#open-bg-modal', function() {
   debugBackgroundImage(step);
 });
 </script>
+@include('design.partials.preview_pdf_button')
 @endsection 

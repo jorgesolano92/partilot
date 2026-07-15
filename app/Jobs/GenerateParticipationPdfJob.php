@@ -152,6 +152,7 @@ class GenerateParticipationPdfJob implements ShouldQueue
                     'cols' => $cols,
                     'qrCodes' => $qrCodes,
                 ])->setPaper($page, $pdfOrientation);
+                $controller->applyDompdfOptions($pdf);
 
                 $temp_file = storage_path('app/temp_pdf_'.$this->jobId.'_'.$chunk_start.'.pdf');
                 $pdf->save($temp_file);

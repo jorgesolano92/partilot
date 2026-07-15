@@ -1087,8 +1087,13 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                     </a>
                                 </div>
                                 <div class="col-6 text-end">
-                                    {{-- Un solo botón a la derecha: Siguiente o Guardar (mismo hueco, solo uno visible) --}}
-                                    <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
+                                    {{-- Previsualizar (pasos 2–4) + Siguiente/Guardar --}}
+                                    <div class="d-inline-flex flex-wrap align-items-end justify-content-end gap-2">
+                                        <button type="button" id="design-preview-pdf-btn" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--dark" title="Vista previa del PDF del paso actual">
+                                            <i class="ri-file-pdf-line" aria-hidden="true"></i>
+                                            <span>Previsualizar PDF</span>
+                                        </button>
+                                        <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
                                         <button id="step" type="button" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
                                             <span>Siguiente</span>
                                             <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
@@ -1101,6 +1106,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             <span>Guardar y continuar</span>
                                             <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
                                         </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1729,6 +1735,9 @@ $('#format').change(function (e) {
       $('#step').removeClass('d-none');
       $('#save-step').addClass('d-none');
       $('#save-continue-step').addClass('d-none');
+    }
+    if (typeof window.syncDesignPreviewPdfButton === 'function') {
+      window.syncDesignPreviewPdfButton();
     }
   }
 
@@ -4129,6 +4138,8 @@ $('#format').change(function (e) {
 
   // Asegura que todos los .elements sean redimensionables al cargar la vista
 </script>
+
+@include('design.partials.preview_pdf_button')
 
 {{-- {{url('design/add/select')}} --}}
 

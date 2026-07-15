@@ -46,4 +46,8 @@ return [
         'isHtml5ParserEnabled' => true,
         'isPhpEnabled' => true,
     ],
+
+    // DPI DomPDF: debe ser 96 para que px del diseño coincidan con el ticket en mm.
+    // No subir este valor: rompe el layout (elementos en px se encogen respecto al format-box).
+    'dpi' => 96,
 ];

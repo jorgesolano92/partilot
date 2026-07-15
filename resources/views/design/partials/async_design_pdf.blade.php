@@ -48,13 +48,7 @@
     </div>
 </div>
 
-<div id="design-pdf-blocking-overlay" aria-live="polite" aria-busy="true" hidden>
-    <div class="design-pdf-blocking-card">
-        <div class="spinner-border mb-3" role="status"><span class="visually-hidden">Generando...</span></div>
-        <h5 class="mb-2" id="design-pdf-blocking-title">Generando PDF</h5>
-        <p class="text-muted mb-0" id="design-pdf-blocking-text">El PDF se genera en el servidor. Puede cerrar esta pestaña; vuelva en unos minutos para descargarlo si no termina ahora.</p>
-    </div>
-</div>
+{{-- Overlay bloqueante eliminado: solo notificación PNotify (arriba derecha) mientras genera el PDF --}}
 
 <script>
 (function ($) {
@@ -75,17 +69,6 @@
     setTimeout(function () {
       iframe.remove();
     }, 180000);
-  }
-
-  function partilotShowPdfBlocking(title, text) {
-    var $ov = $('#design-pdf-blocking-overlay');
-    if (title) $('#design-pdf-blocking-title').text(title);
-    if (text) $('#design-pdf-blocking-text').text(text);
-    $ov.prop('hidden', false).addClass('is-visible');
-  }
-
-  function partilotHidePdfBlocking() {
-    $('#design-pdf-blocking-overlay').removeClass('is-visible').prop('hidden', true);
   }
 
   function partilotNotifyPdf(type, title, message, sticky) {
@@ -118,7 +101,6 @@
   function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl) {
     if (attemptsLeft <= 0) {
       if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-      partilotHidePdfBlocking();
       partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si cerró la pestaña, el PDF puede seguir generándose: vuelva a esta página en unos minutos e intente de nuevo. Compruebe también que el worker de colas esté activo.');
       return;
     }
@@ -126,13 +108,11 @@
       .done(function (st) {
         if (st && st.status === 'failed') {
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-          partilotHidePdfBlocking();
           partilotNotifyPdf('error', notifyTitle || 'PDF', st.message || 'La generación del PDF falló.', false);
           return;
         }
         if (st && st.status === 'completed' && st.download_url) {
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-          partilotHidePdfBlocking();
           partilotRemoveAllNotifies();
           partilotTriggerDownload(st.download_url);
           partilotNotifyPdf('success', notifyTitle || 'PDF', 'Descarga iniciada. Si no ve el archivo, compruebe descargas y el bloqueador.', false);
@@ -144,7 +124,6 @@
       })
       .fail(function () {
         if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-        partilotHidePdfBlocking();
         partilotNotifyPdf('error', notifyTitle || 'PDF', 'No se pudo consultar el estado del PDF.');
       });
   }
@@ -172,7 +151,6 @@
 
   function partilotStartDesignPdfAjax(url, title, $btn) {
     $btn.prop('disabled', true);
-    partilotShowPdfBlocking(title || 'Generando PDF', 'Generando en el servidor. Puede cerrar esta pestaña; el proceso continúa.');
     partilotNotifyPdf('info', title, 'Generando PDF en segundo plano. Puede cerrar la pestaña y volver más tarde.', true);
     $.ajax({ url: url, method: 'GET', dataType: 'json' })
       .done(function (data) {
@@ -181,12 +159,10 @@
           return;
         }
         $btn.prop('disabled', false);
-        partilotHidePdfBlocking();
         partilotNotifyPdf('error', title, data && data.message ? data.message : 'Respuesta inesperada al iniciar la generación.', false);
       })
       .fail(function (xhr) {
         $btn.prop('disabled', false);
-        partilotHidePdfBlocking();
         var msg = 'No se pudo iniciar la generación del PDF.';
         try {
           var j = xhr.responseJSON;
