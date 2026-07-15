@@ -1,6 +1,7 @@
 @php
     $use_prebuilt_cells = $use_prebuilt_cells ?? false;
     $pdfDocumentTitle = $pdfDocumentTitle ?? 'Participación PDF';
+    $cols = max(1, (int) ($cols ?? 1));
 @endphp
 <!DOCTYPE html>
 <html>
@@ -9,53 +10,34 @@
     <title>{{ $pdfDocumentTitle }}</title>
     <style>
         @page {
-            margin:8mm 10mm;
+            margin: 8mm 10mm;
         }
-        {{-- *,
-        *::before,
-        *::after {
-            box-sizing: border-box !important;
-        } --}}
 
-        .h1, .h2, .h3, .h4, .h5, .h6, h1, h2, h3, h4, h5, h6 {
-            margin: 10px 0 !important;
+        body {
+            margin: 0;
+            padding: 0;
         }
-        .h1, .h2, .h3, .h4, .h5, .h6, h1, h2, h3, h4, h5, h6 {
-            font-family: "Cerebri Sans,sans-serif";
-            font-weight: 500;
-            line-height: 1.1;
-        }
-        .h6, h6 {
-            font-size: .75rem !important;
-        }
-        p {
-            margin-top: 0;
-            margin-bottom: 0;
-        }
+
+        /* Misma tipografía/reset que el editor (design_canvas_styles) */
+        @include('design.partials.design_canvas_styles')
+
+        /* Layout PDF / DomPDF (no tocar tipografía del canvas) */
         [id*="containment-wrapper"] {
             position: relative;
             background-size: cover !important;
             background-repeat: no-repeat !important;
             background-position: center center !important;
+            width: unset !important;
         }
-        * {font-family: Cerebri sans,sans-serif}
+
+        .format-box .elements,
         .elements {
             width: 200px;
-            border: 1px solid transparent;
             position: absolute !important;
             z-index: 1000;
+            border: 1px solid transparent;
         }
-        .ck.ck-balloon-panel.ck-balloon-panel_toolbar_west.ck-balloon-panel_visible.ck-toolbar-container {
-            z-index: 9999;
-        }
-        .elements.text:hover,.elements.text:focus {
-            /*border: 1px dotted #c8c8c8;*/
-        }
-        .elements.qr {
-            padding: 3px;
-            border-radius: 8px;
-            background-color: #fff;
-        }
+
         .elements.images {
             height: auto !important;
         }
@@ -66,20 +48,9 @@
             width: auto !important;
             display: block;
         }
-        a[disabled] {
-            color: currentColor;
-            cursor: not-allowed;
-            opacity: 0.5;
-            text-decoration: none;
-            pointer-events: none;
-        }
-        .cke_notifications_area {
-            display: none !important;
-        }
-        /* Optimizaciones para QR codes */
+
         .qr-code {
             image-rendering: -webkit-optimize-contrast;
-            image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
             image-rendering: pixelated;
         }
@@ -89,31 +60,31 @@
             margin: 0 !important;
         }
 
-        [id*="containment-wrapper"] {
-            width: unset !important;
-        }	
+        .margen-izquierdo,
+        .margen-arriba,
+        .margen-derecho,
+        .margen-abajo,
+        .caja-matriz,
+        button {
+            display: none !important;
+        }
 
-        .margen-izquierdo,.margen-arriba,.margen-derecho,.margen-abajo,.caja-matriz, button {
-            display: none;
+        .participation-page {
+            width: 100%;
+            overflow: hidden;
         }
-        /* @if($use_prebuilt_cells)
-        .participation-box .format-box,
-        .participation-box [id*="containment-wrapper"] {
-            padding: 0 !important;
-            margin: 0 !important;
-            box-sizing: border-box !important;
-            width: 100% !important;
-            max-width: 100% !important;
+        .participation-page::after {
+            content: "";
+            display: table;
+            clear: both;
         }
-        .participation-box .h1, .participation-box .h2, .participation-box .h3,
-        .participation-box .h4, .participation-box .h5, .participation-box .h6,
-        .participation-box h1, .participation-box h2, .participation-box h3,
-        .participation-box h4, .participation-box h5, .participation-box h6 {
-            margin: 0 !important;
+
+        .participation-box {
+            width: {{ 100 / $cols }}%;
+            float: left;
+            overflow: hidden;
+            page-break-inside: avoid;
         }
-        @endif */
-        
-        /* Aquí puedes pegar estilos de Bootstrap en el futuro si lo necesitas */
     </style>
 </head>
 <body>
@@ -133,21 +104,19 @@
                     $html = $participation_html;
                     $html = str_replace(['00000000000000000000', '1/0001'], [$ticket['r'], '1/'.str_pad($ticket['n'], 4,'0',STR_PAD_LEFT)], $html);
                     $qrCodeBase64 = $qrCodes[$ticket['r']] ?? '';
-                    $html = str_replace(
-                        '<span class="ui-draggable-handle"></span>',
-                        '<img src="' . $qrCodeBase64 . '" class="qr-code" style="width: 60px; height: 60px; display: block;" alt="QR Code" />',
-                        $html
-                    );
+                    $html = app(\App\Http\Controllers\DesignController::class)
+                        ->injectTicketQrIntoParticipationHtml($html, $qrCodeBase64);
                 @endphp
             @endif
-            <div class="participation-box" style="width: {{ 100/$cols }}%; float: left;">
+            <div class="participation-box">
                 {!! $html !!}
             </div>
-            @if(($i+1) % $cols == 0)
+            @if(($i + 1) % $cols == 0)
                 <div style="clear: both;"></div>
             @endif
         @endfor
+        <div style="clear: both;"></div>
     </div>
 @endforeach
 </body>
-</html> 
+</html>

@@ -53,7 +53,7 @@ class EndroidQrCodeService
     public function generateQrCodeBase64($reference)
     {
         // Cache simple para evitar regenerar
-        $cacheKey = 'endroid_qr_base64_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+        $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
         $cached = Cache::get($cacheKey);
         
         if ($cached) {
@@ -85,7 +85,7 @@ class EndroidQrCodeService
         
         // Verificar cuáles ya están en cache
         foreach ($references as $reference) {
-            $cacheKey = 'endroid_qr_base64_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+            $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
             $cached = Cache::get($cacheKey);
             
             if ($cached) {
@@ -124,7 +124,7 @@ class EndroidQrCodeService
             $dataUri = $this->qrCodeToDataUri($qrCode);
 
             // Cache inmediato (solo en memoria)
-            $cacheKey = 'endroid_qr_base64_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+            $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
             Cache::put($cacheKey, $dataUri, 1800);
 
             $results[$reference] = $dataUri;
@@ -146,7 +146,7 @@ class EndroidQrCodeService
             $dataUri = $this->qrCodeToDataUri($qrCode);
 
             // Cache inmediato
-            $cacheKey = 'endroid_qr_base64_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+            $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
             Cache::put($cacheKey, $dataUri, 1800);
 
             $results[$reference] = $dataUri;
@@ -164,8 +164,8 @@ class EndroidQrCodeService
         
         // Configuración ultra-optimizada para máxima velocidad
         $qrCode = QrCode::create('')
-            ->setSize(100) // Tamaño mínimo
-            ->setMargin(0); // Sin margen
+            ->setSize(120)
+            ->setMargin(0);
 
         // Procesar en lotes para mejor gestión de memoria
         $batchSize = 100; // Lotes más grandes para mejor eficiencia
@@ -182,7 +182,7 @@ class EndroidQrCodeService
                 $dataUri = $this->qrCodeToDataUri($qrCode);
 
                 // Cache inmediato (solo en memoria)
-                $cacheKey = 'endroid_qr_base64_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+                $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
                 Cache::put($cacheKey, $dataUri, 1800);
 
                 $results[$reference] = $dataUri;

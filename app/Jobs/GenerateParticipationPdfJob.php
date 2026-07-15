@@ -86,7 +86,7 @@ class GenerateParticipationPdfJob implements ShouldQueue
 
         $controller = app(DesignController::class);
 
-        $cacheKey = 'participation_html_pdf_v10_'.$this->designId.'_m'.(string) ((float) ($design->identation ?? 2.5));
+        $cacheKey = 'participation_html_pdf_v'.uniqid().'_'.$this->designId.'_m'.(string) ((float) ($design->identation ?? 2.5));
         $participation_html = cache()->remember($cacheKey, 3600, function () use ($design, $controller) {
             return $controller->prepareParticipationHtmlForPdf(
                 $design->participation_html ?? '',

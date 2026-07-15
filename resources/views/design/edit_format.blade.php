@@ -47,6 +47,8 @@
 @endphp
 
 <style>
+    @include('design.partials.design_canvas_styles')
+
     input[disabled],select[disabled] {
         background-color: #cfcfcf !important;
     }
@@ -1278,6 +1280,7 @@ var maxHistoryStates = 30;
 var isRestoringState = false;
 var resizeTimeout;
 
+/** Clona .format-box y elimina resize del HTML exportado (no altera left/top). */
 function getFormatBoxHtmlForSave(selector) {
   var el = document.querySelector(selector);
   if (!el) return '';
@@ -2705,6 +2708,8 @@ $(document).ready(function() {
             var detectedAlign = detectAlignmentFromHtml(data) || getTextElementAlignment($element);
             $wrapper.html(data);
             syncTextElementAlignment($element, detectedAlign || 'left');
+            // Quitar marcador naranja de “texto nuevo” al editar
+            $element.removeClass('text-placeholder-new');
             CKEDITOR.instances['editor'].destroy(true);
         }
         $('#ckeditor-modal').modal('hide');
@@ -2771,8 +2776,20 @@ $(document).ready(function() {
     });
 });
 
+function clearStaleTextPlaceholders($root) {
+    var $scope = $root && $root.length ? $root : $(document);
+    $scope.find('.elements.text.text-placeholder-new').each(function() {
+      var $el = $(this);
+      var plain = $.trim($el.find('span').first().text() || '');
+      if (plain && plain !== 'Escribe aquí...') {
+        $el.removeClass('text-placeholder-new');
+      }
+    });
+}
+
 function reapplyElementEvents() {
     enableDesignElementsResize($('#containment-wrapper' + step));
+    clearStaleTextPlaceholders($('#containment-wrapper' + step));
     destroyStepDraggables(step);
 
     // Asegurar que los botones edit-btn existan en los elementos

@@ -141,6 +141,8 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 <link rel="stylesheet" href="{{ asset('assets/css/design-editor-ui.css') }}">
 
 <style>
+    @include('design.partials.design_canvas_styles')
+
     .design-lock-alert {
         border-radius: 12px;
         border: 1px solid #f0ad4e;
@@ -2223,7 +2225,7 @@ $('#format').change(function (e) {
   var isRestoringState = false; // Flag para evitar guardar durante restauración
   var resizeTimeout; // Para debounce del ResizeObserver
 
-  /** Clona .format-box y elimina resize del HTML guardado sin modificar el canvas en edición. */
+  /** Clona .format-box y elimina resize del HTML exportado (no altera left/top). */
   function getFormatBoxHtmlForSave(selector) {
     var el = document.querySelector(selector);
     if (!el) return '';
@@ -2443,9 +2445,15 @@ $('#format').change(function (e) {
         }
       },
       stop: function(event, ui) {
+        // Forzar left/top inline siempre (si no, al guardar se pierden)
+        ui.helper.css({
+          position: 'absolute',
+          left: ui.position.left + 'px',
+          top: ui.position.top + 'px'
+        });
         if (step >= 2 && step <= 4) clampElementToMargins(ui.helper[0]);
         console.log('Draggable stop - saving state');
-        saveHistoryState(); // Guardar estado después de mover
+        saveHistoryState();
       }
     });
   }
@@ -2568,9 +2576,21 @@ $('#format').change(function (e) {
     });
   }
 
+  function clearStaleTextPlaceholders($root) {
+    var $scope = $root && $root.length ? $root : $(document);
+    $scope.find('.elements.text.text-placeholder-new').each(function() {
+      var $el = $(this);
+      var plain = $.trim($el.find('span').first().text() || '');
+      if (plain && plain !== 'Escribe aquí...') {
+        $el.removeClass('text-placeholder-new');
+      }
+    });
+  }
+
   function initCanvasInteractions() {
     if (step < 2 || step > 4) return;
     enableDesignElementsResize($('#containment-wrapper' + step));
+    clearStaleTextPlaceholders($('#containment-wrapper' + step));
     bindCanvasEditButtons();
     setupDraggable();
     setupResizeObserver();
@@ -2665,6 +2685,8 @@ $('#format').change(function (e) {
         var detectedAlign = detectAlignmentFromHtml(data) || getTextElementAlignment($element);
         $wrapper.html(data);
         syncTextElementAlignment($element, detectedAlign || 'left');
+        // Quitar marcador naranja de “texto nuevo” al editar
+        $element.removeClass('text-placeholder-new');
         CKEDITOR.instances['editor'].destroy(true);
     }
     $('#ckeditor-modal').modal('hide');

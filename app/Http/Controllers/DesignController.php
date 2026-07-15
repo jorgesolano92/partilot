@@ -1583,11 +1583,123 @@ class DesignController extends Controller
             'containment-wrapper2',
             'design-participation-bg'
         );
+        $html = $this->normalizeParticipationElementsForPdf($html);
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
+        // Conservar width/height/padding como en el editor (DomPDF 3 + border-box).
+        $html = $this->preserveInlineStyles($html);
 
-        return $this->adjustWidthsForDomPdf($html);
+        return $html;
+    }
+
+    /**
+     * Limpia HTML del editor para DomPDF sin alterar coordenadas ni tamaños guardados.
+     * Fuerza position:absolute (en el editor algunos quedan relative y en PDF se apilan).
+     */
+    public function normalizeParticipationElementsForPdf(string $html): string
+    {
+        if ($html === '') {
+            return $html;
+        }
+
+        $html = preg_replace('/<button\b[^>]*>.*?<\/button>/is', '', $html) ?? $html;
+
+        $html = preg_replace_callback(
+            '/(id=(["\'])containment-wrapper\d+\2[^>]*\bstyle=(["\']))(.*?)(\3)/is',
+            function (array $m): string {
+                // Solo sustituir calc(); no forzar width/height 100% (rompe la rejilla DomPDF)
+                $style = preg_replace('/\bheight\s*:\s*calc\([^)]+\)\s*;?/i', 'height:100%;', $m[4]) ?? $m[4];
+
+                return $m[1].$style.$m[5];
+            },
+            $html
+        ) ?? $html;
+
+        if (stripos($html, 'elements') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bclass="[^"]*\belements\b[^"]*"[^>]*\bstyle=")([^"]*)(")/i',
+            function (array $m): string {
+                $style = $m[2];
+                if (preg_match('/\bposition\s*:\s*relative\b/i', $style)) {
+                    $style = preg_replace('/\bposition\s*:\s*relative\b/i', 'position:absolute', $style) ?? $style;
+                } elseif (! preg_match('/\bposition\s*:/i', $style)) {
+                    $style = 'position:absolute;'.$style;
+                }
+                if (
+                    preg_match('/\btop\s*:/i', $style)
+                    && preg_match('/\bleft\s*:/i', $style)
+                ) {
+                    $style = preg_replace('/\b(bottom|right|inset)\s*:[^;]+;?/i', '', $style) ?? $style;
+                }
+
+                return $m[1].$style.$m[3];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    /**
+     * Inyecta el QR de la participación respetando width/height del recuadro del diseño
+     * (misma lógica que portadas de taco; no forzar 60×60).
+     */
+    public function injectTicketQrIntoParticipationHtml(string $html, string $qrBase64): string
+    {
+        if ($html === '' || $qrBase64 === '') {
+            return $html;
+        }
+
+        $qrImg = '<img src="'.$qrBase64.'" class="qr-code" style="width:100%;height:100%;display:block;object-fit:fill;margin:0;padding:0;border:0;" alt="QR Code" />';
+        $replaced = false;
+
+        $before = $html;
+        $html = preg_replace(
+            '/(<div[^>]*class="[^"]*\bqr\b[^"]*"[^>]*>)\s*<span class="ui-draggable-handle"><\/span>\s*(<\/div>)/s',
+            '$1'.$qrImg.'$2',
+            $html,
+            1
+        );
+        if ($html !== $before) {
+            $replaced = true;
+        }
+
+        if (! $replaced && preg_match('/<div[^>]*class="[^"]*\bqr\b[^"]*"[^>]*>/i', $html)) {
+            $before = $html;
+            $html = preg_replace_callback(
+                '/(<div[^>]*class="[^"]*\bqr\b[^"]*"[^>]*>)\s*<span[^>]*>.*?<\/span>\s*(<\/div>)/s',
+                function (array $m) use ($qrImg): string {
+                    return $m[1].$qrImg.$m[2];
+                },
+                $html,
+                1
+            );
+            if ($html !== $before) {
+                $replaced = true;
+            }
+        }
+
+        if (! $replaced && (stripos($html, 'basicqr') !== false || preg_match('/<img[^>]+src="[^"]*basicqr[^"]*"/i', $html))) {
+            $html = preg_replace(
+                '/<img([^>]*)src="[^"]*basicqr[^"]*"([^>]*)>/i',
+                '<img$1src="'.$qrBase64.'"$2 class="qr-code" style="width:100%;height:100%;display:block;">',
+                $html,
+                1
+            ) ?? $html;
+            $replaced = true;
+        }
+
+        if (! $replaced) {
+            $html = str_replace(
+                '<span class="ui-draggable-handle"></span>',
+                $qrImg,
+                $html
+            );
+        }
+
+        return $html;
     }
 
     /**
@@ -2038,7 +2150,7 @@ class DesignController extends Controller
         }
         
         // Cache del HTML procesado (clave versionada; mismo pipeline que el Job en cola)
-        $cacheKey = 'participation_html_pdf_v10_' . $id . '_m' . (string) ((float) ($design->identation ?? 2.5));
+        $cacheKey = 'participation_html_pdf_v17_' . $id . '_m' . (string) ((float) ($design->identation ?? 2.5));
         $participation_html = cache()->remember($cacheKey, 3600, function () use ($design) {
             return $this->prepareParticipationHtmlForPdf(
                 $design->participation_html ?? '',
@@ -4316,8 +4428,12 @@ class DesignController extends Controller
                 }
                 $format->snapshot_path = $data['snapshot_path'] ?? $format->snapshot_path;
                 // Guardar los campos JSON como string si corresponde
-                if (isset($data['margins'])) $format->margins = $data['margins'];
-                if (isset($data['backgrounds'])) $format->backgrounds = $data['backgrounds'];
+                if (isset($data['margins'])) {
+                    $format->margins = $data['margins'];
+                }
+                if (isset($data['backgrounds'])) {
+                    $format->backgrounds = $data['backgrounds'];
+                }
                 if (isset($data['output'])) {
                     $output = $data['output'];
                     // Sets digitales: un solo taco (serie 1..N)
@@ -4328,6 +4444,23 @@ class DesignController extends Controller
                     // Tarea 1 tacos: regenerar taco_qrs al guardar output (participations_per_book puede haber cambiado)
                     $format->output = DesignFormat::mergeTacoQrsIntoOutput($format->set_id, $output ?? []);
                 }
+
+                // Mantener blocks sincronizado con lo guardado (si no, al recargar se restaura el HTML antiguo)
+                $blocks = is_array($format->blocks) ? $format->blocks : [];
+                $blocks['participation_html'] = $format->participation_html ?? '';
+                $blocks['cover_html'] = $format->cover_html ?? '';
+                $blocks['back_html'] = $format->back_html ?? '';
+                if (isset($data['backgrounds'])) {
+                    $blocks['backgrounds'] = $data['backgrounds'];
+                }
+                if (isset($data['output'])) {
+                    $blocks['output'] = is_array($format->output) ? $format->output : ($data['output'] ?? []);
+                }
+                if (isset($data['margins'])) {
+                    $blocks['margins'] = $data['margins'];
+                }
+                $format->blocks = $blocks;
+
                 $format->save();
 
                 if (isset($data['from_step_5']) && $data['from_step_5'] === true) {
@@ -5543,14 +5676,13 @@ class DesignController extends Controller
     {
         $blocks = is_array($design->blocks ?? null) ? $design->blocks : [];
 
-        if (empty(trim((string) ($design->participation_html ?? ''))) && ! empty($blocks['participation_html'])) {
-            $design->participation_html = $blocks['participation_html'];
-        }
-        if (empty(trim((string) ($design->cover_html ?? ''))) && ! empty($blocks['cover_html'])) {
-            $design->cover_html = $blocks['cover_html'];
-        }
-        if (empty(trim((string) ($design->back_html ?? ''))) && ! empty($blocks['back_html'])) {
-            $design->back_html = $blocks['back_html'];
+        // Solo rellenar columnas vacías desde blocks (nunca sobrescribir un HTML ya guardado)
+        foreach (['participation_html', 'cover_html', 'back_html'] as $field) {
+            $columnHtml = trim((string) ($design->$field ?? ''));
+            $blocksHtml = (string) ($blocks[$field] ?? '');
+            if ($columnHtml === '' && $blocksHtml !== '') {
+                $design->$field = $blocksHtml;
+            }
         }
 
         $design->participation_html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
