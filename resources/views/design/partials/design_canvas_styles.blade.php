@@ -88,7 +88,7 @@
     line-height: 1.15;
     /* DEBUG temp: border ya existe (1px transparent) → solo color, layout idéntico.
        No usar outline/box-shadow: DomPDF los desplaza y engañan al comparar. */
-    border-color: #e11d48 !important;
+    <!-- border-color: #e11d48 !important; -->
 }
 
 .format-box .elements.text *,

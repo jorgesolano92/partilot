@@ -38,7 +38,10 @@
             border: 1px solid transparent;
             /* content-box: width/height del HTML ya vienen compensados (−2×padding) */
             box-sizing: content-box !important;
+            overflow: hidden !important;
         }
+
+        /* No usar display:table en .elements: DomPDF expande la altura al ticket completo */
 
         .elements.images {
             overflow: hidden !important;

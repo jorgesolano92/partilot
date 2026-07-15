@@ -1643,7 +1643,20 @@ class DesignController extends Controller
 
                 $style = preg_replace('/\bwidth\s*:[^;]+;?/i', 'width:'.$this->formatPdfCssPx($innerW).';', $style) ?? $style;
                 $style = preg_replace('/\bheight\s*:[^;]+;?/i', 'height:'.$this->formatPdfCssPx($innerH).';', $style) ?? $style;
-                // Mantener padding y left/top: con content-box el exterior = outerW × outerH del editor
+                // DomPDF pinta el texto más arriba: misma suma vertical de padding, más arriba / menos abajo
+                // (no agranda la caja; top+bottom = 2×pad).
+                $nudge = max(1, (int) round($pad * 0.4));
+                if ($nudge >= $pad) {
+                    $nudge = max(0, (int) floor($pad) - 1);
+                }
+                $padTop = $pad + $nudge;
+                $padBottom = $pad - $nudge;
+                $style = preg_replace(
+                    '/\bpadding\s*:[^;]+;?/i',
+                    'padding:'.$this->formatPdfCssPx($padTop).' '.$this->formatPdfCssPx($pad).' '.$this->formatPdfCssPx($padBottom).' '.$this->formatPdfCssPx($pad).';',
+                    $style
+                ) ?? $style;
+                // Mantener left/top: con content-box el exterior = outerW × outerH del editor
                 $style = preg_replace('/\bbox-sizing\s*:[^;]+;?/i', '', $style) ?? $style;
                 $style = 'box-sizing:content-box !important;'.$style;
                 // Evitar que DomPDF estire la caja con el texto
