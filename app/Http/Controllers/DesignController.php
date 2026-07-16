@@ -1786,11 +1786,10 @@ class DesignController extends Controller
 
             return null;
         }
-        imagealphablending($dst, false);
-        imagesavealpha($dst, true);
-        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
-        imagefilledrectangle($dst, 0, 0, $targetW, $targetH, $transparent);
+        // Opaco (sin alfa): DomPDF con PNG+alpha genera “puntitos”/dither en fotos.
         imagealphablending($dst, true);
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $targetW, $targetH, $white);
 
         imagecopyresampled($dst, $src, 0, 0, $srcX, $srcY, $targetW, $targetH, $cropW, $cropH);
         imagedestroy($src);
@@ -1799,8 +1798,9 @@ class DesignController extends Controller
         if (! is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover').'.png';
-        $ok = imagepng($dst, $out, 6);
+        // JPEG alta calidad: DomPDF embebe fotos mucho mejor que PNG con transparencia.
+        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg95').'.jpg';
+        $ok = imagejpeg($dst, $out, 95);
         imagedestroy($dst);
 
         return $ok ? str_replace('\\', '/', $out) : null;
