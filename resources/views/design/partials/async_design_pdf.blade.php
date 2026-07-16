@@ -101,7 +101,7 @@
   function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl) {
     if (attemptsLeft <= 0) {
       if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si cerró la pestaña, el PDF puede seguir generándose: vuelva a esta página en unos minutos e intente de nuevo. Compruebe también que el worker de colas esté activo.');
+      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si el PDF era grande, vuelva a intentarlo; si el problema continúa, revise el log del servidor.');
       return;
     }
     $.getJSON(checkUrl)
@@ -149,11 +149,23 @@
     }
   }
 
-  function partilotStartDesignPdfAjax(url, title, $btn) {
+    function partilotStartDesignPdfAjax(url, title, $btn) {
     $btn.prop('disabled', true);
-    partilotNotifyPdf('info', title, 'Generando PDF en segundo plano. Cuando termine podrá descargarlo aquí y también recibirá el enlace por correo.', true);
-    $.ajax({ url: url, method: 'GET', dataType: 'json' })
+    partilotNotifyPdf('info', title, 'Generando PDF…', true);
+    $.ajax({ url: url, method: 'GET', dataType: 'json', timeout: 300000 })
       .done(function (data) {
+        if (data && data.status === 'completed' && data.download_url) {
+          $btn.prop('disabled', false);
+          partilotRemoveAllNotifies();
+          partilotTriggerDownload(data.download_url);
+          partilotNotifyPdf('success', title, 'Descarga iniciada. Si no ve el archivo, compruebe descargas y el bloqueador.', false);
+          return;
+        }
+        if (data && data.status === 'failed') {
+          $btn.prop('disabled', false);
+          partilotNotifyPdf('error', title, data.message || 'La generación del PDF falló.', false);
+          return;
+        }
         if (data && data.status === 'processing' && data.check_url) {
           partilotPollPdfStatus(data.check_url, title, 1800, true, $btn);
           return;
@@ -163,7 +175,7 @@
       })
       .fail(function (xhr) {
         $btn.prop('disabled', false);
-        var msg = 'No se pudo iniciar la generación del PDF.';
+        var msg = 'No se pudo generar el PDF.';
         try {
           var j = xhr.responseJSON;
           if (j && j.message) msg = j.message;

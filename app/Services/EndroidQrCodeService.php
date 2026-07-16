@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Support\ParticipationTicketReference;
+use Endroid\QrCode\Color\Color;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\QrCodeInterface;
+use Endroid\QrCode\RoundBlockSizeMode;
 use Endroid\QrCode\Writer\PngWriter;
 use Endroid\QrCode\Writer\SvgWriter;
 use Illuminate\Support\Facades\Cache;
@@ -205,13 +207,16 @@ class EndroidQrCodeService
             @mkdir($dir, 0755, true);
         }
 
-        $size = max(40, (int) config('qr_optimization.qr_code.size', 100));
-        $margin = max(0, (int) config('qr_optimization.qr_code.margin', 0));
-        $baseUrl = ParticipationTicketReference::publicCheckBaseUrl();
+        $size = max(120, (int) config('qr_optimization.qr_code.size', 160));
+        // Margen 0 + recorte cuadrado centrado (sin quiet zone asimétrico).
+        $margin = 0;
 
         $qrCode = QrCode::create('')
             ->setSize($size)
-            ->setMargin($margin);
+            ->setMargin($margin)
+            ->setRoundBlockSizeMode(RoundBlockSizeMode::None)
+            ->setForegroundColor(new Color(0, 0, 0))
+            ->setBackgroundColor(new Color(255, 255, 255, 0));
 
         $useGd = $this->isGdAvailable();
         $writer = $useGd ? new PngWriter() : new SvgWriter();
@@ -220,18 +225,130 @@ class EndroidQrCodeService
         foreach ($references as $reference) {
             $reference = (string) $reference;
             $url = $this->qrUrlForReference($reference);
-            $path = $dir.'/'.md5($url.'|'.$size.'|'.$margin.'|'.$ext).'.'.$ext;
+            $path = $dir.'/'.md5($url.'|'.$size.'|0|'.$ext.'|centered5').'.'.$ext;
             $pathNorm = str_replace('\\', '/', $path);
 
             if (! is_file($path)) {
                 $qrCode = $qrCode->setData($url);
-                file_put_contents($path, $writer->write($qrCode)->getString());
+                $binary = $writer->write($qrCode)->getString();
+                if ($useGd) {
+                    $binary = $this->cropQrPngCenteredSquare($binary, 1) ?? $binary;
+                }
+                file_put_contents($path, $binary);
             }
 
             $results[$reference] = $pathNorm;
         }
 
         return $results;
+    }
+
+    /**
+     * Recorta a un cuadrado centrado en los módulos negros, con quiet zone uniforme.
+     */
+    private function cropQrPngCenteredSquare(string $pngBinary, int $padPx = 2): ?string
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            return null;
+        }
+        $src = @imagecreatefromstring($pngBinary);
+        if ($src === false) {
+            return null;
+        }
+
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $minX = $w;
+        $minY = $h;
+        $maxX = -1;
+        $maxY = -1;
+
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                $rgba = imagecolorat($src, $x, $y);
+                $r = ($rgba >> 16) & 0xFF;
+                $g = ($rgba >> 8) & 0xFF;
+                $b = $rgba & 0xFF;
+                // Módulo negro (fondo blanco/gris claro se ignora)
+                if ($r < 64 && $g < 64 && $b < 64) {
+                    if ($x < $minX) {
+                        $minX = $x;
+                    }
+                    if ($y < $minY) {
+                        $minY = $y;
+                    }
+                    if ($x > $maxX) {
+                        $maxX = $x;
+                    }
+                    if ($y > $maxY) {
+                        $maxY = $y;
+                    }
+                }
+            }
+        }
+
+        if ($maxX < 0 || $maxY < 0) {
+            imagedestroy($src);
+
+            return null;
+        }
+
+        $contentW = $maxX - $minX + 1;
+        $contentH = $maxY - $minY + 1;
+        $padPx = max(0, $padPx);
+        $inner = max($contentW, $contentH);
+        $side = $inner + (2 * $padPx);
+
+        // Centrar el bloque de módulos en el cuadrado (márgenes L/R y T/B iguales ±1px).
+        $dstX = (int) floor(($side - $contentW) / 2);
+        $dstY = (int) floor(($side - $contentH) / 2);
+
+        $dst = imagecreatetruecolor($side, $side);
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        $black = imagecolorallocate($dst, 0, 0, 0);
+        imagefilledrectangle($dst, 0, 0, $side - 1, $side - 1, $white);
+
+        for ($y = 0; $y < $contentH; $y++) {
+            for ($x = 0; $x < $contentW; $x++) {
+                $rgba = imagecolorat($src, $minX + $x, $minY + $y);
+                $r = ($rgba >> 16) & 0xFF;
+                $g = ($rgba >> 8) & 0xFF;
+                $b = $rgba & 0xFF;
+                if ($r < 64 && $g < 64 && $b < 64) {
+                    imagesetpixel($dst, $dstX + $x, $dstY + $y, $black);
+                }
+            }
+        }
+
+        ob_start();
+        imagepng($dst);
+        $out = ob_get_clean();
+        imagedestroy($src);
+        imagedestroy($dst);
+
+        return is_string($out) && $out !== '' ? $out : null;
+    }
+
+    /**
+     * Asegura PNG truecolor con canal alpha (FPDI/FPDF lo respeta mejor).
+     */
+    private function ensurePngHasAlpha(string $pngBinary): ?string
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            return null;
+        }
+        $im = @imagecreatefromstring($pngBinary);
+        if ($im === false) {
+            return null;
+        }
+        imagesavealpha($im, true);
+        imagealphablending($im, false);
+        ob_start();
+        imagepng($im);
+        $out = ob_get_clean();
+        imagedestroy($im);
+
+        return is_string($out) && $out !== '' ? $out : null;
     }
 
     /**

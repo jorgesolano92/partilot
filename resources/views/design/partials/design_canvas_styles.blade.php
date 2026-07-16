@@ -39,7 +39,7 @@
     font-size: inherit !important;
     font-weight: inherit !important;
     line-height: 1.15 !important;
-    color: inherit !important;
+    /* No forzar color: inherit !important — anula color:#fff inline en DomPDF. */
 }
 
 .format-box p {
@@ -47,7 +47,6 @@
     padding: 0 !important;
     font-size: inherit !important;
     line-height: 1.15 !important;
-    color: inherit !important;
 }
 
 .format-box strong,
@@ -86,9 +85,10 @@
 .format-box .elements.number {
     overflow: hidden;
     line-height: 1.15;
-    /* DEBUG temp: border ya existe (1px transparent) → solo color, layout idéntico.
-       No usar outline/box-shadow: DomPDF los desplaza y engañan al comparar. */
-    border-color: transparent !important;
+@if(config('pdf_optimization.debug_element_borders'))
+    /* DEBUG: borde rosa editor ↔ PDF */
+    border-color: #ff1493 !important;
+@endif
 }
 
 .format-box .elements.text *,

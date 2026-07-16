@@ -44,9 +44,30 @@ return [
     'font_subsetting' => env('PDF_FONT_SUBSETTING', true),
 
     // Fondo materializado: 1.0 ≈ tamaño CSS; subir infla MB y tiempo.
-    'bg_pixel_scale' => (float) env('PDF_BG_PIXEL_SCALE', 1.0),
-    'bg_jpeg_quality' => (int) env('PDF_BG_JPEG_QUALITY', 82),
+    'bg_pixel_scale' => (float) env('PDF_BG_PIXEL_SCALE', 1.5),
+    'bg_jpeg_quality' => (int) env('PDF_BG_JPEG_QUALITY', 90),
 
     // QR como ficheros en disco (DomPDF reutiliza XObject por ruta) en vez de data-URI.
     'qr_as_files' => env('PDF_QR_AS_FILES', true),
+
+    // Plantilla: DomPDF renderiza 1 celda; FPDI la repite en rejilla fija + estampa ref/nº/QR.
+    'use_stamp_template' => env('PDF_USE_STAMP_TEMPLATE', false),
+
+    // Origen de la rejilla en la hoja (mm).
+    'stamp_offset_x' => (float) env('PDF_STAMP_OFFSET_X', 0),
+    'stamp_offset_y' => (float) env('PDF_STAMP_OFFSET_Y', 0),
+
+    // Desplazamiento SOLO de overlays (imgs/ref/nº/QR) respecto al arte de la celda (mm).
+    // Positivo Y = bajar. Con slots sin hacks DomPDF suele bastar ~0.5–1.0.
+    'stamp_content_offset_x' => (float) env('PDF_STAMP_CONTENT_OFFSET_X', 0),
+    'stamp_content_offset_y' => (float) env('PDF_STAMP_CONTENT_OFFSET_Y', 0),
+
+    // Borde fino alrededor de cada participación en la hoja (ayuda a diferenciar celdas).
+    'stamp_cell_border' => env('PDF_STAMP_CELL_BORDER', true),
+
+    // Bordes rosa de depuración en cajas de elementos / stamps (padding vs posición).
+    'debug_element_borders' => filter_var(env('PDF_DEBUG_ELEMENT_BORDERS', false), FILTER_VALIDATE_BOOLEAN),
+
+    // Enviar email con enlace de descarga al terminar el PDF (por defecto no).
+    'send_email' => env('PDF_SEND_EMAIL', false),
 ];

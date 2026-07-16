@@ -1605,6 +1605,22 @@ class DesignController extends Controller
     }
 
     /**
+     * HTML ligero para coordenadas/tipografía de estampado FPDI
+     * (sin scale de fuente ni box-model DomPDF, que desalinea overlays).
+     */
+    public function prepareStampSlotHtml(string $html, float $identationMm = 2.5): string
+    {
+        $html = $this->decodeCssUrlHtmlEntities($html);
+        $html = $this->flattenParticipationHtmlForPdf($html);
+        $html = $this->normalizeParticipationElementsForPdf($html);
+        $publicPath = public_path();
+        $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
+        $html = $this->ensureLocalPathsForPdf($html, $publicPath);
+
+        return $html;
+    }
+
+    /**
      * HTML de participación listo para DomPDF (misma lógica en web y colas).
      * Mantiene el flujo histórico: base de la app -> ruta de public/ y url(uploads/...) en CSS.
      */
@@ -2161,13 +2177,20 @@ class DesignController extends Controller
         }
 
         $mm = max(0, round($identationMm, 2));
-        $insetCss = "left:{$mm}mm;top:{$mm}mm;right:{$mm}mm;bottom:{$mm}mm";
+        // DomPDF ignora a menudo right/bottom en absolute; width/height+calc sí respeta
+        // márgenes superiores e inferiores iguales (sin recortar solo la img).
+        $twice = round(2 * $mm, 2);
+        $insetCss = "left:{$mm}mm;top:{$mm}mm;width:calc(100% - {$twice}mm);height:calc(100% - {$twice}mm);right:auto;bottom:auto";
 
         if (preg_match('/id=(["\'])'.preg_quote($bgId, '/').'\1/i', $html)) {
             $html = preg_replace_callback(
                 '/(<div[^>]*\bid=(["\'])'.preg_quote($bgId, '/').'\2[^>]*?\bstyle=(["\']))(.*?)(\3)/is',
                 function ($m) use ($insetCss) {
-                    $style = preg_replace('/\b(left|top|right|bottom|inset)\s*:[^;]+;?/i', '', $m[4]) ?? $m[4];
+                    $style = preg_replace(
+                        '/\b(left|top|right|bottom|inset|width|height)\s*:[^;]+;?/i',
+                        '',
+                        $m[4]
+                    ) ?? $m[4];
                     if (! preg_match('/\bposition\s*:/i', $style)) {
                         $style = 'position:absolute;'.$style;
                     }
@@ -2370,17 +2393,41 @@ class DesignController extends Controller
 
                 return $fsBase.str_replace('\\', '/', $path);
             };
+            // uploads/storage y también assets de public root (p.ej. /default.jpg)
             $fixed = preg_replace_callback(
-                '#https?://(?:'.$hostsPattern.')(?::\d+)?(/(?:uploads|storage)/[^\s\'"\)\>\#]+)#i',
-                $mapToFs,
+                '#https?://(?:'.$hostsPattern.')(?::\d+)?(/[^\s\'"\)\>\#]+)#i',
+                static function (array $m) use ($fsBase, $mapToFs): string {
+                    $path = explode('?', rawurldecode($m[1]), 2)[0];
+                    $candidate = $fsBase.str_replace('\\', '/', $path);
+                    if (is_file($candidate)) {
+                        return $candidate;
+                    }
+                    // Solo forzar uploads/storage aunque no existan (comportamiento previo)
+                    if (preg_match('#^/(?:uploads|storage)/#i', $path)) {
+                        return $mapToFs($m);
+                    }
+
+                    return $m[0];
+                },
                 $html
             );
             $html = $fixed ?? $html;
 
             // //host/uploads/... (sin esquema http/https)
             $fixed2 = preg_replace_callback(
-                '#//(?:'.$hostsPattern.')(?::\d+)?(/(?:uploads|storage)/[^\s\'"\)\>\#]+)#i',
-                $mapToFs,
+                '#//(?:'.$hostsPattern.')(?::\d+)?(/[^\s\'"\)\>\#]+)#i',
+                static function (array $m) use ($fsBase, $mapToFs): string {
+                    $path = explode('?', rawurldecode($m[1]), 2)[0];
+                    $candidate = $fsBase.str_replace('\\', '/', $path);
+                    if (is_file($candidate)) {
+                        return $candidate;
+                    }
+                    if (preg_match('#^/(?:uploads|storage)/#i', $path)) {
+                        return $mapToFs($m);
+                    }
+
+                    return $m[0];
+                },
                 $html
             );
             $html = $fixed2 ?? $html;
@@ -2416,11 +2463,17 @@ class DesignController extends Controller
             $html
         );
 
-        // <img src="/uploads/..."> y enlaces equivalentes
+        // <img src="/uploads/...">, /storage/... y otros ficheros públicos (p.ej. /default.jpg)
         $html = preg_replace_callback(
-            '#\b(src|href)\s*=\s*([\'"])(/(?:uploads|storage)/[^\'"]+)\2#i',
+            '#\b(src|href)\s*=\s*([\'"])(/[^\'"]+)\2#i',
             function ($m) use ($normBase) {
-                return $m[1].'='.$m[2].$normBase.str_replace('\\', '/', $m[3]).$m[2];
+                $rel = str_replace('\\', '/', $m[3]);
+                $candidate = $normBase.$rel;
+                if (is_file($candidate) || preg_match('#^/(?:uploads|storage)/#i', $rel)) {
+                    return $m[1].'='.$m[2].$candidate.$m[2];
+                }
+
+                return $m[0];
             },
             $html
         );
@@ -2520,9 +2573,9 @@ class DesignController extends Controller
             $html
         );
         
-        // Convertir RGB a hex
+        // Convertir RGB a hex (solo propiedad color, no background-color)
         $html = preg_replace_callback(
-            '/color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)/i',
+            '/(?<![-\w])color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)/i',
             function($matches) {
                 $r = str_pad(dechex($matches[1]), 2, '0', STR_PAD_LEFT);
                 $g = str_pad(dechex($matches[2]), 2, '0', STR_PAD_LEFT);
@@ -2656,8 +2709,21 @@ class DesignController extends Controller
 
         // Para PDFs muy grandes (>500 participaciones), usar procesamiento por lotes
         //if ($total > 500) {
-        if ($total > 500) {
+        if ($total > 500 && ! config('pdf_optimization.use_stamp_template', false)) {
             return $this->generatePdfInChunks($design, $participation_html, $tickets, $from, $to, $rows, $cols, $page, $pdfOrientation, $qrCodes);
+        }
+
+        if (config('pdf_optimization.use_stamp_template', false)) {
+            $tmp = storage_path('app/temp_sync_part_'.uniqid('', true).'.pdf');
+            try {
+                $this->writeParticipationPdfToFile($design, $from, $to, $tmp);
+                $this->cleanupTempQrCodes();
+
+                return response()->download($tmp, 'participacion.pdf')->deleteFileAfterSend(true);
+            } catch (\Throwable $e) {
+                @unlink($tmp);
+                throw $e;
+            }
         }
         
         // Ordenar tickets en modo guillotina (optimizado)
@@ -3132,6 +3198,38 @@ class DesignController extends Controller
             $prepared = $this->prepareParticipationHtmlForPdf($html, $identation);
             $ticket = $this->sampleTicketForPreview($design);
             $qrCodes = $this->buildParticipationQrMap([(string) $ticket['r']]);
+
+            // Misma ruta que la exportación real cuando el stamp está activo.
+            if (config('pdf_optimization.use_stamp_template', false) && $design) {
+                $shell = $design->replicate();
+                $shell->page = $page;
+                $shell->orientation = $orientation;
+                $shell->rows = $rows;
+                $shell->cols = $cols;
+                $shell->identation = $identation;
+                $tmp = storage_path('app/temp_preview_stamp_'.uniqid('', true).'.pdf');
+                try {
+                    $slotsHtml = $this->prepareStampSlotHtml($html, $identation);
+                    app(\App\Services\ParticipationPdfStampExporter::class)->exportToFile(
+                        $shell,
+                        $prepared,
+                        [$ticket],
+                        $qrCodes,
+                        $tmp,
+                        $slotsHtml
+                    );
+                    $this->cleanupTempQrCodes();
+
+                    return response()->file($tmp, [
+                        'Content-Type' => 'application/pdf',
+                        'Content-Disposition' => 'inline; filename="preview-participacion.pdf"',
+                    ])->deleteFileAfterSend(true);
+                } catch (\Throwable $e) {
+                    @unlink($tmp);
+                    Log::warning('previewDesignStepPdf stamp fallback', ['error' => $e->getMessage()]);
+                }
+            }
+
             $pages = $this->generatePagesOptimized([$ticket], 1, $perPage);
             $pdf = Pdf::loadView('design.pdf_participation', [
                 'pages' => $pages,
@@ -5135,21 +5233,135 @@ class DesignController extends Controller
         $job_id = 'pdf_part_'.$id.'_'.$from.'_'.$to.'_'.time();
         \App\Support\PdfJobStatus::markProcessing($job_id);
         \App\Support\PdfJobStatus::touchPresence($job_id);
-        $notifyEmail = auth()->user()?->email;
-        Queue::push(new \App\Jobs\GenerateParticipationPdfJob(
-            (int) $id,
-            $job_id,
-            $from,
-            $to,
-            is_string($notifyEmail) && $notifyEmail !== '' ? $notifyEmail : null
-        ));
 
-        return response()->json([
-            'status' => 'processing',
-            'job_id' => $job_id,
-            'message' => 'El PDF se está generando en segundo plano. Cuando esté listo podrá descargarlo y también recibirá el enlace por correo.',
-            'check_url' => route('design.checkPdfStatus', $job_id),
-        ]);
+        try {
+            ini_set('max_execution_time', '300');
+            ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
+
+            $final_path = storage_path('app/generated_pdfs/'.$job_id.'.pdf');
+            $this->writeParticipationPdfToFile($design, $from, $to, $final_path);
+
+            \App\Support\GeneratedPdfCatalog::writeMeta(
+                $job_id,
+                'participacion-diseno-'.$id.'.pdf',
+                (int) $id
+            );
+            \App\Support\PdfJobStatus::markCompleted($job_id);
+
+            $notifyEmail = auth()->user()?->email;
+            if (
+                config('pdf_optimization.send_email', false)
+                && is_string($notifyEmail)
+                && $notifyEmail !== ''
+            ) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($notifyEmail)->send(new \App\Mail\DesignPdfReadyMail(
+                        route('design.downloadPdf', $job_id),
+                        'Participaciones PDF',
+                        (int) $id
+                    ));
+                    \App\Support\PdfJobStatus::markEmailSent($job_id);
+                } catch (\Throwable $mailEx) {
+                    Log::warning('exportParticipationPdfAsync email failed', [
+                        'job_id' => $job_id,
+                        'message' => $mailEx->getMessage(),
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'status' => 'completed',
+                'job_id' => $job_id,
+                'download_url' => route('design.downloadPdf', $job_id),
+                'message' => 'PDF generado. La descarga debería iniciar automáticamente.',
+                'check_url' => route('design.checkPdfStatus', $job_id),
+            ]);
+        } catch (\Throwable $e) {
+            \App\Support\PdfJobStatus::markFailed($job_id, $e->getMessage());
+            Log::error('exportParticipationPdfAsync failed', [
+                'job_id' => $job_id,
+                'design_id' => $id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'status' => 'failed',
+                'job_id' => $job_id,
+                'message' => 'No se pudo generar el PDF: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Genera el PDF de participaciones en disco (síncrono; usa stamp si está activo).
+     */
+    public function writeParticipationPdfToFile(DesignFormat $design, int $from, int $to, string $finalPath): void
+    {
+        $participation_html = $this->prepareParticipationHtmlForPdf(
+            $design->participation_html ?? '',
+            (float) ($design->identation ?? 2.5)
+        );
+
+        $set = $design->set_id ? Set::select('id', 'tickets', 'total_participations')->find($design->set_id) : null;
+        $tickets = $set && $set->tickets ? $set->tickets : [];
+
+        $tickets_slice = [];
+        if ($from <= $to && $to >= 1) {
+            $tickets_slice = array_slice($tickets, $from - 1, max(0, $to - $from + 1));
+        }
+
+        if (config('qr_optimization.optimize_images', false)) {
+            $participation_html = $this->optimizeParticipationHtml($participation_html, $tickets_slice);
+        }
+
+        $uniqueReferences = [];
+        foreach ($tickets_slice as $ticket) {
+            if (isset($ticket['r']) && ! in_array($ticket['r'], $uniqueReferences, true)) {
+                $uniqueReferences[] = $ticket['r'];
+            }
+        }
+        $qrCodes = $this->buildParticipationQrMap($uniqueReferences);
+
+        $dir = dirname($finalPath);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (config('pdf_optimization.use_stamp_template', false)) {
+            $slotsHtml = $this->prepareStampSlotHtml(
+                $design->participation_html ?? '',
+                (float) ($design->identation ?? 2.5)
+            );
+            app(\App\Services\ParticipationPdfStampExporter::class)->exportToFile(
+                $design,
+                $participation_html,
+                $tickets_slice,
+                $qrCodes,
+                $finalPath,
+                $slotsHtml
+            );
+
+            return;
+        }
+
+        $rows = max(1, (int) ($design->rows ?? 1));
+        $cols = max(1, (int) ($design->cols ?? 1));
+        $per_page = $rows * $cols;
+        $page = $design->page ?? 'a3';
+        $orientation = $design->orientation ?? 'h';
+        $pdfOrientation = ($orientation === 'h') ? 'landscape' : 'portrait';
+        $total_pages = $per_page > 0 ? (int) ceil(count($tickets_slice) / $per_page) : 0;
+        $pages = $this->generatePagesOptimized($tickets_slice, $total_pages, $per_page);
+
+        $pdf = Pdf::loadView('design.pdf_participation', [
+            'pages' => $pages,
+            'participation_html' => $participation_html,
+            'rows' => $rows,
+            'cols' => $cols,
+            'qrCodes' => $qrCodes,
+        ])->setPaper($page, $pdfOrientation);
+        $this->applyDompdfOptions($pdf);
+        $pdf->save($finalPath);
     }
 
     /**
@@ -5205,7 +5417,7 @@ class DesignController extends Controller
         
         return response()->json([
             'status' => 'processing',
-            'message' => 'El PDF aún se está generando. Cuando esté listo podrá descargarlo y también recibirá el enlace por correo.',
+            'message' => 'El PDF aún se está generando.',
         ]);
     }
 
