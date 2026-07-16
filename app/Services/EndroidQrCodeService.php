@@ -161,34 +161,76 @@ class EndroidQrCodeService
     public function generateUltraFastQrCodes($references)
     {
         $results = [];
-        
-        // Configuración ultra-optimizada para máxima velocidad
-        $qrCode = QrCode::create('')
-            ->setSize(120)
-            ->setMargin(0);
+        $size = max(40, (int) config('qr_optimization.qr_code.size', 100));
+        $margin = max(0, (int) config('qr_optimization.qr_code.margin', 0));
 
-        // Procesar en lotes para mejor gestión de memoria
-        $batchSize = 100; // Lotes más grandes para mejor eficiencia
+        $qrCode = QrCode::create('')
+            ->setSize($size)
+            ->setMargin($margin);
+
+        $batchSize = max(50, (int) config('qr_optimization.performance.batch_size', 100));
         $batches = array_chunk($references, $batchSize);
 
-        foreach ($batches as $batchIndex => $batch) {
-            error_log("Endroid QR: Procesando lote " . ($batchIndex + 1) . " de " . count($batches) . " (" . count($batch) . " QR codes)");
-
+        foreach ($batches as $batch) {
             foreach ($batch as $reference) {
-                $url = $this->qrUrlForReference($reference);
-
-                // Actualizar solo la URL
+                $url = $this->qrUrlForReference((string) $reference);
                 $qrCode = $qrCode->setData($url);
                 $dataUri = $this->qrCodeToDataUri($qrCode);
 
-                // Cache inmediato (solo en memoria)
                 $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
-                Cache::put($cacheKey, $dataUri, 1800);
+                Cache::put($cacheKey, $dataUri, (int) config('qr_optimization.qr_code.cache_ttl', 1800));
 
                 $results[$reference] = $dataUri;
             }
         }
-        
+
+        return $results;
+    }
+
+    /**
+     * QR como rutas de fichero PNG (mejor para DomPDF: reutiliza XObject por path).
+     *
+     * @param  string[]  $references
+     * @return array<string, string> ref => absolute path
+     */
+    public function generateUltraFastQrCodeFilePaths(array $references): array
+    {
+        $results = [];
+        if ($references === []) {
+            return $results;
+        }
+
+        $dir = storage_path('app/pdf_qr_cache');
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        $size = max(40, (int) config('qr_optimization.qr_code.size', 100));
+        $margin = max(0, (int) config('qr_optimization.qr_code.margin', 0));
+        $baseUrl = ParticipationTicketReference::publicCheckBaseUrl();
+
+        $qrCode = QrCode::create('')
+            ->setSize($size)
+            ->setMargin($margin);
+
+        $useGd = $this->isGdAvailable();
+        $writer = $useGd ? new PngWriter() : new SvgWriter();
+        $ext = $useGd ? 'png' : 'svg';
+
+        foreach ($references as $reference) {
+            $reference = (string) $reference;
+            $url = $this->qrUrlForReference($reference);
+            $path = $dir.'/'.md5($url.'|'.$size.'|'.$margin.'|'.$ext).'.'.$ext;
+            $pathNorm = str_replace('\\', '/', $path);
+
+            if (! is_file($path)) {
+                $qrCode = $qrCode->setData($url);
+                file_put_contents($path, $writer->write($qrCode)->getString());
+            }
+
+            $results[$reference] = $pathNorm;
+        }
+
         return $results;
     }
 

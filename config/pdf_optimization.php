@@ -5,41 +5,31 @@ return [
     |--------------------------------------------------------------------------
     | Configuración de Optimización de PDFs
     |--------------------------------------------------------------------------
-    |
-    | Configuraciones para optimizar el rendimiento de generación de PDFs
-    | con muchas participaciones.
-    |
     */
 
-    // Límites para procesamiento síncrono vs asíncrono
-    'sync_limit' => 500,        // Hasta 500 participaciones se procesan síncronamente
-    'async_limit' => 1000,      // Más de 1000 participaciones se procesan asíncronamente
-    
-    // Tamaño de chunks para procesamiento por lotes
-    'chunk_size' => 100,        // Procesar de 100 en 100 participaciones
-    'job_chunk_size' => 100,    // Chunks en jobs asíncronos (menos renders = menos tiempo total)
+    'sync_limit' => 500,
+    'async_limit' => 1000,
 
-    // Cola de jobs PDF (usar "default" salvo que haya worker dedicado: PDF_QUEUE=pdf)
+    // Chunks más grandes = menos renders DomPDF + menos re-embebidos al unir con FPDI
+    'chunk_size' => (int) env('PDF_CHUNK_SIZE', 250),
+    'job_chunk_size' => (int) env('PDF_JOB_CHUNK_SIZE', 250),
+
     'queue' => env('PDF_QUEUE', 'default'),
 
-    // Configuración de memoria y tiempo
-    'memory_limit' => '2048M',  // Límite de memoria para PDFs grandes
-    'max_execution_time' => 300, // 5 minutos para PDFs síncronos
-    'job_timeout' => 0,         // 0 = calcular según participaciones (ver job_timeout_*)
-    'job_timeout_per_chunk' => 120, // Segundos estimados por chunk DomPDF
-    'job_timeout_min' => 900,   // Mínimo 15 minutos
-    'job_timeout_max' => 7200,    // Máximo 2 horas
-    
-    // Cache
-    'cache_ttl' => 3600,        // TTL del cache en segundos (1 hora)
-    'cache_prefix' => 'pdf_',   // Prefijo para las claves de cache
-    
-    // Configuración de archivos temporales
+    'memory_limit' => env('PDF_MEMORY_LIMIT', '2048M'),
+    'max_execution_time' => 300,
+    'job_timeout' => 0,
+    'job_timeout_per_chunk' => 120,
+    'job_timeout_min' => 900,
+    'job_timeout_max' => 7200,
+
+    'cache_ttl' => 3600,
+    'cache_prefix' => 'pdf_',
+
     'temp_path' => 'temp_pdfs/',
     'generated_path' => 'generated_pdfs/',
-    'cleanup_temp' => true,     // Limpiar archivos temporales automáticamente
-    
-    // Configuración de DomPDF
+    'cleanup_temp' => true,
+
     'dompdf_options' => [
         'defaultFont' => 'Arial',
         'isRemoteEnabled' => true,
@@ -47,7 +37,16 @@ return [
         'isPhpEnabled' => true,
     ],
 
-    // DPI DomPDF: debe ser 96 para que px del diseño coincidan con el ticket en mm.
-    // No subir este valor: rompe el layout (elementos en px se encogen respecto al format-box).
+    // DPI DomPDF: debe ser 96 (px del diseño ↔ ticket en mm).
     'dpi' => 96,
+
+    // Subsetting reduce mucho el peso cuando hay muchas páginas.
+    'font_subsetting' => env('PDF_FONT_SUBSETTING', true),
+
+    // Fondo materializado: 1.0 ≈ tamaño CSS; subir infla MB y tiempo.
+    'bg_pixel_scale' => (float) env('PDF_BG_PIXEL_SCALE', 1.0),
+    'bg_jpeg_quality' => (int) env('PDF_BG_JPEG_QUALITY', 82),
+
+    // QR como ficheros en disco (DomPDF reutiliza XObject por ruta) en vez de data-URI.
+    'qr_as_files' => env('PDF_QR_AS_FILES', true),
 ];

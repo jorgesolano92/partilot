@@ -1617,6 +1617,7 @@ class DesignController extends Controller
             'containment-wrapper2',
             'design-participation-bg'
         );
+        $html = $this->flattenParticipationHtmlForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
         $html = $this->scaleFontSizesForDomPdf($html);
@@ -1624,12 +1625,115 @@ class DesignController extends Controller
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
         $html = $this->ensurePdfBackgroundCoverStyles($html, 'design-participation-bg');
-        // Recorte cover a 2× píxeles CSS → DomPDF embebe más resolución sin cambiar layout.
-        $html = $this->materializePdfBackgroundCoverBitmap($html, 'design-participation-bg', $identationMm);
-        // Conservar width/height/padding como en el editor (DomPDF 3 + border-box).
+        $html = $this->materializePdfBackgroundCoverBitmap(
+            $html,
+            'design-participation-bg',
+            $identationMm,
+            (float) config('pdf_optimization.bg_pixel_scale', 1.0)
+        );
+        // Fondo como <img> una sola vez en la plantilla (misma ruta → DomPDF reutiliza XObject).
+        $html = $this->promotePdfBackgroundLayerToImg($html, 'design-participation-bg');
         $html = $this->preserveInlineStyles($html);
 
         return $html;
+    }
+
+    /**
+     * Quita nodos del editor que DomPDF no necesita (guías, botones, handles vacíos).
+     * Menos nodos en el árbol = parse/layout más rápido (anecdota clásica de wrappers inútiles).
+     */
+    public function flattenParticipationHtmlForPdf(string $html): string
+    {
+        if ($html === '') {
+            return $html;
+        }
+
+        // Controles / guías del editor
+        $html = preg_replace('/<button\b[^>]*>.*?<\/button>/is', '', $html) ?? $html;
+        $html = preg_replace('/<[^>]*\bclass="[^"]*\bedit-btn\b[^"]*"[^>]*>.*?<\/[^>]+>/is', '', $html) ?? $html;
+        $html = preg_replace(
+            '/<div[^>]*\bclass="[^"]*\b(margen-izquierdo|margen-arriba|margen-derecho|margen-abajo|caja-matriz|caja-matriz-2|guide2|guide3|guide4)\b[^"]*"[^>]*>.*?<\/div>/is',
+            '',
+            $html
+        ) ?? $html;
+
+        // Handles jQuery UI vacíos fuera del QR (el QR se rellena luego)
+        $html = preg_replace(
+            '/(<div[^>]*\bclass="[^"]*\bqr\b[^"]*"[^>]*>)\s*<span[^>]*class="[^"]*ui-draggable-handle[^"]*"[^>]*>\s*<\/span>\s*(<\/div>)/is',
+            '$1$2',
+            $html
+        ) ?? $html;
+        $html = preg_replace('/<span[^>]*class="[^"]*ui-draggable-handle[^"]*"[^>]*>\s*<\/span>/is', '', $html) ?? $html;
+
+        // Comentarios HTML
+        $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
+
+        return $html;
+    }
+
+    /**
+     * Convierte background-image de la capa de márgenes en <img> (mejor fidelidad DomPDF).
+     * Debe llamarse UNA vez sobre la plantilla, no por cada ticket.
+     */
+    public function promotePdfBackgroundLayerToImg(string $html, string $bgId = 'design-participation-bg'): string
+    {
+        if ($html === '' || stripos($html, $bgId) === false) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bid=(["\'])'.preg_quote($bgId, '/').'\2[^>]*>)(.*?)(<\/div>)/is',
+            static function (array $m): string {
+                $open = $m[1];
+                $inner = $m[3];
+                $close = $m[4];
+
+                if (stripos($inner, 'design-pdf-bg-img') !== false) {
+                    return $m[0];
+                }
+
+                if (! preg_match('/\bstyle=(["\'])(.*?)\1/is', $open, $sm)) {
+                    return $m[0];
+                }
+                $style = $sm[2];
+                if (! preg_match('/\bbackground-image\s*:\s*url\s*\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', $style, $um)) {
+                    return $m[0];
+                }
+                $src = trim(html_entity_decode($um[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'), " \t\n\r'\"");
+                if ($src === '' || strcasecmp($src, 'none') === 0) {
+                    return $m[0];
+                }
+                if (! preg_match('#^(https?:|data:)#i', $src) && ! is_file($src)) {
+                    return $m[0];
+                }
+
+                $newStyle = preg_replace('/\bbackground-image\s*:[^;]+;?/i', '', $style) ?? $style;
+                $newStyle = preg_replace('/\bbackground-size\s*:[^;]+;?/i', '', $newStyle) ?? $newStyle;
+                $newStyle = preg_replace('/\bbackground-position\s*:[^;]+;?/i', '', $newStyle) ?? $newStyle;
+                $newStyle = preg_replace('/\bbackground-repeat\s*:[^;]+;?/i', '', $newStyle) ?? $newStyle;
+                $newStyle = trim(preg_replace('/;+/', ';', $newStyle) ?? $newStyle, "; \t\n\r");
+                if ($newStyle !== '' && substr($newStyle, -1) !== ';') {
+                    $newStyle .= ';';
+                }
+                if (! preg_match('/\boverflow\s*:/i', $newStyle)) {
+                    $newStyle .= 'overflow:hidden;';
+                }
+
+                $open = preg_replace(
+                    '/\bstyle=(["\'])(.*?)\1/is',
+                    'style=$1'.$newStyle.'$1',
+                    $open,
+                    1
+                ) ?? $open;
+
+                $img = '<img class="design-pdf-bg-img" src="'.htmlspecialchars($src, ENT_QUOTES, 'UTF-8')
+                    .'" alt="" style="position:absolute;left:0;top:0;width:100%;height:100%;border:0;margin:0;padding:0;display:block;" />';
+
+                return $open.$img.$inner.$close;
+            },
+            $html,
+            1
+        ) ?? $html;
     }
 
     /**
@@ -1672,7 +1776,7 @@ class DesignController extends Controller
         string $html,
         string $bgId,
         float $identationMm = 2.5,
-        float $pixelScale = 2.0
+        float $pixelScale = 1.0
     ): string {
         if ($html === '' || stripos($html, $bgId) === false || ! function_exists('imagecreatetruecolor')) {
             return $html;
@@ -1684,10 +1788,11 @@ class DesignController extends Controller
         $scale = max(1.0, min(3.0, $pixelScale));
         $targetW = max(32, (int) round(($innerWmm / 25.4) * 96 * $scale));
         $targetH = max(32, (int) round(($innerHmm / 25.4) * 96 * $scale));
+        $jpegQuality = max(50, min(95, (int) config('pdf_optimization.bg_jpeg_quality', 82)));
 
         return preg_replace_callback(
             '/(<div[^>]*\bid=(["\'])'.preg_quote($bgId, '/').'\2[^>]*?\bstyle=(["\']))(.*?)(\3)/is',
-            function (array $m) use ($targetW, $targetH): string {
+            function (array $m) use ($targetW, $targetH, $jpegQuality): string {
                 $style = $m[4];
                 if (! preg_match('/\bbackground-image\s*:\s*url\s*\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)/i', $style, $um)) {
                     return $m[0];
@@ -1697,7 +1802,7 @@ class DesignController extends Controller
                     return $m[0];
                 }
 
-                $outPath = $this->renderCoverCropBitmap($src, $targetW, $targetH);
+                $outPath = $this->renderCoverCropBitmap($src, $targetW, $targetH, $jpegQuality);
                 if ($outPath === null) {
                     return $m[0];
                 }
@@ -1740,7 +1845,7 @@ class DesignController extends Controller
         return [max(10.0, $w), max(10.0, $h)];
     }
 
-    private function renderCoverCropBitmap(string $sourcePath, int $targetW, int $targetH): ?string
+    private function renderCoverCropBitmap(string $sourcePath, int $targetW, int $targetH, int $jpegQuality = 82): ?string
     {
         $info = @getimagesize($sourcePath);
         if ($info === false) {
@@ -1798,9 +1903,9 @@ class DesignController extends Controller
         if (! is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        // JPEG alta calidad: DomPDF embebe fotos mucho mejor que PNG con transparencia.
-        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg95').'.jpg';
-        $ok = imagejpeg($dst, $out, 95);
+        $jpegQuality = max(50, min(95, $jpegQuality));
+        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg'.$jpegQuality).'.jpg';
+        $ok = imagejpeg($dst, $out, $jpegQuality);
         imagedestroy($dst);
 
         return $ok ? str_replace('\\', '/', $out) : null;
@@ -1983,12 +2088,19 @@ class DesignController extends Controller
             return $html;
         }
 
-        $qrImg = '<img src="'.$qrBase64.'" class="qr-code" style="width:100%;height:100%;display:block;object-fit:fill;margin:0;padding:0;border:0;" alt="QR Code" />';
+        $src = $qrBase64;
+        // Ruta de fichero → DomPDF embebe mejor que data-URI
+        if (! str_starts_with($src, 'data:') && ! preg_match('#^https?://#i', $src)) {
+            $src = str_replace('\\', '/', $src);
+        }
+
+        $qrImg = '<img src="'.htmlspecialchars($src, ENT_QUOTES, 'UTF-8').'" class="qr-code" style="width:100%;height:100%;display:block;margin:0;padding:0;border:0;" alt="QR Code" />';
         $replaced = false;
 
+        // Caja .qr vacía o con handle
         $before = $html;
         $html = preg_replace(
-            '/(<div[^>]*class="[^"]*\bqr\b[^"]*"[^>]*>)\s*<span class="ui-draggable-handle"><\/span>\s*(<\/div>)/s',
+            '/(<div[^>]*class="[^"]*\bqr\b[^"]*"[^>]*>)\s*(?:<span[^>]*>.*?<\/span>\s*)?(<\/div>)/is',
             '$1'.$qrImg.'$2',
             $html,
             1
@@ -1997,25 +2109,10 @@ class DesignController extends Controller
             $replaced = true;
         }
 
-        if (! $replaced && preg_match('/<div[^>]*class="[^"]*\bqr\b[^"]*"[^>]*>/i', $html)) {
-            $before = $html;
-            $html = preg_replace_callback(
-                '/(<div[^>]*class="[^"]*\bqr\b[^"]*"[^>]*>)\s*<span[^>]*>.*?<\/span>\s*(<\/div>)/s',
-                function (array $m) use ($qrImg): string {
-                    return $m[1].$qrImg.$m[2];
-                },
-                $html,
-                1
-            );
-            if ($html !== $before) {
-                $replaced = true;
-            }
-        }
-
         if (! $replaced && (stripos($html, 'basicqr') !== false || preg_match('/<img[^>]+src="[^"]*basicqr[^"]*"/i', $html))) {
             $html = preg_replace(
                 '/<img([^>]*)src="[^"]*basicqr[^"]*"([^>]*)>/i',
-                '<img$1src="'.$qrBase64.'"$2 class="qr-code" style="width:100%;height:100%;display:block;">',
+                '<img$1src="'.htmlspecialchars($src, ENT_QUOTES, 'UTF-8').'"$2 class="qr-code" style="width:100%;height:100%;display:block;">',
                 $html,
                 1
             ) ?? $html;
@@ -2023,14 +2120,30 @@ class DesignController extends Controller
         }
 
         if (! $replaced) {
-            $html = str_replace(
-                '<span class="ui-draggable-handle"></span>',
-                $qrImg,
-                $html
-            );
+            $html = $html.$qrImg;
         }
 
         return $html;
+    }
+
+    /**
+     * Mapa ref => data-URI o ruta de fichero QR para DomPDF.
+     *
+     * @param  string[]  $uniqueReferences
+     * @return array<string, string>
+     */
+    public function buildParticipationQrMap(array $uniqueReferences): array
+    {
+        if ($uniqueReferences === [] || config('qr_optimization.skip_in_pdf', false)) {
+            return [];
+        }
+
+        $qrService = new \App\Services\EndroidQrCodeService();
+        if (config('pdf_optimization.qr_as_files', true)) {
+            return $qrService->generateUltraFastQrCodeFilePaths($uniqueReferences);
+        }
+
+        return $qrService->generateUltraFastQrCodes($uniqueReferences);
     }
 
     /**
@@ -2510,24 +2623,14 @@ class DesignController extends Controller
             $participation_html = $this->optimizeParticipationHtml($participation_html, $tickets_to_print);
         }
 
-        // Generar QR codes en lote para todas las referencias únicas (usando Endroid - ultra-optimizado)
-        $qrCodes = [];
-        if (! config('qr_optimization.skip_in_pdf', false)) {
-            $qrService = new \App\Services\EndroidQrCodeService();
-            $uniqueReferences = [];
-            foreach ($tickets_to_print as $ticket) {
-                if (isset($ticket['r']) && !in_array($ticket['r'], $uniqueReferences)) {
-                    $uniqueReferences[] = $ticket['r'];
-                }
+        // Generar QR codes en lote (ficheros o data-URI según config)
+        $uniqueReferences = [];
+        foreach ($tickets_to_print as $ticket) {
+            if (isset($ticket['r']) && ! in_array($ticket['r'], $uniqueReferences, true)) {
+                $uniqueReferences[] = $ticket['r'];
             }
-
-            // Usar el método más eficiente según la cantidad
-            // if (count($uniqueReferences) > 200) {
-                $qrCodes = $uniqueReferences !== [] ? $qrService->generateUltraFastQrCodes($uniqueReferences) : [];
-            /*} else {
-                $qrCodes = $qrService->generateMultipleQrCodes($uniqueReferences);
-            }*/
         }
+        $qrCodes = $this->buildParticipationQrMap($uniqueReferences);
         if ($this->designPdfHtmlPreviewEnabled()) {
             $previewTickets = $tickets_to_print;
             if ($total > 500) {
@@ -2784,14 +2887,16 @@ class DesignController extends Controller
             $html = $this->materializePdfBackgroundCoverBitmap(
                 $html,
                 'design-cover-bg',
-                (float) ($design->identation ?? 2.5)
+                (float) ($design->identation ?? 2.5),
+                (float) config('pdf_optimization.bg_pixel_scale', 1.0)
             );
         } else {
             $html = $this->ensurePdfBackgroundCoverStyles($html, 'design-back-bg');
             $html = $this->materializePdfBackgroundCoverBitmap(
                 $html,
                 'design-back-bg',
-                (float) ($design->identation ?? 2.5)
+                (float) ($design->identation ?? 2.5),
+                (float) config('pdf_optimization.bg_pixel_scale', 1.0)
             );
         }
         $html = $this->preserveInlineStyles($html);
@@ -2981,10 +3086,10 @@ class DesignController extends Controller
         $options->set('enable_html5_parser', true);
         $options->set('enable_php', true);
         $options->set('enableCssFloat', true);
-        $options->set('enableFontSubsetting', false);
+        $options->set('enableFontSubsetting', (bool) config('pdf_optimization.font_subsetting', true));
         // Mantener DPI 96: px del diseño están calibrados al ticket en mm.
         // Subir DPI encoge los elementos en px respecto al format-box y destroza el layout.
-        $options->set('dpi', 96);
+        $options->set('dpi', (int) config('pdf_optimization.dpi', 96));
     }
 
     /**
@@ -3026,13 +3131,7 @@ class DesignController extends Controller
         if ($type === 'participation') {
             $prepared = $this->prepareParticipationHtmlForPdf($html, $identation);
             $ticket = $this->sampleTicketForPreview($design);
-            $qrCodes = [];
-            if (! config('qr_optimization.skip_in_pdf', false)) {
-                $qrService = new \App\Services\EndroidQrCodeService();
-                $qrCodes = [
-                    $ticket['r'] => $qrService->generateQrCodeBase64($ticket['r']),
-                ];
-            }
+            $qrCodes = $this->buildParticipationQrMap([(string) $ticket['r']]);
             $pages = $this->generatePagesOptimized([$ticket], 1, $perPage);
             $pdf = Pdf::loadView('design.pdf_participation', [
                 'pages' => $pages,
@@ -4975,7 +5074,7 @@ class DesignController extends Controller
     private function generatePdfInChunks($design, $participation_html, $tickets, $from, $to, $rows, $cols, $page, $pdfOrientation, $qrCodes = [])
     {
         $per_page = $rows * $cols;
-        $chunk_size = 100; // Procesar de 100 en 100
+        $chunk_size = max(50, (int) config('pdf_optimization.chunk_size', 250)); // Procesar por lotes
         $total = $to - $from + 1;
         $total_pages = ceil($total / $per_page);
         

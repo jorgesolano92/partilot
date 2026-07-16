@@ -21,7 +21,7 @@ return [
     
     // Configuración de QR codes
     'qr_code' => [
-        'size' => env('QR_CODE_SIZE', 120),
+        'size' => env('QR_CODE_SIZE', 100),
         'margin' => env('QR_CODE_MARGIN', 0),
         'cache_ttl' => env('QR_CODE_CACHE_TTL', 1800), // 30 minutos
     ],

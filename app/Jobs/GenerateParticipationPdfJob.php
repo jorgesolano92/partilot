@@ -119,15 +119,11 @@ class GenerateParticipationPdfJob implements ShouldQueue
 
         $uniqueReferences = [];
         foreach ($tickets_slice as $ticket) {
-            if (isset($ticket['r']) && ! in_array($ticket['r'], $uniqueReferences)) {
+            if (isset($ticket['r']) && ! in_array($ticket['r'], $uniqueReferences, true)) {
                 $uniqueReferences[] = $ticket['r'];
             }
         }
-        $qrCodes = [];
-        if (! config('qr_optimization.skip_in_pdf', false) && $uniqueReferences !== []) {
-            $qrService = new \App\Services\EndroidQrCodeService();
-            $qrCodes = $qrService->generateUltraFastQrCodes($uniqueReferences);
-        }
+        $qrCodes = $controller->buildParticipationQrMap($uniqueReferences);
         $rows = $design->rows ?? 1;
         $cols = $design->cols ?? 1;
         $per_page = max(1, (int) $rows * (int) $cols);

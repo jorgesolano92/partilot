@@ -22,3 +22,6 @@ yarn-error.log
 /.vscode
 
 /storage/firebase-credentials.json
+
+# PDFs de comparación / pruebas locales (no versionar)
+/pdf/
