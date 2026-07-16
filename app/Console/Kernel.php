@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         //
         $schedule->command('sipart:expire-pending-gifts')->dailyAt('02:00');
         $schedule->command('sipart:expire-unverified-collections')->hourly();
+        $schedule->command('pdf:cleanup')->dailyAt('03:00');
         // $schedule->command('sipart:pending-payments-check')->dailyAt('08:00');
         $schedule->command('sipart:lottery-deadline-reminder')->dailyAt('09:00');
         $schedule->command('sipart:send-role-invitation-reminders')->hourly();

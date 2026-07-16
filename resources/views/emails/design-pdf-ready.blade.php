@@ -19,7 +19,7 @@
         <p>Puede descargarlo desde el enlace siguiente (necesita haber iniciado sesión en Partilot).</p>
     </div>
     <p><a href="{{ $downloadUrl }}" class="btn">Descargar PDF</a></p>
-    <p class="footer">El enlace suele estar disponible durante un día. Este mensaje se ha generado automáticamente.</p>
+    <p class="footer">Puede descargar el PDF las veces que necesite. El enlace caduca a los 7 días. Este mensaje se ha generado automáticamente.</p>
 </div>
 </body>
 </html>

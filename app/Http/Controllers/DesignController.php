@@ -5110,12 +5110,17 @@ class DesignController extends Controller
         $file_path = storage_path('app/generated_pdfs/' . $job_id . '.pdf');
 
         if (!file_exists($file_path)) {
-            abort(404, 'PDF no encontrado');
+            abort(404, 'PDF no encontrado o el enlace ha caducado.');
         }
 
         $meta = GeneratedPdfCatalog::readMeta($job_id);
         if ($meta === null || ! isset($meta['design_format_id'])) {
             abort(403, 'No se puede descargar este archivo.');
+        }
+
+        if (GeneratedPdfCatalog::isExpired($job_id, $meta)) {
+            GeneratedPdfCatalog::deleteArtifacts($job_id);
+            abort(410, 'El enlace de descarga ha caducado (máximo '.GeneratedPdfCatalog::TTL_DAYS.' días).');
         }
 
         $design = DesignFormat::find($meta['design_format_id']);
@@ -5124,9 +5129,9 @@ class DesignController extends Controller
         }
 
         $downloadName = $meta['download_name'] ?? 'documento.pdf';
-        GeneratedPdfCatalog::deleteMeta($job_id);
 
-        return response()->download($file_path, $downloadName)->deleteFileAfterSend(true);
+        // Reutilizable: no borrar meta ni archivo al descargar (caduca a los TTL_DAYS).
+        return response()->download($file_path, $downloadName);
     }
 
 

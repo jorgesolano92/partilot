@@ -4,6 +4,9 @@ namespace App\Support;
 
 class GeneratedPdfCatalog
 {
+    /** Días que el PDF permanece descargable (enlace del correo). */
+    public const TTL_DAYS = 7;
+
     public static function metaPath(string $jobId): string
     {
         return storage_path('app/generated_pdfs/'.$jobId.'.meta.json');
@@ -15,9 +18,12 @@ class GeneratedPdfCatalog
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
+        $now = time();
         $payload = [
             'download_name' => $downloadName,
             'design_format_id' => $designFormatId,
+            'created_at' => $now,
+            'expires_at' => $now + (self::TTL_DAYS * 86400),
         ];
         file_put_contents(static::metaPath($jobId), json_encode(
             array_filter($payload, static fn ($v) => $v !== null),
@@ -25,7 +31,9 @@ class GeneratedPdfCatalog
         ));
     }
 
-    /** @return array{download_name: string, design_format_id?: int}|null */
+    /**
+     * @return array{download_name: string, design_format_id?: int, created_at?: int, expires_at?: int}|null
+     */
     public static function readMeta(string $jobId): ?array
     {
         $path = static::metaPath($jobId);
@@ -46,8 +54,37 @@ class GeneratedPdfCatalog
         if (isset($data['design_format_id']) && is_numeric($data['design_format_id'])) {
             $out['design_format_id'] = (int) $data['design_format_id'];
         }
+        if (isset($data['created_at']) && is_numeric($data['created_at'])) {
+            $out['created_at'] = (int) $data['created_at'];
+        }
+        if (isset($data['expires_at']) && is_numeric($data['expires_at'])) {
+            $out['expires_at'] = (int) $data['expires_at'];
+        }
 
         return $out;
+    }
+
+    /**
+     * true si el meta indica caducidad (o, sin expires_at, si el PDF/meta supera TTL_DAYS).
+     */
+    public static function isExpired(string $jobId, ?array $meta = null): bool
+    {
+        $meta = $meta ?? static::readMeta($jobId);
+        if (is_array($meta) && isset($meta['expires_at'])) {
+            return time() > (int) $meta['expires_at'];
+        }
+
+        $pdfPath = storage_path('app/generated_pdfs/'.$jobId.'.pdf');
+        $ref = is_file($pdfPath) ? filemtime($pdfPath) : null;
+        if ($ref === false || $ref === null) {
+            $metaPath = static::metaPath($jobId);
+            $ref = is_file($metaPath) ? filemtime($metaPath) : null;
+        }
+        if ($ref === false || $ref === null) {
+            return true;
+        }
+
+        return (time() - (int) $ref) > (self::TTL_DAYS * 86400);
     }
 
     public static function readDownloadName(string $jobId): ?string
@@ -71,5 +108,15 @@ class GeneratedPdfCatalog
         if (is_file($p)) {
             @unlink($p);
         }
+    }
+
+    /** Borra PDF + meta de un job. */
+    public static function deleteArtifacts(string $jobId): void
+    {
+        $pdf = storage_path('app/generated_pdfs/'.$jobId.'.pdf');
+        if (is_file($pdf)) {
+            @unlink($pdf);
+        }
+        static::deleteMeta($jobId);
     }
 }
