@@ -1976,6 +1976,9 @@ class DesignController extends Controller
      */
     public function injectTicketQrIntoParticipationHtml(string $html, string $qrBase64): string
     {
+        if (config('qr_optimization.skip_in_pdf', false)) {
+            return $html;
+        }
         if ($html === '' || $qrBase64 === '') {
             return $html;
         }
@@ -2508,21 +2511,23 @@ class DesignController extends Controller
         }
 
         // Generar QR codes en lote para todas las referencias únicas (usando Endroid - ultra-optimizado)
-        $qrService = new \App\Services\EndroidQrCodeService();
-        $uniqueReferences = [];
-        foreach ($tickets_to_print as $ticket) {
-            if (isset($ticket['r']) && !in_array($ticket['r'], $uniqueReferences)) {
-                $uniqueReferences[] = $ticket['r'];
+        $qrCodes = [];
+        if (! config('qr_optimization.skip_in_pdf', false)) {
+            $qrService = new \App\Services\EndroidQrCodeService();
+            $uniqueReferences = [];
+            foreach ($tickets_to_print as $ticket) {
+                if (isset($ticket['r']) && !in_array($ticket['r'], $uniqueReferences)) {
+                    $uniqueReferences[] = $ticket['r'];
+                }
             }
-        }
-        
-        // Usar el método más eficiente según la cantidad
-        // if (count($uniqueReferences) > 200) {
-            $qrCodes = $qrService->generateUltraFastQrCodes($uniqueReferences);
-        /*} else {
-            $qrCodes = $qrService->generateMultipleQrCodes($uniqueReferences);
-        }*/
 
+            // Usar el método más eficiente según la cantidad
+            // if (count($uniqueReferences) > 200) {
+                $qrCodes = $uniqueReferences !== [] ? $qrService->generateUltraFastQrCodes($uniqueReferences) : [];
+            /*} else {
+                $qrCodes = $qrService->generateMultipleQrCodes($uniqueReferences);
+            }*/
+        }
         if ($this->designPdfHtmlPreviewEnabled()) {
             $previewTickets = $tickets_to_print;
             if ($total > 500) {
@@ -3021,10 +3026,13 @@ class DesignController extends Controller
         if ($type === 'participation') {
             $prepared = $this->prepareParticipationHtmlForPdf($html, $identation);
             $ticket = $this->sampleTicketForPreview($design);
-            $qrService = new \App\Services\EndroidQrCodeService();
-            $qrCodes = [
-                $ticket['r'] => $qrService->generateQrCodeBase64($ticket['r']),
-            ];
+            $qrCodes = [];
+            if (! config('qr_optimization.skip_in_pdf', false)) {
+                $qrService = new \App\Services\EndroidQrCodeService();
+                $qrCodes = [
+                    $ticket['r'] => $qrService->generateQrCodeBase64($ticket['r']),
+                ];
+            }
             $pages = $this->generatePagesOptimized([$ticket], 1, $perPage);
             $pdf = Pdf::loadView('design.pdf_participation', [
                 'pages' => $pages,
