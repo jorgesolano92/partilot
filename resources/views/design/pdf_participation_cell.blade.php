@@ -22,12 +22,16 @@
             width: unset !important;
         }
 
-        #design-participation-bg {
+        #design-participation-bg,
+        #design-cover-bg,
+        #design-back-bg {
             overflow: hidden !important;
         }
-        /* La capa #design-participation-bg ya lleva el inset (identation);
+        /* La capa de fondo ya lleva el inset (identation);
            la img llena esa capa al 100% → margen superior e inferior iguales. */
-        #design-participation-bg > img.design-pdf-bg-img {
+        #design-participation-bg > img.design-pdf-bg-img,
+        #design-cover-bg > img.design-pdf-bg-img,
+        #design-back-bg > img.design-pdf-bg-img {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;

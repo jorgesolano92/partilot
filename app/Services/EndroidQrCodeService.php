@@ -244,6 +244,57 @@ class EndroidQrCodeService
     }
 
     /**
+     * QR de texto libre (taco_ref) como ficheros PNG/SVG para FPDI.
+     *
+     * @param  string[]  $texts
+     * @return array<string, string> text => absolute path
+     */
+    public function generateQrFromTextFilePaths(array $texts): array
+    {
+        $results = [];
+        if ($texts === []) {
+            return $results;
+        }
+
+        $dir = storage_path('app/pdf_qr_cache');
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        $size = max(120, (int) config('qr_optimization.qr_code.size', 160));
+        $useGd = $this->isGdAvailable();
+        $writer = $useGd ? new PngWriter() : new SvgWriter();
+        $ext = $useGd ? 'png' : 'svg';
+
+        $qrCode = QrCode::create('')
+            ->setSize($size)
+            ->setMargin(0)
+            ->setRoundBlockSizeMode(RoundBlockSizeMode::None)
+            ->setForegroundColor(new Color(0, 0, 0))
+            ->setBackgroundColor(new Color(255, 255, 255));
+
+        foreach ($texts as $text) {
+            $text = (string) $text;
+            if ($text === '') {
+                continue;
+            }
+            $path = $dir.'/taco_'.md5($text.'|'.$size.'|0|'.$ext).'.'.$ext;
+            $pathNorm = str_replace('\\', '/', $path);
+            if (! is_file($path)) {
+                $qrCode = $qrCode->setData($text);
+                $binary = $writer->write($qrCode)->getString();
+                if ($useGd) {
+                    $binary = $this->cropQrPngCenteredSquare($binary, 1) ?? $binary;
+                }
+                file_put_contents($path, $binary);
+            }
+            $results[$text] = $pathNorm;
+        }
+
+        return $results;
+    }
+
+    /**
      * Recorta a un cuadrado centrado en los módulos negros, con quiet zone uniforme.
      */
     private function cropQrPngCenteredSquare(string $pngBinary, int $padPx = 2): ?string

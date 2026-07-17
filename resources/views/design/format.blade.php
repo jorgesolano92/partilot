@@ -842,8 +842,10 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 
                             <div class="form-card fade bs d-none" id="step-4" style="min-height: 658px;">
                                 <div class="design-skip-back-banner alert py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" id="skip-back-banner">
-                                    <span class="mb-0"><strong>¿No necesitas diseñar la trasera?</strong> Puedes omitir este paso. No se habilitará la descarga de PDF de traseras.</span>
+                                    <span class="mb-0 skip-back-msg"><strong>¿No necesitas diseñar la trasera?</strong> Puedes omitir este paso. No se habilitará la descarga de PDF de traseras.</span>
+                                    <span class="mb-0 restore-back-msg d-none"><strong>Trasera omitida.</strong> Puedes volver a activarla para diseñar y generar PDF de traseras.</span>
                                     <button type="button" class="btn btn-dark btn-sm rounded-pill px-3" id="btn-skip-back-design"><i class="ri-skip-forward-line me-1"></i> Omitir trasera</button>
+                                    <button type="button" class="btn btn-success btn-sm rounded-pill px-3 d-none" id="btn-restore-back-design"><i class="ri-arrow-go-back-line me-1"></i> Usar trasera</button>
                                 </div>
                                 <h4 class="mb-0 mt-1">
                                     Configuración de Formato
@@ -2812,6 +2814,18 @@ $('#format').change(function (e) {
       updateUndoRedoButtons();
   });
 
+  function syncSkipBackBannerUi() {
+      var skipped = !!window.__backSkipped;
+      $('#skip-back-banner').removeClass('d-none');
+      $('#skip-back-banner .skip-back-msg').toggleClass('d-none', skipped);
+      $('#skip-back-banner .restore-back-msg').toggleClass('d-none', !skipped);
+      $('#btn-skip-back-design').toggleClass('d-none', skipped);
+      $('#btn-restore-back-design').toggleClass('d-none', !skipped);
+      if (typeof updateDesignActionButtons === 'function') {
+        updateDesignActionButtons();
+      }
+  }
+
   $('#btn-skip-back-design').click(function (e) {
       e.preventDefault();
       if (!confirm('¿Omitir el diseño de trasera? No podrá descargar PDF de traseras para este diseño.')) {
@@ -2823,7 +2837,7 @@ $('#format').change(function (e) {
         $('#design-back-bg').css({ 'background-color': '#dfdfdf', 'background-image': 'none' });
       }
       localStorage.setItem('step4', $('#containment-wrapper4').html() || '');
-      $('#skip-back-banner').addClass('d-none');
+      syncSkipBackBannerUi();
       markDesignDirty();
       persistDraftLocally();
       if (window.__designId) {
@@ -2841,6 +2855,28 @@ $('#format').change(function (e) {
         updateDesignActionButtons();
       }
   });
+
+  $('#btn-restore-back-design').click(function (e) {
+      e.preventDefault();
+      window.__backSkipped = false;
+      if (typeof ensureMarginBgLayer === 'function') {
+        ensureMarginBgLayer(4);
+      }
+      syncSkipBackBannerUi();
+      markDesignDirty();
+      persistDraftLocally();
+      if (window.__designId) {
+        persistDesignToServer({ reason: 'autosave', showLoader: false });
+      }
+      if (typeof PartilotToast === 'function') {
+        PartilotToast('Trasera reactivada. Diseña el paso 4 y guarda el diseño.', 'success');
+      }
+  });
+
+  // Estado inicial al cargar un diseño ya omitido
+  if (window.__backSkipped) {
+    syncSkipBackBannerUi();
+  }
   $('.add-image').click(function (e) {
       e.preventDefault();
 
