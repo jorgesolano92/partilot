@@ -1947,7 +1947,23 @@ class DesignController extends Controller
                 $style = $m[2];
 
                 if (! preg_match('/\bpadding\s*:\s*([\d.]+)\s*px\b/i', $style, $pm)) {
-                    // Sin padding: igualar modelo y dejar dimensiones
+                    // Sin padding: DomPDF sigue pintando el texto alto; bajar un poco el contenido.
+                    $isTextish = (bool) preg_match(
+                        '/\b(text|number|reference|participation)\b/i',
+                        $m[1]
+                    );
+                    if ($isTextish && preg_match('/\bheight\s*:\s*([\d.]+)\s*px\b/i', $style, $hm)) {
+                        $h = (float) $hm[1];
+                        $nudgePx = 3.0;
+                        if ($h > ($nudgePx + 4)) {
+                            $style = preg_replace(
+                                '/\bheight\s*:[^;]+;?/i',
+                                'height:'.$this->formatPdfCssPx($h - $nudgePx).';',
+                                $style
+                            ) ?? $style;
+                            $style = 'padding-top:'.$this->formatPdfCssPx($nudgePx).';'.$style;
+                        }
+                    }
                     if (! preg_match('/\bbox-sizing\s*:/i', $style)) {
                         $style = 'box-sizing:content-box !important;'.$style;
                     }
@@ -1977,14 +1993,14 @@ class DesignController extends Controller
 
                 $style = preg_replace('/\bwidth\s*:[^;]+;?/i', 'width:'.$this->formatPdfCssPx($innerW).';', $style) ?? $style;
                 $style = preg_replace('/\bheight\s*:[^;]+;?/i', 'height:'.$this->formatPdfCssPx($innerH).';', $style) ?? $style;
-                // DomPDF alinea el texto arriba; el editor se ve más centrado.
-                // Misma suma vertical (no agranda la caja): más padding-top / menos bottom.
-                $nudge = max(1, (int) round($pad * 0.4));
+                // DomPDF alinea el texto más arriba que el navegador (ascent DejaVu).
+                // Más padding-top / menos bottom (misma suma) baja el bloque visualmente.
+                $nudge = max(2, (int) round($pad * 0.65));
                 if ($nudge >= $pad) {
                     $nudge = max(0, (int) floor($pad) - 1);
                 }
                 $padTop = $pad + $nudge;
-                $padBottom = $pad - $nudge;
+                $padBottom = max(0, $pad - $nudge);
                 $style = preg_replace(
                     '/\bpadding\s*:[^;]+;?/i',
                     'padding:'.$this->formatPdfCssPx($padTop).' '.$this->formatPdfCssPx($pad).' '.$this->formatPdfCssPx($padBottom).' '.$this->formatPdfCssPx($pad).';',
