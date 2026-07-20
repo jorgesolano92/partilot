@@ -103,6 +103,9 @@
     margin: 0 !important;
     overflow: hidden !important;
     background-color: #fff;
+    /* Mínimo 2×2 cm para lectura fiable al imprimir */
+    min-width: 20mm !important;
+    min-height: 20mm !important;
 }
 
 .format-box .elements.qr img,

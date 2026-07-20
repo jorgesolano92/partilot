@@ -736,7 +736,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             </div><div class="elements element-critical reference text ui-draggable" style="padding: 10px; width: 227px; height: 40px; resize: both; overflow: hidden; position: absolute; top: 278.688px; left: 459.703px;">
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-size:12px;" class="ui-draggable-handle"><strong>Nº Ref: 00000000000000000000</strong></span></p></span>
                                             </div>
-                                        <div class="elements element-critical qr ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 253.562px; left: 666.588px; width: 60px; height: 60px;"><span class="ui-draggable-handle"></span></div>
+                                        <div class="elements element-critical qr ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 253.562px; left: 666.588px; width: 76px; height: 76px; min-width: 76px; min-height: 76px;"><span class="ui-draggable-handle"></span></div>
                                         
                                         </div>
 
@@ -816,7 +816,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 
                                         <div id="containment-wrapper3" style="width: 100%; height: calc(100% - 0mm); background-size: cover; background-position: center;"> 
                                             {{-- Cuadro blanco QR portada: se reemplazará por el QR del taco en el PDF; más arriba para no chocar con la barra inferior --}}
-                                            <div class="elements element-critical qr cover-taco-qr" style="resize: both; overflow: hidden; position: absolute; bottom: 50px; right: 15px; width: 60px; height: 60px; min-width: 60px; min-height: 60px; background: #fff; border: 2px solid #ccc; z-index: 5;"><span></span></div>
+                                            <div class="elements element-critical qr cover-taco-qr" style="resize: both; overflow: hidden; position: absolute; bottom: 50px; right: 15px; width: 76px; height: 76px; min-width: 76px; min-height: 76px; background: #fff; border: 2px solid #ccc; z-index: 5;"><span></span></div>
                                             <div class="elements text ui-draggable" style="padding: 10px; width: 351px; height: 93px; resize: both; overflow: hidden; position: absolute; top: 59.8295px; left: 378.71px;">
                                                 <span class="ui-draggable-handle"><h4><span style="color:hsl(0,0%,0%);" class="ui-draggable-handle"><u>&nbsp; Nombre: &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</u></span></h4></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
@@ -2255,6 +2255,44 @@ $('#format').change(function (e) {
       this.style.setProperty('resize', 'both', 'important');
       this.style.setProperty('overflow', 'hidden', 'important');
     });
+    enforceQrMinSize($scope);
+  }
+
+  /** Mínimo 2×2 cm (20 mm) para que el QR se lea bien al imprimir. */
+  function enforceQrMinSize($scope) {
+    var minPx = Math.ceil(20 * 96 / 25.4);
+    var $root = ($scope && $scope.length) ? $scope : $(document);
+    $root.find('.elements.qr').each(function () {
+      var $el = $(this);
+      var w = $el.outerWidth() || parseFloat($el.css('width')) || 0;
+      var h = $el.outerHeight() || parseFloat($el.css('height')) || 0;
+      var side = Math.max(w, h, minPx);
+      if (w + 0.5 >= side && h + 0.5 >= side) {
+        $el.css({ 'min-width': minPx + 'px', 'min-height': minPx + 'px' });
+        return;
+      }
+      var left = parseFloat($el.css('left'));
+      var top = parseFloat($el.css('top'));
+      if (!isNaN(left) && !isNaN(top) && w > 0 && h > 0) {
+        var cx = left + w / 2;
+        var cy = top + h / 2;
+        $el.css({
+          width: side + 'px',
+          height: side + 'px',
+          left: (cx - side / 2) + 'px',
+          top: (cy - side / 2) + 'px',
+          'min-width': minPx + 'px',
+          'min-height': minPx + 'px'
+        });
+      } else {
+        $el.css({
+          width: side + 'px',
+          height: side + 'px',
+          'min-width': minPx + 'px',
+          'min-height': minPx + 'px'
+        });
+      }
+    });
   }
 
   function destroyStepDraggables(stepNum) {
@@ -2898,11 +2936,12 @@ $('#format').change(function (e) {
 
   $('.add-qr').click(function (e) {
       e.preventDefault();
-
-      $('#containment-wrapper'+step).append(`<div class="elements element-critical qr" style="resize: both; overflow: hidden; position: absolute; top: 0"><span><img style="width: 100%; height: 100%" src="{{url('basicqr.jpg')}}" alt=""></span></div>`);
+      var qrMinPx = Math.ceil(20 * 96 / 25.4);
+      $('#containment-wrapper'+step).append(`<div class="elements element-critical qr" style="resize: both; overflow: hidden; position: absolute; top: 0; width: ${qrMinPx}px; height: ${qrMinPx}px; min-width: ${qrMinPx}px; min-height: ${qrMinPx}px;"><span><img style="width: 100%; height: 100%" src="{{url('basicqr.jpg')}}" alt=""></span></div>`);
 
       setupDraggable();
       setupResizeObserver();
+      enableDesignElementsResize($('#containment-wrapper' + step));
 
       $('.elements.qr').unbind('dblclick',setQRtext);
       {{-- $('.elements.qr').dblclick(setQRtext); --}}
@@ -3829,7 +3868,8 @@ $('#format').change(function (e) {
     if (!$wrap.length) return;
 
     if ($wrap.find('.elements.qr').length === 0) {
-      var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:60px;height:60px;min-width:60px;min-height:60px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
+      var qrMinPx = Math.ceil(20 * 96 / 25.4);
+      var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:'+qrMinPx+'px;height:'+qrMinPx+'px;min-width:'+qrMinPx+'px;min-height:'+qrMinPx+'px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
       $wrap.append(qrHtml);
     }
 
@@ -4083,6 +4123,11 @@ $('#format').change(function (e) {
     const design_entity_id = '{{ session('design_entity_id') }}';
 
     // Paso 2, 3, 4: HTML sin resize (clon; el canvas en edición no se toca)
+    enforceQrMinSize($('#step-2 .format-box'));
+    enforceQrMinSize($('#step-3 .format-box'));
+    if (!window.__backSkipped) {
+      enforceQrMinSize($('#step-4 .format-box'));
+    }
     const participation_html = getFormatBoxHtmlForSave('#step-2 .format-box');
     const cover_html = getFormatBoxHtmlForSave('#step-3 .format-box');
     const back_html = window.__backSkipped ? '' : getFormatBoxHtmlForSave('#step-4 .format-box');

@@ -1613,6 +1613,7 @@ class DesignController extends Controller
         $html = $this->decodeCssUrlHtmlEntities($html);
         $html = $this->flattenParticipationHtmlForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
+        $html = $this->enforceQrMinPrintSizeInHtml($html);
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
@@ -1635,6 +1636,7 @@ class DesignController extends Controller
         );
         $html = $this->flattenParticipationHtmlForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
+        $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
         $html = $this->scaleFontSizesForDomPdf($html);
         $publicPath = public_path();
@@ -2102,6 +2104,86 @@ class DesignController extends Controller
                 ) {
                     $style = preg_replace('/\b(bottom|right|inset)\s*:[^;]+;?/i', '', $style) ?? $style;
                 }
+
+                return $m[1].$style.$m[3];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    /**
+     * Garantiza cajas .qr ≥ min_print_size_mm (por defecto 20 mm / 2×2 cm).
+     * Centra el recuadro al ampliar para no desplazar el diseño.
+     */
+    public function enforceQrMinPrintSizeInHtml(string $html, ?float $minMm = null): string
+    {
+        if ($html === '' || stripos($html, 'qr') === false) {
+            return $html;
+        }
+
+        $minMm = $minMm ?? (float) config('qr_optimization.qr_code.min_print_size_mm', 20);
+        $minMm = max(10.0, $minMm);
+        $minPx = $minMm * 96.0 / 25.4;
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bclass="[^"]*\bqr\b[^"]*"[^>]*\bstyle=")([^"]*)(")/i',
+            function (array $m) use ($minPx): string {
+                $style = $m[2];
+                $w = null;
+                $h = null;
+                if (preg_match('/\bwidth\s*:\s*([\d.]+)\s*px/i', $style, $wm)) {
+                    $w = (float) $wm[1];
+                }
+                if (preg_match('/\bheight\s*:\s*([\d.]+)\s*px/i', $style, $hm)) {
+                    $h = (float) $hm[1];
+                }
+                if ($w === null && $h === null) {
+                    $side = $minPx;
+                } else {
+                    $side = max($w ?? 0.0, $h ?? 0.0, $minPx);
+                }
+                if ($w !== null && $h !== null && $w >= $minPx - 0.01 && $h >= $minPx - 0.01) {
+                    // Ya cumple: solo fijar min-* por si el editor lo pierde
+                    if (! preg_match('/\bmin-width\s*:/i', $style)) {
+                        $style .= 'min-width:'.$this->formatPdfCssPx($minPx).';';
+                    }
+                    if (! preg_match('/\bmin-height\s*:/i', $style)) {
+                        $style .= 'min-height:'.$this->formatPdfCssPx($minPx).';';
+                    }
+
+                    return $m[1].$style.$m[3];
+                }
+
+                $left = null;
+                $top = null;
+                if (preg_match('/\bleft\s*:\s*([\d.]+)\s*px/i', $style, $lm)) {
+                    $left = (float) $lm[1];
+                }
+                if (preg_match('/\btop\s*:\s*([\d.]+)\s*px/i', $style, $tm)) {
+                    $top = (float) $tm[1];
+                }
+                if ($left !== null && $top !== null && $w !== null && $h !== null && $w > 0 && $h > 0) {
+                    $cx = $left + ($w / 2.0);
+                    $cy = $top + ($h / 2.0);
+                    $newLeft = $cx - ($side / 2.0);
+                    $newTop = $cy - ($side / 2.0);
+                    $style = preg_replace('/\bleft\s*:[^;]+;?/i', 'left:'.$this->formatPdfCssPx($newLeft).';', $style) ?? $style;
+                    $style = preg_replace('/\btop\s*:[^;]+;?/i', 'top:'.$this->formatPdfCssPx($newTop).';', $style) ?? $style;
+                }
+
+                if (preg_match('/\bwidth\s*:/i', $style)) {
+                    $style = preg_replace('/\bwidth\s*:[^;]+;?/i', 'width:'.$this->formatPdfCssPx($side).';', $style) ?? $style;
+                } else {
+                    $style .= 'width:'.$this->formatPdfCssPx($side).';';
+                }
+                if (preg_match('/\bheight\s*:/i', $style)) {
+                    $style = preg_replace('/\bheight\s*:[^;]+;?/i', 'height:'.$this->formatPdfCssPx($side).';', $style) ?? $style;
+                } else {
+                    $style .= 'height:'.$this->formatPdfCssPx($side).';';
+                }
+                $style = preg_replace('/\bmin-width\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\bmin-height\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style .= 'min-width:'.$this->formatPdfCssPx($minPx).';min-height:'.$this->formatPdfCssPx($minPx).';';
 
                 return $m[1].$style.$m[3];
             },
@@ -3080,6 +3162,7 @@ class DesignController extends Controller
         }
         $html = $this->flattenParticipationHtmlForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
+        $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
         $html = $this->scaleFontSizesForDomPdf($html);
         $publicPath = public_path();
@@ -3127,6 +3210,7 @@ class DesignController extends Controller
         $html = $this->decodeCssUrlHtmlEntities($html);
         $html = $this->flattenParticipationHtmlForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
+        $html = $this->enforceQrMinPrintSizeInHtml($html);
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);

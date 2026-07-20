@@ -416,10 +416,13 @@ class CoverBackPdfStampExporter
                 $q = $slots['qr'];
                 $boxW = $q['w'] * $scale;
                 $boxH = $q['h'] * $scale;
-                $side = min($boxW, $boxH);
-                $qx = $originX + ($q['x'] * $scale) + (($boxW - $side) / 2.0);
-                $qy = $originY + ($q['y'] * $scale) + (($boxH - $side) / 2.0);
-                $this->debugStampBox($pdf, $originX + ($q['x'] * $scale), $originY + ($q['y'] * $scale), $boxW, $boxH);
+                $minMm = max(10.0, (float) config('qr_optimization.qr_code.min_print_size_mm', 20));
+                $side = max(min($boxW, $boxH), $minMm);
+                $cx = $originX + ($q['x'] * $scale) + ($boxW / 2.0);
+                $cy = $originY + ($q['y'] * $scale) + ($boxH / 2.0);
+                $qx = $cx - ($side / 2.0);
+                $qy = $cy - ($side / 2.0);
+                $this->debugStampBox($pdf, $qx, $qy, $side, $side);
                 $pdf->Image($src, $qx, $qy, $side, $side);
             }
         }

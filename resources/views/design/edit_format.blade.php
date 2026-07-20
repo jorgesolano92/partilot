@@ -1310,6 +1310,44 @@ function enableDesignElementsResize($scope) {
     this.style.setProperty('resize', 'both', 'important');
     this.style.setProperty('overflow', 'hidden', 'important');
   });
+  enforceQrMinSize($scope);
+}
+
+/** Mínimo 2×2 cm (20 mm) para que el QR se lea bien al imprimir. */
+function enforceQrMinSize($scope) {
+  var minPx = Math.ceil(20 * 96 / 25.4);
+  var $root = ($scope && $scope.length) ? $scope : $(document);
+  $root.find('.elements.qr').each(function () {
+    var $el = $(this);
+    var w = $el.outerWidth() || parseFloat($el.css('width')) || 0;
+    var h = $el.outerHeight() || parseFloat($el.css('height')) || 0;
+    var side = Math.max(w, h, minPx);
+    if (w + 0.5 >= side && h + 0.5 >= side) {
+      $el.css({ 'min-width': minPx + 'px', 'min-height': minPx + 'px' });
+      return;
+    }
+    var left = parseFloat($el.css('left'));
+    var top = parseFloat($el.css('top'));
+    if (!isNaN(left) && !isNaN(top) && w > 0 && h > 0) {
+      var cx = left + w / 2;
+      var cy = top + h / 2;
+      $el.css({
+        width: side + 'px',
+        height: side + 'px',
+        left: (cx - side / 2) + 'px',
+        top: (cy - side / 2) + 'px',
+        'min-width': minPx + 'px',
+        'min-height': minPx + 'px'
+      });
+    } else {
+      $el.css({
+        width: side + 'px',
+        height: side + 'px',
+        'min-width': minPx + 'px',
+        'min-height': minPx + 'px'
+      });
+    }
+  });
 }
 
 function destroyStepDraggables(stepNum) {
@@ -2183,6 +2221,11 @@ function collectDesignData() {
   const horizontal_space = parseFloat($('#page-rigth').val());
   const vertical_space = parseFloat($('#page-bottom').val());
 
+  enforceQrMinSize($('#step-2 .format-box'));
+  enforceQrMinSize($('#step-3 .format-box'));
+  if (!window.__backSkipped) {
+    enforceQrMinSize($('#step-4 .format-box'));
+  }
   const participation_html = getFormatBoxHtmlForSave('#step-2 .format-box');
   const cover_html = getFormatBoxHtmlForSave('#step-3 .format-box');
   const back_html = window.__backSkipped ? '' : getFormatBoxHtmlForSave('#step-4 .format-box');
