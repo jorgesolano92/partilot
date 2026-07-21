@@ -85,9 +85,9 @@
                                                     <img src="{{ url('assets/form-groups/eye.svg') }}" alt="" width="12">
                                                 </button>
                                             @endif
-                                            <form method="POST" action="{{ route('communications.resend', $log->id) }}" class="d-inline">
+                                            <form method="POST" action="{{ route('communications.resend', $log->id) }}" class="d-inline resend-email-form" data-recipient="{{ $log->recipient_email }}" data-type="{{ $log->displayMessageType() }}">
                                                 @csrf
-                                                <button type="submit" class="btn btn-sm btn-dark" {{ empty($log->mail_class) ? 'disabled' : '' }}>
+                                                <button type="button" class="btn btn-sm btn-dark resend-email-log" {{ empty($log->mail_class) ? 'disabled' : '' }} title="Reenviar email">
                                                     <i class="ri-refresh-line"></i>
                                                 </button>
                                             </form>
@@ -143,6 +143,26 @@
                 <div id="emailPreviewLoading" class="p-4 text-center text-muted">Cargando contenido...</div>
                 <div id="emailPreviewError" class="p-4 text-danger d-none"></div>
                 <iframe id="emailPreviewFrame" title="Vista previa del email" class="d-none" style="width:100%; min-height:520px; border:0; background:#fff;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="emailResendModal" tabindex="-1" aria-labelledby="emailResendModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="emailResendModalLabel">Confirmar reenvío</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">¿Deseas reenviar este email?</p>
+                <p class="mb-1"><strong>Tipo:</strong> <span id="emailResendType"></span></p>
+                <p class="mb-0"><strong>Destinatario:</strong> <span id="emailResendRecipient"></span></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-dark" id="emailResendConfirmBtn">Reenviar</button>
             </div>
         </div>
     </div>
@@ -305,6 +325,36 @@
     if (logId) {
         openEmailPreview(logId);
     }
+  });
+
+  const emailResendModal = document.getElementById('emailResendModal');
+  const emailResendConfirmBtn = document.getElementById('emailResendConfirmBtn');
+  let pendingResendForm = null;
+
+  $(document).on('click', '.resend-email-log', function() {
+    pendingResendForm = $(this).closest('.resend-email-form').get(0);
+    if (!pendingResendForm) {
+        return;
+    }
+
+    document.getElementById('emailResendType').textContent = pendingResendForm.dataset.type || '—';
+    document.getElementById('emailResendRecipient').textContent = pendingResendForm.dataset.recipient || '—';
+
+    bootstrap.Modal.getOrCreateInstance(emailResendModal).show();
+  });
+
+  emailResendConfirmBtn.addEventListener('click', function() {
+    if (!pendingResendForm) {
+        return;
+    }
+
+    emailResendConfirmBtn.disabled = true;
+    pendingResendForm.submit();
+  });
+
+  emailResendModal.addEventListener('hidden.bs.modal', function() {
+    pendingResendForm = null;
+    emailResendConfirmBtn.disabled = false;
   });
 
 </script>
