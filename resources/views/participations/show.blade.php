@@ -263,7 +263,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $participation->set && $participation->set->reserve && $participation->set->reserve->lottery ? number_format($participation->set->reserve->lottery->ticket_price, 2) . '€' : 'N/A' }}" class="form-control" type="text" placeholder="6,00€" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $participation->set ? number_format($participation->set->played_amount, 2, ',', '.') . '€' : 'N/A' }}" class="form-control" type="text" placeholder="6,00€" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -293,7 +293,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $participation->set ? number_format($participation->set->donation_amount+$participation->set->reserve->lottery->ticket_price, 2) . '€' : 'N/A' }}" class="form-control" type="text" placeholder="6,00€" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $participation->set ? number_format($participation->set->pricePerParticipation(), 2, ',', '.') . '€' : 'N/A' }}" class="form-control" type="text" placeholder="6,00€" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>

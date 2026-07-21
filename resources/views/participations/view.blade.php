@@ -303,12 +303,12 @@
                                                      <div class="row">
                                                          <div class="col-md-6">
                                                              <div class="form-group mt-2 mb-3">
-                                                                 <label class="label-control">Precio del Número</label>
+                                                                 <label class="label-control">Importe Jugado (por Número)</label>
                                                                  <div class="input-group input-group-merge group-form">
                                                                      <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                                          <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
                                                                      </div>
-                                                                     <input class="form-control" type="text" value="{{ $participation->set->reserve && $participation->set->reserve->lottery ? number_format($participation->set->reserve->lottery->ticket_price, 2) . '€' : 'N/A' }}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                                     <input class="form-control" type="text" value="{{ $participation->set ? number_format($participation->set->played_amount, 2, ',', '.') . '€' : 'N/A' }}" style="border-radius: 0 30px 30px 0;" readonly>
                                                                  </div>
                                                              </div>
                                                          </div>
@@ -327,12 +327,12 @@
                                                      <div class="row">
                                                          <div class="col-md-6">
                                                              <div class="form-group mt-2 mb-3">
-                                                                 <label class="label-control">Importe Total</label>
+                                                                 <label class="label-control">Importe Total Participación</label>
                                                                  <div class="input-group input-group-merge group-form">
                                                                      <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                                          <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
                                                                      </div>
-                                                                     <input class="form-control" type="text" value="{{ $participation->set ? number_format($participation->set->total_amount, 2) . '€' : 'N/A' }}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                                     <input class="form-control" type="text" value="{{ $participation->set ? number_format($participation->set->pricePerParticipation(), 2, ',', '.') . '€' : 'N/A' }}" style="border-radius: 0 30px 30px 0;" readonly>
                                                                  </div>
                                                              </div>
                                                          </div>
