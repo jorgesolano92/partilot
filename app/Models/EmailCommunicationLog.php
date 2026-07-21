@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\CommunicationEmailTypeLabel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
 class EmailCommunicationLog extends Model
 {
@@ -27,6 +28,7 @@ class EmailCommunicationLog extends Model
         'recipient_user_id',
         'mail_class',
         'mail_payload',
+        'encrypted_secrets',
         'status',
         'sent_at',
         'resent_at',
@@ -86,6 +88,24 @@ class EmailCommunicationLog extends Model
         $key = trim((string) ($this->message_type ?: $this->template_key));
 
         return $key !== '' ? $key : null;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    public function decryptedSecrets(): ?array
+    {
+        if (empty($this->encrypted_secrets)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode(Crypt::decryptString($this->encrypted_secrets), true);
+
+            return is_array($decoded) ? $decoded : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }
 

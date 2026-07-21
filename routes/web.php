@@ -631,6 +631,7 @@ Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:pa
 });
 Route::group(['prefix' => 'communications', 'middleware' => 'role:super_admin,administration,entity'], function() {
     Route::get('/', [CommunicationEmailController::class, 'index'])->name('communications.index');
+    Route::get('/{id}/preview', [CommunicationEmailController::class, 'preview'])->name('communications.preview');
     Route::post('/{id}/resend', [CommunicationEmailController::class, 'resend'])->name('communications.resend');
     Route::delete('/{id}', [CommunicationEmailController::class, 'destroy'])->name('communications.destroy');
 });

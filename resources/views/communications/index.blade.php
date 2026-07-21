@@ -61,7 +61,7 @@
                                         $dateText = $effectiveDate ? $effectiveDate->format('d/m/Y H:i') : 'N/A';
                                     @endphp
                                     <tr id="email-log-{{ $log->id }}">
-                                        <td><a href="#">#NO{{ str_pad($log->id, 5, '0', STR_PAD_LEFT) }}</a></td>
+                                        <td><a href="#" class="view-email-log" data-log-id="{{ $log->id }}">#NO{{ str_pad($log->id, 5, '0', STR_PAD_LEFT) }}</a></td>
                                         <td>
                                             <span @if($log->messageTypeKey()) title="Key: {{ $log->messageTypeKey() }}" @endif>{{ $log->displayMessageType() }}</span>
                                             @if($log->messageTypeKey())
@@ -69,11 +69,22 @@
                                             @endif
                                         </td>
                                         <td>{{ $log->sender_type }}</td>
-                                        <td>{{ $log->recipient_email }}</td>
+                                        <td>
+                                            @if($log->mail_class)
+                                                <a href="#" class="view-email-log text-dark text-decoration-underline" data-log-id="{{ $log->id }}">{{ $log->recipient_email }}</a>
+                                            @else
+                                                {{ $log->recipient_email }}
+                                            @endif
+                                        </td>
                                         <td>{{ $log->recipient_role ?? '-' }}</td>
                                         <td><span class="badge {{ $log->displayStatusBadgeClass() }}">{{ $log->displayStatus() }}</span></td>
                                         <td>{{ $dateText }}</td>
                                         <td class="no-click" style="cursor: default; white-space: nowrap;">
+                                            @if($log->mail_class)
+                                                <button type="button" class="btn btn-sm btn-light view-email-log" data-log-id="{{ $log->id }}" title="Ver contenido">
+                                                    <img src="{{ url('assets/form-groups/eye.svg') }}" alt="" width="12">
+                                                </button>
+                                            @endif
                                             <form method="POST" action="{{ route('communications.resend', $log->id) }}" class="d-inline">
                                                 @csrf
                                                 <button type="submit" class="btn btn-sm btn-dark" {{ empty($log->mail_class) ? 'disabled' : '' }}>
@@ -117,6 +128,25 @@
     <!-- end row-->
 
 </div> <!-- container -->
+
+<div class="modal fade" id="emailPreviewModal" tabindex="-1" aria-labelledby="emailPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="emailPreviewModalLabel">Contenido del email</h5>
+                    <small class="text-muted" id="emailPreviewMeta"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="emailPreviewLoading" class="p-4 text-center text-muted">Cargando contenido...</div>
+                <div id="emailPreviewError" class="p-4 text-danger d-none"></div>
+                <iframe id="emailPreviewFrame" title="Vista previa del email" class="d-none" style="width:100%; min-height:520px; border:0; background:#fff;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
 
 @endsection
 
@@ -224,6 +254,58 @@
         alert('No se pudo eliminar: ' + e.message);
     });
   }
+
+  const emailPreviewModal = document.getElementById('emailPreviewModal');
+  const emailPreviewFrame = document.getElementById('emailPreviewFrame');
+  const emailPreviewLoading = document.getElementById('emailPreviewLoading');
+  const emailPreviewError = document.getElementById('emailPreviewError');
+  const emailPreviewMeta = document.getElementById('emailPreviewMeta');
+
+  function openEmailPreview(logId) {
+    emailPreviewLoading.classList.remove('d-none');
+    emailPreviewError.classList.add('d-none');
+    emailPreviewFrame.classList.add('d-none');
+    emailPreviewMeta.textContent = '';
+    emailPreviewFrame.srcdoc = '';
+
+    const modal = bootstrap.Modal.getOrCreateInstance(emailPreviewModal);
+    modal.show();
+
+    fetch('{{ url('/') }}/communications/' + logId + '/preview', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        }
+    }).then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'No se pudo cargar el contenido.');
+        }
+
+        document.getElementById('emailPreviewModalLabel').textContent = data.subject || 'Contenido del email';
+        emailPreviewMeta.textContent = [
+            data.message_type || '',
+            data.recipient_email || '',
+            data.date || ''
+        ].filter(Boolean).join(' · ');
+
+        emailPreviewFrame.srcdoc = data.html || '';
+        emailPreviewLoading.classList.add('d-none');
+        emailPreviewFrame.classList.remove('d-none');
+    }).catch((error) => {
+        emailPreviewLoading.classList.add('d-none');
+        emailPreviewError.textContent = error.message;
+        emailPreviewError.classList.remove('d-none');
+    });
+  }
+
+  $(document).on('click', '.view-email-log', function(event) {
+    event.preventDefault();
+    const logId = $(this).data('log-id');
+    if (logId) {
+        openEmailPreview(logId);
+    }
+  });
 
 </script>
 

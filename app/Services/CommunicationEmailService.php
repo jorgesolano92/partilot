@@ -13,7 +13,9 @@ use App\Models\ParticipationGift;
 use App\Models\ParticipationCollection;
 use App\Models\ParticipationDonation;
 use App\Models\User;
+use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Mail;
 
 class CommunicationEmailService
@@ -53,13 +55,14 @@ class CommunicationEmailService
         ]);
 
         try {
-            $this->sendFromLogPayload($recipientEmail, $mailClass, $mailPayload);
+            $secrets = $this->sendFromLogPayload($recipientEmail, $mailClass, $mailPayload);
 
             $log->update([
                 'status' => EmailCommunicationLog::STATUS_SENT,
                 'sent_at' => now(),
                 'last_attempt_at' => now(),
                 'error_message' => null,
+                'encrypted_secrets' => $this->encryptSecrets($secrets),
             ]);
         } catch (\Throwable $e) {
             $log->update([
@@ -91,9 +94,12 @@ class CommunicationEmailService
         ]);
 
         try {
-            $this->sendFromLogPayload($log->recipient_email, $log->mail_class, $log->mail_payload ?? []);
+            $secrets = $this->sendFromLogPayload($log->recipient_email, $log->mail_class, $log->mail_payload ?? []);
 
-            // Si el envío se hizo correctamente, mantenemos status `resent`.
+            if ($secrets !== []) {
+                $log->update(['encrypted_secrets' => $this->encryptSecrets($secrets)]);
+            }
+
             return $log;
         } catch (\Throwable $e) {
             $log->update([
@@ -136,27 +142,55 @@ class CommunicationEmailService
     }
 
     /**
-     * Reconstruye el Mailable desde `mail_class` + `mail_payload` (IDs simples).
+     * Reconstruye el contenido del email a partir del log (para previsualización).
      *
-     * Por ahora solo soporta las 3 clases que hoy están enviándose en backend.
+     * @return array{subject: string, html: string}
      */
-    private function sendFromLogPayload(string $recipientEmail, string $mailClass, array $mailPayload): void
+    public function previewLog(EmailCommunicationLog $log, bool $revealSecrets = false): array
     {
+        if (empty($log->mail_class)) {
+            throw new \RuntimeException('Este registro no tiene plantilla de email asociada.');
+        }
+
+        $storedSecrets = $revealSecrets ? ($log->decryptedSecrets() ?? []) : [];
+
+        $mailable = $this->buildMailableFromLogPayload(
+            $log->recipient_email,
+            $log->mail_class,
+            $log->mail_payload ?? [],
+            forPreview: true,
+            storedSecrets: $storedSecrets,
+        );
+
+        return [
+            'subject' => $mailable->envelope()->subject,
+            'html' => $mailable->render(),
+        ];
+    }
+
+    /**
+     * Reconstruye el Mailable desde `mail_class` + `mail_payload` (IDs simples).
+     */
+    private function buildMailableFromLogPayload(
+        string $recipientEmail,
+        string $mailClass,
+        array $mailPayload,
+        bool $forPreview = false,
+        array $storedSecrets = [],
+    ): Mailable {
         // Si alguna fila viene con datos inesperados, fallará y el log se marcará como cancelled.
         if ($mailClass === \App\Mail\DesignExternalInvitationMail::class) {
             $invitationId = (int) ($mailPayload['invitation_id'] ?? 0);
             $invitation = DesignExternalInvitation::findOrFail($invitationId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\DesignExternalInvitationMail($invitation));
-            return;
+            return new \App\Mail\DesignExternalInvitationMail($invitation);
         }
 
         if ($mailClass === \App\Mail\SellerConfirmationMail::class) {
             $sellerId = (int) ($mailPayload['seller_id'] ?? 0);
             $seller = Seller::with('entities')->findOrFail($sellerId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\SellerConfirmationMail($seller));
-            return;
+            return new \App\Mail\SellerConfirmationMail($seller);
         }
 
         if ($mailClass === \App\Mail\ParticipationAssignmentMail::class) {
@@ -181,19 +215,16 @@ class CommunicationEmailService
                 ];
             }
 
-            // En la mailable, el foreach es sobre $assignments (array indexado)
             $assignments = array_values($assignmentsBySet);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationAssignmentMail($seller, $assignments));
-            return;
+            return new \App\Mail\ParticipationAssignmentMail($seller, $assignments);
         }
 
         if ($mailClass === \App\Mail\ParticipationAssignmentProposalMail::class) {
             $proposalId = (int) ($mailPayload['proposal_id'] ?? 0);
             $proposal = \App\Models\ParticipationAssignmentProposal::with(['seller.entities', 'entity', 'lottery'])->findOrFail($proposalId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationAssignmentProposalMail($proposal));
-            return;
+            return new \App\Mail\ParticipationAssignmentProposalMail($proposal);
         }
 
         if ($mailClass === \App\Mail\ParticipationAssignmentAcceptedEntityMail::class) {
@@ -203,40 +234,35 @@ class CommunicationEmailService
             $proposal = \App\Models\ParticipationAssignmentProposal::with(['entity', 'lottery'])->findOrFail($proposalId);
             $seller = Seller::findOrFail($sellerId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationAssignmentAcceptedEntityMail($seller, $proposal, $assignedCount));
-            return;
+            return new \App\Mail\ParticipationAssignmentAcceptedEntityMail($seller, $proposal, $assignedCount);
         }
 
         if ($mailClass === \App\Mail\ReserveSavedToEntityManagerMail::class) {
             $reserveId = (int) ($mailPayload['reserve_id'] ?? 0);
             $reserve = Reserve::with(['entity.administration', 'entity.manager.user', 'lottery.lotteryType'])->findOrFail($reserveId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\ReserveSavedToEntityManagerMail($reserve));
-            return;
+            return new \App\Mail\ReserveSavedToEntityManagerMail($reserve);
         }
 
         if ($mailClass === \App\Mail\SetCreatedToEntityManagerMail::class) {
             $setId = (int) ($mailPayload['set_id'] ?? 0);
             $set = Set::with(['entity.manager.user', 'reserve.lottery.lotteryType', 'reserve.lottery'])->findOrFail($setId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\SetCreatedToEntityManagerMail($set));
-            return;
+            return new \App\Mail\SetCreatedToEntityManagerMail($set);
         }
 
         if ($mailClass === \App\Mail\DevolutionReturnedToAdministrationMail::class) {
             $devolutionId = (int) ($mailPayload['devolution_id'] ?? 0);
             $devolution = Devolution::with(['entity.administration', 'entity.manager.user', 'lottery'])->findOrFail($devolutionId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\DevolutionReturnedToAdministrationMail($devolution));
-            return;
+            return new \App\Mail\DevolutionReturnedToAdministrationMail($devolution);
         }
 
         if ($mailClass === \App\Mail\DevolutionReturnedToEntityManagerMail::class) {
             $devolutionId = (int) ($mailPayload['devolution_id'] ?? 0);
             $devolution = Devolution::with(['entity.administration', 'entity.manager.user', 'lottery'])->findOrFail($devolutionId);
 
-            Mail::to($recipientEmail)->send(new \App\Mail\DevolutionReturnedToEntityManagerMail($devolution));
-            return;
+            return new \App\Mail\DevolutionReturnedToEntityManagerMail($devolution);
         }
 
         if ($mailClass === \App\Mail\AdministrationWelcomeMail::class) {
@@ -244,10 +270,14 @@ class CommunicationEmailService
             $userId = (int) ($mailPayload['user_id'] ?? 0);
             $administration = Administration::findOrFail($administrationId);
             $user = User::findOrFail($userId);
-            $plain = \App\Models\PanelAccessToken::issueForUser($user);
-            $magicUrl = route('panel.access', ['token' => $plain], absolute: true);
-            Mail::to($recipientEmail)->send(new \App\Mail\AdministrationWelcomeMail($administration, $user, $magicUrl));
-            return;
+            $magicUrl = (string) ($storedSecrets['magic_link_url'] ?? '');
+            if ($magicUrl === '') {
+                $magicUrl = $forPreview
+                    ? route('panel.access', ['token' => '********'], absolute: true)
+                    : route('panel.access', ['token' => \App\Models\PanelAccessToken::issueForUser($user)], absolute: true);
+            }
+
+            return new \App\Mail\AdministrationWelcomeMail($administration, $user, $magicUrl);
         }
 
         if ($mailClass === \App\Mail\EntityWelcomeMail::class) {
@@ -255,13 +285,15 @@ class CommunicationEmailService
             $userId = (int) ($mailPayload['user_id'] ?? 0);
             $entity = \App\Models\Entity::with('administration')->findOrFail($entityId);
             $user = User::findOrFail($userId);
-            $plainPassword = (string) ($mailPayload['plain_password'] ?? '');
+            $plainPassword = (string) ($storedSecrets['plain_password'] ?? $mailPayload['plain_password'] ?? '');
             if ($plainPassword === '') {
-                $plainPassword = app(ProvisionalPasswordService::class)->assignToUser($user);
+                $plainPassword = $forPreview
+                    ? '[contraseña no disponible en el historial]'
+                    : app(ProvisionalPasswordService::class)->assignToUser($user);
             }
             $loginUrl = route('login', absolute: true);
-            Mail::to($recipientEmail)->send(new \App\Mail\EntityWelcomeMail($entity, $user, $plainPassword, $loginUrl));
-            return;
+
+            return new \App\Mail\EntityWelcomeMail($entity, $user, $plainPassword, $loginUrl);
         }
 
         if ($mailClass === \App\Mail\EntityManagerInvitationMail::class) {
@@ -273,12 +305,16 @@ class CommunicationEmailService
             $manager = $managerId > 0
                 ? \App\Models\Manager::findOrFail($managerId)
                 : \App\Models\Manager::where('entity_id', $entityId)->where('user_id', $userId)->latest('id')->firstOrFail();
-            $plainPassword = (string) ($mailPayload['plain_password'] ?? '');
-            if ($plainPassword === '' && $user->must_change_password) {
-                $plainPassword = app(ProvisionalPasswordService::class)->assignToUser($user);
+            $plainPassword = (string) ($storedSecrets['plain_password'] ?? $mailPayload['plain_password'] ?? '');
+            if ($plainPassword === '') {
+                if ($forPreview) {
+                    $plainPassword = '[contraseña no disponible en el historial]';
+                } elseif ($user->must_change_password) {
+                    $plainPassword = app(ProvisionalPasswordService::class)->assignToUser($user);
+                }
             }
-            Mail::to($recipientEmail)->send(new \App\Mail\EntityManagerInvitationMail($entity, $user, $manager, $plainPassword));
-            return;
+
+            return new \App\Mail\EntityManagerInvitationMail($entity, $user, $manager, $plainPassword);
         }
 
         if ($mailClass === \App\Mail\EntityResponsibleManagerConfirmedMail::class) {
@@ -286,8 +322,8 @@ class CommunicationEmailService
             $userId = (int) ($mailPayload['responsible_manager_user_id'] ?? 0);
             $entity = \App\Models\Entity::findOrFail($entityId);
             $user = User::findOrFail($userId);
-            Mail::to($recipientEmail)->send(new \App\Mail\EntityResponsibleManagerConfirmedMail($entity, $user));
-            return;
+
+            return new \App\Mail\EntityResponsibleManagerConfirmedMail($entity, $user);
         }
 
         if ($mailClass === \App\Mail\SellerSettlementStatusMail::class) {
@@ -296,29 +332,29 @@ class CommunicationEmailService
             $isFullySettled = (bool) ($mailPayload['is_fully_settled'] ?? false);
             $seller = Seller::findOrFail($sellerId);
             $settlement = \App\Models\SellerSettlement::findOrFail($settlementId);
-            Mail::to($recipientEmail)->send(new \App\Mail\SellerSettlementStatusMail($seller, $settlement, $isFullySettled));
-            return;
+
+            return new \App\Mail\SellerSettlementStatusMail($seller, $settlement, $isFullySettled);
         }
 
         if ($mailClass === \App\Mail\UserWelcomeMail::class) {
             $userId = (int) ($mailPayload['user_id'] ?? 0);
             $user = User::findOrFail($userId);
-            Mail::to($recipientEmail)->send(new \App\Mail\UserWelcomeMail($user));
-            return;
+
+            return new \App\Mail\UserWelcomeMail($user);
         }
 
         if ($mailClass === \App\Mail\ParticipationGiftRecipientMail::class) {
             $giftId = (int) ($mailPayload['gift_id'] ?? 0);
             $gift = ParticipationGift::with(['fromUser', 'toUser', 'participation'])->findOrFail($giftId);
-            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationGiftRecipientMail($gift));
-            return;
+
+            return new \App\Mail\ParticipationGiftRecipientMail($gift);
         }
 
         if ($mailClass === \App\Mail\ParticipationGiftSenderMail::class) {
             $giftId = (int) ($mailPayload['gift_id'] ?? 0);
             $gift = ParticipationGift::with(['fromUser', 'toUser', 'participation'])->findOrFail($giftId);
-            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationGiftSenderMail($gift));
-            return;
+
+            return new \App\Mail\ParticipationGiftSenderMail($gift);
         }
 
         if ($mailClass === \App\Mail\DigitalPurchaseConfirmationMail::class) {
@@ -326,37 +362,37 @@ class CommunicationEmailService
             $buyer = User::findOrFail($buyerId);
             $items = $mailPayload['items'] ?? [];
             $total = (float) ($mailPayload['total_amount'] ?? 0);
-            Mail::to($recipientEmail)->send(new \App\Mail\DigitalPurchaseConfirmationMail($buyer, $items, $total));
-            return;
+
+            return new \App\Mail\DigitalPurchaseConfirmationMail($buyer, $items, $total);
         }
 
         if ($mailClass === \App\Mail\TransferCollectionConfirmationMail::class) {
             $collectionId = (int) ($mailPayload['collection_id'] ?? 0);
             $collection = ParticipationCollection::with('user')->findOrFail($collectionId);
-            Mail::to($recipientEmail)->send(new \App\Mail\TransferCollectionConfirmationMail($collection));
-            return;
+
+            return new \App\Mail\TransferCollectionConfirmationMail($collection);
         }
 
         if ($mailClass === \App\Mail\TransferCollectionVerificationMail::class) {
             $collectionId = (int) ($mailPayload['collection_id'] ?? 0);
             $collection = ParticipationCollection::with('user')->findOrFail($collectionId);
-            Mail::to($recipientEmail)->send(new \App\Mail\TransferCollectionVerificationMail($collection));
-            return;
+
+            return new \App\Mail\TransferCollectionVerificationMail($collection);
         }
 
         if ($mailClass === \App\Mail\DonationCodeConfirmationMail::class) {
             $donationId = (int) ($mailPayload['donation_id'] ?? 0);
             $donation = ParticipationDonation::with('user')->findOrFail($donationId);
-            Mail::to($recipientEmail)->send(new \App\Mail\DonationCodeConfirmationMail($donation));
-            return;
+
+            return new \App\Mail\DonationCodeConfirmationMail($donation);
         }
 
         if ($mailClass === \App\Mail\DigitalSaleRegistrationInviteMail::class) {
             $pendingId = (int) ($mailPayload['pending_digital_sale_id'] ?? 0);
             $pending = \App\Models\PendingDigitalSale::with(['entity', 'lottery'])->findOrFail($pendingId);
             $pending->ensureLinkCode();
-            Mail::to($recipientEmail)->send(new \App\Mail\DigitalSaleRegistrationInviteMail($pending));
-            return;
+
+            return new \App\Mail\DigitalSaleRegistrationInviteMail($pending);
         }
 
         if ($mailClass === \App\Mail\ParticipationWalletLinkedMail::class) {
@@ -364,25 +400,70 @@ class CommunicationEmailService
             $participationId = (int) ($mailPayload['participation_id'] ?? 0);
             $user = User::findOrFail($userId);
             $participation = \App\Models\Participation::with(['set.entity', 'set.reserve.lottery'])->findOrFail($participationId);
-            Mail::to($recipientEmail)->send(new \App\Mail\ParticipationWalletLinkedMail($user, $participation));
-            return;
+
+            return new \App\Mail\ParticipationWalletLinkedMail($user, $participation);
         }
 
         if ($mailClass === \App\Mail\ManagementFeePaymentRequestMail::class) {
             $designId = (int) ($mailPayload['design_format_id'] ?? 0);
             $design = \App\Models\DesignFormat::findOrFail($designId);
-            Mail::to($recipientEmail)->send(new \App\Mail\ManagementFeePaymentRequestMail($design));
-            return;
+
+            return new \App\Mail\ManagementFeePaymentRequestMail($design);
         }
 
         if ($mailClass === \App\Mail\DesignApprovalPendingMail::class) {
             $designId = (int) ($mailPayload['design_format_id'] ?? 0);
             $design = \App\Models\DesignFormat::findOrFail($designId);
-            Mail::to($recipientEmail)->send(new \App\Mail\DesignApprovalPendingMail($design));
-            return;
+
+            return new \App\Mail\DesignApprovalPendingMail($design);
         }
 
         throw new \RuntimeException("mail_class no soportado para reenviar: {$mailClass}");
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function sendFromLogPayload(string $recipientEmail, string $mailClass, array $mailPayload): array
+    {
+        $mailable = $this->buildMailableFromLogPayload($recipientEmail, $mailClass, $mailPayload, forPreview: false);
+        Mail::to($recipientEmail)->send($mailable);
+
+        return $this->extractSecretsFromMailable($mailClass, $mailable);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function extractSecretsFromMailable(string $mailClass, Mailable $mailable): array
+    {
+        $secrets = [];
+
+        if ($mailable instanceof \App\Mail\EntityWelcomeMail && $mailable->plainPassword !== '') {
+            $secrets['plain_password'] = $mailable->plainPassword;
+        }
+
+        if ($mailable instanceof \App\Mail\EntityManagerInvitationMail && $mailable->provisionalPassword !== '') {
+            $secrets['plain_password'] = $mailable->provisionalPassword;
+        }
+
+        if ($mailable instanceof \App\Mail\AdministrationWelcomeMail && $mailable->magicLinkUrl !== '') {
+            $secrets['magic_link_url'] = $mailable->magicLinkUrl;
+        }
+
+        return $secrets;
+    }
+
+    /**
+     * @param  array<string, string>  $secrets
+     */
+    private function encryptSecrets(array $secrets): ?string
+    {
+        if ($secrets === []) {
+            return null;
+        }
+
+        return Crypt::encryptString(json_encode($secrets, JSON_UNESCAPED_UNICODE));
     }
 
     /**
