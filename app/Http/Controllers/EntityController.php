@@ -719,7 +719,19 @@ class EntityController extends Controller
         ]);
 
         try {
-            Mail::to($inviteEmail)->send(new EntityManagerPreregisterInviteMail($entity, $pending));
+            app(CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: $inviteEmail,
+                recipientRole: 'gestor_entidad',
+                recipientUser: null,
+                messageType: 'entity_manager_preregister_invitation',
+                templateKey: null,
+                mailClass: EntityManagerPreregisterInviteMail::class,
+                mailPayload: [
+                    'entity_id' => $entity->id,
+                    'pending_invitation_id' => $pending->id,
+                ],
+                context: ['entity_id' => $entity->id],
+            );
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando invitación pre-registro (alta entidad): '.$e->getMessage());
         }
@@ -1778,7 +1790,19 @@ class EntityController extends Controller
         ]);
 
         try {
-            Mail::to($email)->send(new EntityManagerPreregisterInviteMail($entity, $pending));
+            app(CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: $email,
+                recipientRole: 'gestor_entidad',
+                recipientUser: null,
+                messageType: 'entity_manager_preregister_invitation',
+                templateKey: null,
+                mailClass: EntityManagerPreregisterInviteMail::class,
+                mailPayload: [
+                    'entity_id' => $entity->id,
+                    'pending_invitation_id' => $pending->id,
+                ],
+                context: ['entity_id' => $entity->id],
+            );
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando invitación pre-registro gestor: '.$e->getMessage());
         }

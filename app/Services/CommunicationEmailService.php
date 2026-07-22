@@ -13,6 +13,7 @@ use App\Models\ParticipationGift;
 use App\Models\ParticipationCollection;
 use App\Models\ParticipationDonation;
 use App\Models\User;
+use App\Models\PendingEntityManagerInvitation;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -315,6 +316,14 @@ class CommunicationEmailService
             }
 
             return new \App\Mail\EntityManagerInvitationMail($entity, $user, $manager, $plainPassword);
+        }
+
+        if ($mailClass === \App\Mail\EntityManagerPreregisterInviteMail::class) {
+            $pendingId = (int) ($mailPayload['pending_invitation_id'] ?? 0);
+            $pending = PendingEntityManagerInvitation::with('entity.administration')->findOrFail($pendingId);
+            $entity = $pending->entity ?? \App\Models\Entity::findOrFail((int) ($mailPayload['entity_id'] ?? $pending->entity_id));
+
+            return new \App\Mail\EntityManagerPreregisterInviteMail($entity, $pending);
         }
 
         if ($mailClass === \App\Mail\EntityResponsibleManagerConfirmedMail::class) {
