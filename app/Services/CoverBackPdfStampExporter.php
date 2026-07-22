@@ -72,6 +72,10 @@ class CoverBackPdfStampExporter
         foreach ($pages as $pageBooks) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
 
+            if ($layout->drawCropMarks) {
+                $this->drawCutGrid($pdf, $layout);
+            }
+
             for ($i = 0; $i < $perPage; $i++) {
                 if (! isset($pageBooks[$i]) || ! is_array($pageBooks[$i])) {
                     continue;
@@ -98,10 +102,6 @@ class CoverBackPdfStampExporter
                     $cellW,
                     $designW
                 );
-            }
-
-            if ($layout->drawCropMarks) {
-                $this->drawCutGrid($pdf, $layout);
             }
         }
 
@@ -157,6 +157,10 @@ class CoverBackPdfStampExporter
         for ($p = 0; $p < $totalPages; $p++) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
 
+            if ($layout->drawCropMarks) {
+                $this->drawCutGrid($pdf, $layout);
+            }
+
             for ($i = 0; $i < $perPage; $i++) {
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
@@ -174,10 +178,6 @@ class CoverBackPdfStampExporter
                     $pdf->SetLineWidth(0.25);
                     $pdf->Rect($originX, $originY, $cellW, $cellH);
                 }
-            }
-
-            if ($layout->drawCropMarks) {
-                $this->drawCutGrid($pdf, $layout);
             }
         }
 

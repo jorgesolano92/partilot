@@ -73,6 +73,11 @@ class ParticipationPdfStampExporter
         foreach ($pages as $pageTickets) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
 
+            // Grilla debajo; la participación tapa y solo se ven los stubs.
+            if ($layout->drawCropMarks) {
+                $this->drawCutGrid($pdf, $layout);
+            }
+
             for ($i = 0; $i < $perPage; $i++) {
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
@@ -101,11 +106,6 @@ class ParticipationPdfStampExporter
                     $cellW,
                     $designW
                 );
-            }
-
-            // Grilla independiente encima (no altera posición/tamaño de participaciones).
-            if ($layout->drawCropMarks) {
-                $this->drawCutGrid($pdf, $layout);
             }
         }
 
