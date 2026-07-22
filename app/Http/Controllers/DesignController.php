@@ -1231,6 +1231,7 @@ class DesignController extends Controller
             'margin_left' => 'nullable|numeric',
             'margin_top' => 'nullable|numeric',
             'identation' => 'nullable|numeric',
+            'cut_lines' => 'nullable|numeric',
             'matrix_box' => 'nullable|numeric',
             'page_rigth' => 'nullable|numeric',
             'page_bottom' => 'nullable|numeric',
@@ -1271,6 +1272,7 @@ class DesignController extends Controller
             'margins' => 'nullable|array',
             'margin_custom' => 'nullable|numeric',
             'identation' => 'nullable|numeric',
+            'cut_lines' => 'nullable|numeric',
             'matrix_box' => 'nullable|numeric',
             'horizontal_space' => 'nullable|numeric',
             'vertical_space' => 'nullable|numeric',
@@ -1458,6 +1460,27 @@ class DesignController extends Controller
         $existing->rows = $data['rows'] ?? $existing->rows;
         $existing->cols = $data['cols'] ?? $existing->cols;
         $existing->orientation = $data['orientation'] ?? $existing->orientation;
+        if (array_key_exists('identation', $data)) {
+            $existing->identation = $data['identation'];
+        }
+        if (array_key_exists('cut_lines', $data)) {
+            $existing->cut_lines = $data['cut_lines'];
+        }
+        if (array_key_exists('matrix_box', $data)) {
+            $existing->matrix_box = $data['matrix_box'];
+        }
+        if (array_key_exists('margin_custom', $data)) {
+            $existing->margin_custom = $data['margin_custom'];
+        }
+        if (array_key_exists('horizontal_space', $data)) {
+            $existing->horizontal_space = $data['horizontal_space'];
+        }
+        if (array_key_exists('vertical_space', $data)) {
+            $existing->vertical_space = $data['vertical_space'];
+        }
+        if (isset($data['margins'])) {
+            $existing->margins = $data['margins'];
+        }
         $existing->blocks = $data['blocks'];
         $existing->participation_html = $data['participation_html'];
         $existing->cover_html = $data['cover_html'];
@@ -3754,6 +3777,7 @@ class DesignController extends Controller
             'rows' => 'nullable|integer|min:1|max:12',
             'cols' => 'nullable|integer|min:1|max:12',
             'identation' => 'nullable|numeric|min:0|max:50',
+            'cut_lines' => 'nullable|numeric|min:0|max:50',
         ]);
 
         $type = $data['type'];
@@ -3765,6 +3789,9 @@ class DesignController extends Controller
         $rows = (int) ($data['rows'] ?? ($design->rows ?? 3));
         $cols = (int) ($data['cols'] ?? ($design->cols ?? 2));
         $identation = (float) ($data['identation'] ?? ($design->identation ?? 2.5));
+        $cutLines = array_key_exists('cut_lines', $data)
+            ? (float) $data['cut_lines']
+            : (float) ($design->cut_lines ?? $identation);
         $pdfOrientation = ($orientation === 'h') ? 'landscape' : 'portrait';
         $perPage = max(1, $rows * $cols);
 
@@ -3781,6 +3808,7 @@ class DesignController extends Controller
                 $shell->rows = $rows;
                 $shell->cols = $cols;
                 $shell->identation = $identation;
+                $shell->cut_lines = $cutLines;
                 $tmp = storage_path('app/temp_preview_stamp_'.uniqid('', true).'.pdf');
                 try {
                     $slotsHtml = $this->prepareStampSlotHtml($html, $identation);
@@ -3810,6 +3838,7 @@ class DesignController extends Controller
             $layoutDesign->rows = $rows;
             $layoutDesign->cols = $cols;
             $layoutDesign->identation = $identation;
+            $layoutDesign->cut_lines = $cutLines;
 
             $pages = $this->generatePagesOptimized([$ticket], 1, $perPage);
             $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
@@ -3832,6 +3861,7 @@ class DesignController extends Controller
         $shell->rows = $rows;
         $shell->cols = $cols;
         $shell->identation = $identation;
+        $shell->cut_lines = $cutLines;
         $shell->set_id = $design->set_id ?? null;
         $shell->output = $design->output ?? [];
 
@@ -5662,6 +5692,9 @@ class DesignController extends Controller
                 $format->cols = $data['cols'] ?? $format->cols;
                 $format->orientation = $data['orientation'] ?? $format->orientation;
                 $format->identation = $data['identation'] ?? $format->identation;
+                if (array_key_exists('cut_lines', $data)) {
+                    $format->cut_lines = $data['cut_lines'];
+                }
                 $format->matrix_box = $data['matrix_box'] ?? $format->matrix_box;
                 $format->horizontal_space = $data['horizontal_space'] ?? $format->horizontal_space;
                 $format->vertical_space = $data['vertical_space'] ?? $format->vertical_space;

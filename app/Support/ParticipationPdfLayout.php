@@ -98,8 +98,12 @@ class ParticipationPdfLayout
         $bleedLeft = self::marginSide($margins, 'left', $custom);
         $bleedRight = self::marginSide($margins, 'right', $custom);
 
-        // «Sangres de la imagen»: solo posiciona la grilla (no mueve participaciones).
-        $imageBleedMm = max(0.0, (float) ($design->identation ?? 2.5));
+        // «Líneas de corte» (mm): solo la grilla PDF. Sangres (identation) quedan para el diseño.
+        $cutLinesRaw = $design->cut_lines;
+        if ($cutLinesRaw === null || $cutLinesRaw === '') {
+            $cutLinesRaw = $design->identation ?? 2.5;
+        }
+        $imageBleedMm = max(0.0, (float) $cutLinesRaw);
 
 
 
@@ -516,6 +520,7 @@ class ParticipationPdfLayout
             return [];
         }
 
+        // «Líneas de corte» (mm): solo la grilla PDF. Sangres (identation) quedan para el diseño.
         $sangre = max(0.0, $this->imageBleedMm);
         $x0 = $this->trimOriginX(0);
         $y0 = $this->trimOriginY(0);

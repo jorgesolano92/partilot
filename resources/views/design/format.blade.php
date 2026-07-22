@@ -108,6 +108,7 @@ window.__designLoad = {!! json_encode([
     'margin_left' => $design->margin_left,
     'margin_top' => $design->margin_top,
     'identation' => $design->identation,
+    'cut_lines' => $design->cut_lines,
     'matrix_box' => $design->matrix_box,
     'margin_custom' => $design->margin_custom,
     'page_rigth' => $design->page_rigth,
@@ -521,6 +522,15 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                                             <input class="form-control" type="number" id="identation" value="2.50" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                         </div>
 
+                                                    </div>
+
+                                                    <div class="row mb-3">
+                                                        <label class="col-form-label label-control col-4 text-end">
+                                                            Líneas de corte (mm)
+                                                        </label>
+                                                        <div class="col-sm-2">
+                                                            <input class="form-control" type="number" id="cut-lines" value="2.50" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                        </div>
                                                     </div>
 
                                                     <div class="row mb-3">
@@ -1858,6 +1868,7 @@ $('#format').change(function (e) {
       margin_left: data.margins?.left ?? null,
       margin_top: data.margins?.top ?? null,
       identation: data.identation ?? null,
+      cut_lines: data.cut_lines ?? null,
       matrix_box: data.matrix_box ?? null,
       margin_custom: data.margin_custom ?? null,
       page_rigth: data.horizontal_space ?? null,
@@ -2414,7 +2425,7 @@ $('#format').change(function (e) {
     var ticketW = parseFloat($('#ticket-size').data('w')) || 200;
     var ticketH = parseFloat($('#ticket-size').data('h')) || 92;
     var scaleX = boxW / ticketW, scaleY = boxH / ticketH;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var minLeft = identation * scaleX;
     var minTop = identation * scaleY;
@@ -3281,7 +3292,7 @@ $('#format').change(function (e) {
     if (!el) { if (onSuccess) onSuccess(); return; }
     html2canvas(el).then(function(canvas) {
       // Recorte de la matriz por la izquierda (igual para físico y digital)
-      var identationMm = parseFloat($('#identation').val()) || 2.5;
+      var identationMm = parseIdentationMm();
       var matrixMm = parseFloat($('#matrix-box').val()) || 40;
       var boxWidthMm = 200;
       var leftStripMm = identationMm + matrixMm;
@@ -3478,7 +3489,7 @@ $('#format').change(function (e) {
   function setupDesignAutosave() {
     if (window.__designLocked) return;
 
-    $(document).on('input change', '#format, #page, #rows, #cols, #orientation, #margin-up, #margin-right, #margin-left, #margin-top, #identation, #matrix-box, #margin-custom, #page-rigth, #page-bottom, #guide_color, #guide_weight, #participation_number, #participation_from, #participation_to, #participation_page', markDesignDirty);
+    $(document).on('input change', '#format, #page, #rows, #cols, #orientation, #margin-up, #margin-right, #margin-left, #margin-top, #identation, #cut-lines, #matrix-box, #margin-custom, #page-rigth, #page-bottom, #guide_color, #guide_weight, #participation_number, #participation_from, #participation_to, #participation_page', markDesignDirty);
     $(document).on('input', '.elements [contenteditable="true"], .elements textarea, .elements input', markDesignDirty);
     $(document).on('click', '.add-text, .add-image, .delete-element-btn, .up-layer, .down-layer, .text-style-btn, #open-bg-modal, #remove-bg-image, #apply-bg', function() {
       setTimeout(markDesignDirty, 50);
@@ -3516,6 +3527,12 @@ $('#format').change(function (e) {
    * Fondo SOLO dentro de márgenes morados (identation).
    * Capa absoluta inset en mm: fiable en editor, html2canvas y DomPDF (sin calc()).
    */
+  /** Sangres: 0 es válido; solo default 2.5 si el campo está vacío o no es número. */
+  function parseIdentationMm() {
+    var v = parseFloat($('#identation').val());
+    return Number.isFinite(v) ? v : 2.5;
+  }
+
   function marginBgLayerId(stepNum) {
     if (stepNum === 2) return 'design-participation-bg';
     if (stepNum === 3) return 'design-cover-bg';
@@ -3529,7 +3546,7 @@ $('#format').change(function (e) {
     var bgId = marginBgLayerId(stepNum);
     if (!bgId) return $wrap;
 
-    var identationMm = parseFloat($('#identation').val()) || 2.5;
+    var identationMm = parseIdentationMm();
     var matrixMm = parseFloat($('#matrix-box').val()) || 40;
     var $bg = $('#' + bgId);
 
@@ -3608,7 +3625,7 @@ $('#format').change(function (e) {
 
   function configMargins()
   {
-    let identation = $('#identation').val() ?? 2.5;
+    let identation = parseIdentationMm();
     let matrix = $('#matrix-box').val() ?? 40;
     $('.margen-izquierdo').css('left',identation+'mm')
     $('.margen-arriba').css('top',identation+'mm')
@@ -3638,7 +3655,7 @@ $('#format').change(function (e) {
     var marginUp = parseFloat($('#margin-up').val()) || 0;
     var marginLeft = parseFloat($('#margin-left').val()) || 0;
     var marginRight = parseFloat($('#margin-right').val()) || 0;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var marginCustom = parseFloat($('#margin-custom').val()) || 0;
     var pageRight = parseFloat($('#page-rigth').val()) || 0;
@@ -3981,6 +3998,8 @@ $('#format').change(function (e) {
     if (d.margin_left != null) $('#margin-left').val(d.margin_left);
     if (d.margin_top != null) $('#margin-top').val(d.margin_top);
     if (d.identation != null) $('#identation').val(d.identation);
+    if (d.cut_lines != null) $('#cut-lines').val(d.cut_lines);
+    else if (d.identation != null) $('#cut-lines').val(d.identation);
     if (d.matrix_box != null) $('#matrix-box').val(d.matrix_box);
     if (d.margin_custom != null) $('#margin-custom').val(d.margin_custom);
     if (d.page_rigth != null) $('#page-rigth').val(d.page_rigth);
@@ -4038,7 +4057,7 @@ $('#format').change(function (e) {
         applyLoadedDesign();
         updateTicketInfo();
         $('#format,#page,#rows,#cols,#orientation').off('change keyup').on('change keyup', updateTicketInfo);
-        $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#matrix-box,#margin-custom,#page-rigth,#page-bottom').off('change keyup').on('change keyup', function() {
+        $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#cut-lines,#matrix-box,#margin-custom,#page-rigth,#page-bottom').off('change keyup').on('change keyup', function() {
           if (typeof configMargins === 'function') configMargins();
           else if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
         });
@@ -4114,6 +4133,7 @@ $('#format').change(function (e) {
     const margin_left = parseFloat($('#margin-left').val());
     const margin_top = parseFloat($('#margin-top').val());
     const identation = parseFloat($('#identation').val());
+    const cut_lines = (function(){ var v = parseFloat($('#cut-lines').val()); return Number.isFinite(v) ? v : null; })();
     const matrix_box = parseFloat($('#matrix-box').val());
     const margin_custom = parseFloat($('#margin-custom').val());
     const horizontal_space = parseFloat($('#page-rigth').val());
@@ -4190,6 +4210,7 @@ $('#format').change(function (e) {
         top: margin_top
       },
       identation,
+      cut_lines,
       matrix_box,
       margin_custom,
       horizontal_space,

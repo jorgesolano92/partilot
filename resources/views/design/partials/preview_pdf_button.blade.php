@@ -69,6 +69,7 @@
     if ($('#rows').length) fd.append('rows', $('#rows').val());
     if ($('#cols').length) fd.append('cols', $('#cols').val());
     if ($('#identation').length) fd.append('identation', $('#identation').val());
+    if ($('#cut-lines').length) fd.append('cut_lines', $('#cut-lines').val());
 
     fetch(@json($previewPdfUrl), {
       method: 'POST',

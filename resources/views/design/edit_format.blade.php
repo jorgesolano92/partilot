@@ -333,6 +333,12 @@
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
+                                                            <label class="col-form-label label-control col-4 text-end">Líneas de corte (mm)</label>
+                                                            <div class="col-sm-2">
+                                                                <input class="form-control" name="cut_lines" type="number" id="cut-lines" value="{{ old('cut_lines', $format->cut_lines ?? $format->identation ?? '2.5') }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            </div>
+                                                        </div>
+                                                        <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Anchura de la matriz (mm)</label>
                                                             <div class="col-sm-2">
                                                                 <input class="form-control" name="matrix_box" type="number" id="matrix-box" value="{{ old('matrix_box', $format->matrix_box) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
@@ -1789,7 +1795,7 @@ function performLocalStepSave(options) {
     html2canvas(document.querySelector('#step-2 .format-box')).then(function(canvas) {
       var isDigitalSetLocal = {{ ($set->digital_participations > 0 && (int)($set->physical_participations ?? 0) === 0) ? 'true' : 'false' }};
       if (!isDigitalSetLocal) {
-        var identationMm = parseFloat($('#identation').val()) || 2.5;
+        var identationMm = parseIdentationMm();
         var matrixMm = parseFloat($('#matrix-box').val()) || 40;
         var boxWidthMm = 200;
         var leftStripMm = identationMm + matrixMm;
@@ -1855,7 +1861,7 @@ function getMarginBoundsPx() {
     var ticketW = parseFloat($('#ticket-size').data('w')) || 200;
     var ticketH = parseFloat($('#ticket-size').data('h')) || 92;
     var scaleX = boxW / ticketW, scaleY = boxH / ticketH;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var minLeft = identation * scaleX;
     var minTop = identation * scaleY;
@@ -1880,6 +1886,12 @@ function getMarginBoundsPx() {
     el.style.removeProperty('inset');
     $el.css({ left: left + 'px', top: top + 'px' });
   }
+  /** Sangres: 0 es válido; solo default 2.5 si el campo está vacío o no es número. */
+  function parseIdentationMm() {
+    var v = parseFloat($('#identation').val());
+    return Number.isFinite(v) ? v : 2.5;
+  }
+
   function marginBgLayerId(stepNum) {
     if (stepNum === 2) return 'design-participation-bg';
     if (stepNum === 3) return 'design-cover-bg';
@@ -1893,7 +1905,7 @@ function getMarginBoundsPx() {
     var bgId = marginBgLayerId(stepNum);
     if (!bgId) return $wrap;
 
-    var identationMm = parseFloat($('#identation').val()) || 2.5;
+    var identationMm = parseIdentationMm();
     var matrixMm = parseFloat($('#matrix-box').val()) || 40;
     var $bg = $('#' + bgId);
 
@@ -1961,7 +1973,7 @@ function getMarginBoundsPx() {
 
   function configMargins()
   {
-    let identation = $('#identation').val() ?? 2.5;
+    let identation = parseIdentationMm();
     let matrix = $('#matrix-box').val() ?? 40;
     $('.margen-izquierdo').css('left',identation+'mm')
     $('.margen-arriba').css('top',identation+'mm')
@@ -1986,7 +1998,7 @@ function getMarginBoundsPx() {
     var marginUp = parseFloat($('#margin-up').val()) || 0;
     var marginLeft = parseFloat($('#margin-left').val()) || 0;
     var marginRight = parseFloat($('#margin-right').val()) || 0;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var marginCustom = parseFloat($('#margin-custom').val()) || 0;
     var pageRight = parseFloat($('#page-rigth').val()) || 0;
@@ -2196,7 +2208,7 @@ function getMarginBoundsPx() {
       if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
       if (typeof initPreviewFromFormat === 'function') initPreviewFromFormat();
       $('#format,#page,#rows,#cols,#orientation').on('change keyup', updateTicketInfo);
-      $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#matrix-box,#margin-custom,#page-rigth,#page-bottom').on('change keyup', function() {
+      $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#cut-lines,#matrix-box,#margin-custom,#page-rigth,#page-bottom').on('change keyup', function() {
         if (typeof configMargins === 'function') configMargins();
         else if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
       });
@@ -2216,6 +2228,7 @@ function collectDesignData() {
   const margin_left = parseFloat($('#margin-left').val());
   const margin_top = parseFloat($('#margin-top').val());
   const identation = parseFloat($('#identation').val());
+  const cut_lines = (function(){ var v = parseFloat($('#cut-lines').val()); return Number.isFinite(v) ? v : null; })();
   const matrix_box = parseFloat($('#matrix-box').val());
   const margin_custom = parseFloat($('#margin-custom').val());
   const horizontal_space = parseFloat($('#page-rigth').val());
@@ -2286,6 +2299,7 @@ function collectDesignData() {
       top: margin_top
     },
     identation,
+    cut_lines,
     matrix_box,
     margin_custom,
     horizontal_space,

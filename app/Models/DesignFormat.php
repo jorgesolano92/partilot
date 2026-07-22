@@ -28,6 +28,7 @@ class DesignFormat extends Model
         'margin_left',
         'margin_top',
         'identation',
+        'cut_lines',
         'matrix_box',
         'page_rigth',
         'page_bottom',

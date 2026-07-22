@@ -22,6 +22,10 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('design_formats', function (Blueprint $table) {
+            $table->decimal('cut_lines', 8, 2)->nullable()->after('identation');
+        });
+        return "ok";
         Schema::table('email_communication_logs', function (Blueprint $table) {
             $table->text('encrypted_secrets')->nullable()->after('mail_payload');
         });
