@@ -73,13 +73,6 @@ class ParticipationPdfStampExporter
         foreach ($pages as $pageTickets) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
 
-            // Marcas primero (debajo); la participación se dibuja encima y las tapa.
-            if ($layout->drawCropMarks) {
-                for ($i = 0; $i < $perPage; $i++) {
-                    $this->drawCropMarks($pdf, $layout, $i % $cols, intdiv($i, $cols));
-                }
-            }
-
             for ($i = 0; $i < $perPage; $i++) {
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
@@ -109,6 +102,11 @@ class ParticipationPdfStampExporter
                     $designW
                 );
             }
+
+            // Grilla independiente encima (no altera posición/tamaño de participaciones).
+            if ($layout->drawCropMarks) {
+                $this->drawCutGrid($pdf, $layout);
+            }
         }
 
         $dir = dirname($finalPath);
@@ -130,16 +128,16 @@ class ParticipationPdfStampExporter
         ]);
     }
 
-    private function drawCropMarks(Fpdi $pdf, ParticipationPdfLayout $layout, int $col, int $row): void
+    private function drawCutGrid(Fpdi $pdf, ParticipationPdfLayout $layout): void
     {
         if (! $layout->drawCropMarks) {
             return;
         }
 
         $pdf->SetDrawColor($layout->guideColorR, $layout->guideColorG, $layout->guideColorB);
-        $pdf->SetLineWidth(max(0.12, $layout->guideLineWidthMm));
+        $pdf->SetLineWidth(max(0.1, $layout->guideLineWidthMm));
 
-        foreach ($layout->cropMarkSegmentsForCell($col, $row) as $segment) {
+        foreach ($layout->cutGridSegments() as $segment) {
             $pdf->Line($segment['x1'], $segment['y1'], $segment['x2'], $segment['y2']);
         }
     }

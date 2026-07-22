@@ -72,12 +72,6 @@ class CoverBackPdfStampExporter
         foreach ($pages as $pageBooks) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
 
-            if ($layout->drawCropMarks) {
-                for ($i = 0; $i < $perPage; $i++) {
-                    $this->drawCropMarks($pdf, $layout, $i % $cols, intdiv($i, $cols));
-                }
-            }
-
             for ($i = 0; $i < $perPage; $i++) {
                 if (! isset($pageBooks[$i]) || ! is_array($pageBooks[$i])) {
                     continue;
@@ -104,6 +98,10 @@ class CoverBackPdfStampExporter
                     $cellW,
                     $designW
                 );
+            }
+
+            if ($layout->drawCropMarks) {
+                $this->drawCutGrid($pdf, $layout);
             }
         }
 
@@ -159,12 +157,6 @@ class CoverBackPdfStampExporter
         for ($p = 0; $p < $totalPages; $p++) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
 
-            if ($layout->drawCropMarks) {
-                for ($i = 0; $i < $perPage; $i++) {
-                    $this->drawCropMarks($pdf, $layout, $i % $cols, intdiv($i, $cols));
-                }
-            }
-
             for ($i = 0; $i < $perPage; $i++) {
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
@@ -183,6 +175,10 @@ class CoverBackPdfStampExporter
                     $pdf->Rect($originX, $originY, $cellW, $cellH);
                 }
             }
+
+            if ($layout->drawCropMarks) {
+                $this->drawCutGrid($pdf, $layout);
+            }
         }
 
         $dir = dirname($finalPath);
@@ -199,16 +195,16 @@ class CoverBackPdfStampExporter
         ]);
     }
 
-    private function drawCropMarks(Fpdi $pdf, ParticipationPdfLayout $layout, int $col, int $row): void
+    private function drawCutGrid(Fpdi $pdf, ParticipationPdfLayout $layout): void
     {
         if (! $layout->drawCropMarks) {
             return;
         }
 
         $pdf->SetDrawColor($layout->guideColorR, $layout->guideColorG, $layout->guideColorB);
-        $pdf->SetLineWidth(max(0.12, $layout->guideLineWidthMm));
+        $pdf->SetLineWidth(max(0.1, $layout->guideLineWidthMm));
 
-        foreach ($layout->cropMarkSegmentsForCell($col, $row) as $segment) {
+        foreach ($layout->cutGridSegments() as $segment) {
             $pdf->Line($segment['x1'], $segment['y1'], $segment['x2'], $segment['y2']);
         }
     }

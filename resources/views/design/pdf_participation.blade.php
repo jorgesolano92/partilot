@@ -12,7 +12,7 @@
         $trimW = $layout->trimWidthMm;
         $trimH = $layout->trimHeightMm;
         $guideColor = sprintf('#%02x%02x%02x', $layout->guideColorR, $layout->guideColorG, $layout->guideColorB);
-        $guideWeight = max(0.12, $layout->guideLineWidthMm);
+        $guideWeight = max(0.1, $layout->guideLineWidthMm);
         $drawCropMarks = $layout->drawCropMarks;
     } else {
         $sheetW = null;
@@ -140,7 +140,7 @@
         .crop-mark {
             position: absolute;
             background: {{ $guideColor }};
-            z-index: 1;
+            z-index: 50;
             pointer-events: none;
         }
         @else
@@ -166,28 +166,6 @@
 @endif
 @foreach($pages as $pageIndex => $page)
     <div class="participation-page" style="@if($pageIndex < count($pages) - 1) page-break-after: always; @endif">
-        {{-- Marcas debajo: la participación las tapa; solo se ven en sangrado/callejón --}}
-        @if($layout && $drawCropMarks)
-            @for($markRow = 0; $markRow < $rows; $markRow++)
-                @for($markCol = 0; $markCol < $cols; $markCol++)
-                    @foreach($layout->cropMarkSegmentsForCellOnSheet($markCol, $markRow) as $segment)
-                        @php
-                            $isHorizontal = abs($segment['y1'] - $segment['y2']) < 0.01;
-                            $x1 = min($segment['x1'], $segment['x2']);
-                            $y1 = min($segment['y1'], $segment['y2']);
-                            if ($isHorizontal) {
-                                $markW = abs($segment['x2'] - $segment['x1']);
-                                $markH = max(0.12, $guideWeight);
-                            } else {
-                                $markW = max(0.12, $guideWeight);
-                                $markH = abs($segment['y2'] - $segment['y1']);
-                            }
-                        @endphp
-                        <div class="crop-mark" style="left:{{ $x1 }}mm;top:{{ $y1 }}mm;width:{{ $markW }}mm;height:{{ $markH }}mm;"></div>
-                    @endforeach
-                @endfor
-            @endfor
-        @endif
         @for($i = 0; $i < count($page); $i++)
             @php
                 $col = $i % $cols;
@@ -226,6 +204,24 @@
         @endfor
         @if(!$layout)
             <div style="clear: both;"></div>
+        @endif
+        {{-- Grilla independiente encima: no mueve participaciones; doble línea en juntas --}}
+        @if($layout && $drawCropMarks)
+            @foreach($layout->cutGridSegments() as $segment)
+                @php
+                    $isHorizontal = abs($segment['y1'] - $segment['y2']) < 0.01;
+                    $x1 = min($segment['x1'], $segment['x2']);
+                    $y1 = min($segment['y1'], $segment['y2']);
+                    if ($isHorizontal) {
+                        $markW = abs($segment['x2'] - $segment['x1']);
+                        $markH = max(0.1, $guideWeight);
+                    } else {
+                        $markW = max(0.1, $guideWeight);
+                        $markH = abs($segment['y2'] - $segment['y1']);
+                    }
+                @endphp
+                <div class="crop-mark" style="left:{{ $x1 }}mm;top:{{ $y1 }}mm;width:{{ $markW }}mm;height:{{ $markH }}mm;"></div>
+            @endforeach
         @endif
     </div>
 @endforeach

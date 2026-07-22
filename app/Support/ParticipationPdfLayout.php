@@ -78,6 +78,8 @@ class ParticipationPdfLayout
 
         public float $guideLineWidthMm,
 
+        public float $imageBleedMm = 0.0,
+
     ) {}
 
 
@@ -90,15 +92,14 @@ class ParticipationPdfLayout
 
         $custom = max(0, (float) ($design->margin_custom ?? 0));
 
-
-
+        // Márgenes de página (p.ej. 1 mm): posición del bloque de participaciones.
         $bleedTop = self::marginSide($margins, 'top', $custom);
-
         $bleedBottom = self::marginSide($margins, 'up', $custom);
-
         $bleedLeft = self::marginSide($margins, 'left', $custom);
-
         $bleedRight = self::marginSide($margins, 'right', $custom);
+
+        // «Sangres de la imagen»: solo posiciona la grilla (no mueve participaciones).
+        $imageBleedMm = max(0.0, (float) ($design->identation ?? 2.5));
 
 
 
@@ -108,7 +109,11 @@ class ParticipationPdfLayout
 
         [$guideR, $guideG, $guideB] = self::parseGuideColor((string) ($output['guide_color'] ?? '#9333ea'));
 
-        $guideWeight = max(0.05, (float) ($output['guide_weight'] ?? 0.1));
+        $guideWeight = max(0.1, min(0.35, (float) ($output['guide_weight'] ?? 0.15)));
+        // Si el formulario tiene un valor absurdo (p.ej. 5 mm), usar un trazo fino de imprenta.
+        if ((float) ($output['guide_weight'] ?? 0) > 1.0) {
+            $guideWeight = 0.2;
+        }
 
 
 
@@ -159,6 +164,8 @@ class ParticipationPdfLayout
             guideColorB: $guideB,
 
             guideLineWidthMm: $guideWeight,
+
+            imageBleedMm: $imageBleedMm,
 
         );
 
@@ -333,8 +340,8 @@ class ParticipationPdfLayout
 
 
     /**
-     * Espacio horizontal entre participaciones.
-     * Solo el hueco configurado en el diseño (no el sangrado): sin calles por defecto.
+     * Espacio horizontal entre participaciones (solo hueco del formulario).
+     * La sangre NO mueve las piezas: las líneas de corte son independientes.
      */
     public function horizontalGutterMm(): float
     {
@@ -342,8 +349,7 @@ class ParticipationPdfLayout
     }
 
     /**
-     * Espacio vertical entre participaciones.
-     * Solo el hueco configurado en el diseño (no el sangrado): sin calles por defecto.
+     * Espacio vertical entre participaciones (solo hueco del formulario).
      */
     public function verticalGutterMm(): float
     {
@@ -494,65 +500,89 @@ class ParticipationPdfLayout
 
     public function cropMarkLengthMm(): float
     {
-        $maxBleed = max($this->bleedTop, $this->bleedRight, $this->bleedBottom, $this->bleedLeft, 0.5);
-
-        // Con 1 mm de sangrado: ticks ~2 mm hacia fuera del margen.
-        return max(1.5, min(3.0, $maxBleed * 2.0));
+        return max($this->imageBleedMm, 1.0);
     }
 
     /**
-     * Marcas de corte justo en el margen de cada participación.
-     * La participación se dibuja encima: solo se ve lo que sobresale al sangrado/callejón.
+     * Grilla de corte independiente del layout de participaciones.
+     * Las piezas quedan a ras; las líneas marcan el trim = borde de arte ± sangre.
+     * Entre piezas: dos líneas (seam − sangre y seam + sangre), como el PDF de imprenta.
      *
      * @return list<array{x1: float, y1: float, x2: float, y2: float}>
      */
-    public function cropMarkSegmentsForCell(int $col, int $row): array
+    public function cutGridSegments(): array
     {
         if (! $this->drawCropMarks) {
             return [];
         }
 
-        $x = $this->trimOriginX($col);
-        $y = $this->trimOriginY($row);
-        $w = $this->trimWidthMm;
-        $h = $this->trimHeightMm;
-        $len = $this->cropMarkLengthMm();
-        $sheetW = $this->sheetWidthMm;
-        $sheetH = $this->sheetHeightMm;
+        $sangre = max(0.0, $this->imageBleedMm);
+        $x0 = $this->trimOriginX(0);
+        $y0 = $this->trimOriginY(0);
+        $x1 = $this->trimOriginX($this->cols - 1) + $this->trimWidthMm;
+        $y1 = $this->trimOriginY($this->rows - 1) + $this->trimHeightMm;
+
+        // Las líneas atraviesan la hoja; en margen de página se ven los stubs.
+        $yTop = 0.0;
+        $yBot = $this->sheetHeightMm;
+        $xLeft = 0.0;
+        $xRight = $this->sheetWidthMm;
+
         $segments = [];
+        $seen = [];
 
-        // Ticks L en cada esquina: alineados con el margen (tocan el borde), hacia el sangrado.
-        // Superior-izquierda
-        $segments[] = ['x1' => max(0.0, $x - $len), 'y1' => $y, 'x2' => $x, 'y2' => $y];
-        $segments[] = ['x1' => $x, 'y1' => max(0.0, $y - $len), 'x2' => $x, 'y2' => $y];
-        // Superior-derecha
-        $segments[] = ['x1' => $x + $w, 'y1' => $y, 'x2' => min($sheetW, $x + $w + $len), 'y2' => $y];
-        $segments[] = ['x1' => $x + $w, 'y1' => max(0.0, $y - $len), 'x2' => $x + $w, 'y2' => $y];
-        // Inferior-izquierda
-        $segments[] = ['x1' => max(0.0, $x - $len), 'y1' => $y + $h, 'x2' => $x, 'y2' => $y + $h];
-        $segments[] = ['x1' => $x, 'y1' => $y + $h, 'x2' => $x, 'y2' => min($sheetH, $y + $h + $len)];
-        // Inferior-derecha
-        $segments[] = ['x1' => $x + $w, 'y1' => $y + $h, 'x2' => min($sheetW, $x + $w + $len), 'y2' => $y + $h];
-        $segments[] = ['x1' => $x + $w, 'y1' => $y + $h, 'x2' => $x + $w, 'y2' => min($sheetH, $y + $h + $len)];
+        $add = static function (array &$segments, array &$seen, float $xa, float $ya, float $xb, float $yb): void {
+            $key = sprintf('%.3f:%.3f:%.3f:%.3f', $xa, $ya, $xb, $yb);
+            if (isset($seen[$key])) {
+                return;
+            }
+            $seen[$key] = true;
+            if (abs($xb - $xa) < 0.05 && abs($yb - $ya) < 0.05) {
+                return;
+            }
+            $segments[] = ['x1' => $xa, 'y1' => $ya, 'x2' => $xb, 'y2' => $yb];
+        };
 
-        // Entre participaciones: línea completa en el margen compartido (callejón).
-        if ($col < $this->cols - 1) {
-            $segments[] = ['x1' => $x + $w, 'y1' => $y, 'x2' => $x + $w, 'y2' => $y + $h];
+        // Verticales exteriores: inset sangre hacia dentro del bloque de arte.
+        $add($segments, $seen, $x0 + $sangre, $yTop, $x0 + $sangre, $yBot);
+        $add($segments, $seen, $x1 - $sangre, $yTop, $x1 - $sangre, $yBot);
+
+        // Verticales internas: dos líneas por junta (independientes del arte a ras).
+        for ($c = 0; $c < $this->cols - 1; $c++) {
+            $seam = $this->trimOriginX($c) + $this->trimWidthMm;
+            $add($segments, $seen, $seam - $sangre, $yTop, $seam - $sangre, $yBot);
+            $add($segments, $seen, $seam + $sangre, $yTop, $seam + $sangre, $yBot);
         }
-        if ($row < $this->rows - 1) {
-            $segments[] = ['x1' => $x, 'y1' => $y + $h, 'x2' => $x + $w, 'y2' => $y + $h];
+
+        // Horizontales exteriores.
+        $add($segments, $seen, $xLeft, $y0 + $sangre, $xRight, $y0 + $sangre);
+        $add($segments, $seen, $xLeft, $y1 - $sangre, $xRight, $y1 - $sangre);
+
+        // Horizontales internas: dos líneas por junta.
+        for ($r = 0; $r < $this->rows - 1; $r++) {
+            $seam = $this->trimOriginY($r) + $this->trimHeightMm;
+            $add($segments, $seen, $xLeft, $seam - $sangre, $xRight, $seam - $sangre);
+            $add($segments, $seen, $xLeft, $seam + $sangre, $xRight, $seam + $sangre);
         }
 
-        return array_values(array_filter(
-            $segments,
-            static fn (array $segment): bool => abs($segment['x2'] - $segment['x1']) >= 0.05
-                || abs($segment['y2'] - $segment['y1']) >= 0.05
-        ));
+        return $segments;
     }
 
     /**
-     * Coordenadas absolutas en la hoja (para DomPDF con @page sin margen).
+     * Compatibilidad: la grilla se genera una vez por hoja vía cutGridSegments().
      *
+     * @return list<array{x1: float, y1: float, x2: float, y2: float}>
+     */
+    public function cropMarkSegmentsForCell(int $col, int $row): array
+    {
+        if ($col === 0 && $row === 0) {
+            return $this->cutGridSegments();
+        }
+
+        return [];
+    }
+
+    /**
      * @return list<array{x1: float, y1: float, x2: float, y2: float}>
      */
     public function cropMarkSegmentsForCellOnSheet(int $col, int $row): array
@@ -561,7 +591,6 @@ class ParticipationPdfLayout
     }
 
     /**
-     * @deprecated Usar cropMarkSegmentsForCellOnSheet con hoja completa.
      * @return list<array{x1: float, y1: float, x2: float, y2: float}>
      */
     public function cropMarkSegmentsForCellInContent(int $col, int $row): array
