@@ -332,26 +332,22 @@ class ParticipationPdfLayout
 
 
 
-    /** Callejón horizontal entre dos áreas de corte adyacentes. */
-
+    /**
+     * Espacio horizontal entre participaciones.
+     * Solo el hueco configurado en el diseño (no el sangrado): sin calles por defecto.
+     */
     public function horizontalGutterMm(): float
-
     {
-
-        return $this->bleedRight + $this->horizontalGapMm + $this->bleedLeft;
-
+        return max(0.0, $this->horizontalGapMm);
     }
 
-
-
-    /** Callejón vertical entre dos áreas de corte adyacentes. */
-
+    /**
+     * Espacio vertical entre participaciones.
+     * Solo el hueco configurado en el diseño (no el sangrado): sin calles por defecto.
+     */
     public function verticalGutterMm(): float
-
     {
-
-        return $this->bleedBottom + $this->verticalGapMm + $this->bleedTop;
-
+        return max(0.0, $this->verticalGapMm);
     }
 
 
@@ -500,99 +496,14 @@ class ParticipationPdfLayout
     {
         $maxBleed = max($this->bleedTop, $this->bleedRight, $this->bleedBottom, $this->bleedLeft, 0.5);
 
-        return max(1.2, min(3.0, $maxBleed * 2.0));
-    }
-
-    /** Hueco en la esquina: los dos segmentos no se tocan. */
-    public function cropMarkCornerGapMm(): float
-    {
-        return max(0.15, min(0.4, $this->cropMarkLengthMm() * 0.12));
+        // Con 1 mm de sangrado: ticks ~2 mm hacia fuera del margen.
+        return max(1.5, min(3.0, $maxBleed * 2.0));
     }
 
     /**
-     * Marcas de corte en la línea de trim, extendiéndose hacia la zona de sangrado.
-     * Estilo imprenta: segmento horizontal + vertical con hueco en la esquina.
+     * Marcas de corte justo en el margen de cada participación.
+     * La participación se dibuja encima: solo se ve lo que sobresale al sangrado/callejón.
      *
-     * @param  'tl'|'tr'|'bl'|'br'  $corner
-     * @return list<array{x1: float, y1: float, x2: float, y2: float}>
-     */
-    private function cornerMarkSegments(float $cx, float $cy, string $corner): array
-    {
-        $len = $this->cropMarkLengthMm();
-        $gap = $this->cropMarkCornerGapMm();
-        $sheetW = $this->sheetWidthMm;
-        $sheetH = $this->sheetHeightMm;
-
-        $segments = [];
-
-        switch ($corner) {
-            case 'tl':
-                // Esquina superior-izquierda: marcas hacia arriba y hacia la izquierda.
-                $segments[] = [
-                    'x1' => max(0.0, $cx - $len),
-                    'y1' => $cy,
-                    'x2' => max(0.0, $cx - $gap),
-                    'y2' => $cy,
-                ];
-                $segments[] = [
-                    'x1' => $cx,
-                    'y1' => max(0.0, $cy - $len),
-                    'x2' => $cx,
-                    'y2' => max(0.0, $cy - $gap),
-                ];
-                break;
-            case 'tr':
-                $segments[] = [
-                    'x1' => min($sheetW, $cx + $gap),
-                    'y1' => $cy,
-                    'x2' => min($sheetW, $cx + $len),
-                    'y2' => $cy,
-                ];
-                $segments[] = [
-                    'x1' => $cx,
-                    'y1' => max(0.0, $cy - $len),
-                    'x2' => $cx,
-                    'y2' => max(0.0, $cy - $gap),
-                ];
-                break;
-            case 'bl':
-                $segments[] = [
-                    'x1' => max(0.0, $cx - $len),
-                    'y1' => $cy,
-                    'x2' => max(0.0, $cx - $gap),
-                    'y2' => $cy,
-                ];
-                $segments[] = [
-                    'x1' => $cx,
-                    'y1' => min($sheetH, $cy + $gap),
-                    'x2' => $cx,
-                    'y2' => min($sheetH, $cy + $len),
-                ];
-                break;
-            case 'br':
-                $segments[] = [
-                    'x1' => min($sheetW, $cx + $gap),
-                    'y1' => $cy,
-                    'x2' => min($sheetW, $cx + $len),
-                    'y2' => $cy,
-                ];
-                $segments[] = [
-                    'x1' => $cx,
-                    'y1' => min($sheetH, $cy + $gap),
-                    'x2' => $cx,
-                    'y2' => min($sheetH, $cy + $len),
-                ];
-                break;
-        }
-
-        return array_values(array_filter(
-            $segments,
-            static fn (array $segment): bool => abs($segment['x2'] - $segment['x1']) >= 0.05
-                || abs($segment['y2'] - $segment['y1']) >= 0.05
-        ));
-    }
-
-    /**
      * @return list<array{x1: float, y1: float, x2: float, y2: float}>
      */
     public function cropMarkSegmentsForCell(int $col, int $row): array
@@ -605,13 +516,38 @@ class ParticipationPdfLayout
         $y = $this->trimOriginY($row);
         $w = $this->trimWidthMm;
         $h = $this->trimHeightMm;
+        $len = $this->cropMarkLengthMm();
+        $sheetW = $this->sheetWidthMm;
+        $sheetH = $this->sheetHeightMm;
+        $segments = [];
 
-        return array_merge(
-            $this->cornerMarkSegments($x, $y, 'tl'),
-            $this->cornerMarkSegments($x + $w, $y, 'tr'),
-            $this->cornerMarkSegments($x, $y + $h, 'bl'),
-            $this->cornerMarkSegments($x + $w, $y + $h, 'br'),
-        );
+        // Ticks L en cada esquina: alineados con el margen (tocan el borde), hacia el sangrado.
+        // Superior-izquierda
+        $segments[] = ['x1' => max(0.0, $x - $len), 'y1' => $y, 'x2' => $x, 'y2' => $y];
+        $segments[] = ['x1' => $x, 'y1' => max(0.0, $y - $len), 'x2' => $x, 'y2' => $y];
+        // Superior-derecha
+        $segments[] = ['x1' => $x + $w, 'y1' => $y, 'x2' => min($sheetW, $x + $w + $len), 'y2' => $y];
+        $segments[] = ['x1' => $x + $w, 'y1' => max(0.0, $y - $len), 'x2' => $x + $w, 'y2' => $y];
+        // Inferior-izquierda
+        $segments[] = ['x1' => max(0.0, $x - $len), 'y1' => $y + $h, 'x2' => $x, 'y2' => $y + $h];
+        $segments[] = ['x1' => $x, 'y1' => $y + $h, 'x2' => $x, 'y2' => min($sheetH, $y + $h + $len)];
+        // Inferior-derecha
+        $segments[] = ['x1' => $x + $w, 'y1' => $y + $h, 'x2' => min($sheetW, $x + $w + $len), 'y2' => $y + $h];
+        $segments[] = ['x1' => $x + $w, 'y1' => $y + $h, 'x2' => $x + $w, 'y2' => min($sheetH, $y + $h + $len)];
+
+        // Entre participaciones: línea completa en el margen compartido (callejón).
+        if ($col < $this->cols - 1) {
+            $segments[] = ['x1' => $x + $w, 'y1' => $y, 'x2' => $x + $w, 'y2' => $y + $h];
+        }
+        if ($row < $this->rows - 1) {
+            $segments[] = ['x1' => $x, 'y1' => $y + $h, 'x2' => $x + $w, 'y2' => $y + $h];
+        }
+
+        return array_values(array_filter(
+            $segments,
+            static fn (array $segment): bool => abs($segment['x2'] - $segment['x1']) >= 0.05
+                || abs($segment['y2'] - $segment['y1']) >= 0.05
+        ));
     }
 
     /**

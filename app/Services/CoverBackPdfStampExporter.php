@@ -71,17 +71,21 @@ class CoverBackPdfStampExporter
         $pages = array_values(array_chunk($books, $perPage));
         foreach ($pages as $pageBooks) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
+
+            if ($layout->drawCropMarks) {
+                for ($i = 0; $i < $perPage; $i++) {
+                    $this->drawCropMarks($pdf, $layout, $i % $cols, intdiv($i, $cols));
+                }
+            }
+
             for ($i = 0; $i < $perPage; $i++) {
+                if (! isset($pageBooks[$i]) || ! is_array($pageBooks[$i])) {
+                    continue;
+                }
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
                 $originX = $layout->trimOriginX($col);
                 $originY = $layout->trimOriginY($row);
-
-                if (! isset($pageBooks[$i]) || ! is_array($pageBooks[$i])) {
-                    $this->drawCropMarks($pdf, $layout, $col, $row);
-
-                    continue;
-                }
 
                 $pdf->useTemplate($tplId, $originX, $originY, $cellW, $cellH);
                 if ($drawBorder) {
@@ -100,8 +104,6 @@ class CoverBackPdfStampExporter
                     $cellW,
                     $designW
                 );
-
-                $this->drawCropMarks($pdf, $layout, $col, $row);
             }
         }
 
@@ -156,6 +158,13 @@ class CoverBackPdfStampExporter
         $totalPages = (int) ceil($copies / $perPage);
         for ($p = 0; $p < $totalPages; $p++) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
+
+            if ($layout->drawCropMarks) {
+                for ($i = 0; $i < $perPage; $i++) {
+                    $this->drawCropMarks($pdf, $layout, $i % $cols, intdiv($i, $cols));
+                }
+            }
+
             for ($i = 0; $i < $perPage; $i++) {
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
@@ -164,8 +173,6 @@ class CoverBackPdfStampExporter
                 $index = $p + ($i * $totalPages);
 
                 if ($index >= $copies) {
-                    $this->drawCropMarks($pdf, $layout, $col, $row);
-
                     continue;
                 }
 
@@ -175,8 +182,6 @@ class CoverBackPdfStampExporter
                     $pdf->SetLineWidth(0.25);
                     $pdf->Rect($originX, $originY, $cellW, $cellH);
                 }
-
-                $this->drawCropMarks($pdf, $layout, $col, $row);
             }
         }
 

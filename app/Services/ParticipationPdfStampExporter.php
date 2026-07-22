@@ -73,6 +73,13 @@ class ParticipationPdfStampExporter
         foreach ($pages as $pageTickets) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
 
+            // Marcas primero (debajo); la participación se dibuja encima y las tapa.
+            if ($layout->drawCropMarks) {
+                for ($i = 0; $i < $perPage; $i++) {
+                    $this->drawCropMarks($pdf, $layout, $i % $cols, intdiv($i, $cols));
+                }
+            }
+
             for ($i = 0; $i < $perPage; $i++) {
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
@@ -80,9 +87,6 @@ class ParticipationPdfStampExporter
                 $originY = $layout->trimOriginY($row);
 
                 if (! isset($pageTickets[$i]) || ! is_array($pageTickets[$i])) {
-                    if ($layout->drawCropMarks) {
-                        $this->drawCropMarks($pdf, $layout, $col, $row);
-                    }
                     continue;
                 }
 
@@ -104,8 +108,6 @@ class ParticipationPdfStampExporter
                     $cellW,
                     $designW
                 );
-
-                $this->drawCropMarks($pdf, $layout, $col, $row);
             }
         }
 
