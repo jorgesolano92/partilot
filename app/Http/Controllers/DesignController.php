@@ -10,6 +10,7 @@ use App\Models\Set;
 use App\Models\Participation;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Support\HtmlText;
+use App\Support\ParticipationPdfLayout;
 use App\Models\DesignFormat;
 use App\Models\DesignExternalInvitation;
 use App\Models\DesignExternalInvitationFile;
@@ -1612,6 +1613,7 @@ class DesignController extends Controller
     {
         $html = $this->decodeCssUrlHtmlEntities($html);
         $html = $this->flattenParticipationHtmlForPdf($html);
+        $html = $this->stripFormatBoxBorderForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $publicPath = public_path();
@@ -1635,6 +1637,7 @@ class DesignController extends Controller
             'design-participation-bg'
         );
         $html = $this->flattenParticipationHtmlForPdf($html);
+        $html = $this->stripFormatBoxBorderForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
@@ -1687,6 +1690,111 @@ class DesignController extends Controller
         $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
 
         return $html;
+    }
+
+    /**
+     * Elimina bordes del contenedor de participación (no deben imprimirse).
+     */
+    public function stripFormatBoxBorderForPdf(string $html): string
+    {
+        if ($html === '') {
+            return $html;
+        }
+
+        $html = preg_replace_callback(
+            '/(<div[^>]*\bclass="[^"]*\bformat-box\b[^"]*"[^>]*\bstyle=(["\']))(.*?)\2/is',
+            static function (array $m): string {
+                $style = preg_replace('/\bborder(?:-\w+)?\s*:[^;]+;?/i', '', $m[3]) ?? $m[3];
+                $style = trim($style, '; ').'; border:none !important; outline:none !important;';
+
+                return $m[1].$style.$m[2];
+            },
+            $html
+        ) ?? $html;
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bstyle=(["\']))(.*?)\2([^>]*\bclass="[^"]*\bformat-box\b[^"]*"[^>]*>)/is',
+            static function (array $m): string {
+                $style = preg_replace('/\bborder(?:-\w+)?\s*:[^;]+;?/i', '', $m[3]) ?? $m[3];
+                $style = trim($style, '; ').'; border:none !important; outline:none !important;';
+
+                return $m[1].$style.$m[2].$m[4];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    /**
+     * Escala el HTML del diseño al tamaño de corte calculado para llenar la hoja.
+     */
+    public function scaleParticipationHtmlDimensionsForPdf(
+        string $html,
+        ParticipationPdfLayout $layout
+    ): string {
+        $scaleX = $layout->trimScaleX();
+        $scaleY = $layout->trimScaleY();
+
+        if (abs($scaleX - 1.0) < 0.0005 && abs($scaleY - 1.0) < 0.0005) {
+            return $html;
+        }
+
+        $targetW = $layout->trimWidthMm;
+        $targetH = $layout->trimHeightMm;
+
+        $html = preg_replace_callback(
+            '/(<div[^>]*\bclass="[^"]*\bformat-box\b[^"]*"[^>]*\bstyle=(["\']))(.*?)\2/is',
+            static function (array $m) use ($targetW, $targetH): string {
+                $style = $m[3];
+                $style = preg_replace('/\bwidth\s*:\s*[\d.]+mm/i', 'width:'.$targetW.'mm', $style) ?? $style;
+                $style = preg_replace('/\bheight\s*:\s*[\d.]+mm/i', 'height:'.$targetH.'mm', $style) ?? $style;
+
+                return $m[1].$style.$m[2];
+            },
+            $html
+        ) ?? $html;
+
+        $html = preg_replace_callback(
+            '/(<div[^>]*\bstyle=(["\']))(.*?)\2([^>]*\bclass="[^"]*\bformat-box\b[^"]*"[^>]*>)/is',
+            static function (array $m) use ($targetW, $targetH): string {
+                $style = $m[3];
+                $style = preg_replace('/\bwidth\s*:\s*[\d.]+mm/i', 'width:'.$targetW.'mm', $style) ?? $style;
+                $style = preg_replace('/\bheight\s*:\s*[\d.]+mm/i', 'height:'.$targetH.'mm', $style) ?? $style;
+
+                return $m[1].$style.$m[2].$m[4];
+            },
+            $html
+        ) ?? $html;
+
+        return preg_replace_callback(
+            '/(<div[^>]*\bclass="[^"]*\belements\b[^"]*"[^>]*\bstyle=(["\']))(.*?)\2/is',
+            function (array $m) use ($scaleX, $scaleY): string {
+                return $m[1].$this->scaleCssPxBoxModel($m[3], $scaleX, $scaleY).$m[2];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    private function scaleCssPxBoxModel(string $style, float $scaleX, float $scaleY): string
+    {
+        $style = preg_replace_callback(
+            '/\b(left|width|padding-left|padding-right|margin-left|margin-right|right)\s*:\s*([\d.]+)\s*px/i',
+            static fn (array $m): string => $m[1].':'.round((float) $m[2] * $scaleX, 2).'px',
+            $style
+        ) ?? $style;
+
+        $style = preg_replace_callback(
+            '/\b(top|height|padding-top|padding-bottom|margin-top|margin-bottom|bottom)\s*:\s*([\d.]+)\s*px/i',
+            static fn (array $m): string => $m[1].':'.round((float) $m[2] * $scaleY, 2).'px',
+            $style
+        ) ?? $style;
+
+        $fontScale = ($scaleX + $scaleY) / 2.0;
+
+        return preg_replace_callback(
+            '/\bfont-size\s*:\s*([\d.]+)\s*px/i',
+            static fn (array $m): string => 'font-size:'.round((float) $m[1] * $fontScale, 2).'px',
+            $style
+        ) ?? $style;
     }
 
     /**
@@ -2886,15 +2994,16 @@ class DesignController extends Controller
             $this->cleanupTempQrCodes();
 
             return response()
-                ->view('design.pdf_participation', [
-                    'pages' => $pages,
-                    'participation_html' => $participation_html,
-                    'rows' => $rows,
-                    'cols' => $cols,
-                    'qrCodes' => $qrCodes,
-                    'pdfDocumentTitle' => 'Participación PDF (vista previa)',
-                    'pdfHtmlPreviewBanner' => true,
-                ])
+                ->view('design.pdf_participation', $this->participationPdfViewData(
+                    $design,
+                    $pages,
+                    $participation_html,
+                    $qrCodes,
+                    [
+                        'pdfDocumentTitle' => 'Participación PDF (vista previa)',
+                        'pdfHtmlPreviewBanner' => true,
+                    ]
+                ))
                 ->header('Content-Type', 'text/html; charset=UTF-8');
         }
 
@@ -2928,13 +3037,12 @@ class DesignController extends Controller
             'qrCodes' => $qrCodes,
         ]);*/
 
-        $pdf = Pdf::loadView('design.pdf_participation', [
-            'pages' => $pages,
-            'participation_html' => $participation_html,
-            'rows' => $rows,
-            'cols' => $cols,
-            'qrCodes' => $qrCodes,
-        ])->setPaper($page, $pdfOrientation);
+        $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
+            $design,
+            $pages,
+            $participation_html,
+            $qrCodes
+        ))->setPaper($page, $pdfOrientation);
         $this->applyDompdfOptions($pdf);
 
         // Limpiar QR codes temporales después de generar el PDF
@@ -2953,7 +3061,13 @@ class DesignController extends Controller
 
         try {
             if ($this->designPdfHtmlPreviewEnabled()) {
-                $payload = $this->buildGridPdfParticipationViewPayload($design, $this->buildCoverHtmlItems($design), 'Portadas PDF (vista previa)');
+                $payload = $this->buildGridPdfParticipationViewPayload(
+                    $design,
+                    $this->buildCoverHtmlItems($design),
+                    'Portadas PDF (vista previa)',
+                    false,
+                    $design->cover_html ?? ''
+                );
                 $payload['data']['pdfHtmlPreviewBanner'] = true;
 
                 return response()
@@ -2997,7 +3111,13 @@ class DesignController extends Controller
                 } else {
                     $title = $copies === 'one' ? 'Traseras PDF — 1 ejemplar (vista previa)' : 'Traseras PDF (vista previa)';
                 }
-                $payload = $this->buildGridPdfParticipationViewPayload($design, $this->buildBackHtmlItems($design, $copies, $exactCount), $title);
+                $payload = $this->buildGridPdfParticipationViewPayload(
+                    $design,
+                    $this->buildBackHtmlItems($design, $copies, $exactCount),
+                    $title,
+                    true,
+                    $design->back_html ?? ''
+                );
                 $payload['data']['pdfHtmlPreviewBanner'] = true;
 
                 return response()
@@ -3161,6 +3281,7 @@ class DesignController extends Controller
             $html = $this->insetBackBackgroundLeavingMatrix($html, $identationMm, $matrixMm, $wrapperId, $bgId);
         }
         $html = $this->flattenParticipationHtmlForPdf($html);
+        $html = $this->stripFormatBoxBorderForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
@@ -3209,6 +3330,7 @@ class DesignController extends Controller
 
         $html = $this->decodeCssUrlHtmlEntities($html);
         $html = $this->flattenParticipationHtmlForPdf($html);
+        $html = $this->stripFormatBoxBorderForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $publicPath = public_path();
@@ -3391,11 +3513,47 @@ class DesignController extends Controller
      * @param  string[]  $items
      * @return array{view: string, data: array<string, mixed>, page: string, orientation: string}
      */
+    private function participationPdfLayout(DesignFormat $design, ?string $participationHtml = null): ParticipationPdfLayout
+    {
+        return ParticipationPdfLayout::fromDesign(
+            $design,
+            $participationHtml ?? $design->participation_html ?? ''
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function participationPdfViewData(
+        DesignFormat $design,
+        array $pages,
+        string $participationHtml,
+        array $qrCodes,
+        array $extra = [],
+        ?string $layoutHtml = null
+    ): array {
+        $layout = $this->participationPdfLayout($design, $layoutHtml ?? $participationHtml);
+        if ($participationHtml !== '' && empty($extra['use_prebuilt_cells'])) {
+            $participationHtml = $this->scaleParticipationHtmlDimensionsForPdf($participationHtml, $layout);
+        }
+
+        return array_merge([
+            'pages' => $pages,
+            'participation_html' => $participationHtml,
+            'rows' => max(1, (int) ($design->rows ?? 1)),
+            'cols' => max(1, (int) ($design->cols ?? 1)),
+            'qrCodes' => $qrCodes,
+            'layout' => $layout,
+        ], $extra);
+    }
+
     private function buildGridPdfParticipationViewPayload(
         DesignFormat $design,
         array $items,
         string $documentTitle,
-        bool $talonario = false
+        bool $talonario = false,
+        ?string $layoutHtml = null
     ): array {
         if ($items === []) {
             throw new \RuntimeException('No hay elementos para generar el PDF');
@@ -3404,21 +3562,22 @@ class DesignController extends Controller
         $rows = max(1, (int) ($design->rows ?? 1));
         $cols = max(1, (int) ($design->cols ?? 1));
         $per_page = $rows * $cols;
+        $layoutSource = $layoutHtml ?? $items[0] ?? $design->participation_html ?? '';
+        $layout = $this->participationPdfLayout($design, $layoutSource);
+        $scaledItems = array_map(
+            fn (string $item): string => $this->scaleParticipationHtmlDimensionsForPdf($item, $layout),
+            $items
+        );
         $pages = $talonario
-            ? $this->generatePagesGuillotine($items, $per_page)
-            : $this->generatePagesSequential($items, $per_page);
+            ? $this->generatePagesGuillotine($scaledItems, $per_page)
+            : $this->generatePagesSequential($scaledItems, $per_page);
 
         return [
             'view' => 'design.pdf_participation',
-            'data' => [
-                'pages' => $pages,
+            'data' => $this->participationPdfViewData($design, $pages, '', [], [
                 'use_prebuilt_cells' => true,
-                'participation_html' => '',
-                'rows' => $rows,
-                'cols' => $cols,
-                'qrCodes' => [],
                 'pdfDocumentTitle' => $documentTitle,
-            ],
+            ], $layoutSource),
             'page' => $design->page ?? 'a3',
             'orientation' => $design->orientation ?? 'h',
         ];
@@ -3645,15 +3804,22 @@ class DesignController extends Controller
                 }
             }
 
+            $layoutDesign = $design ? $design->replicate() : new DesignFormat();
+            $layoutDesign->page = $page;
+            $layoutDesign->orientation = $orientation;
+            $layoutDesign->rows = $rows;
+            $layoutDesign->cols = $cols;
+            $layoutDesign->identation = $identation;
+
             $pages = $this->generatePagesOptimized([$ticket], 1, $perPage);
-            $pdf = Pdf::loadView('design.pdf_participation', [
-                'pages' => $pages,
-                'participation_html' => $prepared,
-                'rows' => $rows,
-                'cols' => $cols,
-                'qrCodes' => $qrCodes,
-                'pdfDocumentTitle' => 'Vista previa participación',
-            ])->setPaper($page, $pdfOrientation);
+            $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
+                $layoutDesign,
+                $pages,
+                $prepared,
+                $qrCodes,
+                ['pdfDocumentTitle' => 'Vista previa participación'],
+                $html
+            ))->setPaper($page, $pdfOrientation);
             $this->applyDompdfOptions($pdf);
             $this->cleanupTempQrCodes();
 
@@ -5621,13 +5787,12 @@ class DesignController extends Controller
             $pages = $this->generatePagesOptimized($chunk_tickets, $chunk_pages, $per_page);
             
             // Generar PDF para este chunk
-            $pdf = Pdf::loadView('design.pdf_participation', [
-                'pages' => $pages,
-                'participation_html' => $participation_html,
-                'rows' => $rows,
-                'cols' => $cols,
-                'qrCodes' => $qrCodes,
-            ])->setPaper($page, $pdfOrientation);
+            $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
+                $design,
+                $pages,
+                $participation_html,
+                $qrCodes
+            ))->setPaper($page, $pdfOrientation);
             $this->applyDompdfOptions($pdf);
 
             // Guardar en archivo temporal
@@ -5786,13 +5951,12 @@ class DesignController extends Controller
         $total_pages = $per_page > 0 ? (int) ceil(count($tickets_slice) / $per_page) : 0;
         $pages = $this->generatePagesOptimized($tickets_slice, $total_pages, $per_page);
 
-        $pdf = Pdf::loadView('design.pdf_participation', [
-            'pages' => $pages,
-            'participation_html' => $participation_html,
-            'rows' => $rows,
-            'cols' => $cols,
-            'qrCodes' => $qrCodes,
-        ])->setPaper($page, $pdfOrientation);
+        $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
+            $design,
+            $pages,
+            $participation_html,
+            $qrCodes
+        ))->setPaper($page, $pdfOrientation);
         $this->applyDompdfOptions($pdf);
         $pdf->save($finalPath);
     }

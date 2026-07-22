@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Http\Controllers\DesignController;
 use App\Models\DesignFormat;
+use App\Support\ParticipationPdfLayout;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use setasign\Fpdi\Fpdi;
@@ -35,20 +36,22 @@ class ParticipationPdfStampExporter
     ): void {
         $t0 = microtime(true);
 
-        $rows = max(1, (int) ($design->rows ?? 1));
-        $cols = max(1, (int) ($design->cols ?? 1));
+        $layout = ParticipationPdfLayout::fromDesign($design, $design->participation_html ?? '');
+        $rows = $layout->rows;
+        $cols = $layout->cols;
         $perPage = $rows * $cols;
         $pageKey = strtolower((string) ($design->page ?? 'a3'));
         $orientation = ($design->orientation ?? 'h') === 'h' ? 'L' : 'P';
 
         $staticHtml = $this->makeStaticParticipationHtml($participationHtmlPrepared);
         $slots = $this->resolveSlotsFromHtml($slotsHtml ?? $participationHtmlPrepared);
-        $format = $this->resolveFormatBoxMm($participationHtmlPrepared);
-        $cellW = $format['w'];
-        $cellH = $format['h'];
+        $cellW = $layout->trimWidthMm;
+        $cellH = $layout->trimHeightMm;
+        $designW = $layout->designWidthMm;
+        $designH = $layout->designHeightMm;
 
         $templatePath = storage_path('app/temp_pdf_stamp_cell_'.uniqid('', true).'.pdf');
-        $this->renderCellTemplate($staticHtml, $cellW, $cellH, $templatePath);
+        $this->renderCellTemplate($staticHtml, $designW, $designH, $templatePath);
 
         $tTemplate = microtime(true);
 
@@ -60,13 +63,11 @@ class ParticipationPdfStampExporter
         }
         $tplId = $pdf->importPage(1);
 
-        [$pageW, $pageH] = $this->sheetSizeMm($pageKey, $orientation);
+        [$pageW, $pageH] = [$layout->sheetWidthMm, $layout->sheetHeightMm];
 
-        $marginX = 10.0 + (float) config('pdf_optimization.stamp_offset_x', 0);
-        $marginY = 8.0 + (float) config('pdf_optimization.stamp_offset_y', 0);
         $contentDx = (float) config('pdf_optimization.stamp_content_offset_x', 0);
         $contentDy = (float) config('pdf_optimization.stamp_content_offset_y', 0.8);
-        $drawBorder = (bool) config('pdf_optimization.stamp_cell_border', true);
+        $drawBorder = (bool) config('pdf_optimization.stamp_cell_border', false);
 
         $pages = $this->paginateTickets($tickets, $perPage);
         foreach ($pages as $pageTickets) {
@@ -75,10 +76,13 @@ class ParticipationPdfStampExporter
             for ($i = 0; $i < $perPage; $i++) {
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
-                $originX = $marginX + ($col * $cellW);
-                $originY = $marginY + ($row * $cellH);
+                $originX = $layout->trimOriginX($col);
+                $originY = $layout->trimOriginY($row);
 
                 if (! isset($pageTickets[$i]) || ! is_array($pageTickets[$i])) {
+                    if ($layout->drawCropMarks) {
+                        $this->drawCropMarks($pdf, $layout, $col, $row);
+                    }
                     continue;
                 }
 
@@ -98,8 +102,10 @@ class ParticipationPdfStampExporter
                     $originX + $contentDx,
                     $originY + $contentDy,
                     $cellW,
-                    $format['w']
+                    $designW
                 );
+
+                $this->drawCropMarks($pdf, $layout, $col, $row);
             }
         }
 
@@ -120,6 +126,20 @@ class ParticipationPdfStampExporter
             'total_ms' => (int) round((microtime(true) - $t0) * 1000),
             'bytes' => is_file($finalPath) ? filesize($finalPath) : 0,
         ]);
+    }
+
+    private function drawCropMarks(Fpdi $pdf, ParticipationPdfLayout $layout, int $col, int $row): void
+    {
+        if (! $layout->drawCropMarks) {
+            return;
+        }
+
+        $pdf->SetDrawColor($layout->guideColorR, $layout->guideColorG, $layout->guideColorB);
+        $pdf->SetLineWidth(max(0.12, $layout->guideLineWidthMm));
+
+        foreach ($layout->cropMarkSegmentsForCell($col, $row) as $segment) {
+            $pdf->Line($segment['x1'], $segment['y1'], $segment['x2'], $segment['y2']);
+        }
     }
 
     /**

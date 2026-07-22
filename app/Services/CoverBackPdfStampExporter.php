@@ -4,14 +4,14 @@ namespace App\Services;
 
 use App\Http\Controllers\DesignController;
 use App\Models\DesignFormat;
+use App\Support\ParticipationPdfLayout;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use setasign\Fpdi\Fpdi;
 
 /**
  * Portada / trasera con el mismo esquema que participaciones:
- * DomPDF 1 celda + FPDI en rejilla fija + stamps (QR / etiqueta taco en portada).
- * No modifica ParticipationPdfStampExporter::exportToFile.
+ * DomPDF 1 celda + FPDI en rejilla + sangrado y marcas de corte.
  */
 class CoverBackPdfStampExporter
 {
@@ -30,20 +30,21 @@ class CoverBackPdfStampExporter
         ?string $slotsHtml = null
     ): void {
         $t0 = microtime(true);
-        $rows = max(1, (int) ($design->rows ?? 1));
-        $cols = max(1, (int) ($design->cols ?? 1));
+        $layout = ParticipationPdfLayout::fromDesign($design, $design->cover_html ?? $coverHtmlPrepared);
+        $rows = $layout->rows;
+        $cols = $layout->cols;
         $perPage = $rows * $cols;
-        $pageKey = strtolower((string) ($design->page ?? 'a3'));
         $orientation = ($design->orientation ?? 'h') === 'h' ? 'L' : 'P';
 
         $staticHtml = $this->makeStaticCoverHtml($coverHtmlPrepared);
         $slots = $this->resolveCoverSlots($slotsHtml ?? $coverHtmlPrepared);
-        $format = $this->resolveFormatBoxMm($coverHtmlPrepared);
-        $cellW = $format['w'];
-        $cellH = $format['h'];
+        $cellW = $layout->trimWidthMm;
+        $cellH = $layout->trimHeightMm;
+        $designW = $layout->designWidthMm;
+        $designH = $layout->designHeightMm;
 
         $templatePath = storage_path('app/temp_pdf_stamp_cover_'.uniqid('', true).'.pdf');
-        $this->renderCellTemplate($staticHtml, $cellW, $cellH, $templatePath);
+        $this->renderCellTemplate($staticHtml, $designW, $designH, $templatePath);
 
         $refs = [];
         foreach ($books as $book) {
@@ -62,24 +63,25 @@ class CoverBackPdfStampExporter
         }
         $tplId = $pdf->importPage(1);
 
-        [$pageW, $pageH] = $this->sheetSizeMm($pageKey, $orientation);
-        $marginX = 10.0 + (float) config('pdf_optimization.stamp_offset_x', 0);
-        $marginY = 8.0 + (float) config('pdf_optimization.stamp_offset_y', 0);
+        [$pageW, $pageH] = [$layout->sheetWidthMm, $layout->sheetHeightMm];
         $contentDx = (float) config('pdf_optimization.stamp_content_offset_x', 0);
         $contentDy = (float) config('pdf_optimization.stamp_content_offset_y', 0);
-        $drawBorder = (bool) config('pdf_optimization.stamp_cell_border', true);
+        $drawBorder = (bool) config('pdf_optimization.stamp_cell_border', false);
 
         $pages = array_values(array_chunk($books, $perPage));
         foreach ($pages as $pageBooks) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
             for ($i = 0; $i < $perPage; $i++) {
-                if (! isset($pageBooks[$i]) || ! is_array($pageBooks[$i])) {
-                    continue;
-                }
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
-                $originX = $marginX + ($col * $cellW);
-                $originY = $marginY + ($row * $cellH);
+                $originX = $layout->trimOriginX($col);
+                $originY = $layout->trimOriginY($row);
+
+                if (! isset($pageBooks[$i]) || ! is_array($pageBooks[$i])) {
+                    $this->drawCropMarks($pdf, $layout, $col, $row);
+
+                    continue;
+                }
 
                 $pdf->useTemplate($tplId, $originX, $originY, $cellW, $cellH);
                 if ($drawBorder) {
@@ -96,8 +98,10 @@ class CoverBackPdfStampExporter
                     $originX + $contentDx,
                     $originY + $contentDy,
                     $cellW,
-                    $format['w']
+                    $designW
                 );
+
+                $this->drawCropMarks($pdf, $layout, $col, $row);
             }
         }
 
@@ -123,19 +127,20 @@ class CoverBackPdfStampExporter
     ): void {
         $t0 = microtime(true);
         $copies = max(1, $copies);
-        $rows = max(1, (int) ($design->rows ?? 1));
-        $cols = max(1, (int) ($design->cols ?? 1));
+        $layout = ParticipationPdfLayout::fromDesign($design, $design->back_html ?? $backHtmlPrepared);
+        $rows = $layout->rows;
+        $cols = $layout->cols;
         $perPage = $rows * $cols;
-        $pageKey = strtolower((string) ($design->page ?? 'a3'));
         $orientation = ($design->orientation ?? 'h') === 'h' ? 'L' : 'P';
 
         $staticHtml = $this->makeStaticBackHtml($backHtmlPrepared);
-        $format = $this->resolveFormatBoxMm($backHtmlPrepared);
-        $cellW = $format['w'];
-        $cellH = $format['h'];
+        $cellW = $layout->trimWidthMm;
+        $cellH = $layout->trimHeightMm;
+        $designW = $layout->designWidthMm;
+        $designH = $layout->designHeightMm;
 
         $templatePath = storage_path('app/temp_pdf_stamp_back_'.uniqid('', true).'.pdf');
-        $this->renderCellTemplate($staticHtml, $cellW, $cellH, $templatePath);
+        $this->renderCellTemplate($staticHtml, $designW, $designH, $templatePath);
 
         $pdf = new Fpdi();
         $pageCount = $pdf->setSourceFile($templatePath);
@@ -145,30 +150,33 @@ class CoverBackPdfStampExporter
         }
         $tplId = $pdf->importPage(1);
 
-        [$pageW, $pageH] = $this->sheetSizeMm($pageKey, $orientation);
-        $marginX = 10.0 + (float) config('pdf_optimization.stamp_offset_x', 0);
-        $marginY = 8.0 + (float) config('pdf_optimization.stamp_offset_y', 0);
-        $drawBorder = (bool) config('pdf_optimization.stamp_cell_border', true);
+        [$pageW, $pageH] = [$layout->sheetWidthMm, $layout->sheetHeightMm];
+        $drawBorder = (bool) config('pdf_optimization.stamp_cell_border', false);
 
         $totalPages = (int) ceil($copies / $perPage);
-        // Misma ordenación talonario/guillotina que participaciones.
         for ($p = 0; $p < $totalPages; $p++) {
             $pdf->AddPage($orientation, [$pageW, $pageH]);
             for ($i = 0; $i < $perPage; $i++) {
-                $index = $p + ($i * $totalPages);
-                if ($index >= $copies) {
-                    continue;
-                }
                 $col = $i % $cols;
                 $row = intdiv($i, $cols);
-                $originX = $marginX + ($col * $cellW);
-                $originY = $marginY + ($row * $cellH);
+                $originX = $layout->trimOriginX($col);
+                $originY = $layout->trimOriginY($row);
+                $index = $p + ($i * $totalPages);
+
+                if ($index >= $copies) {
+                    $this->drawCropMarks($pdf, $layout, $col, $row);
+
+                    continue;
+                }
+
                 $pdf->useTemplate($tplId, $originX, $originY, $cellW, $cellH);
                 if ($drawBorder) {
                     $pdf->SetDrawColor(120, 120, 120);
                     $pdf->SetLineWidth(0.25);
                     $pdf->Rect($originX, $originY, $cellW, $cellH);
                 }
+
+                $this->drawCropMarks($pdf, $layout, $col, $row);
             }
         }
 
@@ -186,9 +194,22 @@ class CoverBackPdfStampExporter
         ]);
     }
 
+    private function drawCropMarks(Fpdi $pdf, ParticipationPdfLayout $layout, int $col, int $row): void
+    {
+        if (! $layout->drawCropMarks) {
+            return;
+        }
+
+        $pdf->SetDrawColor($layout->guideColorR, $layout->guideColorG, $layout->guideColorB);
+        $pdf->SetLineWidth(max(0.12, $layout->guideLineWidthMm));
+
+        foreach ($layout->cropMarkSegmentsForCell($col, $row) as $segment) {
+            $pdf->Line($segment['x1'], $segment['y1'], $segment['x2'], $segment['y2']);
+        }
+    }
+
     private function makeStaticCoverHtml(string $html): string
     {
-        // QR solo por FPDI (evita caja blanca vacía).
         $html = preg_replace(
             '/<div[^>]*\bclass="[^"]*\bqr\b[^"]*"[^>]*>.*?<\/div>/is',
             '',
@@ -196,7 +217,6 @@ class CoverBackPdfStampExporter
             1
         ) ?? $html;
 
-        // Barra .context: conservar caja; vaciar contenido (etiqueta se estampa).
         $html = preg_replace_callback(
             '/(<div[^>]*\bclass="[^"]*\bcontext\b[^"]*"[^>]*>)(.*?)(<\/div>)/is',
             static fn (array $m): string => $m[1].$m[3],
@@ -344,36 +364,9 @@ class CoverBackPdfStampExporter
      */
     private function resolveFormatBoxMm(string $html): array
     {
-        $w = 200.0;
-        $h = 92.0;
-        if (preg_match('/format-box[^>]*style=(["\'])(.*?)\1/is', $html, $m)
-            || preg_match('/style=(["\'])(.*?)\1[^>]*format-box/is', $html, $m)) {
-            $style = $m[2];
-            if (preg_match('/\bwidth\s*:\s*([\d.]+)\s*mm/i', $style, $wm)) {
-                $w = (float) $wm[1];
-            }
-            if (preg_match('/\bheight\s*:\s*([\d.]+)\s*mm/i', $style, $hm)) {
-                $h = (float) $hm[1];
-            }
-        }
+        [$w, $h] = ParticipationPdfLayout::parseFormatBoxMm($html);
 
-        return ['w' => max(10.0, $w), 'h' => max(10.0, $h)];
-    }
-
-    /**
-     * @return array{0:float,1:float}
-     */
-    private function sheetSizeMm(string $pageKey, string $orientation): array
-    {
-        $sizes = [
-            'a3' => [297.0, 420.0],
-            'a4' => [210.0, 297.0],
-            'a5' => [148.0, 210.0],
-            'letter' => [215.9, 279.4],
-        ];
-        [$short, $long] = $sizes[$pageKey] ?? $sizes['a3'];
-
-        return $orientation === 'L' ? [$long, $short] : [$short, $long];
+        return ['w' => $w, 'h' => $h];
     }
 
     private function renderCellTemplate(

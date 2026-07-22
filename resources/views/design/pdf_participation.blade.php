@@ -2,8 +2,27 @@
     $use_prebuilt_cells = $use_prebuilt_cells ?? false;
     $pdfDocumentTitle = $pdfDocumentTitle ?? 'Participación PDF';
     $cols = max(1, (int) ($cols ?? 1));
-    // Fondo ya viene promovido a <img> en prepareParticipationHtmlForPdf (una vez).
-    // Aquí solo se clonan variables (ref/nº) + QR por ticket.
+    $rows = max(1, (int) ($rows ?? 1));
+    /** @var \App\Support\ParticipationPdfLayout|null $layout */
+    $layout = $layout ?? null;
+
+    if ($layout) {
+        $sheetW = $layout->sheetWidthMm;
+        $sheetH = $layout->sheetHeightMm;
+        $trimW = $layout->trimWidthMm;
+        $trimH = $layout->trimHeightMm;
+        $guideColor = sprintf('#%02x%02x%02x', $layout->guideColorR, $layout->guideColorG, $layout->guideColorB);
+        $guideWeight = max(0.12, $layout->guideLineWidthMm);
+        $drawCropMarks = $layout->drawCropMarks;
+    } else {
+        $sheetW = null;
+        $sheetH = null;
+        $trimW = null;
+        $trimH = null;
+        $guideColor = '#9333ea';
+        $guideWeight = 0.12;
+        $drawCropMarks = false;
+    }
 @endphp
 <!DOCTYPE html>
 <html>
@@ -12,7 +31,7 @@
     <title>{{ $pdfDocumentTitle }}</title>
     <style>
         @page {
-            margin: 8mm 10mm;
+            margin: 0;
         }
 
         body {
@@ -83,6 +102,7 @@
         .format-box {
             padding: 0 !important;
             margin: 0 !important;
+            border: none !important;
         }
 
         .margen-izquierdo,
@@ -95,21 +115,39 @@
         }
 
         .participation-page {
-            width: 100%;
+            position: relative;
             overflow: hidden;
         }
+
+        @if($layout)
+        .participation-page {
+            width: {{ $sheetW }}mm;
+            height: {{ $sheetH }}mm;
+            overflow: visible;
+        }
+        .participation-trim {
+            position: absolute;
+            overflow: hidden;
+        }
+        .crop-mark {
+            position: absolute;
+            background: {{ $guideColor }};
+            z-index: 5000;
+            pointer-events: none;
+        }
+        @else
         .participation-page::after {
             content: "";
             display: table;
             clear: both;
         }
-
         .participation-box {
             width: {{ 100 / $cols }}%;
             float: left;
             overflow: hidden;
             page-break-inside: avoid;
         }
+        @endif
     </style>
 </head>
 <body>
@@ -121,6 +159,10 @@
 @foreach($pages as $pageIndex => $page)
     <div class="participation-page" style="@if($pageIndex < count($pages) - 1) page-break-after: always; @endif">
         @for($i = 0; $i < count($page); $i++)
+            @php
+                $col = $i % $cols;
+                $row = intdiv($i, $cols);
+            @endphp
             @if($use_prebuilt_cells)
                 @php $html = $page[$i]; @endphp
             @else
@@ -135,14 +177,47 @@
                     }
                 @endphp
             @endif
-            <div class="participation-box">
-                {!! $html !!}
-            </div>
-            @if(($i + 1) % $cols == 0)
+            @if($layout)
+                @php
+                    $trimLeft = $layout->trimOriginX($col);
+                    $trimTop = $layout->trimOriginY($row);
+                @endphp
+                <div class="participation-trim" style="left:{{ $trimLeft }}mm;top:{{ $trimTop }}mm;width:{{ $trimW }}mm;height:{{ $trimH }}mm;">
+                    {!! $html !!}
+                </div>
+            @else
+                <div class="participation-box">
+                    {!! $html !!}
+                </div>
+            @endif
+            @if(!$layout && ($i + 1) % $cols == 0)
                 <div style="clear: both;"></div>
             @endif
         @endfor
-        <div style="clear: both;"></div>
+        @if($layout && $drawCropMarks)
+            @for($markRow = 0; $markRow < $rows; $markRow++)
+                @for($markCol = 0; $markCol < $cols; $markCol++)
+                    @foreach($layout->cropMarkSegmentsForCellOnSheet($markCol, $markRow) as $segment)
+                        @php
+                            $isHorizontal = abs($segment['y1'] - $segment['y2']) < 0.01;
+                            $x1 = min($segment['x1'], $segment['x2']);
+                            $y1 = min($segment['y1'], $segment['y2']);
+                            if ($isHorizontal) {
+                                $markW = abs($segment['x2'] - $segment['x1']);
+                                $markH = max(0.12, $guideWeight);
+                            } else {
+                                $markW = max(0.12, $guideWeight);
+                                $markH = abs($segment['y2'] - $segment['y1']);
+                            }
+                        @endphp
+                        <div class="crop-mark" style="left:{{ $x1 }}mm;top:{{ $y1 }}mm;width:{{ $markW }}mm;height:{{ $markH }}mm;"></div>
+                    @endforeach
+                @endfor
+            @endfor
+        @endif
+        @if(!$layout)
+            <div style="clear: both;"></div>
+        @endif
     </div>
 @endforeach
 </body>

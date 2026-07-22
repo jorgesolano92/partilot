@@ -62,8 +62,8 @@ return [
     'stamp_content_offset_x' => (float) env('PDF_STAMP_CONTENT_OFFSET_X', 0),
     'stamp_content_offset_y' => (float) env('PDF_STAMP_CONTENT_OFFSET_Y', 0),
 
-    // Borde fino alrededor de cada participación en la hoja (ayuda a diferenciar celdas).
-    'stamp_cell_border' => env('PDF_STAMP_CELL_BORDER', true),
+    // Borde fino alrededor de cada participación (solo depuración; no imprimir).
+    'stamp_cell_border' => env('PDF_STAMP_CELL_BORDER', false),
 
     // Bordes rosa de depuración en cajas de elementos / stamps (padding vs posición).
     'debug_element_borders' => filter_var(env('PDF_DEBUG_ELEMENT_BORDERS', false), FILTER_VALIDATE_BOOLEAN),
