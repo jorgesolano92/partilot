@@ -3774,27 +3774,73 @@ class DesignController extends Controller
         // Subir DPI encoge los elementos en px respecto al format-box y destroza el layout.
         $options->set('dpi', (int) config('pdf_optimization.dpi', 96));
 
+        $fontDir = $this->ensureDompdfFontDir();
+
         // Permitir cargar tipografías locales (public/, storage/)
         $chroot = array_values(array_unique(array_filter([
             base_path(),
             public_path(),
             storage_path(),
-            storage_path('fonts'),
+            $fontDir,
         ])));
         $options->setChroot($chroot);
-        if (is_dir(storage_path('fonts'))) {
-            $options->setFontDir(storage_path('fonts'));
-            $options->setFontCache(storage_path('fonts'));
+        if ($fontDir) {
+            $options->setFontDir($fontDir);
+            $options->setFontCache($fontDir);
         }
 
-        $this->registerDesignDompdfFonts($dompdf);
+        $this->registerDesignDompdfFonts($dompdf, $fontDir);
+    }
+
+    /**
+     * Crea storage/fonts si hace falta y comprueba escritura de métricas DomPDF (.ufm).
+     */
+    protected function ensureDompdfFontDir(): ?string
+    {
+        $dir = storage_path('fonts');
+
+        if (! is_dir($dir)) {
+            try {
+                if (! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+                    Log::warning('No se pudo crear storage/fonts para DomPDF', ['path' => $dir]);
+
+                    return null;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo crear storage/fonts para DomPDF: '.$e->getMessage(), [
+                    'path' => $dir,
+                ]);
+
+                return null;
+            }
+        }
+
+        if (! is_writable($dir)) {
+            @chmod($dir, 0775);
+        }
+
+        if (! is_writable($dir)) {
+            Log::warning('storage/fonts no es escribible; Asgonlae no se registrará en DomPDF', [
+                'path' => $dir,
+            ]);
+
+            return null;
+        }
+
+        return $dir;
     }
 
     /**
      * Registra fuentes TTF del diseño en DomPDF (p. ej. Asgonlae).
+     * No emitir @font-face data-URI en vistas PDF: DomPDF escribe .ufm al parsear CSS.
      */
-    protected function registerDesignDompdfFonts($dompdf): void
+    protected function registerDesignDompdfFonts($dompdf, ?string $fontDir = null): void
     {
+        $fontDir = $fontDir ?? $this->ensureDompdfFontDir();
+        if ($fontDir === null) {
+            return;
+        }
+
         $fontFile = public_path('Asgonlae.ttf');
         if (! is_readable($fontFile)) {
             Log::warning('Asgonlae.ttf no legible', ['path' => $fontFile]);
@@ -3831,10 +3877,13 @@ class DesignController extends Controller
             if (! $okNormal && ! $okBold) {
                 Log::warning('DomPDF no registró Asgonlae (registerFont=false)', [
                     'uri' => $fontUri,
+                    'fontDir' => $fontDir,
                 ]);
             }
         } catch (\Throwable $e) {
-            Log::warning('No se pudo registrar Asgonlae en DomPDF: '.$e->getMessage());
+            Log::warning('No se pudo registrar Asgonlae en DomPDF: '.$e->getMessage(), [
+                'fontDir' => $fontDir,
+            ]);
         }
     }
 
