@@ -330,6 +330,7 @@ Route::group(['prefix' => 'entities'], function() {
     Route::put('/update/manager-permissions/{entity_id}/{manager_id}', [EntityController::class, 'update_manager_permissions'])->name('entities.update-manager-permissions');
     Route::post('/set-primary-manager', [EntityController::class, 'set_primary_manager'])->name('entities.set-primary-manager');
     Route::post('/toggle-manager-status', [EntityController::class, 'toggle_manager_status'])->name('entities.toggle-manager-status');
+    Route::post('/resend-manager-invitation', [EntityController::class, 'resend_manager_invitation'])->name('entities.resend-manager-invitation');
     Route::delete('/destroy/manager/{entity_id}/{manager_id}', [EntityController::class, 'destroy_manager'])->name('entities.destroy-manager');
     
 });

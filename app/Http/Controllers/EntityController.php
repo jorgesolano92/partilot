@@ -825,6 +825,7 @@ class EntityController extends Controller
             ->first();
 
         $canManageManagers = $this->canManageSecondaryManagers($entity);
+        $canResendManagerInvitations = $this->canResendManagerInvitation($entity);
 
         $user = auth()->user();
         $canToggleEntityStatus = $user && ($user->isSuperAdmin() || $user->isAdministration());
@@ -849,6 +850,7 @@ class EntityController extends Controller
             'primaryPendingInvitation',
             'entityPanelUser',
             'canManageManagers',
+            'canResendManagerInvitations',
             'canToggleEntityStatus',
             'entityPanelReadOnly',
             'canEditEntityData',
@@ -1809,6 +1811,135 @@ class EntityController extends Controller
 
         return redirect()->route('entities.show', $entity->id)
             ->with('success', 'Invitación enviada. El destinatario recibirá un correo para aceptar (registro) o rechazar la invitación.');
+    }
+
+    /**
+     * Reenviar invitación a gestor (Manager pendiente) o invitación pre-registro (email sin cuenta).
+     */
+    public function resend_manager_invitation(Request $request)
+    {
+        $request->validate([
+            'entity_id' => 'required|integer|exists:entities,id',
+            'manager_id' => 'nullable|integer|exists:managers,id',
+            'pending_invitation_id' => 'nullable|integer|exists:pending_entity_manager_invitations,id',
+        ]);
+
+        if (! $request->filled('manager_id') && ! $request->filled('pending_invitation_id')) {
+            return redirect()->back()->with('error', 'Indique el gestor o la invitación a reenviar.');
+        }
+
+        $entity = Entity::forUser(auth()->user())->findOrFail($request->entity_id);
+        if (! $this->canResendManagerInvitation($entity)) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'No tienes permiso para reenviar invitaciones de gestores de esta entidad.');
+        }
+
+        if ($request->filled('pending_invitation_id')) {
+            return $this->resendPendingEmailInvitation($entity, (int) $request->pending_invitation_id);
+        }
+
+        return $this->resendExistingManagerInvitation($entity, (int) $request->manager_id);
+    }
+
+    private function resendExistingManagerInvitation(Entity $entity, int $managerId): \Illuminate\Http\RedirectResponse
+    {
+        $manager = Manager::with('user')
+            ->where('entity_id', $entity->id)
+            ->findOrFail($managerId);
+
+        if (! $manager->isPendingActivation()) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'Este gestor ya no está pendiente de aceptación; no hay invitación que reenviar.');
+        }
+
+        $user = $manager->user;
+        if (! $user || empty($user->email)) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'El gestor no tiene email para reenviar la invitación.');
+        }
+
+        $manager->confirmation_token = Str::random(64);
+        $manager->confirmation_sent_at = now();
+        $manager->save();
+
+        try {
+            app(CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: (string) $user->email,
+                recipientRole: 'gestor_entidad',
+                recipientUser: $user,
+                messageType: 'entity_manager_invitation',
+                templateKey: null,
+                mailClass: EntityManagerInvitationMail::class,
+                mailPayload: [
+                    'entity_id' => $entity->id,
+                    'user_id' => $user->id,
+                    'manager_id' => $manager->id,
+                ],
+                context: ['entity_id' => $entity->id],
+            );
+        } catch (\Throwable $e) {
+            \Log::warning('Fallo reenviando invitación a gestor: '.$e->getMessage());
+
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'No se pudo reenviar la invitación. Inténtalo de nuevo.');
+        }
+
+        return redirect()->route('entities.show', $entity->id)
+            ->with('success', 'Invitación reenviada a '.$user->email.'.');
+    }
+
+    private function resendPendingEmailInvitation(Entity $entity, int $pendingId): \Illuminate\Http\RedirectResponse
+    {
+        $pending = PendingEntityManagerInvitation::query()
+            ->where('entity_id', $entity->id)
+            ->findOrFail($pendingId);
+
+        $pending->confirmation_token = PendingEntityManagerInvitation::issueToken();
+        $pending->confirmation_sent_at = now();
+        $pending->save();
+
+        $email = PendingEntityManagerInvitation::normalizeEmail((string) $pending->email);
+
+        try {
+            app(CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: $email,
+                recipientRole: 'gestor_entidad',
+                recipientUser: null,
+                messageType: 'entity_manager_preregister_invitation',
+                templateKey: null,
+                mailClass: EntityManagerPreregisterInviteMail::class,
+                mailPayload: [
+                    'entity_id' => $entity->id,
+                    'pending_invitation_id' => $pending->id,
+                ],
+                context: ['entity_id' => $entity->id],
+            );
+        } catch (\Throwable $e) {
+            \Log::warning('Fallo reenviando invitación pre-registro gestor: '.$e->getMessage());
+
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'No se pudo reenviar la invitación. Inténtalo de nuevo.');
+        }
+
+        return redirect()->route('entities.show', $entity->id)
+            ->with('success', 'Invitación reenviada a '.$email.'.');
+    }
+
+    /**
+     * Reenvío de invitaciones: superadmin, administración o gestor responsable aceptado.
+     */
+    private function canResendManagerInvitation(Entity $entity): bool
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin() || $user->isAdministration()) {
+            return true;
+        }
+
+        return $this->canManageSecondaryManagers($entity);
     }
 
     /**

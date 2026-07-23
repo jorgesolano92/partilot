@@ -383,12 +383,22 @@
 			                    			</i></small>
 			                    			<div style="clear: both;"></div>
 			                    			
-			                    			@if(!$entity->manager || !$entity->manager->user)
+			                    				@if(!$entity->manager || !$entity->manager->user)
 			                    				<div class="alert alert-warning mt-3">
 			                    					@if($primaryPendingInvitation ?? null)
 			                    						<strong>Gestor responsable pendiente:</strong> Se ha enviado una invitación a <strong>{{ $primaryPendingInvitation->email }}</strong>. El destinatario debe aceptar y completar el registro desde el correo recibido.
 			                    						@if($primaryPendingInvitation->confirmation_sent_at)
 			                    							<br><small class="text-muted">Invitación enviada: {{ $primaryPendingInvitation->confirmation_sent_at->format('d/m/Y H:i') }}</small>
+			                    						@endif
+			                    						@if(!empty($canResendManagerInvitations))
+			                    							<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2" onsubmit="return confirm('¿Reenviar la invitación a {{ $primaryPendingInvitation->email }}?');">
+			                    								@csrf
+			                    								<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+			                    								<input type="hidden" name="pending_invitation_id" value="{{ $primaryPendingInvitation->id }}">
+			                    								<button type="submit" class="btn btn-sm btn-outline-warning">
+			                    									<i class="ri-mail-send-line"></i> Reenviar invitación
+			                    								</button>
+			                    							</form>
 			                    						@endif
 			                    					@else
 			                    						<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal asignado. Por favor, agrega un gestor para poder gestionar esta entidad correctamente.
@@ -652,6 +662,16 @@
 							                                	@if($pendingInvite->confirmation_sent_at)
 							                                		<br><small class="text-muted">{{ $pendingInvite->confirmation_sent_at->format('d/m/Y H:i') }}</small>
 							                                	@endif
+							                                	@if(!empty($canResendManagerInvitations))
+							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2" onsubmit="return confirm('¿Reenviar la invitación a {{ $pendingInvite->email }}?');">
+							                                			@csrf
+							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+							                                			<input type="hidden" name="pending_invitation_id" value="{{ $pendingInvite->id }}">
+							                                			<button type="submit" class="btn btn-sm btn-outline-warning" title="Reenviar invitación">
+							                                				<i class="ri-mail-send-line"></i> Reenviar invitación
+							                                			</button>
+							                                		</form>
+							                                	@endif
 							                                </td>
 							                            </tr>
 							                            @endforeach
@@ -725,9 +745,21 @@
 							                                	@endif
 							                                </td>
 							                                <td>
+							                                	@if($managerPending && !empty($canResendManagerInvitations))
+							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="d-inline-block mb-1" onsubmit="return confirm('¿Reenviar la invitación a {{ $manager->user->email ?? 'este gestor' }}?');">
+							                                			@csrf
+							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+							                                			<input type="hidden" name="manager_id" value="{{ $manager->id }}">
+							                                			<button type="submit" class="btn btn-sm btn-outline-warning" title="Reenviar invitación">
+							                                				<i class="ri-mail-send-line"></i> Reenviar invitación
+							                                			</button>
+							                                		</form>
+							                                	@endif
 							                                	@if($manager->pending_primary)
-							                                		<span class="text-warning fw-semibold">Pendiente de aceptación</span>
-							                                	@elseif(!$manager->is_primary && !empty($canManageManagers))
+							                                		@if(!($managerPending && !empty($canResendManagerInvitations)))
+							                                			<span class="text-warning fw-semibold">Pendiente de aceptación</span>
+							                                		@endif
+							                                	@elseif(!$manager->is_primary && !empty($canManageManagers) && ! $managerPending)
 							                                		@php
 							                                			$hasPrimary = $entity->managers->where('is_primary', true)->count() > 0;
 							                                			$confirmMessage = $hasPrimary 
@@ -742,11 +774,15 @@
 							                                		</form>
 							                                		<a href="{{ route('entities.edit-manager-permissions', ['entity_id' => $entity->id, 'manager_id' => $manager->id]) }}" class="btn btn-sm btn-warning" title="Editar permisos"><i class="ri-settings-3-line"></i></a>
 							                                		<a href="#" class="btn btn-sm btn-danger delete-manager" data-manager-id="{{ $manager->id }}" title="Eliminar"><i class="ri-delete-bin-6-line"></i></a>
+							                                	@elseif(!$manager->is_primary && $managerPending && !empty($canManageManagers))
+							                                		<a href="#" class="btn btn-sm btn-danger delete-manager" data-manager-id="{{ $manager->id }}" title="Eliminar"><i class="ri-delete-bin-6-line"></i></a>
 							                                	@elseif(!$manager->is_primary)
-							                                		<span class="text-muted">-</span>
+							                                		@if(!($managerPending && !empty($canResendManagerInvitations)))
+							                                			<span class="text-muted">-</span>
+							                                		@endif
 							                                	@else
 	                                		@if($managersVisible->where('is_primary', false)->count() > 0)
-	                                			@if(!empty($canManageManagers))
+	                                			@if(!empty($canManageManagers) && ! $managerPending)
 							                                			<form action="{{ route('entities.set-primary-manager') }}" method="POST" class="d-inline-flex align-items-center gap-1" id="change-primary-form-{{ $manager->id }}" onsubmit="return validatePrimaryChange(event, {{ $manager->id }});">
 							                                				@csrf
 							                                				<input type="hidden" name="entity_id" value="{{ $entity->id }}">
@@ -760,10 +796,10 @@
 							                                					<i class="ri-user-shared-line"></i>
 							                                				</button>
 							                                			</form>
-	                                			@else
+	                                			@elseif(!($managerPending && !empty($canResendManagerInvitations)))
 	                                				<span class="text-muted">-</span>
 	                                			@endif
-							                                		@else
+							                                		@elseif(!($managerPending && !empty($canResendManagerInvitations)))
 							                                			<span class="text-muted" title="No hay otros gestores disponibles para asignar como principal">-</span>
 							                                		@endif
 							                                	@endif
