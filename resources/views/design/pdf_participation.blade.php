@@ -39,6 +39,7 @@
             padding: 0;
         }
 
+        @php($designPdfFonts = true)
         @include('design.partials.design_canvas_styles')
 
         [id*="containment-wrapper"] {

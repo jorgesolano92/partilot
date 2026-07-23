@@ -3773,6 +3773,69 @@ class DesignController extends Controller
         // Mantener DPI 96: px del diseño están calibrados al ticket en mm.
         // Subir DPI encoge los elementos en px respecto al format-box y destroza el layout.
         $options->set('dpi', (int) config('pdf_optimization.dpi', 96));
+
+        // Permitir cargar tipografías locales (public/, storage/)
+        $chroot = array_values(array_unique(array_filter([
+            base_path(),
+            public_path(),
+            storage_path(),
+            storage_path('fonts'),
+        ])));
+        $options->setChroot($chroot);
+        if (is_dir(storage_path('fonts'))) {
+            $options->setFontDir(storage_path('fonts'));
+            $options->setFontCache(storage_path('fonts'));
+        }
+
+        $this->registerDesignDompdfFonts($dompdf);
+    }
+
+    /**
+     * Registra fuentes TTF del diseño en DomPDF (p. ej. Asgonlae).
+     */
+    protected function registerDesignDompdfFonts($dompdf): void
+    {
+        $fontFile = public_path('Asgonlae.ttf');
+        if (! is_readable($fontFile)) {
+            Log::warning('Asgonlae.ttf no legible', ['path' => $fontFile]);
+
+            return;
+        }
+
+        try {
+            $fontMetrics = $dompdf->getFontMetrics();
+            if (! method_exists($fontMetrics, 'registerFont')) {
+                return;
+            }
+
+            // DomPDF espera URI con protocolo (file://), no ruta Windows cruda.
+            $fontUri = 'file:///' . ltrim(str_replace('\\', '/', $fontFile), '/');
+
+            $okNormal = $fontMetrics->registerFont(
+                [
+                    'family' => 'Asgonlae',
+                    'style' => 'normal',
+                    'weight' => 'normal',
+                ],
+                $fontUri
+            );
+            $okBold = $fontMetrics->registerFont(
+                [
+                    'family' => 'Asgonlae',
+                    'style' => 'normal',
+                    'weight' => 'bold',
+                ],
+                $fontUri
+            );
+
+            if (! $okNormal && ! $okBold) {
+                Log::warning('DomPDF no registró Asgonlae (registerFont=false)', [
+                    'uri' => $fontUri,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo registrar Asgonlae en DomPDF: '.$e->getMessage());
+        }
     }
 
     /**

@@ -1,7 +1,10 @@
 {{-- Tipografía y reset Bootstrap compartidos: editor (.format-box) ↔ DomPDF --}}
 {{-- No usar all:unset (DomPDF no lo aplica bien). Reset explícito de lo que Bootstrap toca. --}}
 
+@include('design.partials.design_custom_fonts')
+
 .format-box {
+    /* Fallback DomPDF-safe; Asgonlae solo si CKEditor la pone en style inline */
     font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
     font-size: 16px;
     line-height: 1.15;
@@ -9,11 +12,11 @@
     padding: 0;
 }
 
-/* Misma familia en todo el lienzo (salvo iconos Remix) */
-.format-box *:not([class*="ri-"]):not(button):not(.edit-btn) {
-    font-family: DejaVu Sans, Helvetica, Arial, sans-serif !important;
-}
-
+/*
+ * No forzar font-family !important en hijos: anularía Asgonlae (y otras)
+ * aplicadas por CKEditor vía style="font-family:…".
+ * Los nodos sin fuente explícita heredan DejaVu del .format-box.
+ */
 /*
  * Neutralizar Bootstrap (h1–h6, .h1–, p):
  * - sin márgenes (Bootstrap ~0.5em / rem)

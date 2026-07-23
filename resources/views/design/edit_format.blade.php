@@ -5,6 +5,7 @@
 @section('content')
 
 <link rel="stylesheet" href="{{ asset('assets/css/design-editor-ui.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/css/design-editor-fonts.css') }}">
 
 @php
     if (!function_exists('getNumberFontSize')) {
@@ -1211,7 +1212,7 @@ function applyDigitalFormatBoxStep2() {
 var designDirty = false;
 var historyByStep = {};
 var historyIndexByStep = {};
-var designEditorFonts = 'Arial/Arial, Helvetica, sans-serif;Georgia/Georgia, serif;Times New Roman/Times New Roman, Times, serif;Verdana/Verdana, Geneva, sans-serif;Courier New/Courier New, Courier, monospace;Tahoma/Tahoma, Geneva, sans-serif;Trebuchet MS/Trebuchet MS, Helvetica, sans-serif';
+var designEditorFonts = 'Asgonlae/Asgonlae, sans-serif;Arial/Arial, Helvetica, sans-serif;Georgia/Georgia, serif;Times New Roman/Times New Roman, Times, serif;Verdana/Verdana, Geneva, sans-serif;Courier New/Courier New, Courier, monospace;Tahoma/Tahoma, Geneva, sans-serif;Trebuchet MS/Trebuchet MS, Helvetica, sans-serif';
 
 function syncCurrentStepToLocalStorage() {
   if (step >= 2 && step <= 4 && $('#containment-wrapper' + step).length) {
@@ -1277,6 +1278,10 @@ function buildCKEditorConfig(contenidoHTML) {
     shiftEnterMode: CKEDITOR.ENTER_P,
     allowedContent: true,
     font_names: designEditorFonts,
+    contentsCss: [
+      CKEDITOR.getUrl('contents.css'),
+      '{{ asset('assets/css/design-editor-fonts.css') }}'
+    ],
     toolbar: [
       { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
       { name: 'paragraph', items: [ 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
