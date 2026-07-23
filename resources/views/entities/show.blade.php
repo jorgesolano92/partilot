@@ -12,6 +12,21 @@
 	.form-check-input:checked {
 		border-color: #333;
 	}
+	.entity-detail-row {
+		align-items: stretch;
+		min-height: 658px;
+	}
+	.entity-detail-sidebar {
+		display: flex !important;
+		flex-direction: column;
+		min-height: 100%;
+	}
+	.entity-detail-sidebar .entity-detail-back {
+		margin-top: auto !important;
+		margin-bottom: 4px;
+		align-self: flex-start;
+		position: relative !important;
+	}
 </style>
 
 <!-- Start Content-->
@@ -44,9 +59,9 @@
 
                     <br>
 
-                    <div class="row">
+                    <div class="row entity-detail-row">
                     	
-                    	<div class="col-md-3" style="position: relative;">
+                    	<div class="col-md-3 entity-detail-sidebar">
 
                     		<ul class="form-card bs mb-3 nav">
 
@@ -136,6 +151,14 @@
 	                    			</div>
 	                    			<span class="badge badge-lg {{ $statusClass }} mt-2" id="entity-status-badge" style="display: none;">{{ $statusText }}</span>
 	                    			<div style="clear: both;"></div>
+	                    			@php
+	                    				$entityContractSigned = $entity->hasSignedFrameworkContract();
+	                    			@endphp
+	                    			@if(! $entityContractSigned)
+	                    				<p class="small text-warning mb-0 mt-2">
+	                    					<i class="ri-file-warning-line"></i> Contrato marco pendiente de firma.
+	                    				</p>
+	                    			@endif
                     			</div>
                     		</div>
 
@@ -143,7 +166,7 @@
                     		@include('entities.partials.billing_switches_card', ['entity' => $entity, 'readonly' => true])
                     		@endif
 
-                    		<a href="{{url('entities?table=1')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
+                    		<a href="{{url('entities?table=1')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder;" class="btn btn-md btn-light entity-detail-back">
                     						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                     	</div>
                     	<div class="col-md-9">
@@ -349,7 +372,15 @@
 			                    					Editar</a>
 			                    				@endif
 			                    			</h4>
-			                    			<small><i>@if($entity->manager && $entity->manager->user)Todos los campos son obligatorios@elseif($canManageManagers ?? false) Esta entidad no tiene gestor principal asignado. Puedes seleccionar uno de la lista de gestores en la pestaña "Gestores".@else Esta entidad no tiene gestor principal asignado.@endif</i></small>
+			                    			<small><i>
+			                    				@if($entity->manager && $entity->manager->user)
+			                    					Todos los campos son obligatorios
+			                    				@elseif(!empty($canManageManagers))
+			                    					Esta entidad no tiene gestor principal asignado. Puedes seleccionar uno de la lista de gestores en la pestaña "Gestores".
+			                    				@else
+			                    					Esta entidad no tiene gestor principal asignado.
+			                    				@endif
+			                    			</i></small>
 			                    			<div style="clear: both;"></div>
 			                    			
 			                    			@if(!$entity->manager || !$entity->manager->user)
@@ -656,31 +687,34 @@
 							                                </td>
 							                                <td>
 							                                	@php
-							                                		$status = $manager->status;
-							                                		if ($status === null || $status == -1) {
-							                                			$statusText = 'Pendiente';
-							                                			$statusClass = 'bg-secondary';
-							                                			$newStatus = 1; // Cambiar a Activo
+							                                		$statusText = $manager->statusLabel();
+							                                		$statusClass = $manager->statusBadgeClass();
+							                                		$managerPending = $manager->isPendingActivation();
+							                                		$managerRoleLegalOk = $manager->hasAcceptedRoleLegal();
+							                                		if ($managerPending) {
+							                                			$newStatus = 1;
 							                                			$newStatusText = 'Activar';
 							                                			$newStatusIcon = 'ri-check-line';
 							                                			$newStatusBtnClass = 'btn-success';
-							                                		} elseif ($status == 1) {
-							                                			$statusText = 'Activo';
-							                                			$statusClass = 'bg-success';
-							                                			$newStatus = 0; // Cambiar a Inactivo
+							                                		} elseif ((int) $manager->status === 1) {
+							                                			$newStatus = 0;
 							                                			$newStatusText = 'Desactivar';
 							                                			$newStatusIcon = 'ri-close-line';
 							                                			$newStatusBtnClass = 'btn-danger';
 							                                		} else {
-							                                			$statusText = 'Inactivo';
-							                                			$statusClass = 'bg-danger';
-							                                			$newStatus = 1; // Cambiar a Activo
+							                                			$newStatus = 1;
 							                                			$newStatusText = 'Activar';
 							                                			$newStatusIcon = 'ri-check-line';
 							                                			$newStatusBtnClass = 'btn-success';
 							                                		}
 							                                	@endphp
 							                                	<label class="badge {{ $statusClass }}">{{ $statusText }}</label>
+							                                	@if($managerPending)
+							                                		<br><small class="text-warning">Pendiente de aceptación</small>
+							                                	@endif
+							                                	@if(! $managerRoleLegalOk)
+							                                		<br><small class="text-warning">Marco legal no firmado</small>
+							                                	@endif
 							                                	@if(!$manager->is_primary && !$manager->pending_primary && !empty($canManageManagers))
 							                                		<button class="btn btn-sm {{ $newStatusBtnClass }} toggle-manager-status ms-2" 
 							                                		        data-manager-id="{{ $manager->id }}" 

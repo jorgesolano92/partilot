@@ -1124,7 +1124,7 @@ class EntityController extends Controller
     {
         $this->assertCanEditEntityData();
 
-        $entity = Entity::with(['administration', 'manager'])
+        $entity = Entity::with(['administration', 'manager.user'])
             ->forUser(auth()->user())
             ->findOrFail($id);
         return view('entities.edit_manager', compact('entity'));

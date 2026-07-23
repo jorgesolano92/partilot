@@ -134,4 +134,61 @@ class Manager extends Model
 
         return is_string($birthday) ? $birthday : '';
     }
+
+    /**
+     * Pendiente de activación / aceptación de invitación o cargo.
+     */
+    public function isPendingActivation(): bool
+    {
+        if ($this->pending_primary) {
+            return true;
+        }
+
+        if (! empty($this->confirmation_token)) {
+            return true;
+        }
+
+        return $this->status === null || (int) $this->status === -1;
+    }
+
+    public function statusLabel(): string
+    {
+        if ($this->isPendingActivation()) {
+            return 'Pendiente';
+        }
+
+        return (int) $this->status === 1 ? 'Activo' : 'Inactivo';
+    }
+
+    public function statusBadgeClass(): string
+    {
+        if ($this->isPendingActivation()) {
+            return 'bg-secondary';
+        }
+
+        return (int) $this->status === 1 ? 'bg-success' : 'bg-danger';
+    }
+
+    /**
+     * Ha registrado aceptación del rol (gestor / gestor responsable) en el marco legal.
+     */
+    public function hasAcceptedRoleLegal(): bool
+    {
+        if (! $this->user_id) {
+            return false;
+        }
+
+        $actions = ($this->is_primary || $this->pending_primary)
+            ? [
+                LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR_RESPONSABLE,
+                LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR,
+            ]
+            : [LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR];
+
+        return LegalAcceptance::query()
+            ->where('user_id', $this->user_id)
+            ->whereIn('action', $actions)
+            ->where('result', LegalAcceptance::RESULT_ACEPTADO)
+            ->exists();
+    }
 }

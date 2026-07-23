@@ -87,7 +87,6 @@
 
         <!-- App css -->
         <link href="{{url('default')}}/assets/css/app.min.css" rel="stylesheet" type="text/css" />
-        <link href="{{url('assets')}}/css/partilot-ui-fixes.css" rel="stylesheet" type="text/css" />
 
         <!-- Icons css -->
         <link href="{{url('assets')}}/css/icons.min.css" rel="stylesheet" type="text/css" />
@@ -211,6 +210,8 @@
 
         <link rel="stylesheet" href="{{url('style.css')}}">
         <link rel="stylesheet" href="{{ asset('assets/libs/ckeditor5/ckeditor5.css') }}">
+        {{-- Último CSS de panel: card + footer unidos (gana a theme absolute footer) --}}
+        <link href="{{url('assets')}}/css/partilot-ui-fixes.css?v={{ @filemtime(public_path('assets/css/partilot-ui-fixes.css')) ?: time() }}" rel="stylesheet" type="text/css" />
 
         <style>
             .container-fluid .alert {
@@ -561,8 +562,8 @@
             }
             .content-page .content .container-fluid > .row > [class*="col-"] > .card,
             .content-page .content .container-fluid form > .row > [class*="col-"] > .card {
-                overflow-x: clip;
-                overflow-y: visible;
+                /* visible: overflow-x:clip fuerza overflow-y:auto y recorta Atrás/Guardar */
+                overflow: visible;
                 max-width: 100%;
                 min-width: 0;
                 height: auto !important;
@@ -571,8 +572,7 @@
             .content-page .content .container-fluid form > .row > [class*="col-"] > .card > .card-body {
                 max-width: 100%;
                 min-width: 0;
-                overflow-x: clip;
-                overflow-y: visible;
+                overflow: visible;
             }
             .content-page .form-card,
             .content-page .form-card.bs {
@@ -691,22 +691,38 @@
                 min-height: 0 !important;
                 min-width: 0 !important;
                 height: auto !important;
+                margin-bottom: 0 !important;
+                border: 1px solid #d9dde8 !important;
+                border-bottom: 0 !important;
+                border-radius: 18px 18px 0 0 !important;
+                box-shadow: none !important;
+                overflow: visible !important;
             }
 
+            /* No forzar flex-column en todo .card-body: apila botones de listados (Sorteos, etc.) */
             .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card > .card-body {
                 flex: 1 1 auto !important;
-                min-height: calc(100vh - 335px) !important;
+                min-height: 0 !important;
                 min-width: 0 !important;
+                padding-bottom: 32px !important;
+                overflow: visible !important;
             }
 
-            #wrapper .content-page > footer.footer {
+            /* Footer unido (también si el DOM lo anida dentro de .content) */
+            #wrapper .content-page > footer.footer,
+            #wrapper .content-page footer.footer,
+            #wrapper .content-page .content > footer.footer {
                 position: relative !important;
                 flex-shrink: 0 !important;
                 bottom: auto !important;
                 left: auto !important;
                 right: auto !important;
                 width: auto !important;
-                margin: -1px 27px 0 !important;
+                height: 60px !important;
+                display: flex !important;
+                align-items: center !important;
+                margin: -1px 27px 24px !important;
+                padding: 0 1.5rem !important;
                 border: 1px solid #d9dde8 !important;
                 border-top: 0 !important;
                 border-radius: 0 0 18px 18px !important;
@@ -714,12 +730,25 @@
                 box-shadow: none !important;
             }
 
+            #wrapper .content-page footer.footer > .container-fluid {
+                width: 100%;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+
+            #wrapper .content-page footer.footer .row {
+                align-items: center !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                width: 100%;
+            }
+
             html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page .content {
                 min-height: 0 !important;
             }
 
-            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer {
-                margin: -1px 27px 0 !important;
+            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
+                margin: -1px 12px 24px !important;
                 border-radius: 0 0 18px 18px !important;
                 box-shadow: none !important;
             }
@@ -1381,14 +1410,20 @@
 
                 @if (!request()->is('configuration*'))
                     <!-- Footer Start -->
-                    <footer class="footer">
-                        <div class="container-fluid">
-                            <div class="row">
+                    @php
+                        $isDashboardPanel = request()->routeIs('dashboard');
+                        $footerStyle = $isDashboardPanel
+                            ? 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;'
+                            : 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;';
+                    @endphp
+                    <footer class="footer" style="{{ $footerStyle }}">
+                        <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
+                            <div class="row align-items-center" style="margin:0;width:100%;">
                                 <div class="col-md-6">
                                     <div><script>document.write(new Date().getFullYear())</script> © Partilot - <a href="https://partilot.es/" target="_blank">partilot.es</a></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="d-none d-md-flex gap-4 align-item-center justify-content-md-end footer-links">
+                                    <div class="d-none d-md-flex gap-4 align-items-center justify-content-md-end footer-links">
                                         <a href="javascript: void(0);">About</a>
                                         <a href="javascript: void(0);">Support</a>
                                         <a href="javascript: void(0);">Contact Us</a>

@@ -20,7 +20,7 @@ class ManagerController extends Controller
      */
     public function edit($id)
     {
-        $manager = Manager::with('user')->findOrFail($id);
+        $manager = Manager::with(['user', 'entity'])->findOrFail($id);
         if ($manager->user && $manager->user->isPanelAccount()) {
             return redirect()->back()
                 ->with('error', 'La cuenta de acceso al panel no se edita como gestor; use la ficha de administración o entidad.');

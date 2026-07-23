@@ -6226,7 +6226,8 @@ html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth
     box-shadow: none;
 }
 
-#wrapper .content-page > footer.footer {
+#wrapper .content-page > footer.footer,
+#wrapper .content-page footer.footer {
     position: relative !important;
     flex-shrink: 0;
     border: 1px solid #d9dde8 !important;
@@ -6234,7 +6235,14 @@ html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth
     border-radius: 0 0 18px 18px !important;
     box-shadow: none !important;
     background: #fff !important;
-    margin: -1px 27px 0 !important;
+    margin: -1px 15px 24px !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    width: auto !important;
+    height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
 }
 
 .content-page {

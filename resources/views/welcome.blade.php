@@ -24,9 +24,15 @@
         background: #fff;
     }
 
-    .content-page .content .container-fluid > .row > [class*="col-"] > .metric-card.card,
-    .content-page .content .container-fluid > .row > [class*="col-"] > .panel-card.card {
+    .content-page .content .container-fluid.dashboard-panel > .row > [class*="col-"] > .metric-card.card,
+    .content-page .content .container-fluid.dashboard-panel > .row > [class*="col-"] > .panel-card.card {
         border-bottom: 1px solid #d9dde8 !important;
+    }
+    .content-page .content .container-fluid.dashboard-panel > .row.panel-row-footer-join > [class*="col-"] > .panel-card.card,
+    .content-page .content .container-fluid.dashboard-panel > .row.panel-row-footer-join > [class*="col-"] > .panel-card--footer-join {
+        border-radius: 18px 18px 0 0 !important;
+        border-bottom: 0 !important;
+        margin-bottom: 0 !important;
     }
     .dashboard-panel .metric-card .card-body {
         padding: 12px 14px;
@@ -176,8 +182,48 @@
         color: #8a91a3;
         font-size: .84rem;
     }
-    .content-page .footer {
+
+    /*
+     * Panel: unir el footer con la última card (Administraciones).
+     * Sin esto el pie queda suelto o se oculta y no cierra el bloque.
+     */
+    .dashboard-panel {
+        padding-bottom: 0 !important;
+        flex: 1 1 auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 0 !important;
+    }
+    .dashboard-panel > .row.panel-row-footer-join {
+        margin-bottom: 0 !important;
+    }
+    .content-page .content .container-fluid.dashboard-panel > .row.panel-row-footer-join > [class*="col-"] > .panel-card.card,
+    .dashboard-panel > .row.panel-row-footer-join > [class*="col-"] > .panel-card.card {
+        border-radius: 18px 18px 0 0 !important;
+        border-bottom: 0 !important;
+        margin-bottom: 0 !important;
+    }
+    /* Si no hay Administraciones, ocultar pie en Panel (sin pelear con inline display) */
+    body:has(.dashboard-panel):not(:has(.panel-row-footer-join)) #wrapper .content-page footer.footer {
         display: none !important;
+    }
+    body:has(.dashboard-panel):has(.panel-row-footer-join) #wrapper .content-page footer.footer {
+        display: flex !important;
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        width: auto !important;
+        height: 60px !important;
+        align-items: center !important;
+        flex-shrink: 0 !important;
+        margin: -1px 15px 24px !important;
+        padding: 0 1.5rem !important;
+        border: 1px solid #d9dde8 !important;
+        border-top: 0 !important;
+        border-radius: 0 0 18px 18px !important;
+        background: #fff !important;
+        box-shadow: none !important;
     }
 
     /* El layout global estira la última fila al viewport; en el panel no aplica */
@@ -373,9 +419,9 @@
     </div>
 
     @if($dashboard['show_administrations_panel'] ?? false)
-    <div class="row g-3 mt-1">
+    <div class="row g-3 mt-1 panel-row-footer-join">
         <div class="col-12">
-            <div class="panel-card card panel-card--auto">
+            <div class="panel-card card panel-card--auto panel-card--footer-join">
                 <div class="card-body">
                     <div class="panel-head">
                         <div>
