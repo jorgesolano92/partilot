@@ -1,6 +1,8 @@
 {{-- Plantilla de UNA participación (sin márgenes de hoja) para tiled FPDI --}}
 @php
     $html = $participation_html ?? '';
+    // No usar @php(...) suelto: Blade lo confunde con bloque @php…@endphp y rompe el compile.
+    $designPdfFonts = true;
 @endphp
 <!DOCTYPE html>
 <html>
@@ -8,14 +10,13 @@
     <meta charset="utf-8">
     <title>Celda participación</title>
     <style>
-        @page {
+        @@page {
             margin: 0;
         }
         body {
             margin: 0;
             padding: 0;
         }
-        @php($designPdfFonts = true)
         @include('design.partials.design_canvas_styles')
 
         [id*="containment-wrapper"] {

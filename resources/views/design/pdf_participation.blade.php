@@ -3,6 +3,8 @@
     $pdfDocumentTitle = $pdfDocumentTitle ?? 'Participación PDF';
     $cols = max(1, (int) ($cols ?? 1));
     $rows = max(1, (int) ($rows ?? 1));
+    // No usar @php(...) suelto: Blade lo confunde con bloque @php…@endphp y rompe el compile.
+    $designPdfFonts = true;
     /** @var \App\Support\ParticipationPdfLayout|null $layout */
     $layout = $layout ?? null;
 
@@ -30,7 +32,7 @@
     <meta charset="utf-8">
     <title>{{ $pdfDocumentTitle }}</title>
     <style>
-        @page {
+        @@page {
             margin: 0;
         }
 
@@ -39,7 +41,6 @@
             padding: 0;
         }
 
-        @php($designPdfFonts = true)
         @include('design.partials.design_canvas_styles')
 
         [id*="containment-wrapper"] {

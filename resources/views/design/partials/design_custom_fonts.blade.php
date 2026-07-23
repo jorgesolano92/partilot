@@ -9,13 +9,13 @@
         $asgonlaeSrc = asset('Asgonlae.ttf');
     }
 @endphp
-@font-face {
+@@font-face {
     font-family: 'Asgonlae';
     font-style: normal;
     font-weight: normal;
     src: url('{{ $asgonlaeSrc }}') format('truetype');
 }
-@font-face {
+@@font-face {
     font-family: 'Asgonlae';
     font-style: normal;
     font-weight: bold;
