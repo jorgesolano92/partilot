@@ -3,7 +3,6 @@
     $pdfDocumentTitle = $pdfDocumentTitle ?? 'Participación PDF';
     $cols = max(1, (int) ($cols ?? 1));
     $rows = max(1, (int) ($rows ?? 1));
-    // No usar @php(...) suelto: Blade lo confunde con bloque @php…@endphp y rompe el compile.
     $designPdfFonts = true;
     /** @var \App\Support\ParticipationPdfLayout|null $layout */
     $layout = $layout ?? null;

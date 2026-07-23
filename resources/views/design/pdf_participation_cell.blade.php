@@ -1,7 +1,6 @@
 {{-- Plantilla de UNA participación (sin márgenes de hoja) para tiled FPDI --}}
 @php
     $html = $participation_html ?? '';
-    // No usar @php(...) suelto: Blade lo confunde con bloque @php…@endphp y rompe el compile.
     $designPdfFonts = true;
 @endphp
 <!DOCTYPE html>
