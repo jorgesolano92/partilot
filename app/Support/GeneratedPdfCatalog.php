@@ -64,6 +64,24 @@ class GeneratedPdfCatalog
         return $out;
     }
 
+    public static function artifactPath(string $jobId, string $downloadName = ''): string
+    {
+        $ext = str_ends_with(strtolower($downloadName), '.zip') ? 'zip' : 'pdf';
+        $zip = storage_path('app/generated_pdfs/'.$jobId.'.zip');
+        $pdf = storage_path('app/generated_pdfs/'.$jobId.'.pdf');
+        if ($ext === 'zip' && is_file($zip)) {
+            return $zip;
+        }
+        if ($ext === 'pdf' && is_file($pdf)) {
+            return $pdf;
+        }
+        if (is_file($zip)) {
+            return $zip;
+        }
+
+        return $pdf;
+    }
+
     /**
      * true si el meta indica caducidad (o, sin expires_at, si el PDF/meta supera TTL_DAYS).
      */
@@ -74,8 +92,8 @@ class GeneratedPdfCatalog
             return time() > (int) $meta['expires_at'];
         }
 
-        $pdfPath = storage_path('app/generated_pdfs/'.$jobId.'.pdf');
-        $ref = is_file($pdfPath) ? filemtime($pdfPath) : null;
+        $artifact = static::artifactPath($jobId, (string) ($meta['download_name'] ?? ''));
+        $ref = is_file($artifact) ? filemtime($artifact) : null;
         if ($ref === false || $ref === null) {
             $metaPath = static::metaPath($jobId);
             $ref = is_file($metaPath) ? filemtime($metaPath) : null;
@@ -110,12 +128,14 @@ class GeneratedPdfCatalog
         }
     }
 
-    /** Borra PDF + meta de un job. */
+    /** Borra PDF/ZIP + meta de un job. */
     public static function deleteArtifacts(string $jobId): void
     {
-        $pdf = storage_path('app/generated_pdfs/'.$jobId.'.pdf');
-        if (is_file($pdf)) {
-            @unlink($pdf);
+        foreach (['.pdf', '.zip'] as $ext) {
+            $path = storage_path('app/generated_pdfs/'.$jobId.$ext);
+            if (is_file($path)) {
+                @unlink($path);
+            }
         }
         static::deleteMeta($jobId);
     }

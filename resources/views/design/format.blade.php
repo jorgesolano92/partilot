@@ -1027,7 +1027,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 
                                         <div class="form-check form-switch mt-3">
                                             <input style="float: left;" class="form-check-input bg-dark" type="radio" name="generate" value="2" role="switch" id="generate">
-                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Generar un rango de participaciones</b></label>
                                         </div>
                                     </div>
 
@@ -1068,7 +1068,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 
                                         <div class="form-check form-switch mt-3">
                                             <input style="float: left;" class="form-check-input bg-dark" type="radio" name="documents" value="2" role="switch" id="documents">
-                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Separar las participaciones en múltiples documentos</b></label>
                                         </div>
                                     </div>
 
@@ -1079,9 +1079,9 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         </label>
 
                                         <div class="col-sm-1">
-                                            <input class="form-control" type="number" value="150" id="participation_page" style="border-radius: 30px">
+                                            <input class="form-control" type="number" value="150" id="participation_page" min="1" style="border-radius: 30px">
                                         </div>
-                                        <label class="col-form-label label-control col-8 text-start">
+                                        <label class="col-form-label label-control col-8 text-start" id="pages-per-document-hint">
                                             (6 participaciones por página, 1 documento)
                                         </label>
 
@@ -3878,6 +3878,38 @@ $('#format').change(function (e) {
       lastTicketDimensions = { w: ticketW, h: ticketH };
       if (typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
       if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
+      if (typeof updatePagesPerDocumentHint === 'function') updatePagesPerDocumentHint();
+  }
+
+  function updatePagesPerDocumentHint() {
+    var $hint = $('#pages-per-document-hint');
+    if (!$hint.length) return;
+    var rows = Math.max(1, parseInt($('#rows').val(), 10) || 1);
+    var cols = Math.max(1, parseInt($('#cols').val(), 10) || 1);
+    var pp = rows * cols;
+    var pagesPerDoc = Math.max(1, parseInt($('#participation_page').val(), 10) || 1);
+    var docsMode = $('input[name="documents"]:checked').val()
+      || $('input[name="documents_mode"]:checked').val()
+      || '1';
+    var genMode = $('input[name="generate"]:checked').val()
+      || $('input[name="generate_mode"]:checked').val()
+      || '1';
+    var total = 0;
+    if (genMode === '2') {
+      var from = Math.max(1, parseInt($('#participation_from').val(), 10) || 1);
+      var to = Math.max(from, parseInt($('#participation_to').val(), 10) || from);
+      total = to - from + 1;
+    } else {
+      total = Math.max(0, parseInt(@json((int) ($set->total_participations ?? 0)), 10) || 0);
+      var toVal = parseInt($('#participation_to').val(), 10);
+      if (Number.isFinite(toVal) && toVal > 0) total = toVal;
+    }
+    var docs = 1;
+    if (String(docsMode) === '2' && total > 0 && pp > 0) {
+      var ticketsPerDoc = pagesPerDoc * pp;
+      docs = Math.max(1, Math.ceil(total / ticketsPerDoc));
+    }
+    $hint.text('(' + pp + ' participaciones por página, ' + docs + (docs === 1 ? ' documento' : ' documentos') + ')');
   }
 
   function ensurePortadaQrPlaceholder() {
@@ -4061,6 +4093,9 @@ $('#format').change(function (e) {
           if (typeof configMargins === 'function') configMargins();
           else if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
         });
+        $('#participation_page,#participation_from,#participation_to').off('change keyup input.pagesHint').on('change keyup input.pagesHint', updatePagesPerDocumentHint);
+        $('input[name="documents"],input[name="documents_mode"],input[name="generate"],input[name="generate_mode"]').off('change.pagesHint').on('change.pagesHint', updatePagesPerDocumentHint);
+        updatePagesPerDocumentHint();
 
         if (window.__preferServerDesign) {
           markDesignSaved();

@@ -111,21 +111,26 @@ class GenerateParticipationPdfJob implements ShouldQueue
 
         try {
             Storage::makeDirectory('generated_pdfs');
-            $final_path = storage_path('app/generated_pdfs/'.$this->jobId.'.pdf');
-            app(DesignController::class)->writeParticipationPdfToFile($design, $from, $to, $final_path);
+            $artifact = app(DesignController::class)->writeParticipationExportArtifact(
+                $design,
+                $from,
+                $to,
+                $this->jobId
+            );
 
             GeneratedPdfCatalog::writeMeta(
                 $this->jobId,
-                'participacion-diseno-'.$this->designId.'.pdf',
+                $artifact['download_name'],
                 $this->designId
             );
 
             PdfJobStatus::markCompleted($this->jobId);
-            $this->notifyByEmail();
+            $this->notifyByEmail($artifact['is_zip'] ?? false);
 
             Log::info('GenerateParticipationPdfJob completed', [
                 'job_id' => $this->jobId,
                 'design_id' => $this->designId,
+                'is_zip' => (bool) ($artifact['is_zip'] ?? false),
                 'stamp_template' => (bool) config('pdf_optimization.use_stamp_template', false),
             ]);
         } catch (\Throwable $e) {
@@ -135,7 +140,7 @@ class GenerateParticipationPdfJob implements ShouldQueue
         }
     }
 
-    protected function notifyByEmail(): void
+    protected function notifyByEmail(bool $isZip = false): void
     {
         if (! config('pdf_optimization.send_email', false)) {
             return;
@@ -150,7 +155,7 @@ class GenerateParticipationPdfJob implements ShouldQueue
         try {
             Mail::to($this->notifyEmail)->send(new DesignPdfReadyMail(
                 route('design.downloadPdf', $this->jobId),
-                'Participaciones PDF',
+                $isZip ? 'Participaciones ZIP' : 'Participaciones PDF',
                 $this->designId
             ));
             PdfJobStatus::markEmailSent($this->jobId);

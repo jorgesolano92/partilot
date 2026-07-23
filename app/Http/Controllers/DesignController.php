@@ -3030,35 +3030,31 @@ class DesignController extends Controller
                 ->header('Content-Type', 'text/html; charset=UTF-8');
         }
 
-        // Para PDFs muy grandes (>500 participaciones), usar procesamiento por lotes
-        //if ($total > 500) {
-        if ($total > 500 && ! config('pdf_optimization.use_stamp_template', false)) {
-            return $this->generatePdfInChunks($design, $participation_html, $tickets, $from, $to, $rows, $cols, $page, $pdfOrientation, $qrCodes);
-        }
-
-        if (config('pdf_optimization.use_stamp_template', false)) {
-            $tmp = storage_path('app/temp_sync_part_'.uniqid('', true).'.pdf');
+        // Varios documentos (ZIP) o stamp: misma ruta de artefacto.
+        $docRanges = $this->participationPdfDocumentRanges($design, $from, $to);
+        if (count($docRanges) > 1 || config('pdf_optimization.use_stamp_template', false)) {
+            $jobId = 'pdf_sync_part_'.$id.'_'.$from.'_'.$to.'_'.uniqid('', true);
             try {
-                $this->writeParticipationPdfToFile($design, $from, $to, $tmp);
+                $artifact = $this->writeParticipationExportArtifact($design, $from, $to, $jobId);
                 $this->cleanupTempQrCodes();
 
-                return response()->download($tmp, 'participacion.pdf')->deleteFileAfterSend(true);
+                return response()->download(
+                    $artifact['path'],
+                    $artifact['download_name']
+                )->deleteFileAfterSend(true);
             } catch (\Throwable $e) {
-                @unlink($tmp);
+                GeneratedPdfCatalog::deleteArtifacts($jobId);
                 throw $e;
             }
+        }
+
+        // Para PDFs muy grandes (>500 participaciones), usar procesamiento por lotes
+        if ($total > 500) {
+            return $this->generatePdfInChunks($design, $participation_html, $tickets, $from, $to, $rows, $cols, $page, $pdfOrientation, $qrCodes);
         }
         
         // Ordenar tickets en modo guillotina (optimizado)
         $pages = $this->generatePagesOptimized($tickets_to_print, $total_pages, $per_page);
-
-        /*return view('design.pdf_participation', [
-            'pages' => $pages,
-            'participation_html' => $participation_html,
-            // 'rows' => $rows,
-            'cols' => $cols,
-            'qrCodes' => $qrCodes,
-        ]);*/
 
         $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
             $design,
@@ -5869,12 +5865,11 @@ class DesignController extends Controller
             ini_set('max_execution_time', '300');
             ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
 
-            $final_path = storage_path('app/generated_pdfs/'.$job_id.'.pdf');
-            $this->writeParticipationPdfToFile($design, $from, $to, $final_path);
+            $artifact = $this->writeParticipationExportArtifact($design, $from, $to, $job_id);
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
-                'participacion-diseno-'.$id.'.pdf',
+                $artifact['download_name'],
                 (int) $id
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
@@ -5888,7 +5883,7 @@ class DesignController extends Controller
                 try {
                     \Illuminate\Support\Facades\Mail::to($notifyEmail)->send(new \App\Mail\DesignPdfReadyMail(
                         route('design.downloadPdf', $job_id),
-                        'Participaciones PDF',
+                        $artifact['is_zip'] ? 'Participaciones ZIP' : 'Participaciones PDF',
                         (int) $id
                     ));
                     \App\Support\PdfJobStatus::markEmailSent($job_id);
@@ -5904,7 +5899,9 @@ class DesignController extends Controller
                 'status' => 'completed',
                 'job_id' => $job_id,
                 'download_url' => route('design.downloadPdf', $job_id),
-                'message' => 'PDF generado. La descarga debería iniciar automáticamente.',
+                'message' => $artifact['is_zip']
+                    ? 'ZIP generado. La descarga debería iniciar automáticamente.'
+                    : 'PDF generado. La descarga debería iniciar automáticamente.',
                 'check_url' => route('design.checkPdfStatus', $job_id),
             ]);
         } catch (\Throwable $e) {
@@ -5921,6 +5918,117 @@ class DesignController extends Controller
                 'message' => 'No se pudo generar el PDF: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Rangos [from,to] según documents_mode y páginas por documento.
+     *
+     * @return list<array{0: int, 1: int}>
+     */
+    private function participationPdfDocumentRanges(DesignFormat $design, int $from, int $to): array
+    {
+        if ($from > $to) {
+            return [];
+        }
+
+        $output = is_array($design->output) ? $design->output : [];
+        $mode = (string) ($output['documents_mode'] ?? '1');
+        $rows = max(1, (int) ($design->rows ?? 1));
+        $cols = max(1, (int) ($design->cols ?? 1));
+        $perPage = $rows * $cols;
+        $pagesPerDoc = max(1, (int) ($output['pages_per_document'] ?? 150));
+        $ticketsPerDoc = $pagesPerDoc * $perPage;
+        $total = $to - $from + 1;
+
+        if ($mode !== '2' || $ticketsPerDoc <= 0 || $total <= $ticketsPerDoc) {
+            return [[$from, $to]];
+        }
+
+        $ranges = [];
+        for ($start = $from; $start <= $to; $start += $ticketsPerDoc) {
+            $ranges[] = [$start, min($to, $start + $ticketsPerDoc - 1)];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * Genera un PDF o un ZIP de partes en generated_pdfs/{jobId}.*
+     * Público para jobs en cola.
+     *
+     * @return array{path: string, download_name: string, is_zip: bool}
+     */
+    public function writeParticipationExportArtifact(DesignFormat $design, int $from, int $to, string $jobId): array
+    {
+        $ranges = $this->participationPdfDocumentRanges($design, $from, $to);
+        if ($ranges === []) {
+            throw new \InvalidArgumentException('No hay participaciones en el rango solicitado.');
+        }
+
+        $dir = storage_path('app/generated_pdfs');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $designId = (int) $design->id;
+
+        if (count($ranges) === 1) {
+            $path = $dir.DIRECTORY_SEPARATOR.$jobId.'.pdf';
+            $this->writeParticipationPdfToFile($design, $ranges[0][0], $ranges[0][1], $path);
+
+            return [
+                'path' => $path,
+                'download_name' => 'participacion-diseno-'.$designId.'.pdf',
+                'is_zip' => false,
+            ];
+        }
+
+        $zipPath = $dir.DIRECTORY_SEPARATOR.$jobId.'.zip';
+        $tempParts = [];
+        $zipEntries = [];
+
+        try {
+            foreach ($ranges as $i => [$rangeFrom, $rangeTo]) {
+                $partIndex = $i + 1;
+                $partName = sprintf('participacion-diseno-%d-parte-%02d.pdf', $designId, $partIndex);
+                $partPath = $dir.DIRECTORY_SEPARATOR.$jobId.'_part_'.$partIndex.'.pdf';
+                $this->writeParticipationPdfToFile($design, $rangeFrom, $rangeTo, $partPath);
+                $tempParts[] = $partPath;
+                $zipEntries[$partName] = $partPath;
+            }
+
+            if (class_exists(\ZipArchive::class)) {
+                $zip = new \ZipArchive();
+                if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                    throw new \RuntimeException('No se pudo crear el archivo ZIP.');
+                }
+                foreach ($zipEntries as $partName => $partPath) {
+                    if (! $zip->addFile($partPath, $partName)) {
+                        $zip->close();
+                        throw new \RuntimeException('No se pudo añadir '.$partName.' al ZIP.');
+                    }
+                }
+                $zip->close();
+            } else {
+                \App\Support\SimpleZipStore::create($zipPath, $zipEntries);
+            }
+        } catch (\Throwable $e) {
+            foreach ($tempParts as $partPath) {
+                @unlink($partPath);
+            }
+            @unlink($zipPath);
+            throw $e;
+        }
+
+        foreach ($tempParts as $partPath) {
+            @unlink($partPath);
+        }
+
+        return [
+            'path' => $zipPath,
+            'download_name' => 'participacion-diseno-'.$designId.'.zip',
+            'is_zip' => true,
+        ];
     }
 
     /**
@@ -6074,9 +6182,10 @@ class DesignController extends Controller
             ]);
         }
 
-        $file_path = storage_path('app/generated_pdfs/' . $job_id . '.pdf');
+        $meta = GeneratedPdfCatalog::readMeta($job_id);
+        $file_path = GeneratedPdfCatalog::artifactPath($job_id, (string) ($meta['download_name'] ?? ''));
         
-        if (file_exists($file_path)) {
+        if (is_file($file_path)) {
             \App\Support\PdfJobStatus::markCompleted($job_id);
 
             return response()->json([
@@ -6096,12 +6205,6 @@ class DesignController extends Controller
      */
     public function downloadPdf($job_id)
     {
-        $file_path = storage_path('app/generated_pdfs/' . $job_id . '.pdf');
-
-        if (!file_exists($file_path)) {
-            abort(404, 'PDF no encontrado o el enlace ha caducado.');
-        }
-
         $meta = GeneratedPdfCatalog::readMeta($job_id);
         if ($meta === null || ! isset($meta['design_format_id'])) {
             abort(403, 'No se puede descargar este archivo.');
@@ -6112,12 +6215,17 @@ class DesignController extends Controller
             abort(410, 'El enlace de descarga ha caducado (máximo '.GeneratedPdfCatalog::TTL_DAYS.' días).');
         }
 
+        $file_path = GeneratedPdfCatalog::artifactPath($job_id, (string) ($meta['download_name'] ?? ''));
+        if (! is_file($file_path)) {
+            abort(404, 'PDF no encontrado o el enlace ha caducado.');
+        }
+
         $design = DesignFormat::find($meta['design_format_id']);
         if (! $design || ! auth()->user()?->canExportDesignPdf($design)) {
             abort(403, 'No tienes permisos para descargar este PDF.');
         }
 
-        $downloadName = $meta['download_name'] ?? 'documento.pdf';
+        $downloadName = $meta['download_name'] ?? basename($file_path);
 
         // Reutilizable: no borrar meta ni archivo al descargar (caduca a los TTL_DAYS).
         return response()->download($file_path, $downloadName);

@@ -588,11 +588,11 @@
                                         <div class="form-group mb-3">
                                             <div class="form-check form-switch mt-3">
                                                 <input style="float: left;" class="form-check-input bg-dark" type="radio" name="generate_mode" value="1" role="switch" id="generate1" @if(($format->output['generate_mode'] ?? '1') == '1') checked @endif>
-                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate1"><b>Generar todas las participaciones (600)</b></label>
+                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate1"><b>Generar todas las participaciones ({{ $set->total_participations ?? 0 }})</b></label>
                                             </div>
                                             <div class="form-check form-switch mt-3">
                                                 <input style="float: left;" class="form-check-input bg-dark" type="radio" name="generate_mode" value="2" role="switch" id="generate" @if(($format->output['generate_mode'] ?? '1') == '2') checked @endif>
-                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Generar un rango de participaciones</b></label>
                                             </div>
                                         </div>
                                         <div class="row mb-3">
@@ -615,15 +615,15 @@
                                             </div>
                                             <div class="form-check form-switch mt-3">
                                                 <input style="float: left;" class="form-check-input bg-dark" type="radio" name="documents_mode" value="2" role="switch" id="documents" @if(($format->output['documents_mode'] ?? '1') == '2') checked @endif>
-                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Separar las participaciones en múltiples documentos</b></label>
                                             </div>
                                         </div>
                                         <div class="row mb-3">
                                             <label class="col-form-label label-control col-3 text-start">Número de páginas por documento:</label>
                                             <div class="col-sm-1">
-                                                <input class="form-control" type="number" name="pages_per_document" value="{{ old('pages_per_document', $format->output['pages_per_document'] ?? 150) }}" id="participation_page" style="border-radius: 30px">
+                                                <input class="form-control" type="number" name="pages_per_document" value="{{ old('pages_per_document', $format->output['pages_per_document'] ?? 150) }}" id="participation_page" min="1" style="border-radius: 30px">
                                             </div>
-                                            <label class="col-form-label label-control col-8 text-start">(6 participaciones por página, 1 documento)</label>
+                                            <label class="col-form-label label-control col-8 text-start" id="pages-per-document-hint">(6 participaciones por página, 1 documento)</label>
                                         </div>
                                     </div>
                                 </div>
@@ -2200,6 +2200,38 @@ function getMarginBoundsPx() {
       lastTicketDimensions = { w: ticketW, h: ticketH };
       if (typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
       if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
+      if (typeof updatePagesPerDocumentHint === 'function') updatePagesPerDocumentHint();
+  }
+
+  function updatePagesPerDocumentHint() {
+    var $hint = $('#pages-per-document-hint');
+    if (!$hint.length) return;
+    var rows = Math.max(1, parseInt($('#rows').val(), 10) || 1);
+    var cols = Math.max(1, parseInt($('#cols').val(), 10) || 1);
+    var pp = rows * cols;
+    var pagesPerDoc = Math.max(1, parseInt($('#participation_page').val(), 10) || 1);
+    var docsMode = $('input[name="documents_mode"]:checked').val()
+      || $('input[name="documents"]:checked').val()
+      || '1';
+    var genMode = $('input[name="generate_mode"]:checked').val()
+      || $('input[name="generate"]:checked').val()
+      || '1';
+    var total = 0;
+    if (genMode === '2') {
+      var from = Math.max(1, parseInt($('#participation_from').val(), 10) || 1);
+      var to = Math.max(from, parseInt($('#participation_to').val(), 10) || from);
+      total = to - from + 1;
+    } else {
+      total = Math.max(0, parseInt(@json((int) ($set->total_participations ?? 0)), 10) || 0);
+      var toVal = parseInt($('#participation_to').val(), 10);
+      if (Number.isFinite(toVal) && toVal > 0) total = toVal;
+    }
+    var docs = 1;
+    if (String(docsMode) === '2' && total > 0 && pp > 0) {
+      var ticketsPerDoc = pagesPerDoc * pp;
+      docs = Math.max(1, Math.ceil(total / ticketsPerDoc));
+    }
+    $hint.text('(' + pp + ' participaciones por página, ' + docs + (docs === 1 ? ' documento' : ' documentos') + ')');
   }
 
   // Llamar al cargar y al cambiar cualquier campo relevante
@@ -2212,6 +2244,9 @@ function getMarginBoundsPx() {
         if (typeof configMargins === 'function') configMargins();
         else if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
       });
+      $('#participation_page,#participation_from,#participation_to').on('change keyup input', updatePagesPerDocumentHint);
+      $('input[name="documents_mode"],input[name="documents"],input[name="generate_mode"],input[name="generate"]').on('change', updatePagesPerDocumentHint);
+      updatePagesPerDocumentHint();
   });
   // === FIN BLOQUE NUEVO ===
 
