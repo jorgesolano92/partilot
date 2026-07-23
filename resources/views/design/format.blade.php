@@ -1059,6 +1059,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                     <h4 class="mb-0 mt-1">
                                         Número de documentos
                                     </h4>
+                                    <p class="text-muted small mb-2">Valores por defecto al imprimir. Al generar el PDF podrá elegir en ese momento si quiere un único documento o un ZIP (sin necesidad de reaprobar el diseño).</p>
 
                                     <div class="form-group mb-3">
                                         <div class="form-check form-switch mt-3">
@@ -2269,40 +2270,25 @@ $('#format').change(function (e) {
     enforceQrMinSize($scope);
   }
 
-  /** Mínimo 2×2 cm (20 mm) para que el QR se lea bien al imprimir. */
+  /** Mínimo 1,5×1,5 cm (15 mm ≈ 57px @ 96dpi). Amplía sin mover left/top. */
   function enforceQrMinSize($scope) {
-    var minPx = Math.ceil(20 * 96 / 25.4);
+    var minPx = Math.ceil(15 * 96 / 25.4);
     var $root = ($scope && $scope.length) ? $scope : $(document);
     $root.find('.elements.qr').each(function () {
-      var $el = $(this);
-      var w = $el.outerWidth() || parseFloat($el.css('width')) || 0;
-      var h = $el.outerHeight() || parseFloat($el.css('height')) || 0;
+      var el = this;
+      var $el = $(el);
+      var w = parseFloat(el.style.width);
+      var h = parseFloat(el.style.height);
+      if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+      if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
       var side = Math.max(w, h, minPx);
-      if (w + 0.5 >= side && h + 0.5 >= side) {
-        $el.css({ 'min-width': minPx + 'px', 'min-height': minPx + 'px' });
-        return;
+      // No recentrar: al mínimo el recentrado hacía «saltar» el QR al soltarlo.
+      if (Math.abs(w - side) > 0.5 || Math.abs(h - side) > 0.5) {
+        el.style.width = side + 'px';
+        el.style.height = side + 'px';
       }
-      var left = parseFloat($el.css('left'));
-      var top = parseFloat($el.css('top'));
-      if (!isNaN(left) && !isNaN(top) && w > 0 && h > 0) {
-        var cx = left + w / 2;
-        var cy = top + h / 2;
-        $el.css({
-          width: side + 'px',
-          height: side + 'px',
-          left: (cx - side / 2) + 'px',
-          top: (cy - side / 2) + 'px',
-          'min-width': minPx + 'px',
-          'min-height': minPx + 'px'
-        });
-      } else {
-        $el.css({
-          width: side + 'px',
-          height: side + 'px',
-          'min-width': minPx + 'px',
-          'min-height': minPx + 'px'
-        });
-      }
+      el.style.minWidth = minPx + 'px';
+      el.style.minHeight = minPx + 'px';
     });
   }
 
@@ -2947,7 +2933,7 @@ $('#format').change(function (e) {
 
   $('.add-qr').click(function (e) {
       e.preventDefault();
-      var qrMinPx = Math.ceil(20 * 96 / 25.4);
+      var qrMinPx = Math.ceil(15 * 96 / 25.4);
       $('#containment-wrapper'+step).append(`<div class="elements element-critical qr" style="resize: both; overflow: hidden; position: absolute; top: 0; width: ${qrMinPx}px; height: ${qrMinPx}px; min-width: ${qrMinPx}px; min-height: ${qrMinPx}px;"><span><img style="width: 100%; height: 100%" src="{{url('basicqr.jpg')}}" alt=""></span></div>`);
 
       setupDraggable();
@@ -3917,7 +3903,7 @@ $('#format').change(function (e) {
     if (!$wrap.length) return;
 
     if ($wrap.find('.elements.qr').length === 0) {
-      var qrMinPx = Math.ceil(20 * 96 / 25.4);
+      var qrMinPx = Math.ceil(15 * 96 / 25.4);
       var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:'+qrMinPx+'px;height:'+qrMinPx+'px;min-width:'+qrMinPx+'px;min-height:'+qrMinPx+'px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
       $wrap.append(qrHtml);
     }

@@ -708,6 +708,37 @@ class DesignApprovalService
         return 'La cuota de gestión PARTILOT debe estar pagada antes de generar archivos con códigos QR.';
     }
 
+    /**
+     * Administración (o superadmin): muestra de 1 hoja con refs/QR en ceros mientras espera aprobación de entidad.
+     */
+    public function canDownloadPendingParticipationSample(?User $user, DesignFormat $design): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (! $user->isSuperAdmin() && ! $this->isAdministrationSideUser($user)) {
+            return false;
+        }
+
+        if (! $this->designHasParticipationContent($design)) {
+            return false;
+        }
+
+        if ($this->normalizedApprovalStatus($design->approval_status) !== self::STATUS_PENDING) {
+            return false;
+        }
+
+        $design->loadMissing('set');
+        if ($design->set
+            && (int) ($design->set->digital_participations ?? 0) > 0
+            && (int) ($design->set->physical_participations ?? 0) === 0) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function statusLabel(?string $status): string
     {
         return match ($this->normalizedApprovalStatus($status)) {

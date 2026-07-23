@@ -50,6 +50,7 @@
                             || (! empty($managementFeeData['payment_before_editor']) && $entityViewer);
                         $showExportActions = ! $entityMustPayNow && empty($blocksQrExport);
                         $qrBlockTitle = $summaryBlockMessage ?? $approvalService->blockMessage($design);
+                        $canDownloadPendingSample = ! empty($canDownloadPendingSample);
                     @endphp
 
                     @if(!empty($summaryStatus))
@@ -322,10 +323,17 @@
                                 <i class="ri-file-pdf-line me-1"></i> Descargar PDF participaciones
                             </button>
                         @else
+                        @php
+                            $pdfOutPart = is_array($design->output) ? $design->output : [];
+                        @endphp
                         <button type="button"
                             class="btn btn-primary js-design-pdf-async"
                             data-async-url="{{ route('design.exportParticipationPdfAsync', $design->id) }}"
                             data-pdf-dialog="participation"
+                            data-rows="{{ (int) ($design->rows ?? 1) }}"
+                            data-cols="{{ (int) ($design->cols ?? 1) }}"
+                            data-documents-mode="{{ $pdfOutPart['documents_mode'] ?? '1' }}"
+                            data-pages-per-document="{{ $pdfOutPart['pages_per_document'] ?? 150 }}"
                             data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
                             data-title="Participaciones">
                             <i class="ri-file-pdf-line me-1"></i> Descargar PDF participaciones
@@ -338,18 +346,35 @@
                         </a>
                         @endif
                         @if(!$isDigitalSet && $hasCover)
+                        @php
+                            $pdfOutCover = is_array($design->output) ? $design->output : [];
+                            $pdfCoverCount = is_array($pdfOutCover['taco_qrs'] ?? null) ? count($pdfOutCover['taco_qrs']) : 0;
+                        @endphp
                         <button type="button"
                             class="btn btn-outline-primary js-design-pdf-async"
                             data-async-url="{{ route('design.exportCoverPdfAsync', $design->id) }}"
+                            data-pdf-dialog="covers"
+                            data-rows="{{ (int) ($design->rows ?? 1) }}"
+                            data-cols="{{ (int) ($design->cols ?? 1) }}"
+                            data-cover-count="{{ $pdfCoverCount }}"
+                            data-documents-mode="{{ $pdfOutCover['documents_mode'] ?? '1' }}"
+                            data-pages-per-document="{{ $pdfOutCover['pages_per_document'] ?? 150 }}"
                             data-title="Portadas">
                             <i class="ri-file-pdf-line me-1"></i> PDF portadas (tacos)
                         </button>
                         @endif
                         @if(!$isDigitalSet && $hasBack)
+                        @php
+                            $pdfOutBack = is_array($design->output) ? $design->output : [];
+                        @endphp
                         <button type="button"
                             class="btn btn-outline-secondary js-design-pdf-async"
                             data-async-url="{{ route('design.exportBackPdfAsync', $design->id) }}"
                             data-pdf-dialog="backs"
+                            data-rows="{{ (int) ($design->rows ?? 1) }}"
+                            data-cols="{{ (int) ($design->cols ?? 1) }}"
+                            data-documents-mode="{{ $pdfOutBack['documents_mode'] ?? '1' }}"
+                            data-pages-per-document="{{ $pdfOutBack['pages_per_document'] ?? 150 }}"
                             data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
                             data-title="Traseras">
                             <i class="ri-file-pdf-line me-1"></i> PDF traseras
@@ -390,6 +415,19 @@
                         <p class="small text-muted partilot-page-panel__narrow mx-auto mb-4">
                             <i class="ri-information-line me-1"></i> {{ $qrBlockTitle }}
                         </p>
+                        @endif
+                        @if($canDownloadPendingSample && !$isDigitalSet && !empty($design->participation_html))
+                            <div class="d-flex flex-wrap justify-content-center gap-3 mb-4">
+                                <a href="{{ route('design.exportParticipationSamplePdf', $design->id) }}"
+                                   class="btn btn-outline-primary"
+                                   target="_blank"
+                                   title="Una hoja con referencias y QR en ceros (sin datos reales)">
+                                    <i class="ri-file-pdf-line me-1"></i> Descargar muestra (1 hoja)
+                                </a>
+                            </div>
+                            <p class="small text-muted partilot-page-panel__narrow mx-auto mb-4">
+                                Muestra de maquetación: todas las participaciones de la hoja usan referencia en ceros y el QR correspondiente. No incluye números reales del set.
+                            </p>
                         @endif
                     @endif
 

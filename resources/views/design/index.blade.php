@@ -203,18 +203,35 @@
                                     <a href="{{ route('design.marketingParticipationImage', $design->id) }}" class="btn btn-sm btn-light" title="Imagen para redes (sin QR)" target="_blank"><i class="ri-share-line"></i></a>
                                     @endif
                                     @if(! $blocksExport && $hasCover)
+                                    @php
+                                        $pdfOut = is_array($design->output) ? $design->output : [];
+                                        $pdfCoverCount = is_array($pdfOut['taco_qrs'] ?? null) ? count($pdfOut['taco_qrs']) : 0;
+                                    @endphp
                                     <button type="button"
                                         class="btn btn-sm btn-light js-design-pdf-async"
                                         title="PDF portadas (varias por hoja)"
                                         data-async-url="{{ route('design.exportCoverPdfAsync', $design->id) }}"
+                                        data-pdf-dialog="covers"
+                                        data-rows="{{ (int) ($design->rows ?? 1) }}"
+                                        data-cols="{{ (int) ($design->cols ?? 1) }}"
+                                        data-cover-count="{{ $pdfCoverCount }}"
+                                        data-documents-mode="{{ $pdfOut['documents_mode'] ?? '1' }}"
+                                        data-pages-per-document="{{ $pdfOut['pages_per_document'] ?? 150 }}"
                                         data-title="Portadas"><i class="ri-book-2-line"></i></button>
                                     @endif
                                     @if(! $blocksExport && $hasBack)
+                                    @php
+                                        $pdfOutBack = is_array($design->output) ? $design->output : [];
+                                    @endphp
                                     <button type="button"
                                         class="btn btn-sm btn-light js-design-pdf-async"
                                         title="PDF traseras (indique cuántas; son idénticas)"
                                         data-async-url="{{ route('design.exportBackPdfAsync', $design->id) }}"
                                         data-pdf-dialog="backs"
+                                        data-rows="{{ (int) ($design->rows ?? 1) }}"
+                                        data-cols="{{ (int) ($design->cols ?? 1) }}"
+                                        data-documents-mode="{{ $pdfOutBack['documents_mode'] ?? '1' }}"
+                                        data-pages-per-document="{{ $pdfOutBack['pages_per_document'] ?? 150 }}"
                                         data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
                                         data-title="Traseras"><i class="ri-stack-line"></i></button>
                                     @endif
@@ -228,13 +245,27 @@
                                         @endif
                                     @else
                                         @if($blocksExport)
-                                            <button type="button" class="btn btn-sm btn-light" disabled title="{{ $exportBlockTitle }}"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
+                                            @if(!empty($approvalCtx['can_download_pending_sample']))
+                                                <a href="{{ route('design.exportParticipationSamplePdf', $design->id) }}"
+                                                   class="btn btn-sm btn-light"
+                                                   target="_blank"
+                                                   title="Muestra 1 hoja (refs y QR en ceros)"><img src="{{url('printer.svg')}}" alt="" width="12"></a>
+                                            @else
+                                                <button type="button" class="btn btn-sm btn-light" disabled title="{{ $exportBlockTitle }}"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
+                                            @endif
                                         @else
+                                        @php
+                                            $pdfOutPart = is_array($design->output) ? $design->output : [];
+                                        @endphp
                                         <button type="button"
                                             class="btn btn-sm btn-light js-design-pdf-async"
                                             title="Descargar PDF de participaciones (elija rango)"
                                             data-async-url="{{ route('design.exportParticipationPdfAsync', $design->id) }}"
                                             data-pdf-dialog="participation"
+                                            data-rows="{{ (int) ($design->rows ?? 1) }}"
+                                            data-cols="{{ (int) ($design->cols ?? 1) }}"
+                                            data-documents-mode="{{ $pdfOutPart['documents_mode'] ?? '1' }}"
+                                            data-pages-per-document="{{ $pdfOutPart['pages_per_document'] ?? 150 }}"
                                             data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
                                             data-title="Participaciones"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
                                         @endif

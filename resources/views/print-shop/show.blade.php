@@ -215,10 +215,18 @@
                             @else
                                 <p class="text-muted small mb-3">Genera y descarga los PDF del pedido. La generación puede tardar unos minutos según el volumen.</p>
                                 <div class="d-flex flex-wrap gap-2">
+                                    @php
+                                        $pdfOut = is_array($design->output) ? $design->output : [];
+                                        $pdfCoverCount = is_array($pdfOut['taco_qrs'] ?? null) ? count($pdfOut['taco_qrs']) : 0;
+                                    @endphp
                                     <button type="button"
                                         class="btn btn-primary btn-sm js-design-pdf-async"
                                         data-async-url="{{ route('design.exportParticipationPdfAsync', $design->id) }}"
                                         data-pdf-dialog="participation"
+                                        data-rows="{{ (int) ($design->rows ?? 1) }}"
+                                        data-cols="{{ (int) ($design->cols ?? 1) }}"
+                                        data-documents-mode="{{ $pdfOut['documents_mode'] ?? '1' }}"
+                                        data-pages-per-document="{{ $pdfOut['pages_per_document'] ?? 150 }}"
                                         data-total-participations="{{ $printOrder->set ? (int) $printOrder->set->total_participations : 0 }}"
                                         data-title="Participaciones">
                                         <i class="ri-file-pdf-line me-1"></i> PDF participaciones
@@ -227,6 +235,12 @@
                                     <button type="button"
                                         class="btn btn-outline-primary btn-sm js-design-pdf-async"
                                         data-async-url="{{ route('design.exportCoverPdfAsync', $design->id) }}"
+                                        data-pdf-dialog="covers"
+                                        data-rows="{{ (int) ($design->rows ?? 1) }}"
+                                        data-cols="{{ (int) ($design->cols ?? 1) }}"
+                                        data-cover-count="{{ $pdfCoverCount }}"
+                                        data-documents-mode="{{ $pdfOut['documents_mode'] ?? '1' }}"
+                                        data-pages-per-document="{{ $pdfOut['pages_per_document'] ?? 150 }}"
                                         data-title="Portadas">
                                         <i class="ri-file-pdf-line me-1"></i> PDF portadas (tacos)
                                     </button>
@@ -236,6 +250,10 @@
                                         class="btn btn-outline-secondary btn-sm js-design-pdf-async"
                                         data-async-url="{{ route('design.exportBackPdfAsync', $design->id) }}"
                                         data-pdf-dialog="backs"
+                                        data-rows="{{ (int) ($design->rows ?? 1) }}"
+                                        data-cols="{{ (int) ($design->cols ?? 1) }}"
+                                        data-documents-mode="{{ $pdfOut['documents_mode'] ?? '1' }}"
+                                        data-pages-per-document="{{ $pdfOut['pages_per_document'] ?? 150 }}"
                                         data-total-participations="{{ $printOrder->set ? (int) $printOrder->set->total_participations : 0 }}"
                                         data-title="Traseras">
                                         <i class="ri-file-pdf-line me-1"></i> PDF traseras

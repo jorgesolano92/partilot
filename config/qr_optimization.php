@@ -24,8 +24,8 @@ return [
         'size' => env('QR_CODE_SIZE', 100),
         'margin' => env('QR_CODE_MARGIN', 0),
         'cache_ttl' => env('QR_CODE_CACHE_TTL', 1800), // 30 minutos
-        // Tamaño mínimo de la caja QR en impresión (mm). 20 mm ≈ 2×2 cm, legible en offset/digital.
-        'min_print_size_mm' => (float) env('QR_MIN_PRINT_SIZE_MM', 20),
+        // Tamaño mínimo de la caja QR en impresión (mm). 15 mm ≈ 1,5×1,5 cm.
+        'min_print_size_mm' => (float) env('QR_MIN_PRINT_SIZE_MM', 15),
     ],
     
     // Configuración de rendimiento

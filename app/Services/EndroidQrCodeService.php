@@ -55,7 +55,7 @@ class EndroidQrCodeService
     public function generateQrCodeBase64($reference)
     {
         // Cache simple para evitar regenerar
-        $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+        $cacheKey = 'endroid_qr_v3_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
         $cached = Cache::get($cacheKey);
         
         if ($cached) {
@@ -87,7 +87,7 @@ class EndroidQrCodeService
         
         // Verificar cuáles ya están en cache
         foreach ($references as $reference) {
-            $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+            $cacheKey = 'endroid_qr_v3_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
             $cached = Cache::get($cacheKey);
             
             if ($cached) {
@@ -126,7 +126,7 @@ class EndroidQrCodeService
             $dataUri = $this->qrCodeToDataUri($qrCode);
 
             // Cache inmediato (solo en memoria)
-            $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+            $cacheKey = 'endroid_qr_v3_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
             Cache::put($cacheKey, $dataUri, 1800);
 
             $results[$reference] = $dataUri;
@@ -148,7 +148,7 @@ class EndroidQrCodeService
             $dataUri = $this->qrCodeToDataUri($qrCode);
 
             // Cache inmediato
-            $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+            $cacheKey = 'endroid_qr_v3_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
             Cache::put($cacheKey, $dataUri, 1800);
 
             $results[$reference] = $dataUri;
@@ -179,7 +179,7 @@ class EndroidQrCodeService
                 $qrCode = $qrCode->setData($url);
                 $dataUri = $this->qrCodeToDataUri($qrCode);
 
-                $cacheKey = 'endroid_qr_v2_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
+                $cacheKey = 'endroid_qr_v3_'.md5($reference.ParticipationTicketReference::publicCheckBaseUrl());
                 Cache::put($cacheKey, $dataUri, (int) config('qr_optimization.qr_code.cache_ttl', 1800));
 
                 $results[$reference] = $dataUri;

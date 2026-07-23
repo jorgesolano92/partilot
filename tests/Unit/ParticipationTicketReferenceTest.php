@@ -102,7 +102,7 @@ class ParticipationTicketReferenceTest extends TestCase
 
         $this->assertStringStartsWith('https://partilot.es/comprobar-participaciones?', $url);
         $this->assertStringContainsString('ref='.$ref, $url);
-        $this->assertStringContainsString('sig=', $url);
+        $this->assertStringNotContainsString('sig=', $url);
         $this->assertNull(ParticipationTicketReference::authenticationError($ref, null));
     }
 
@@ -116,6 +116,15 @@ class ParticipationTicketReferenceTest extends TestCase
 
         $this->assertStringStartsWith('https://check.example.test/comprobar-participaciones?', $url);
         $this->assertStringNotContainsString('panel.', $url);
+        $this->assertStringNotContainsString('sig=', $url);
+    }
+
+    #[Test]
+    public function public_base_url_strips_panel_subdomain(): void
+    {
+        config(['lottery.participation_qr_public_url' => 'https://panel.partilot.es']);
+
+        $this->assertSame('https://partilot.es', ParticipationTicketReference::publicCheckBaseUrl());
     }
 
     #[Test]

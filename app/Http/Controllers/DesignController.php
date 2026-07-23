@@ -2243,7 +2243,7 @@ class DesignController extends Controller
     }
 
     /**
-     * Garantiza cajas .qr ≥ min_print_size_mm (por defecto 20 mm / 2×2 cm).
+     * Garantiza cajas .qr ≥ min_print_size_mm (por defecto 15 mm / 1,5×1,5 cm).
      * Centra el recuadro al ampliar para no desplazar el diseño.
      */
     public function enforceQrMinPrintSizeInHtml(string $html, ?float $minMm = null): string
@@ -2252,8 +2252,8 @@ class DesignController extends Controller
             return $html;
         }
 
-        $minMm = $minMm ?? (float) config('qr_optimization.qr_code.min_print_size_mm', 20);
-        $minMm = max(10.0, $minMm);
+        $minMm = $minMm ?? (float) config('qr_optimization.qr_code.min_print_size_mm', 15);
+        $minMm = max(5.0, $minMm);
         $minPx = $minMm * 96.0 / 25.4;
 
         return preg_replace_callback(
@@ -2273,7 +2273,8 @@ class DesignController extends Controller
                 } else {
                     $side = max($w ?? 0.0, $h ?? 0.0, $minPx);
                 }
-                if ($w !== null && $h !== null && $w >= $minPx - 0.01 && $h >= $minPx - 0.01) {
+                if ($w !== null && $h !== null && $w >= $minPx - 0.01 && $h >= $minPx - 0.01
+                    && abs($w - $h) < 0.5) {
                     // Ya cumple: solo fijar min-* por si el editor lo pierde
                     if (! preg_match('/\bmin-width\s*:/i', $style)) {
                         $style .= 'min-width:'.$this->formatPdfCssPx($minPx).';';
@@ -2285,23 +2286,7 @@ class DesignController extends Controller
                     return $m[1].$style.$m[3];
                 }
 
-                $left = null;
-                $top = null;
-                if (preg_match('/\bleft\s*:\s*([\d.]+)\s*px/i', $style, $lm)) {
-                    $left = (float) $lm[1];
-                }
-                if (preg_match('/\btop\s*:\s*([\d.]+)\s*px/i', $style, $tm)) {
-                    $top = (float) $tm[1];
-                }
-                if ($left !== null && $top !== null && $w !== null && $h !== null && $w > 0 && $h > 0) {
-                    $cx = $left + ($w / 2.0);
-                    $cy = $top + ($h / 2.0);
-                    $newLeft = $cx - ($side / 2.0);
-                    $newTop = $cy - ($side / 2.0);
-                    $style = preg_replace('/\bleft\s*:[^;]+;?/i', 'left:'.$this->formatPdfCssPx($newLeft).';', $style) ?? $style;
-                    $style = preg_replace('/\btop\s*:[^;]+;?/i', 'top:'.$this->formatPdfCssPx($newTop).';', $style) ?? $style;
-                }
-
+                // Ampliar al mínimo/cuadrado sin recentrar (mismo ancla top-left que el editor).
                 if (preg_match('/\bwidth\s*:/i', $style)) {
                     $style = preg_replace('/\bwidth\s*:[^;]+;?/i', 'width:'.$this->formatPdfCssPx($side).';', $style) ?? $style;
                 } else {
@@ -3031,11 +3016,25 @@ class DesignController extends Controller
         }
 
         // Varios documentos (ZIP) o stamp: misma ruta de artefacto.
-        $docRanges = $this->participationPdfDocumentRanges($design, $from, $to);
+        $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
+        $docRanges = $this->participationPdfDocumentRanges(
+            $design,
+            $from,
+            $to,
+            $docsOpts['documents_mode'],
+            $docsOpts['pages_per_document']
+        );
         if (count($docRanges) > 1 || config('pdf_optimization.use_stamp_template', false)) {
             $jobId = 'pdf_sync_part_'.$id.'_'.$from.'_'.$to.'_'.uniqid('', true);
             try {
-                $artifact = $this->writeParticipationExportArtifact($design, $from, $to, $jobId);
+                $artifact = $this->writeParticipationExportArtifact(
+                    $design,
+                    $from,
+                    $to,
+                    $jobId,
+                    $docsOpts['documents_mode'],
+                    $docsOpts['pages_per_document']
+                );
                 $this->cleanupTempQrCodes();
 
                 return response()->download(
@@ -3361,9 +3360,14 @@ class DesignController extends Controller
 
     /**
      * PDF de portadas en disco (stamp si PDF_USE_STAMP_TEMPLATE).
+     * $itemFrom/$itemTo opcionales (1-based, inclusive) para trocear tacos/ítems.
      */
-    public function writeCoverPdfToFile(DesignFormat $design, string $finalPath): void
-    {
+    public function writeCoverPdfToFile(
+        DesignFormat $design,
+        string $finalPath,
+        ?int $itemFrom = null,
+        ?int $itemTo = null
+    ): void {
         $dir = dirname($finalPath);
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
@@ -3371,6 +3375,16 @@ class DesignController extends Controller
 
         if (! config('pdf_optimization.use_stamp_template', false)) {
             $items = $this->buildCoverHtmlItems($design);
+            if ($itemFrom !== null && $itemTo !== null) {
+                $items = array_values(array_slice(
+                    $items,
+                    max(0, $itemFrom - 1),
+                    max(0, $itemTo - $itemFrom + 1)
+                ));
+            }
+            if ($items === []) {
+                throw new \InvalidArgumentException('No hay portadas en el rango solicitado.');
+            }
             $this->saveGridPdfFacadeToPath($design, $items, $finalPath, 'Portadas PDF');
 
             return;
@@ -3379,6 +3393,16 @@ class DesignController extends Controller
         $prepared = $this->prepareCoverOrBackHtmlForPdf($design, 'cover_html');
         $slotsHtml = $this->prepareCoverOrBackStampSlotHtml($design, 'cover_html');
         $books = $this->buildCoverStampBookItems($design);
+        if ($itemFrom !== null && $itemTo !== null) {
+            $books = array_values(array_slice(
+                $books,
+                max(0, $itemFrom - 1),
+                max(0, $itemTo - $itemFrom + 1)
+            ));
+        }
+        if ($books === []) {
+            throw new \InvalidArgumentException('No hay portadas en el rango solicitado.');
+        }
         app(\App\Services\CoverBackPdfStampExporter::class)->exportCoversToFile(
             $design,
             $prepared,
@@ -4547,6 +4571,8 @@ class DesignController extends Controller
             ->isAwaitingEntityManagementFeeBeforeAdminDesign($design);
         $hasDesignContent = app(DesignApprovalService::class)->designHasParticipationContent($design);
         $blocksQrExport = app(DesignApprovalService::class)->blocksQrExport($design);
+        $canDownloadPendingSample = app(DesignApprovalService::class)
+            ->canDownloadPendingParticipationSample(auth()->user(), $design);
         $sendToPrintBlockReason = $this->printOrderSubmissionBlockMessage($design);
         $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
         $canSendToPrint = $sendToPrintBlockReason === null
@@ -4582,6 +4608,7 @@ class DesignController extends Controller
             'awaitingEntityFeeBeforeDesign',
             'hasDesignContent',
             'blocksQrExport',
+            'canDownloadPendingSample',
             'canSendToPrint',
             'sendToPrintBlockReason',
             'canOpenEditor',
@@ -5857,6 +5884,8 @@ class DesignController extends Controller
             ], 422);
         }
 
+        $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
+
         $job_id = 'pdf_part_'.$id.'_'.$from.'_'.$to.'_'.time();
         \App\Support\PdfJobStatus::markProcessing($job_id);
         \App\Support\PdfJobStatus::touchPresence($job_id);
@@ -5865,7 +5894,14 @@ class DesignController extends Controller
             ini_set('max_execution_time', '300');
             ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
 
-            $artifact = $this->writeParticipationExportArtifact($design, $from, $to, $job_id);
+            $artifact = $this->writeParticipationExportArtifact(
+                $design,
+                $from,
+                $to,
+                $job_id,
+                $docsOpts['documents_mode'],
+                $docsOpts['pages_per_document']
+            );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
@@ -5921,22 +5957,88 @@ class DesignController extends Controller
     }
 
     /**
+     * Empaquetado de impresión (1 PDF o ZIP). Prioridad: query/body de la petición;
+     * si no vienen, se usan los valores guardados en el diseño como valor por defecto.
+     * Cuando el modal envía los params, se persisten en design.output (sin reaprobar ni regenerar participaciones).
+     *
+     * @return array{documents_mode: string, pages_per_document: int}
+     */
+    private function resolvePrintDocumentsOptions(Request $request, DesignFormat $design): array
+    {
+        $output = is_array($design->output) ? $design->output : [];
+        $hasExplicitMode = $request->query('documents_mode') !== null
+            || $request->input('documents_mode') !== null;
+        $hasExplicitPages = $request->query('pages_per_document') !== null
+            || $request->input('pages_per_document') !== null;
+
+        $modeRaw = $request->query(
+            'documents_mode',
+            $request->input('documents_mode', $output['documents_mode'] ?? '1')
+        );
+        $pagesRaw = $request->query(
+            'pages_per_document',
+            $request->input('pages_per_document', $output['pages_per_document'] ?? 150)
+        );
+
+        $opts = [
+            'documents_mode' => ((string) $modeRaw === '2') ? '2' : '1',
+            'pages_per_document' => max(1, (int) $pagesRaw),
+        ];
+
+        if ($hasExplicitMode || $hasExplicitPages) {
+            $this->persistPrintDocumentsOptions($design, $opts);
+        }
+
+        return $opts;
+    }
+
+    /**
+     * Guarda documents_mode / pages_per_document en el diseño para la próxima impresión.
+     *
+     * @param  array{documents_mode: string, pages_per_document: int}  $opts
+     */
+    private function persistPrintDocumentsOptions(DesignFormat $design, array $opts): void
+    {
+        $output = is_array($design->output) ? $design->output : [];
+        $mode = (string) ($opts['documents_mode'] ?? '1');
+        $pages = max(1, (int) ($opts['pages_per_document'] ?? 150));
+
+        if (
+            (string) ($output['documents_mode'] ?? '1') === $mode
+            && (int) ($output['pages_per_document'] ?? 150) === $pages
+        ) {
+            return;
+        }
+
+        $output['documents_mode'] = $mode;
+        $output['pages_per_document'] = $pages;
+        $design->output = $output;
+        // saveQuietly: no dispara updateParticipations ni otros observers por un cambio de empaquetado.
+        $design->saveQuietly();
+    }
+
+    /**
      * Rangos [from,to] según documents_mode y páginas por documento.
      *
      * @return list<array{0: int, 1: int}>
      */
-    private function participationPdfDocumentRanges(DesignFormat $design, int $from, int $to): array
-    {
+    private function participationPdfDocumentRanges(
+        DesignFormat $design,
+        int $from,
+        int $to,
+        ?string $documentsMode = null,
+        ?int $pagesPerDocument = null
+    ): array {
         if ($from > $to) {
             return [];
         }
 
         $output = is_array($design->output) ? $design->output : [];
-        $mode = (string) ($output['documents_mode'] ?? '1');
+        $mode = (string) ($documentsMode ?? ($output['documents_mode'] ?? '1'));
         $rows = max(1, (int) ($design->rows ?? 1));
         $cols = max(1, (int) ($design->cols ?? 1));
         $perPage = $rows * $cols;
-        $pagesPerDoc = max(1, (int) ($output['pages_per_document'] ?? 150));
+        $pagesPerDoc = max(1, (int) ($pagesPerDocument ?? ($output['pages_per_document'] ?? 150)));
         $ticketsPerDoc = $pagesPerDoc * $perPage;
         $total = $to - $from + 1;
 
@@ -5958,9 +6060,21 @@ class DesignController extends Controller
      *
      * @return array{path: string, download_name: string, is_zip: bool}
      */
-    public function writeParticipationExportArtifact(DesignFormat $design, int $from, int $to, string $jobId): array
-    {
-        $ranges = $this->participationPdfDocumentRanges($design, $from, $to);
+    public function writeParticipationExportArtifact(
+        DesignFormat $design,
+        int $from,
+        int $to,
+        string $jobId,
+        ?string $documentsMode = null,
+        ?int $pagesPerDocument = null
+    ): array {
+        $ranges = $this->participationPdfDocumentRanges(
+            $design,
+            $from,
+            $to,
+            $documentsMode,
+            $pagesPerDocument
+        );
         if ($ranges === []) {
             throw new \InvalidArgumentException('No hay participaciones en el rango solicitado.');
         }
@@ -6032,15 +6146,187 @@ class DesignController extends Controller
     }
 
     /**
+     * @return array{path: string, download_name: string, is_zip: bool}
+     */
+    public function writeCoverExportArtifact(
+        DesignFormat $design,
+        string $jobId,
+        string $documentsMode = '1',
+        int $pagesPerDocument = 150
+    ): array {
+        $designId = (int) $design->id;
+        $rows = max(1, (int) ($design->rows ?? 1));
+        $cols = max(1, (int) ($design->cols ?? 1));
+        $itemsPerDoc = max(1, $pagesPerDocument * $rows * $cols);
+
+        $totalItems = config('pdf_optimization.use_stamp_template', false)
+            ? count($this->buildCoverStampBookItems($design))
+            : count($this->buildCoverHtmlItems($design));
+
+        $dir = storage_path('app/generated_pdfs');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if ($documentsMode !== '2' || $totalItems <= $itemsPerDoc) {
+            $path = $dir.DIRECTORY_SEPARATOR.$jobId.'.pdf';
+            $this->writeCoverPdfToFile($design, $path);
+
+            return [
+                'path' => $path,
+                'download_name' => 'portadas-diseno-'.$designId.'.pdf',
+                'is_zip' => false,
+            ];
+        }
+
+        $zipPath = $dir.DIRECTORY_SEPARATOR.$jobId.'.zip';
+        $tempParts = [];
+        $zipEntries = [];
+
+        try {
+            $partIndex = 0;
+            for ($start = 1; $start <= $totalItems; $start += $itemsPerDoc) {
+                $partIndex++;
+                $end = min($totalItems, $start + $itemsPerDoc - 1);
+                $partName = sprintf('portadas-diseno-%d-parte-%02d.pdf', $designId, $partIndex);
+                $partPath = $dir.DIRECTORY_SEPARATOR.$jobId.'_part_'.$partIndex.'.pdf';
+                $this->writeCoverPdfToFile($design, $partPath, $start, $end);
+                $tempParts[] = $partPath;
+                $zipEntries[$partName] = $partPath;
+            }
+            $this->storePdfPartsZip($zipPath, $zipEntries);
+        } catch (\Throwable $e) {
+            foreach ($tempParts as $partPath) {
+                @unlink($partPath);
+            }
+            @unlink($zipPath);
+            throw $e;
+        }
+
+        foreach ($tempParts as $partPath) {
+            @unlink($partPath);
+        }
+
+        return [
+            'path' => $zipPath,
+            'download_name' => 'portadas-diseno-'.$designId.'.zip',
+            'is_zip' => true,
+        ];
+    }
+
+    /**
+     * @return array{path: string, download_name: string, is_zip: bool}
+     */
+    public function writeBackExportArtifact(
+        DesignFormat $design,
+        string $jobId,
+        string $copies = 'all',
+        ?int $exactCount = null,
+        string $documentsMode = '1',
+        int $pagesPerDocument = 150
+    ): array {
+        $designId = (int) $design->id;
+        $rows = max(1, (int) ($design->rows ?? 1));
+        $cols = max(1, (int) ($design->cols ?? 1));
+        $itemsPerDoc = max(1, $pagesPerDocument * $rows * $cols);
+
+        $copies = $this->normalizeBackPdfCopies($copies);
+        if ($exactCount !== null) {
+            $total = max(1, min(100000, (int) $exactCount));
+        } elseif ($copies === 'one') {
+            $total = 1;
+        } else {
+            $set = $design->set_id
+                ? Set::select('id', 'tickets', 'total_participations')->find($design->set_id)
+                : null;
+            $total = (int) ($set->total_participations ?? 0);
+            if ($total <= 0 && $set && $set->tickets) {
+                $tickets = is_array($set->tickets) ? $set->tickets : [];
+                $total = count($tickets);
+            }
+            $total = max(1, $total);
+        }
+
+        $dir = storage_path('app/generated_pdfs');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if ($documentsMode !== '2' || $total <= $itemsPerDoc) {
+            $path = $dir.DIRECTORY_SEPARATOR.$jobId.'.pdf';
+            $this->writeBackPdfToFile($design, $path, $copies, $total);
+
+            return [
+                'path' => $path,
+                'download_name' => 'traseras-diseno-'.$designId.'.pdf',
+                'is_zip' => false,
+            ];
+        }
+
+        $zipPath = $dir.DIRECTORY_SEPARATOR.$jobId.'.zip';
+        $tempParts = [];
+        $zipEntries = [];
+
+        try {
+            $partIndex = 0;
+            for ($start = 0; $start < $total; $start += $itemsPerDoc) {
+                $partIndex++;
+                $chunk = min($itemsPerDoc, $total - $start);
+                $partName = sprintf('traseras-diseno-%d-parte-%02d.pdf', $designId, $partIndex);
+                $partPath = $dir.DIRECTORY_SEPARATOR.$jobId.'_part_'.$partIndex.'.pdf';
+                $this->writeBackPdfToFile($design, $partPath, 'all', $chunk);
+                $tempParts[] = $partPath;
+                $zipEntries[$partName] = $partPath;
+            }
+            $this->storePdfPartsZip($zipPath, $zipEntries);
+        } catch (\Throwable $e) {
+            foreach ($tempParts as $partPath) {
+                @unlink($partPath);
+            }
+            @unlink($zipPath);
+            throw $e;
+        }
+
+        foreach ($tempParts as $partPath) {
+            @unlink($partPath);
+        }
+
+        return [
+            'path' => $zipPath,
+            'download_name' => 'traseras-diseno-'.$designId.'.zip',
+            'is_zip' => true,
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $zipEntries  entryName => absolutePath
+     */
+    private function storePdfPartsZip(string $zipPath, array $zipEntries): void
+    {
+        if (class_exists(\ZipArchive::class)) {
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                throw new \RuntimeException('No se pudo crear el archivo ZIP.');
+            }
+            foreach ($zipEntries as $partName => $partPath) {
+                if (! $zip->addFile($partPath, $partName)) {
+                    $zip->close();
+                    throw new \RuntimeException('No se pudo añadir '.$partName.' al ZIP.');
+                }
+            }
+            $zip->close();
+
+            return;
+        }
+
+        \App\Support\SimpleZipStore::create($zipPath, $zipEntries);
+    }
+
+    /**
      * Genera el PDF de participaciones en disco (síncrono; usa stamp si está activo).
      */
     public function writeParticipationPdfToFile(DesignFormat $design, int $from, int $to, string $finalPath): void
     {
-        $participation_html = $this->prepareParticipationHtmlForPdf(
-            $design->participation_html ?? '',
-            (float) ($design->identation ?? 2.5)
-        );
-
         $set = $design->set_id ? Set::select('id', 'tickets', 'total_participations')->find($design->set_id) : null;
         $tickets = $set && $set->tickets ? $set->tickets : [];
 
@@ -6049,12 +6335,27 @@ class DesignController extends Controller
             $tickets_slice = array_slice($tickets, $from - 1, max(0, $to - $from + 1));
         }
 
+        $this->writeParticipationTicketsPdfToFile($design, $tickets_slice, $finalPath);
+    }
+
+    /**
+     * PDF de participaciones a partir de una lista explícita de tickets (p. ej. muestra con refs en ceros).
+     *
+     * @param  list<array{r?: string, n?: int|string}>  $tickets
+     */
+    public function writeParticipationTicketsPdfToFile(DesignFormat $design, array $tickets, string $finalPath): void
+    {
+        $participation_html = $this->prepareParticipationHtmlForPdf(
+            $design->participation_html ?? '',
+            (float) ($design->identation ?? 2.5)
+        );
+
         if (config('qr_optimization.optimize_images', false)) {
-            $participation_html = $this->optimizeParticipationHtml($participation_html, $tickets_slice);
+            $participation_html = $this->optimizeParticipationHtml($participation_html, $tickets);
         }
 
         $uniqueReferences = [];
-        foreach ($tickets_slice as $ticket) {
+        foreach ($tickets as $ticket) {
             if (isset($ticket['r']) && ! in_array($ticket['r'], $uniqueReferences, true)) {
                 $uniqueReferences[] = $ticket['r'];
             }
@@ -6074,7 +6375,7 @@ class DesignController extends Controller
             app(\App\Services\ParticipationPdfStampExporter::class)->exportToFile(
                 $design,
                 $participation_html,
-                $tickets_slice,
+                $tickets,
                 $qrCodes,
                 $finalPath,
                 $slotsHtml
@@ -6089,8 +6390,8 @@ class DesignController extends Controller
         $page = $design->page ?? 'a3';
         $orientation = $design->orientation ?? 'h';
         $pdfOrientation = ($orientation === 'h') ? 'landscape' : 'portrait';
-        $total_pages = $per_page > 0 ? (int) ceil(count($tickets_slice) / $per_page) : 0;
-        $pages = $this->generatePagesOptimized($tickets_slice, $total_pages, $per_page);
+        $total_pages = $per_page > 0 ? (int) ceil(count($tickets) / $per_page) : 0;
+        $pages = $this->generatePagesOptimized($tickets, $total_pages, $per_page);
 
         $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
             $design,
@@ -6100,6 +6401,59 @@ class DesignController extends Controller
         ))->setPaper($page, $pdfOrientation);
         $this->applyDompdfOptions($pdf);
         $pdf->save($finalPath);
+    }
+
+    /**
+     * Muestra de 1 hoja para administración mientras el diseño está pendiente de aprobación.
+     * Referencias y QR con ceros (sin datos reales del set).
+     */
+    public function exportParticipationSamplePdf($id)
+    {
+        $design = DesignFormat::findOrFail($id);
+        $this->authorizeDesignPdfExport($design);
+
+        $approvalService = app(DesignApprovalService::class);
+        if (! $approvalService->canDownloadPendingParticipationSample(auth()->user(), $design)) {
+            abort(403, 'Solo la administración puede descargar la muestra mientras el diseño está pendiente de aprobación.');
+        }
+
+        ini_set('max_execution_time', '120');
+        ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
+
+        $rows = max(1, (int) ($design->rows ?? 1));
+        $cols = max(1, (int) ($design->cols ?? 1));
+        $perPage = $rows * $cols;
+        $zeroRef = str_repeat('0', \App\Support\ParticipationTicketReference::LENGTH);
+        $tickets = [];
+        for ($i = 1; $i <= $perPage; $i++) {
+            $tickets[] = [
+                'r' => $zeroRef,
+                'n' => $i,
+            ];
+        }
+
+        $tmp = storage_path('app/generated_pdfs/sample_part_'.$id.'_'.uniqid('', true).'.pdf');
+        $dir = dirname($tmp);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        try {
+            $this->writeParticipationTicketsPdfToFile($design, $tickets, $tmp);
+            $this->cleanupTempQrCodes();
+
+            return response()->download(
+                $tmp,
+                'muestra-participaciones-diseno-'.$id.'.pdf'
+            )->deleteFileAfterSend(true);
+        } catch (\Throwable $e) {
+            @unlink($tmp);
+            Log::error('exportParticipationSamplePdf failed', [
+                'design_id' => $id,
+                'message' => $e->getMessage(),
+            ]);
+            abort(500, 'No se pudo generar la muestra: '.$e->getMessage());
+        }
     }
 
     /**
@@ -6476,7 +6830,7 @@ class DesignController extends Controller
             ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
     }
 
-    public function exportCoverPdfAsync($id)
+    public function exportCoverPdfAsync(Request $request, $id)
     {
         $design = DesignFormat::findOrFail($id);
         $this->authorizeDesignPdfExport($design);
@@ -6487,6 +6841,8 @@ class DesignController extends Controller
             ], 404);
         }
 
+        $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
+
         $job_id = 'pdf_cover_grid_'.$id.'_'.time();
         \App\Support\PdfJobStatus::markProcessing($job_id);
         \App\Support\PdfJobStatus::touchPresence($job_id);
@@ -6495,12 +6851,16 @@ class DesignController extends Controller
             ini_set('max_execution_time', '300');
             ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
 
-            $final_path = storage_path('app/generated_pdfs/'.$job_id.'.pdf');
-            $this->writeCoverPdfToFile($design, $final_path);
+            $artifact = $this->writeCoverExportArtifact(
+                $design,
+                $job_id,
+                $docsOpts['documents_mode'],
+                $docsOpts['pages_per_document']
+            );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
-                'portadas-diseno-'.$id.'.pdf',
+                $artifact['download_name'],
                 (int) $id
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
@@ -6547,6 +6907,7 @@ class DesignController extends Controller
 
         $copies = $this->normalizeBackPdfCopies($request->query('copies', 'all'));
         $exactCount = $this->parseBackPdfExactCount($request);
+        $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
 
         $job_id = 'pdf_back_'.$id.'_'.time();
         $filename = $exactCount !== null
@@ -6560,12 +6921,18 @@ class DesignController extends Controller
             ini_set('max_execution_time', '300');
             ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
 
-            $final_path = storage_path('app/generated_pdfs/'.$job_id.'.pdf');
-            $this->writeBackPdfToFile($design, $final_path, $copies, $exactCount);
+            $artifact = $this->writeBackExportArtifact(
+                $design,
+                $job_id,
+                $copies,
+                $exactCount,
+                $docsOpts['documents_mode'],
+                $docsOpts['pages_per_document']
+            );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
-                $filename,
+                $artifact['download_name'] ?: $filename,
                 (int) $id
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
@@ -6921,6 +7288,7 @@ class DesignController extends Controller
                 'entity_fee_due' => $feeService->entityOwesManagementFee($d),
                 'acts_as_administration' => $approvalService->userActsAsAdministration($user),
                 'blocks_export' => $blocksExport,
+                'can_download_pending_sample' => $approvalService->canDownloadPendingParticipationSample($user, $d),
                 'block_message' => $approvalService->blockMessage($d),
                 'can_send_to_print' => ! $awaitingEntityFee
                     && ! ($d->set && $this->designSetIsDigitalOnly($d->set))

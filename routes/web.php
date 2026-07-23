@@ -573,6 +573,7 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
 
 Route::get('/design/pdf/participation/{id}', [App\Http\Controllers\DesignController::class, 'exportParticipationPdf'])->name('design.exportParticipationPdf');
 Route::get('/design/pdf/participation-async/{id}', [App\Http\Controllers\DesignController::class, 'exportParticipationPdfAsync'])->name('design.exportParticipationPdfAsync');
+Route::get('/design/pdf/participation-sample/{id}', [App\Http\Controllers\DesignController::class, 'exportParticipationSamplePdf'])->name('design.exportParticipationSamplePdf');
 Route::get('/design/pdf/status/{job_id}', [App\Http\Controllers\DesignController::class, 'checkPdfStatus'])->name('design.checkPdfStatus');
 Route::get('/design/pdf/download/{job_id}', [App\Http\Controllers\DesignController::class, 'downloadPdf'])->name('design.downloadPdf');
 Route::get('/design/pdf/cover/{id}', [App\Http\Controllers\DesignController::class, 'exportCoverPdf'])->name('design.exportCoverPdf');

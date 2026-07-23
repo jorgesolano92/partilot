@@ -167,9 +167,9 @@ class ParticipationTicketReference
             throw new InvalidArgumentException('Referencia inválida para URL firmada.');
         }
 
+        // De momento sin &sig= ni host panel.*: URL más corta → QR más denso / imprimible a ~1,5 cm.
         return self::publicCheckBaseUrl()
-            .'/comprobar-participaciones?ref='.$reference
-            .'&sig='.self::signature($reference);
+            .'/comprobar-participaciones?ref='.$reference;
     }
 
     /**
@@ -183,7 +183,16 @@ class ParticipationTicketReference
             $url = 'https://partilot.es';
         }
 
-        return rtrim(trim($url), '/');
+        $url = rtrim(trim($url), '/');
+        // Evitar host panel.* en QR impresos (alarga el payload y no es la URL pública de comprobación).
+        $parts = parse_url($url);
+        if (is_array($parts) && ! empty($parts['host']) && str_starts_with(strtolower($parts['host']), 'panel.')) {
+            $scheme = $parts['scheme'] ?? 'https';
+            $host = substr($parts['host'], strlen('panel.'));
+            $url = $scheme.'://'.$host;
+        }
+
+        return rtrim($url, '/');
     }
 
     /**
