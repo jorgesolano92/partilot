@@ -1,5 +1,57 @@
-{{-- Modales de impresión: rango / cantidad + empaquetado (1 PDF o ZIP por páginas) --}}
-<div class="modal fade" id="designPdfParticipationModal" tabindex="-1" aria-labelledby="designPdfParticipationModalLabel" aria-hidden="true">
+{{-- Modales de impresión: estilo alineado con «Configurar salida» del editor --}}
+<style>
+.design-pdf-print-modal .form-control {
+    border-radius: 30px;
+}
+.design-pdf-print-modal .form-check.form-switch {
+    min-height: 1.5rem;
+    padding-left: 0;
+}
+.design-pdf-print-modal .form-check.form-switch .form-check-input {
+    float: left;
+    margin-left: 0;
+    width: 2.5em;
+    height: 1.25em;
+}
+.design-pdf-print-modal .form-check.form-switch .form-check-label {
+    float: left;
+    margin-left: 50px;
+    padding-top: 0.1rem;
+}
+.design-pdf-print-modal .form-check.form-switch::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+.design-pdf-print-modal .btn-print-cancel {
+    border-radius: 30px;
+    padding: 8px 18px;
+    font-weight: 700;
+    background-color: #333;
+    color: #fff;
+    border: none;
+}
+.design-pdf-print-modal .btn-print-cancel:hover,
+.design-pdf-print-modal .btn-print-cancel:focus {
+    background-color: #222;
+    color: #fff;
+}
+.design-pdf-print-modal .btn-print-confirm {
+    border-radius: 30px;
+    padding: 8px 18px;
+    font-weight: 700;
+    background-color: #e78307;
+    color: #333;
+    border: none;
+}
+.design-pdf-print-modal .btn-print-confirm:hover,
+.design-pdf-print-modal .btn-print-confirm:focus {
+    background-color: #d07406;
+    color: #333;
+}
+</style>
+
+<div class="modal fade design-pdf-print-modal" id="designPdfParticipationModal" tabindex="-1" aria-labelledby="designPdfParticipationModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -22,29 +74,31 @@
 
                 <h6 class="mb-2">Empaquetado de documentos</h6>
                 <p class="small text-muted mb-2">Esto solo afecta a cómo se genera el archivo (un PDF o un ZIP). No modifica el diseño ni requiere aprobación.</p>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="radio" name="designPdfPartDocsMode" id="designPdfPartDocsMode1" value="1" checked>
-                    <label class="form-check-label" for="designPdfPartDocsMode1">Un único documento (PDF)</label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="radio" name="designPdfPartDocsMode" id="designPdfPartDocsMode2" value="2">
-                    <label class="form-check-label" for="designPdfPartDocsMode2">Varios documentos (ZIP)</label>
+                <div class="form-group mb-2">
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfPartDocsMode" id="designPdfPartDocsMode1" value="1" role="switch" checked>
+                        <label class="form-check-label" for="designPdfPartDocsMode1"><b>Un único documento (PDF)</b></label>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfPartDocsMode" id="designPdfPartDocsMode2" value="2" role="switch">
+                        <label class="form-check-label" for="designPdfPartDocsMode2"><b>Varios documentos (ZIP)</b></label>
+                    </div>
                 </div>
                 <div id="designPdfPartPagesWrap" class="mb-1" style="display:none;">
                     <label for="designPdfPartPagesPerDoc" class="form-label">Páginas por documento</label>
-                    <input type="number" class="form-control" id="designPdfPartPagesPerDoc" min="1" value="150">
+                    <input type="number" class="form-control" id="designPdfPartPagesPerDoc" min="1" value="150" style="max-width: 140px;">
                     <p class="small text-muted mt-1 mb-0" id="designPdfPartDocsHint"></p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="designPdfPartConfirm">Generar PDF</button>
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfPartConfirm">Generar PDF</button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="designPdfCoverModal" tabindex="-1" aria-labelledby="designPdfCoverModalLabel" aria-hidden="true">
+<div class="modal fade design-pdf-print-modal" id="designPdfCoverModal" tabindex="-1" aria-labelledby="designPdfCoverModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -55,29 +109,31 @@
                 <p class="small text-muted mb-3">Se generarán las portadas de todos los tacos del diseño.</p>
                 <h6 class="mb-2">Empaquetado de documentos</h6>
                 <p class="small text-muted mb-2">Esto solo afecta a cómo se genera el archivo (un PDF o un ZIP). No modifica el diseño ni requiere aprobación.</p>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="radio" name="designPdfCoverDocsMode" id="designPdfCoverDocsMode1" value="1" checked>
-                    <label class="form-check-label" for="designPdfCoverDocsMode1">Un único documento (PDF)</label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="radio" name="designPdfCoverDocsMode" id="designPdfCoverDocsMode2" value="2">
-                    <label class="form-check-label" for="designPdfCoverDocsMode2">Varios documentos (ZIP)</label>
+                <div class="form-group mb-2">
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfCoverDocsMode" id="designPdfCoverDocsMode1" value="1" role="switch" checked>
+                        <label class="form-check-label" for="designPdfCoverDocsMode1"><b>Un único documento (PDF)</b></label>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfCoverDocsMode" id="designPdfCoverDocsMode2" value="2" role="switch">
+                        <label class="form-check-label" for="designPdfCoverDocsMode2"><b>Varios documentos (ZIP)</b></label>
+                    </div>
                 </div>
                 <div id="designPdfCoverPagesWrap" class="mb-1" style="display:none;">
                     <label for="designPdfCoverPagesPerDoc" class="form-label">Páginas por documento</label>
-                    <input type="number" class="form-control" id="designPdfCoverPagesPerDoc" min="1" value="150">
+                    <input type="number" class="form-control" id="designPdfCoverPagesPerDoc" min="1" value="150" style="max-width: 140px;">
                     <p class="small text-muted mt-1 mb-0" id="designPdfCoverDocsHint"></p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="designPdfCoverConfirm">Generar PDF</button>
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfCoverConfirm">Generar PDF</button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="designPdfBackModal" tabindex="-1" aria-labelledby="designPdfBackModalLabel" aria-hidden="true">
+<div class="modal fade design-pdf-print-modal" id="designPdfBackModal" tabindex="-1" aria-labelledby="designPdfBackModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -87,27 +143,29 @@
             <div class="modal-body">
                 <p class="small text-muted mb-2">Las traseras son idénticas. Indique cuántas unidades necesita imprimir.</p>
                 <label for="designPdfBackCount" class="form-label">Número de traseras</label>
-                <input type="number" class="form-control" id="designPdfBackCount" min="1" max="100000" value="1">
+                <input type="number" class="form-control" id="designPdfBackCount" min="1" max="100000" value="1" style="max-width: 160px;">
 
                 <h6 class="mt-3 mb-2">Empaquetado de documentos</h6>
                 <p class="small text-muted mb-2">Esto solo afecta a cómo se genera el archivo (un PDF o un ZIP). No modifica el diseño ni requiere aprobación.</p>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="radio" name="designPdfBackDocsMode" id="designPdfBackDocsMode1" value="1" checked>
-                    <label class="form-check-label" for="designPdfBackDocsMode1">Un único documento (PDF)</label>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="radio" name="designPdfBackDocsMode" id="designPdfBackDocsMode2" value="2">
-                    <label class="form-check-label" for="designPdfBackDocsMode2">Varios documentos (ZIP)</label>
+                <div class="form-group mb-2">
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfBackDocsMode" id="designPdfBackDocsMode1" value="1" role="switch" checked>
+                        <label class="form-check-label" for="designPdfBackDocsMode1"><b>Un único documento (PDF)</b></label>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfBackDocsMode" id="designPdfBackDocsMode2" value="2" role="switch">
+                        <label class="form-check-label" for="designPdfBackDocsMode2"><b>Varios documentos (ZIP)</b></label>
+                    </div>
                 </div>
                 <div id="designPdfBackPagesWrap" class="mb-1" style="display:none;">
                     <label for="designPdfBackPagesPerDoc" class="form-label">Páginas por documento</label>
-                    <input type="number" class="form-control" id="designPdfBackPagesPerDoc" min="1" value="150">
+                    <input type="number" class="form-control" id="designPdfBackPagesPerDoc" min="1" value="150" style="max-width: 140px;">
                     <p class="small text-muted mt-1 mb-0" id="designPdfBackDocsHint"></p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="designPdfBackConfirm">Generar PDF</button>
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfBackConfirm">Generar PDF</button>
             </div>
         </div>
     </div>
