@@ -1662,6 +1662,7 @@ class DesignController extends Controller
         $html = $this->flattenParticipationHtmlForPdf($html);
         $html = $this->stripFormatBoxBorderForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
+        $html = $this->applyVerticalTextForDomPdf($html);
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
         $html = $this->scaleFontSizesForDomPdf($html);
@@ -2240,6 +2241,420 @@ class DesignController extends Controller
             },
             $html
         ) ?? $html;
+    }
+
+    /**
+     * DomPDF no aplica writing-mode ni transform:rotate.
+     * - Texto normal: PNG rotado -90° (letras de lado) vía GD.
+     * - reference/participation/number: FPDI estampa imagen rotada si data-text-vertical.
+     */
+    public function applyVerticalTextForDomPdf(string $html): string
+    {
+        if ($html === '') {
+            return $html;
+        }
+        if (stripos($html, 'text-vertical') === false && stripos($html, 'data-text-vertical') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/<div\b([^>]*?(?:class\s*=\s*["\'][^"\']*\btext-vertical\b[^"\']*["\']|data-text-vertical\s*=\s*["\']1["\'])[^>]*)>(.*?)<\/div>/is',
+            function (array $m): string {
+                $attrs = $m[1];
+                $inner = $m[2];
+                $isCritical = (bool) preg_match(
+                    '/\bclass\s*=\s*["\'][^"\']*\b(reference|participation|number)\b[^"\']*["\']/i',
+                    $attrs
+                );
+
+                $style = '';
+                if (preg_match('/\bstyle\s*=\s*("|\')(.*?)\1/is', $attrs, $sm)) {
+                    $style = $sm[2];
+                }
+
+                $style = preg_replace('/\bwriting-mode\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\btext-orientation\s*:[^;]+;?/i', '', $style) ?? $style;
+                $style = preg_replace('/\btransform(?:-origin)?\s*:[^;]+;?/i', '', $style) ?? $style;
+                if (preg_match('/\boverflow\s*:/i', $style)) {
+                    $style = preg_replace('/\boverflow\s*:[^;]+;?/i', 'overflow:visible;', $style) ?? $style;
+                } else {
+                    $style .= 'overflow:visible;';
+                }
+                $style = trim($style);
+                if ($style === '') {
+                    $style = 'overflow:visible;';
+                }
+
+                if (! preg_match('/\bdata-text-vertical\s*=/i', $attrs)) {
+                    $attrs .= ' data-text-vertical="1"';
+                }
+
+                if (! $isCritical) {
+                    $plain = $this->extractPlainTextFromHtmlFragment($inner);
+                    $boxW = null;
+                    $boxH = null;
+                    if (preg_match('/\bwidth\s*:\s*([\d.]+)\s*px/i', $style, $wm)) {
+                        $boxW = (float) $wm[1];
+                    }
+                    if (preg_match('/\bheight\s*:\s*([\d.]+)\s*px/i', $style, $hm)) {
+                        $boxH = (float) $hm[1];
+                    }
+                    // Restar padding aproximado del área útil de la imagen.
+                    $padPx = 0.0;
+                    if (preg_match('/\bpadding\s*:\s*([\d.]+)\s*px/i', $style, $pm)) {
+                        $padPx = (float) $pm[1];
+                    }
+                    if ($boxW !== null) {
+                        $boxW = max(8.0, $boxW - (2 * $padPx));
+                    }
+                    if ($boxH !== null) {
+                        $boxH = max(8.0, $boxH - (2 * $padPx));
+                    }
+
+                    $file = $this->renderRotatedTextPngTempFile(
+                        $plain,
+                        $this->parseFontSizePxFromCssHint($style.' '.$inner),
+                        $this->parseRgbFromCssHint($style.' '.$inner),
+                        (bool) preg_match('/<(strong|b)\b|\bfont-weight\s*:\s*(bold|[6-9]00)\b/i', $style.' '.$inner),
+                        $boxW,
+                        $boxH
+                    );
+                    if ($file !== null) {
+                        $wAttr = $boxW !== null ? round($boxW).'px' : '100%';
+                        $hAttr = $boxH !== null ? round($boxH).'px' : '100%';
+                        // Ruta absoluta (chroot incluye storage/); evitar data-URI (DomPDF a menudo no la pinta).
+                        $src = str_replace('\\', '/', $file);
+                        $inner = '<img src="'.$src.'" width="'.(int) round($boxW ?? 40).'" height="'.(int) round($boxH ?? 120).'" alt="" style="width:'.$wAttr.';height:'.$hAttr.';display:block;border:0;max-width:100%;max-height:100%;">';
+                    }
+                }
+
+                if (preg_match('/\bstyle\s*=\s*("|\')(.*?)\1/is', $attrs)) {
+                    $attrs = preg_replace(
+                        '/\bstyle\s*=\s*("|\')(.*?)\1/is',
+                        'style="'.$style.'"',
+                        $attrs,
+                        1
+                    ) ?? $attrs;
+                } else {
+                    $attrs .= ' style="'.$style.'"';
+                }
+
+                return '<div'.$attrs.'>'.$inner.'</div>';
+            },
+            $html
+        ) ?? $html;
+    }
+
+    protected function extractPlainTextFromHtmlFragment(string $htmlFragment): string
+    {
+        $text = preg_replace('/<br\s*\/?>/i', "\n", $htmlFragment) ?? $htmlFragment;
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+
+        return trim(preg_replace("/\n{3,}/", "\n\n", $text) ?? $text);
+    }
+
+    /**
+     * PNG con texto rotado -90° (CSS) / +90° GD, data-URI para DomPDF.
+     */
+    public function renderVerticalTextPngDataUri(string $text, string $cssHint): ?string
+    {
+        $png = $this->renderRotatedTextPngBinary(
+            $text,
+            $this->parseFontSizePxFromCssHint($cssHint),
+            $this->parseRgbFromCssHint($cssHint),
+            (bool) preg_match('/\bfont-weight\s*:\s*(bold|[6-9]00)\b/i', $cssHint),
+            null,
+            null,
+            $cssHint
+        );
+        if ($png === null) {
+            return null;
+        }
+
+        return 'data:image/png;base64,'.base64_encode($png);
+    }
+
+    /**
+     * Escribe PNG rotado en archivo temporal (para DomPDF / FPDI::Image). Caller puede borrar.
+     *
+     * @param  array{0?:int,1?:int,2?:int}|null  $rgb
+     */
+    public function renderRotatedTextPngTempFile(
+        string $text,
+        float $fontSizePx,
+        ?array $rgb = null,
+        bool $bold = false,
+        ?float $targetWidthPx = null,
+        ?float $targetHeightPx = null,
+        string $fontHint = 'font-family:DejaVu Sans,sans-serif;'
+    ): ?string {
+        $rgb = $rgb ?? [0, 0, 0];
+        $png = $this->renderRotatedTextPngBinary(
+            $text,
+            $fontSizePx,
+            $rgb,
+            $bold,
+            $targetWidthPx,
+            $targetHeightPx,
+            $fontHint.($bold ? 'font-weight:bold;' : '')
+        );
+        if ($png === null) {
+            return null;
+        }
+        $dir = storage_path('app/pdf_vertical_text');
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        $path = $dir.DIRECTORY_SEPARATOR.'rot_'.uniqid('', true).'.png';
+        if (file_put_contents($path, $png) === false) {
+            return null;
+        }
+
+        return $path;
+    }
+
+    public function parseFontSizePxFromCssHint(string $cssHint): float
+    {
+        if (preg_match('/\bfont-size\s*:\s*([\d.]+)\s*px/i', $cssHint, $m)) {
+            return max(8.0, (float) $m[1]);
+        }
+        if (preg_match('/\bfont-size\s*:\s*([\d.]+)\s*pt/i', $cssHint, $m)) {
+            return max(8.0, (float) $m[1] * 96.0 / 72.0);
+        }
+
+        return 16.0;
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int}
+     */
+    public function parseRgbFromCssHint(string $cssHint): array
+    {
+        if (preg_match('/(?<![-\w])color\s*:\s*#([0-9a-f]{3}|[0-9a-f]{6})\b/i', $cssHint, $m)) {
+            $hex = strtolower($m[1]);
+            if (strlen($hex) === 3) {
+                $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+            }
+
+            return [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))];
+        }
+        if (preg_match('/(?<![-\w])color\s*:\s*rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i', $cssHint, $m)) {
+            return [
+                max(0, min(255, (int) round((float) $m[1]))),
+                max(0, min(255, (int) round((float) $m[2]))),
+                max(0, min(255, (int) round((float) $m[3]))),
+            ];
+        }
+        if (preg_match('/(?<![-\w])color\s*:\s*hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/i', $cssHint, $m)) {
+            return $this->hslToRgb((float) $m[1], (float) $m[2] / 100, (float) $m[3] / 100);
+        }
+
+        return [0, 0, 0];
+    }
+
+    /**
+     * Texto a 90° (antihorario = CSS rotate(-90deg)) sin imagerotate (rompe alpha).
+     *
+     * @param  array{0?:int,1?:int,2?:int}  $rgb
+     */
+    protected function renderRotatedTextPngBinary(
+        string $text,
+        float $fontSizePx,
+        array $rgb,
+        bool $bold = false,
+        ?float $targetWidthPx = null,
+        ?float $targetHeightPx = null,
+        string $cssHint = ''
+    ): ?string {
+        if ($text === '' || ! function_exists('imagettftext')) {
+            return null;
+        }
+
+        $fontFile = $this->resolveTtfForVerticalText(
+            $cssHint.($bold ? 'font-weight:bold;' : '').'font-family:DejaVu Sans,sans-serif;'
+        );
+        if ($fontFile === null) {
+            return null;
+        }
+
+        $fontSize = (int) max(8, round($fontSizePx));
+        $pad = (int) max(4, round($fontSize * 0.25));
+        $angle = 90; // CCW → letras de lado, lectura de abajo hacia arriba
+
+        $lines = preg_split("/\n/u", $text) ?: [$text];
+        $lineGap = (int) max($fontSize + 4, round($fontSize * 1.3));
+
+        // Medir bounding box de cada línea a 90°.
+        $boxes = [];
+        $maxW = 0;
+        $totalH = 0;
+        foreach ($lines as $i => $line) {
+            $measure = $line === '' ? ' ' : $line;
+            $bbox = @imagettfbbox($fontSize, $angle, $fontFile, $measure);
+            if (! is_array($bbox)) {
+                return null;
+            }
+            $minX = min($bbox[0], $bbox[2], $bbox[4], $bbox[6]);
+            $maxX = max($bbox[0], $bbox[2], $bbox[4], $bbox[6]);
+            $minY = min($bbox[1], $bbox[3], $bbox[5], $bbox[7]);
+            $maxY = max($bbox[1], $bbox[3], $bbox[5], $bbox[7]);
+            $bw = (int) ceil($maxX - $minX);
+            $bh = (int) ceil($maxY - $minY);
+            $boxes[] = compact('minX', 'maxX', 'minY', 'maxY', 'bw', 'bh', 'line');
+            $maxW = max($maxW, $bw);
+            $totalH = max($totalH, $bh);
+        }
+
+        // Varias líneas: desplazar en X (tras rotar 90°, el “salto de línea” es horizontal).
+        $width = max(1, $maxW + ((count($lines) - 1) * $lineGap) + (2 * $pad));
+        $height = max(1, $totalH + (2 * $pad));
+
+        if ($targetWidthPx !== null && $targetWidthPx > 0) {
+            $width = max($width, (int) ceil($targetWidthPx));
+        }
+        if ($targetHeightPx !== null && $targetHeightPx > 0) {
+            $height = max($height, (int) ceil($targetHeightPx));
+        }
+
+        $img = imagecreatetruecolor($width, $height);
+        if ($img === false) {
+            return null;
+        }
+        imagealphablending($img, false);
+        imagesavealpha($img, true);
+        $transparent = imagecolorallocatealpha($img, 0, 0, 0, 127);
+        imagefilledrectangle($img, 0, 0, $width, $height, $transparent);
+        imagealphablending($img, true);
+
+        $col = imagecolorallocate(
+            $img,
+            max(0, min(255, (int) ($rgb[0] ?? 0))),
+            max(0, min(255, (int) ($rgb[1] ?? 0))),
+            max(0, min(255, (int) ($rgb[2] ?? 0)))
+        );
+        if ($col === false) {
+            imagedestroy($img);
+
+            return null;
+        }
+
+        foreach ($boxes as $i => $box) {
+            $line = $box['line'] === '' ? ' ' : $box['line'];
+            // Origen: padding compensando el bbox negativo de TTF a 90°.
+            $x = $pad - (int) $box['minX'] + ($i * $lineGap);
+            $y = $pad - (int) $box['minY'];
+            // Centrar en el alto del canvas si la caja es más alta.
+            if ($height > ($box['bh'] + 2 * $pad)) {
+                $y += (int) round(($height - $box['bh'] - 2 * $pad) / 2);
+            }
+            @imagettftext($img, $fontSize, $angle, $x, $y, $col, $fontFile, $line);
+        }
+
+        ob_start();
+        imagepng($img);
+        $png = ob_get_clean();
+        imagedestroy($img);
+        if ($png === false || $png === '') {
+            return null;
+        }
+
+        return $png;
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int}
+     */
+    protected function hslToRgb(float $h, float $s, float $l): array
+    {
+        $h = fmod(($h % 360) + 360, 360) / 360;
+        $r = $l;
+        $g = $l;
+        $b = $l;
+        if ($s > 0) {
+            $q = $l < 0.5 ? $l * (1 + $s) : ($l + $s - $l * $s);
+            $p = 2 * $l - $q;
+            $r = $this->hueToRgbChannel($p, $q, $h + 1 / 3);
+            $g = $this->hueToRgbChannel($p, $q, $h);
+            $b = $this->hueToRgbChannel($p, $q, $h - 1 / 3);
+        }
+
+        return [
+            (int) round($r * 255),
+            (int) round($g * 255),
+            (int) round($b * 255),
+        ];
+    }
+
+    protected function hueToRgbChannel(float $p, float $q, float $t): float
+    {
+        if ($t < 0) {
+            $t += 1;
+        }
+        if ($t > 1) {
+            $t -= 1;
+        }
+        if ($t < 1 / 6) {
+            return $p + ($q - $p) * 6 * $t;
+        }
+        if ($t < 1 / 2) {
+            return $q;
+        }
+        if ($t < 2 / 3) {
+            return $p + ($q - $p) * (2 / 3 - $t) * 6;
+        }
+
+        return $p;
+    }
+
+    protected function resolveTtfForVerticalText(string $cssHint): ?string
+    {
+        $candidates = [];
+        $wantBold = (bool) preg_match('/\bfont-weight\s*:\s*(bold|[6-9]00)\b/i', $cssHint);
+        if (preg_match('/\bfont-family\s*:\s*([^;]+)/i', $cssHint, $m)) {
+            $families = preg_split('/\s*,\s*/', strtolower($m[1])) ?: [];
+            foreach ($families as $fam) {
+                $fam = trim($fam, " \t\"'");
+                if ($fam === '' || $fam === 'sans-serif' || $fam === 'serif' || $fam === 'monospace') {
+                    continue;
+                }
+                if (str_contains($fam, 'asgonlae')) {
+                    $candidates[] = public_path('Asgonlae.ttf');
+                }
+                if (str_contains($fam, 'dejavu')) {
+                    $candidates[] = $wantBold
+                        ? base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf')
+                        : base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans.ttf');
+                }
+            }
+        }
+        if ($wantBold) {
+            $candidates[] = base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf');
+        }
+        $candidates[] = public_path('Asgonlae.ttf');
+        $candidates[] = base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans.ttf');
+        $candidates[] = base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf');
+
+        foreach ($candidates as $path) {
+            if (is_string($path) && $path !== '' && is_readable($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @deprecated Ya no se usa (se rota el bloque entero). Se mantiene por compatibilidad.
+     */
+    protected function stackPlainTextVerticallyForDomPdf(string $htmlFragment): string
+    {
+        $text = $this->extractPlainTextFromHtmlFragment($htmlFragment);
+        if ($text === '') {
+            return '';
+        }
+
+        return htmlspecialchars($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     /**
@@ -3301,6 +3716,7 @@ class DesignController extends Controller
         $html = $this->flattenParticipationHtmlForPdf($html);
         $html = $this->stripFormatBoxBorderForPdf($html);
         $html = $this->normalizeParticipationElementsForPdf($html);
+        $html = $this->applyVerticalTextForDomPdf($html);
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
         $html = $this->scaleFontSizesForDomPdf($html);

@@ -231,6 +231,11 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
     .text-style-btn {
         display: inline-block;
     }
+    .text-style-btn.text-vertical-btn.active {
+        background-color: #e78307 !important;
+        border-color: #e78307 !important;
+        color: #333 !important;
+    }
     .text-bold { font-weight: bold; }
     .text-italic { font-style: italic; }
     .text-underline { text-decoration: underline; }
@@ -672,6 +677,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -810,6 +816,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -902,6 +909,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -2270,9 +2278,14 @@ $('#format').change(function (e) {
       : $('[id^="containment-wrapper"] .elements, #design-back-bg .elements');
     $els.each(function() {
       this.style.setProperty('resize', 'both', 'important');
-      this.style.setProperty('overflow', 'hidden', 'important');
+      if (!$(this).hasClass('text-vertical') && $(this).attr('data-text-vertical') !== '1') {
+        this.style.setProperty('overflow', 'hidden', 'important');
+      }
     });
     enforceQrMinSize($scope);
+    if (typeof normalizeVerticalTextBoxes === 'function') {
+      normalizeVerticalTextBoxes($scope);
+    }
   }
 
   /** Mínimo 1,5×1,5 cm (15 mm ≈ 57px @ 96dpi). Amplía sin mover left/top. */
@@ -2595,8 +2608,11 @@ $('#format').change(function (e) {
     $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
     if ($el.hasClass('text')) {
       $('.text-style-btn').prop('disabled', false);
+      var isVertical = $el.hasClass('text-vertical') || $el.attr('data-text-vertical') === '1';
+      $('.text-vertical-btn').toggleClass('active', isVertical).attr('aria-pressed', isVertical ? 'true' : 'false');
     } else {
       $('.text-style-btn').prop('disabled', true);
+      $('.text-vertical-btn').removeClass('active').attr('aria-pressed', 'false');
     }
     if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
   }
@@ -3262,6 +3278,79 @@ $('#format').change(function (e) {
       let span = selectedElement.find('span');
       let currentSize = parseInt(span.css('font-size'));
       span.css('font-size', Math.max(8, currentSize - 2) + 'px');
+    }
+  });
+  /** Intercambia width/height preservando el centro (layout = caja visible en PDF). */
+  function swapElementBoxPreserveCenter(el) {
+    if (!el) return;
+    var w = parseFloat(el.style.width);
+    var h = parseFloat(el.style.height);
+    var $el = $(el);
+    if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+    if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+    var left = parseFloat(el.style.left);
+    var top = parseFloat(el.style.top);
+    if (!isFinite(left)) left = 0;
+    if (!isFinite(top)) top = 0;
+    var cx = left + w / 2;
+    var cy = top + h / 2;
+    var nw = h;
+    var nh = w;
+    el.style.width = nw + 'px';
+    el.style.height = nh + 'px';
+    el.style.left = (cx - nw / 2) + 'px';
+    el.style.top = (cy - nh / 2) + 'px';
+  }
+
+  /**
+   * Activa/desactiva texto vertical.
+   * Al activar: la caja pasa a ser alta (AABB real) para que el PDF coincida con el editor.
+   */
+  function setTextElementVertical($el, enable) {
+    if (!$el || !$el.length) return;
+    var el = $el[0];
+    var isOn = $el.hasClass('text-vertical') || $el.attr('data-text-vertical') === '1';
+    if (enable === isOn) return;
+
+    // Pasar de horizontal↔vertical: intercambiar dimensiones del layout.
+    swapElementBoxPreserveCenter(el);
+
+    if (enable) {
+      $el.addClass('text-vertical').attr('data-text-vertical', '1');
+    } else {
+      $el.removeClass('text-vertical').removeAttr('data-text-vertical');
+    }
+  }
+
+  /** Corrige cajas verticales antiguas (anchas + transform) al cargar. */
+  function normalizeVerticalTextBoxes($scope) {
+    var $root = ($scope && $scope.length) ? $scope : $(document);
+    $root.find('.elements.text.text-vertical, .elements.text[data-text-vertical="1"]').each(function () {
+      var el = this;
+      var w = parseFloat(el.style.width);
+      var h = parseFloat(el.style.height);
+      var $el = $(el);
+      if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+      if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+      // Caja aún “apaisada”: era layout pre-rotación → convertir a alta.
+      if (w > h * 1.15) {
+        swapElementBoxPreserveCenter(el);
+        $el.addClass('text-vertical').attr('data-text-vertical', '1');
+      }
+    });
+  }
+
+  $('.text-vertical-btn').click(function(e) {
+    e.preventDefault();
+    if (!selectedElement || !selectedElement.hasClass('text')) {
+      return;
+    }
+    var enable = !selectedElement.hasClass('text-vertical') && selectedElement.attr('data-text-vertical') !== '1';
+    setTextElementVertical(selectedElement, enable);
+    $('.text-vertical-btn').toggleClass('active', enable).attr('aria-pressed', enable ? 'true' : 'false');
+    markDesignDirty();
+    if (typeof saveHistoryState === 'function') {
+      saveHistoryState();
     }
   });
 

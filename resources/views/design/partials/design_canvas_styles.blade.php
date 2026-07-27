@@ -94,6 +94,39 @@
 @endif
 }
 
+/*
+ * Texto vertical = letras de lado (rotate -90°).
+ * Importante: NO transformar el .elements exterior (left/top/width/height
+ * deben coincidir con lo visible; DomPDF/FPDI usan esas coords).
+ * La rotación va en el span interior.
+ */
+@if(empty($designPdfFonts))
+.format-box .elements.text.text-vertical,
+.format-box .elements.text[data-text-vertical="1"] {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    transform: none !important;
+    overflow: hidden !important;
+}
+.format-box .elements.text.text-vertical > span,
+.format-box .elements.text[data-text-vertical="1"] > span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    transform-origin: center center;
+    white-space: nowrap;
+    max-width: none;
+    line-height: 1.15;
+}
+@else
+.format-box .elements.text.text-vertical,
+.format-box .elements.text[data-text-vertical="1"] {
+    overflow: visible !important;
+    transform: none !important;
+}
+@endif
+
 .format-box .elements.text *,
 .format-box .elements.reference *,
 .format-box .elements.participation *,

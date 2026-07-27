@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Controllers\DesignController;
 use App\Models\DesignFormat;
 use App\Support\ParticipationPdfLayout;
+use App\Support\StampFpdi;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use setasign\Fpdi\Fpdi;
@@ -55,7 +56,7 @@ class ParticipationPdfStampExporter
 
         $tTemplate = microtime(true);
 
-        $pdf = new Fpdi();
+        $pdf = new StampFpdi();
         $pageCount = $pdf->setSourceFile($templatePath);
         if ($pageCount < 1) {
             @unlink($templatePath);
@@ -207,6 +208,15 @@ class ParticipationPdfStampExporter
         $html = str_replace('00000000000000000000', '', $html);
         $html = str_replace('1/0001', '', $html);
 
+        // Vaciar cajas estampadas (también si el placeholder quedó partido por texto vertical).
+        $html = preg_replace_callback(
+            '/(<div[^>]*\bclass="[^"]*\b(reference|participation)\b[^"]*"[^>]*>)(.*?)(<\/div>)/is',
+            static function (array $m): string {
+                return $m[1].'<span></span>'.$m[4];
+            },
+            $html
+        ) ?? $html;
+
         // Quitar por completo el hueco QR: DomPDF pintaba un rectángulo blanco vacío
         // y el stamp FPDI quedaba "raro" encima. El QR solo se estampa con FPDI.
         $html = preg_replace(
@@ -265,7 +275,7 @@ class ParticipationPdfStampExporter
         ];
 
         if (! preg_match_all(
-            '/<div([^>]*\bclass="[^"]*\belements\b[^"]*"[^>]*)>(.*?)<\/div>/is',
+            '/<div([^>]*\bclass\s*=\s*(["\'])([^"\']*\belements\b[^"\']*)\2[^>]*)>(.*?)<\/div>/is',
             $html,
             $matches,
             PREG_SET_ORDER
@@ -275,15 +285,12 @@ class ParticipationPdfStampExporter
 
         foreach ($matches as $match) {
             $attrs = $match[1];
-            $inner = $match[2];
-            if (! preg_match('/\bclass="([^"]+)"/i', $attrs, $cm)) {
+            $inner = $match[4];
+            $class = strtolower($match[3]);
+            if (! preg_match('/\bstyle\s*=\s*(["\'])(.*?)\1/is', $attrs, $sm)) {
                 continue;
             }
-            $class = strtolower($cm[1]);
-            if (! preg_match('/\bstyle="([^"]*)"/i', $attrs, $sm)) {
-                continue;
-            }
-            $style = $sm[1];
+            $style = $sm[2];
             $box = $this->parseBoxMm($style);
             if ($box === null) {
                 continue;
@@ -298,13 +305,25 @@ class ParticipationPdfStampExporter
 
             $color = $this->parseCssColor($style) ?? $this->parseCssColor($inner) ?? [0, 0, 0];
             $bold = (bool) preg_match('/<(strong|b)\b/i', $inner);
+            $vertical = str_contains($class, 'text-vertical')
+                || (bool) preg_match('/\bdata-text-vertical\s*=\s*["\']?1["\']?/i', $attrs);
 
             if (preg_match('/(^|\s)qr(\s|$)/', $class)) {
                 $slots['qr'] = $box;
             } elseif (str_contains($class, 'reference')) {
-                $slots['references'][] = $box + ['size' => $fontPt, 'color' => $color, 'bold' => $bold];
+                $slots['references'][] = $box + [
+                    'size' => $fontPt,
+                    'color' => $color,
+                    'bold' => $bold,
+                    'vertical' => $vertical,
+                ];
             } elseif (str_contains($class, 'participation')) {
-                $slots['participations'][] = $box + ['size' => $fontPt, 'color' => $color, 'bold' => $bold];
+                $slots['participations'][] = $box + [
+                    'size' => $fontPt,
+                    'color' => $color,
+                    'bold' => $bold,
+                    'vertical' => $vertical,
+                ];
             } elseif (str_contains($class, 'images')) {
                 $src = null;
                 if (preg_match('/<img[^>]+src=(["\'])([^"\']+)\1/i', $inner, $im)) {
@@ -467,7 +486,7 @@ class ParticipationPdfStampExporter
      * @param  array{qr: ?array, references: list, participations: list}  $slots
      */
     private function stampTicket(
-        Fpdi $pdf,
+        StampFpdi|Fpdi $pdf,
         array $ticket,
         array $qrCodes,
         array $slots,
@@ -512,7 +531,8 @@ class ParticipationPdfStampExporter
                 ($box['pad_t'] ?? 0.0) * $scale,
                 ($box['pad_b'] ?? $box['pad_t'] ?? 0.0) * $scale,
                 $box['color'] ?? [0, 0, 0],
-                (bool) ($box['bold'] ?? false)
+                (bool) ($box['bold'] ?? false),
+                (bool) ($box['vertical'] ?? false)
             );
         }
 
@@ -534,7 +554,8 @@ class ParticipationPdfStampExporter
                 ($box['pad_t'] ?? 0.0) * $scale,
                 ($box['pad_b'] ?? $box['pad_t'] ?? 0.0) * $scale,
                 $box['color'] ?? [0, 0, 0],
-                (bool) ($box['bold'] ?? false)
+                (bool) ($box['bold'] ?? false),
+                (bool) ($box['vertical'] ?? false)
             );
         }
 
@@ -574,12 +595,13 @@ class ParticipationPdfStampExporter
 
     /**
      * Estampa texto respetando el padding del editor y centrado en el área de contenido.
-     * FPDF::Cell centra con una fórmula rara (0.5*h+0.3*fs); Text() usa baseline explícito.
+     * $vertical: rotación nativa -90° (letras de lado), no imagen.
      *
+     * @param  StampFpdi|Fpdi  $pdf
      * @param  array{0:int,1:int,2:int}  $color
      */
     private function stampText(
-        Fpdi $pdf,
+        $pdf,
         string $text,
         float $x,
         float $y,
@@ -590,21 +612,17 @@ class ParticipationPdfStampExporter
         float $padT,
         float $padB = 0.0,
         array $color = [0, 0, 0],
-        bool $bold = false
+        bool $bold = false,
+        bool $vertical = false
     ): void {
         if ($text === '') {
             return;
         }
 
-        $fontPt = max(4.0, min(22.0, $fontPt));
+        $fontPt = max(4.0, min(28.0, $fontPt));
         $fontMm = $fontPt * (25.4 / 72.0);
-        // Altura visual aprox. de mayúsculas Helvetica (coincide mejor con el editor que line-height).
         $glyphHmm = $fontMm * 0.75;
-        $contentTop = $y + $padT;
-        $contentH = max($glyphHmm, $h - $padT - $padB);
-        $textTop = $contentTop + max(0.0, ($contentH - $glyphHmm) / 2.0);
-        // Text($x,$y): $y es la baseline, no el top del glifo.
-        $baseline = $textTop + ($fontMm * 0.72);
+        $safe = $this->fpdiSafeText($text);
 
         $pdf->SetTextColor(
             max(0, min(255, (int) ($color[0] ?? 0))),
@@ -612,7 +630,30 @@ class ParticipationPdfStampExporter
             max(0, min(255, (int) ($color[2] ?? 0)))
         );
         $pdf->SetFont('Helvetica', $bold ? 'B' : '', $fontPt);
-        $pdf->Text($x + $padL, $baseline, $this->fpdiSafeText($text));
+
+        if ($vertical && $pdf instanceof StampFpdi) {
+            // CSS rotate(-90deg) ≈ Rotate(90) antihorario: el texto avanza hacia arriba.
+            $contentX = $x + $padL;
+            $contentY = $y + $padT;
+            $contentW = max($fontMm, $w - $padL);
+            $contentH = max($fontMm, $h - $padT - $padB);
+            $textLen = $pdf->GetStringWidth($safe);
+            // Punto de anclaje: centro horizontal de la caja, cerca del borde inferior
+            // (+ offset para centrar la cadena a lo largo de la altura).
+            $anchorX = $contentX + ($contentW / 2) + ($fontMm * 0.15);
+            $anchorY = $contentY + $contentH - max(0.0, ($contentH - $textLen) / 2.0);
+            $pdf->Rotate(90, $anchorX, $anchorY);
+            $pdf->Text($anchorX, $anchorY, $safe);
+            $pdf->Rotate(0);
+
+            return;
+        }
+
+        $contentTop = $y + $padT;
+        $contentH = max($glyphHmm, $h - $padT - $padB);
+        $textTop = $contentTop + max(0.0, ($contentH - $glyphHmm) / 2.0);
+        $baseline = $textTop + ($fontMm * 0.72);
+        $pdf->Text($x + $padL, $baseline, $safe);
     }
 
     private function fpdiSafeText(string $text): string
