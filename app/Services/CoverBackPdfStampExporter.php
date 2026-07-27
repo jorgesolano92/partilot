@@ -100,7 +100,9 @@ class CoverBackPdfStampExporter
                     $originX + $contentDx,
                     $originY + $contentDy,
                     $cellW,
-                    $designW
+                    $cellH,
+                    $designW,
+                    $designH
                 );
             }
         }
@@ -398,9 +400,12 @@ class CoverBackPdfStampExporter
         float $originX,
         float $originY,
         float $cellW,
-        float $designW
+        float $cellH,
+        float $designW,
+        float $designH
     ): void {
-        $scale = $designW > 0 ? ($cellW / $designW) : 1.0;
+        $scaleX = $designW > 0 ? ($cellW / $designW) : 1.0;
+        $scaleY = $designH > 0 ? ($cellH / $designH) : 1.0;
         $ref = (string) ($book['taco_ref'] ?? '');
         $label = (string) ($book['label'] ?? '');
 
@@ -408,13 +413,12 @@ class CoverBackPdfStampExporter
             $src = $qrFiles[$ref];
             if (is_string($src) && $src !== '' && is_file($src)) {
                 $q = $slots['qr'];
-                $boxW = $q['w'] * $scale;
-                $boxH = $q['h'] * $scale;
+                $boxW = $q['w'] * $scaleX;
+                $boxH = $q['h'] * $scaleY;
                 $minMm = max(5.0, (float) config('qr_optimization.qr_code.min_print_size_mm', 15));
                 $side = max($boxW, $boxH, $minMm);
-                // Ancla top-left (igual que el editor); no recentrar al aplicar el mínimo.
-                $qx = $originX + ($q['x'] * $scale);
-                $qy = $originY + ($q['y'] * $scale);
+                $qx = $originX + ($q['x'] * $scaleX);
+                $qy = $originY + ($q['y'] * $scaleY);
                 $this->debugStampBox($pdf, $qx, $qy, $side, $side);
                 $pdf->Image($src, $qx, $qy, $side, $side);
             }
@@ -422,10 +426,10 @@ class CoverBackPdfStampExporter
 
         if ($slots['context'] !== null && $label !== '') {
             $c = $slots['context'];
-            $bx = $originX + ($c['x'] * $scale);
-            $by = $originY + ($c['y'] * $scale);
-            $bw = $c['w'] * $scale;
-            $bh = $c['h'] * $scale;
+            $bx = $originX + ($c['x'] * $scaleX);
+            $by = $originY + ($c['y'] * $scaleY);
+            $bw = $c['w'] * $scaleX;
+            $bh = $c['h'] * $scaleY;
             $this->debugStampBox($pdf, $bx, $by, $bw, $bh);
 
             $fontPt = max(10.0, min(18.0, ($bh * 72.0 / 25.4) * 0.45));

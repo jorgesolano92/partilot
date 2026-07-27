@@ -105,7 +105,9 @@ class ParticipationPdfStampExporter
                     $originX + $contentDx,
                     $originY + $contentDy,
                     $cellW,
-                    $designW
+                    $cellH,
+                    $designW,
+                    $designH
                 );
             }
         }
@@ -493,9 +495,14 @@ class ParticipationPdfStampExporter
         float $originX,
         float $originY,
         float $cellW,
-        float $designW
+        float $cellH,
+        float $designW,
+        float $designH
     ): void {
-        $scale = $designW > 0 ? ($cellW / $designW) : 1.0;
+        // Misma escala anisotrópica que useTemplate(design → trim).
+        $scaleX = $designW > 0 ? ($cellW / $designW) : 1.0;
+        $scaleY = $designH > 0 ? ($cellH / $designH) : 1.0;
+        $fontScale = ($scaleX + $scaleY) / 2.0;
 
         $ref = (string) ($ticket['r'] ?? '');
         $num = '1/'.str_pad((string) ((int) ($ticket['n'] ?? 0)), 4, '0', STR_PAD_LEFT);
@@ -505,19 +512,19 @@ class ParticipationPdfStampExporter
             if (! is_string($src) || $src === '' || ! is_file($src)) {
                 continue;
             }
-            $ix = $originX + ($img['x'] * $scale);
-            $iy = $originY + ($img['y'] * $scale);
-            $iw = $img['w'] * $scale;
-            $ih = $img['h'] * $scale;
+            $ix = $originX + ($img['x'] * $scaleX);
+            $iy = $originY + ($img['y'] * $scaleY);
+            $iw = $img['w'] * $scaleX;
+            $ih = $img['h'] * $scaleY;
             $pdf->Image($src, $ix, $iy, $iw, $ih);
             $this->debugStampBox($pdf, $ix, $iy, $iw, $ih);
         }
 
         foreach ($slots['references'] as $box) {
-            $bx = $originX + ($box['x'] * $scale);
-            $by = $originY + ($box['y'] * $scale);
-            $bw = $box['w'] * $scale;
-            $bh = $box['h'] * $scale;
+            $bx = $originX + ($box['x'] * $scaleX);
+            $by = $originY + ($box['y'] * $scaleY);
+            $bw = $box['w'] * $scaleX;
+            $bh = $box['h'] * $scaleY;
             $this->debugStampBox($pdf, $bx, $by, $bw, $bh);
             $this->stampText(
                 $pdf,
@@ -526,10 +533,10 @@ class ParticipationPdfStampExporter
                 $by,
                 $bw,
                 $bh,
-                ($box['size'] ?? 7.0) * $scale,
-                ($box['pad_l'] ?? 0.0) * $scale,
-                ($box['pad_t'] ?? 0.0) * $scale,
-                ($box['pad_b'] ?? $box['pad_t'] ?? 0.0) * $scale,
+                ($box['size'] ?? 7.0) * $fontScale,
+                ($box['pad_l'] ?? 0.0) * $scaleX,
+                ($box['pad_t'] ?? 0.0) * $scaleY,
+                ($box['pad_b'] ?? $box['pad_t'] ?? 0.0) * $scaleY,
                 $box['color'] ?? [0, 0, 0],
                 (bool) ($box['bold'] ?? false),
                 (bool) ($box['vertical'] ?? false)
@@ -537,10 +544,10 @@ class ParticipationPdfStampExporter
         }
 
         foreach ($slots['participations'] as $box) {
-            $bx = $originX + ($box['x'] * $scale);
-            $by = $originY + ($box['y'] * $scale);
-            $bw = $box['w'] * $scale;
-            $bh = $box['h'] * $scale;
+            $bx = $originX + ($box['x'] * $scaleX);
+            $by = $originY + ($box['y'] * $scaleY);
+            $bw = $box['w'] * $scaleX;
+            $bh = $box['h'] * $scaleY;
             $this->debugStampBox($pdf, $bx, $by, $bw, $bh);
             $this->stampText(
                 $pdf,
@@ -549,10 +556,10 @@ class ParticipationPdfStampExporter
                 $by,
                 $bw,
                 $bh,
-                ($box['size'] ?? 7.0) * $scale,
-                ($box['pad_l'] ?? 0.0) * $scale,
-                ($box['pad_t'] ?? 0.0) * $scale,
-                ($box['pad_b'] ?? $box['pad_t'] ?? 0.0) * $scale,
+                ($box['size'] ?? 7.0) * $fontScale,
+                ($box['pad_l'] ?? 0.0) * $scaleX,
+                ($box['pad_t'] ?? 0.0) * $scaleY,
+                ($box['pad_b'] ?? $box['pad_t'] ?? 0.0) * $scaleY,
                 $box['color'] ?? [0, 0, 0],
                 (bool) ($box['bold'] ?? false),
                 (bool) ($box['vertical'] ?? false)
@@ -563,13 +570,13 @@ class ParticipationPdfStampExporter
             $src = $qrCodes[$ref];
             if (is_string($src) && $src !== '' && ! str_starts_with($src, 'data:') && is_file($src)) {
                 $q = $slots['qr'];
-                $boxW = $q['w'] * $scale;
-                $boxH = $q['h'] * $scale;
+                $boxW = $q['w'] * $scaleX;
+                $boxH = $q['h'] * $scaleY;
                 $minMm = max(5.0, (float) config('qr_optimization.qr_code.min_print_size_mm', 15));
                 $side = max($boxW, $boxH, $minMm);
                 // Ancla top-left (igual que el editor); no recentrar al aplicar el mínimo.
-                $qx = $originX + ($q['x'] * $scale);
-                $qy = $originY + ($q['y'] * $scale);
+                $qx = $originX + ($q['x'] * $scaleX);
+                $qy = $originY + ($q['y'] * $scaleY);
                 $this->debugStampBox(
                     $pdf,
                     $qx,

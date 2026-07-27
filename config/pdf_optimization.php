@@ -57,8 +57,8 @@ return [
     'stamp_offset_x' => (float) env('PDF_STAMP_OFFSET_X', 0),
     'stamp_offset_y' => (float) env('PDF_STAMP_OFFSET_Y', 0),
 
-    // Desplazamiento SOLO de overlays (imgs/ref/nº/QR) respecto al arte de la celda (mm).
-    // Positivo Y = bajar. Con slots sin hacks DomPDF suele bastar ~0.5–1.0.
+    // Desplazamiento fino SOLO de overlays (imgs/ref/nº/QR) respecto al arte (mm).
+    // Positivo Y = bajar. Tras escala X/Y correcta suele bastar 0 (o un ajuste mínimo ~0–0.5).
     'stamp_content_offset_x' => (float) env('PDF_STAMP_CONTENT_OFFSET_X', 0),
     'stamp_content_offset_y' => (float) env('PDF_STAMP_CONTENT_OFFSET_Y', 0),
 
