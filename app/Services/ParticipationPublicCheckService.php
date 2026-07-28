@@ -84,8 +84,10 @@ class ParticipationPublicCheckService
         }
 
         $status = (string) ($participation->status ?? '');
-        $allowedStatuses = ['asignada', 'vendida', 'pagada', 'reservada', 'reserva_venta_digital'];
-        if (! in_array($status, $allowedStatuses, true)) {
+        // La comprobación por QR debe mostrar preview y datos aunque aún no esté asignada/vendida.
+        // Solo se bloquean estados inválidos (anulada / perdida).
+        $blockedStatuses = ['anulada', 'perdida'];
+        if (in_array($status, $blockedStatuses, true)) {
             return [
                 'success' => false,
                 'error' => 'Esta participación no está disponible para comprobación.',
