@@ -280,7 +280,18 @@
                         $donation = (float) ($ticket['set']['donation_amount'] ?? 0);
                         $total = (float) ($ticket['set']['total_amount'] ?? ($played + $donation));
                         $amountLabel = $ticket['set']['amount_label'] ?? (number_format($total, 2, ',', '.').'€');
+                        $amountBreakdown = $ticket['set']['amount_breakdown'] ?? null;
                         $previewUrl = $ticket['preview_image_url'] ?? null;
+                        $playedNumbersLabel = $ticket['reserve']['played_numbers_label']
+                            ?? ((!empty($ticket['reserve']['reservation_numbers']) && count($ticket['reserve']['reservation_numbers']) > 1)
+                                ? 'Números jugados'
+                                : 'Número jugado');
+                        $playedNumbersText = $ticket['reserve']['played_numbers_text'] ?? null;
+                        if ($playedNumbersText === null && !empty($ticket['reserve']['reservation_numbers'])) {
+                            $playedNumbersText = collect($ticket['reserve']['reservation_numbers'])
+                                ->map(fn ($n) => str_pad((string) $n, 5, '0', STR_PAD_LEFT))
+                                ->implode(', ');
+                        }
                     @endphp
 
                     @if($previewUrl)
@@ -315,8 +326,8 @@
                             <strong>{{ $ticket['reserve']['entity']['name'] ?? 'N/A' }}</strong>
                         </div>
                         <div class="detail-row">
-                            <span>Nº de sorteo</span>
-                            <strong>{{ $ticket['lottery']['draw_number'] ?? $ticket['lottery']['name'] ?? 'N/A' }}</strong>
+                            <span>{{ $playedNumbersLabel }}</span>
+                            <strong>{{ $playedNumbersText ?? 'N/A' }}</strong>
                         </div>
                         <div class="detail-row">
                             <span>Participación</span>
@@ -327,7 +338,9 @@
                     <div class="details-card text-center">
                         <h5>Importe de la participación</h5>
                         <div class="amount-hero">{{ $amountLabel }}</div>
-                        @if($donation > 0 && $played > 0)
+                        @if(!empty($amountBreakdown))
+                            <p class="amount-sub">{{ $amountBreakdown }}</p>
+                        @elseif($donation > 0 && $played > 0)
                             <p class="amount-sub">Jugado {{ number_format($played, 2, ',', '.') }}€ + donativo {{ number_format($donation, 2, ',', '.') }}€</p>
                         @endif
                     </div>

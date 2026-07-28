@@ -162,7 +162,10 @@ class ParticipationPublicCheckService
 
         $played = (float) ($set->played_amount ?? 0);
         $donation = (float) ($set->donation_amount ?? 0);
-        $total = $played + $donation;
+        $numberCount = is_array($reservedNumbers) ? count($reservedNumbers) : 0;
+        // played_amount = importe jugado POR NÚMERO (como en el alta del set).
+        $totalPlayed = $numberCount > 0 ? ($played * $numberCount) : $played;
+        $total = $totalPlayed + $donation;
         if ($total <= 0 && isset($set->total_participation_amount)) {
             $total = (float) $set->total_participation_amount;
         }
@@ -170,6 +173,11 @@ class ParticipationPublicCheckService
         $previewImageUrl = url('/comprobar-participaciones/imagen?ref='.urlencode($ref));
         if ($sig) {
             $previewImageUrl .= '&sig='.urlencode($sig);
+        }
+
+        $paddedNumbers = [];
+        foreach ($reservedNumbers as $number) {
+            $paddedNumbers[] = str_pad((string) $number, 5, '0', STR_PAD_LEFT);
         }
 
         return [
@@ -187,14 +195,19 @@ class ParticipationPublicCheckService
                     'id' => $set->id,
                     'played_amount' => $played,
                     'donation_amount' => $donation,
+                    'total_played_amount' => $totalPlayed,
                     'total_amount' => $total,
-                    'amount_label' => $this->formatAmountLabel($played, $donation, $total),
+                    'amount_label' => $this->formatAmountLabel($totalPlayed, $donation, $total),
+                    'amount_breakdown' => $this->formatAmountBreakdown($played, $donation, $numberCount),
+                    'numbers_count' => $numberCount,
                 ],
                 'reserve' => [
                     'entity' => [
                         'name' => $reserve->entity->name ?? null,
                     ],
                     'reservation_numbers' => $reservedNumbers,
+                    'played_numbers_label' => $numberCount > 1 ? 'Números jugados' : 'Número jugado',
+                    'played_numbers_text' => $paddedNumbers !== [] ? implode(', ', $paddedNumbers) : 'N/A',
                 ],
                 'lottery' => [
                     'name' => $lottery?->displayLabel() ?? ($lottery->name ?? null),
@@ -251,7 +264,7 @@ class ParticipationPublicCheckService
         return 'pending_results';
     }
 
-    protected function formatAmountLabel(float $played, float $donation, float $total): string
+    protected function formatAmountLabel(float $totalPlayed, float $donation, float $total): string
     {
         $fmt = static function (float $n): string {
             if (abs($n - round($n)) < 0.001) {
@@ -265,7 +278,50 @@ class ParticipationPublicCheckService
             return $fmt($total).'€';
         }
 
-        return $fmt($played).'€';
+        return $fmt($totalPlayed).'€';
+    }
+
+    /**
+     * Desglose: con varios números → "Jugado 2€ + 2€ + donativo 1€";
+     * con uno → "Jugado 4€ + donativo 1€".
+     */
+    protected function formatAmountBreakdown(float $playedPerNumber, float $donation, int $numberCount): ?string
+    {
+        $fmt = static function (float $n): string {
+            if (abs($n - round($n)) < 0.001) {
+                return (string) (int) round($n);
+            }
+
+            return number_format($n, 2, ',', '.');
+        };
+
+        if ($playedPerNumber <= 0 && $donation <= 0) {
+            return null;
+        }
+
+        if ($numberCount > 1 && $playedPerNumber > 0) {
+            $parts = array_fill(0, $numberCount, $fmt($playedPerNumber).'€');
+            $text = 'Jugado '.implode(' + ', $parts);
+            if ($donation > 0) {
+                $text .= ' + donativo '.$fmt($donation).'€';
+            }
+
+            return $text;
+        }
+
+        if ($donation > 0 && $playedPerNumber > 0) {
+            return 'Jugado '.$fmt($playedPerNumber).'€ + donativo '.$fmt($donation).'€';
+        }
+
+        if ($playedPerNumber > 0) {
+            return 'Jugado '.$fmt($playedPerNumber).'€';
+        }
+
+        if ($donation > 0) {
+            return 'Donativo '.$fmt($donation).'€';
+        }
+
+        return null;
     }
 
     /**

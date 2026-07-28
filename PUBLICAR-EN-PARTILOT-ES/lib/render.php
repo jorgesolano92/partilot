@@ -89,11 +89,6 @@ function partilot_render_ticket(array $ticket, array $config): void
         $numbersHtml .= '<div class="number-box">' . $padded . '</div>';
     }
 
-    $drawNumber = trim((string) ($lottery['draw_number'] ?? $lottery['name'] ?? ''));
-    if ($drawNumber === '') {
-        $drawNumber = 'N/A';
-    }
-
     $played = (float) ($set['played_amount'] ?? 0);
     $donation = (float) ($set['donation_amount'] ?? 0);
     $amountLabel = (string) ($set['amount_label'] ?? '');
@@ -101,8 +96,25 @@ function partilot_render_ticket(array $ticket, array $config): void
         $total = (float) ($set['total_amount'] ?? ($played + $donation));
         $amountLabel = number_format($total, 2, ',', '.') . '€';
     }
-    // Por si llega una etiqueta antigua con "(4+1)".
     $amountLabel = preg_replace('/\s*\([^)]*\)\s*$/', '', $amountLabel) ?: $amountLabel;
+    $amountBreakdown = trim((string) ($set['amount_breakdown'] ?? ''));
+    if ($amountBreakdown === '' && $donation > 0 && $played > 0) {
+        $amountBreakdown = 'Jugado ' . number_format($played, 2, ',', '.')
+            . '€ + donativo ' . number_format($donation, 2, ',', '.') . '€';
+    }
+
+    $playedNumbersLabel = (string) ($reserve['played_numbers_label'] ?? '');
+    if ($playedNumbersLabel === '') {
+        $playedNumbersLabel = count($numbers) > 1 ? 'Números jugados' : 'Número jugado';
+    }
+    $playedNumbersText = (string) ($reserve['played_numbers_text'] ?? '');
+    if ($playedNumbersText === '') {
+        $tmp = [];
+        foreach ($numbers as $number) {
+            $tmp[] = str_pad((string) $number, 5, '0', STR_PAD_LEFT);
+        }
+        $playedNumbersText = $tmp !== [] ? implode(', ', $tmp) : 'N/A';
+    }
 
     // Solo <img>: ModSecurity/COMODO (regla 214540) bloquea iframes en la salida HTML.
     $previewHtml = '';
@@ -118,8 +130,8 @@ function partilot_render_ticket(array $ticket, array $config): void
         . '<h5>' . partilot_escape($lottery['name'] ?? 'Sorteo') . '</h5>'
         . '<div class="detail-row"><span>Fecha del sorteo</span><strong>' . partilot_escape($drawFormatted) . '</strong></div>'
         . '<div class="detail-row"><span>Entidad</span><strong>' . partilot_escape($reserve['entity']['name'] ?? 'N/A') . '</strong></div>'
-        . '<div class="detail-row"><span>Nº de sorteo</span><strong>'
-        . partilot_escape($drawNumber)
+        . '<div class="detail-row"><span>' . partilot_escape($playedNumbersLabel) . '</span><strong>'
+        . partilot_escape($playedNumbersText)
         . '</strong></div>'
         . '<div class="detail-row"><span>Participación</span><strong>'
         . partilot_escape($data['participation_code'] ?? 'N/A')
@@ -129,9 +141,8 @@ function partilot_render_ticket(array $ticket, array $config): void
     $amountHtml = '<div class="details-card text-center">'
         . '<h5>Importe de la participación</h5>'
         . '<div class="amount-hero">' . partilot_escape($amountLabel) . '</div>';
-    if ($donation > 0 && $played > 0) {
-        $amountHtml .= '<p class="amount-sub">Jugado ' . number_format($played, 2, ',', '.')
-            . '€ + donativo ' . number_format($donation, 2, ',', '.') . '€</p>';
+    if ($amountBreakdown !== '') {
+        $amountHtml .= '<p class="amount-sub">' . partilot_escape($amountBreakdown) . '</p>';
     }
     $amountHtml .= '</div>';
 
