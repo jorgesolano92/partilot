@@ -285,9 +285,8 @@
 
                     @if($previewUrl)
                         <div class="preview-wrap">
-                            <img src="{{ $previewUrl }}" alt="Participación"
-                                 onerror="this.style.display='none';var f=this.nextElementSibling; if(f){f.style.display='block';}">
-                            <iframe src="{{ $previewUrl }}" title="Previsualización" style="display:none;width:100%;border:0;min-height:220px;border-radius:8px;"></iframe>
+                            <img src="{{ $previewUrl }}" alt="Participación" class="preview-img"
+                                 onerror="this.closest('.preview-wrap').style.display='none'">
                         </div>
                     @endif
 

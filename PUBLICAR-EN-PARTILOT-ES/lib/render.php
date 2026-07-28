@@ -93,13 +93,13 @@ function partilot_render_ticket(array $ticket, array $config): void
         $amountLabel = number_format($total, 2, ',', '.') . '€';
     }
 
+    // Solo <img>: ModSecurity/COMODO (regla 214540) bloquea iframes en la salida HTML.
     $previewHtml = '';
     if ($previewUrl !== '') {
         $safePreview = partilot_escape($previewUrl);
         $previewHtml = '<div class="preview-wrap">'
             . '<img src="' . $safePreview . '" alt="Participación" class="preview-img"'
-            . ' onerror="this.style.display=\'none\';var f=this.nextElementSibling;if(f){f.style.display=\'block\';}">'
-            . '<iframe src="' . $safePreview . '" title="Previsualización" class="preview-frame" style="display:none"></iframe>'
+            . ' onerror="this.closest(\'.preview-wrap\').style.display=\'none\'">'
             . '</div>';
     }
 
