@@ -320,34 +320,34 @@
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Márgenes de la página (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_up" type="number" id="margin-up" value="{{ old('margin_up', $format->margins['up'] ?? '') }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_up" type="number" id="margin-up" value="{{ old('margin_up', $format->margins['up'] ?? $format->margin_up ?? 1) }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_right" type="number" id="margin-right" value="{{ old('margin_right', $format->margins['right'] ?? '') }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_right" type="number" id="margin-right" value="{{ old('margin_right', $format->margins['right'] ?? $format->margin_right ?? 1) }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_left" type="number" id="margin-left" value="{{ old('margin_left', $format->margins['left'] ?? '') }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_left" type="number" id="margin-left" value="{{ old('margin_left', $format->margins['left'] ?? $format->margin_left ?? 1) }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_top" type="number" id="margin-top" value="{{ old('margin_top', $format->margins['top'] ?? '') }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_top" type="number" id="margin-top" value="{{ old('margin_top', $format->margins['top'] ?? $format->margin_top ?? 1) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Sangres de la imagen (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="identation" type="number" id="identation" value="{{ old('identation', $format->identation) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="identation" type="number" id="identation" value="{{ old('identation', $format->identation ?? 0) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Líneas de corte (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="cut_lines" type="number" id="cut-lines" value="{{ old('cut_lines', $format->cut_lines ?? $format->identation ?? '2.5') }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="cut_lines" type="number" id="cut-lines" value="{{ old('cut_lines', $format->cut_lines ?? 2.5) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Anchura de la matriz (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="matrix_box" type="number" id="matrix-box" value="{{ old('matrix_box', $format->matrix_box) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="matrix_box" type="number" id="matrix-box" value="{{ old('matrix_box', $format->matrix_box ?? 40) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-6">
                                                                 <span class="d-block mt-1">(Incluyendo sangres)</span>
@@ -356,19 +356,19 @@
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Márgenes de la página (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" id="margin-custom" name="margin_custom" type="number" value="{{ old('margin_custom', $format->margin_custom ?? '') }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" id="margin-custom" name="margin_custom" type="number" value="{{ old('margin_custom', $format->margin_custom ?? 1) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Espacio horizontal entre participaciones (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="horizontal_space" type="number" id="page-rigth" value="{{ old('horizontal_space', $format->horizontal_space) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="horizontal_space" type="number" id="page-rigth" value="{{ old('horizontal_space', $format->horizontal_space ?? 0) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Espacio vertical entre participaciones (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="vertical_space" type="number" id="page-bottom" value="{{ old('vertical_space', $format->vertical_space) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="vertical_space" type="number" id="page-bottom" value="{{ old('vertical_space', $format->vertical_space ?? 0) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mt-3">
@@ -1945,10 +1945,10 @@ function getMarginBoundsPx() {
     el.style.removeProperty('inset');
     $el.css({ left: left + 'px', top: top + 'px' });
   }
-  /** Sangres: 0 es válido; solo default 2.5 si el campo está vacío o no es número. */
+  /** Sangres: 0 es válido; solo default 0 si el campo está vacío o no es número. */
   function parseIdentationMm() {
     var v = parseFloat($('#identation').val());
-    return Number.isFinite(v) ? v : 2.5;
+    return Number.isFinite(v) ? v : 0;
   }
 
   function marginBgLayerId(stepNum) {

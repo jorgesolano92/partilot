@@ -103,16 +103,16 @@ window.__designLoad = {!! json_encode([
     'rows' => $design->rows,
     'cols' => $design->cols,
     'orientation' => $design->orientation,
-    'margin_up' => $design->margin_up,
-    'margin_right' => $design->margin_right,
-    'margin_left' => $design->margin_left,
-    'margin_top' => $design->margin_top,
+    'margin_up' => $design->margin_up ?? ($design->margins['up'] ?? null),
+    'margin_right' => $design->margin_right ?? ($design->margins['right'] ?? null),
+    'margin_left' => $design->margin_left ?? ($design->margins['left'] ?? null),
+    'margin_top' => $design->margin_top ?? ($design->margins['top'] ?? null),
     'identation' => $design->identation,
     'cut_lines' => $design->cut_lines,
     'matrix_box' => $design->matrix_box,
     'margin_custom' => $design->margin_custom,
-    'page_rigth' => $design->page_rigth,
-    'page_bottom' => $design->page_bottom,
+    'page_rigth' => $design->page_rigth ?? $design->horizontal_space,
+    'page_bottom' => $design->page_bottom ?? $design->vertical_space,
     'participation_html' => $loadParticipation,
     'cover_html' => $loadCover,
     'back_html' => $loadBack,
@@ -501,19 +501,19 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                                         <label class="col-form-label label-control col-4 text-end">Márgenes de la página (mm)</label>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-up" value="9.75" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-up" value="1" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                         </div>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-right" value="10.00" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-right" value="1" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                         </div>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-left" value="10.00" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-left" value="1" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                         </div>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-top" value="10.00" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-top" value="1" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                         </div>
 
                                                     </div>
@@ -525,7 +525,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                                         </label>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="identation" value="2.50" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="identation" value="0" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                         </div>
 
                                                     </div>
@@ -563,7 +563,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                                         </label>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-custom" value="12.50" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-custom" value="1" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                         </div>
 
                                                     </div>
@@ -691,11 +691,11 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         @endif
                                         <div class="format-box" style="border:1px solid #c8c8c8; width: 200mm; height: 92mm; @if($isDigitalSet ?? false) right: {{ $matrixBoxMm }}mm; @endif margin: auto; position: relative;">
                                         {{-- Guías de márgenes y matriz --}}
-                                        <div class="margen-izquierdo guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-left: 1px solid purple; left: 2.5mm;"></div>
-                                        <div class="margen-arriba guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-top: 1px solid purple; top: 2.5mm;"></div>
-                                        <div class="margen-derecho guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-right: 1px solid purple; right: 2.5mm;"></div>
-                                        <div class="margen-abajo guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 2.5mm;"></div>
-                                        <div class="caja-matriz guide2" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-right: 1px solid purple; height: 100%; left: 2.5mm;"></div>
+                                        <div class="margen-izquierdo guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-left: 1px solid purple; left: 0mm;"></div>
+                                        <div class="margen-arriba guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-top: 1px solid purple; top: 0mm;"></div>
+                                        <div class="margen-derecho guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-right: 1px solid purple; right: 0mm;"></div>
+                                        <div class="margen-abajo guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 0mm;"></div>
+                                        <div class="caja-matriz guide2" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-right: 1px solid purple; height: 100%; left: 0mm;"></div>
 
                                         <div id="containment-wrapper2" style="width: 100%; height: calc(100% - 0mm); background-size: cover; background-position: center;"> 
 
@@ -824,13 +824,13 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         <div class="format-box" style="border:1px solid #c8c8c8; width: 200mm; height: 92mm; margin: auto; position: relative;">
 
                                         {{-- margen izquierdo --}}
-                                        <div class="margen-izquierdo guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 2.5mm;"></div>
+                                        <div class="margen-izquierdo guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 0mm;"></div>
                                         {{-- margen arriba --}}
-                                        <div class="margen-arriba guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 2.5mm;"></div>
+                                        <div class="margen-arriba guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 0mm;"></div>
                                         {{-- margen derecho --}}
-                                        <div class="margen-derecho guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 2.5mm;"></div>
+                                        <div class="margen-derecho guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 0mm;"></div>
                                         {{-- margen abajo --}}
-                                        <div class="margen-abajo guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 2.5mm;"></div>
+                                        <div class="margen-abajo guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 0mm;"></div>
 
                                         <div id="containment-wrapper3" style="width: 100%; height: calc(100% - 0mm); background-size: cover; background-position: center;"> 
                                             {{-- Cuadro blanco QR portada: se reemplazará por el QR del taco en el PDF; más arriba para no chocar con la barra inferior --}}
@@ -917,19 +917,19 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         <div class="format-box" style="border:1px solid #c8c8c8; width: 200mm; height: 92mm; margin: auto; position: relative;">
 
                                         {{-- margen izquierdo --}}
-                                        <div class="margen-izquierdo guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 2.5mm;"></div>
+                                        <div class="margen-izquierdo guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 0mm;"></div>
                                         {{-- margen arriba --}}
-                                        <div class="margen-arriba guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 2.5mm;"></div>
+                                        <div class="margen-arriba guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 0mm;"></div>
                                         {{-- margen derecho --}}
-                                        <div class="margen-derecho guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 2.5mm;"></div>
+                                        <div class="margen-derecho guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 0mm;"></div>
                                         {{-- margen abajo --}}
-                                        <div class="margen-abajo guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 2.5mm;"></div>
+                                        <div class="margen-abajo guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 0mm;"></div>
                                         {{-- caja matriz --}}
-                                        {{-- <div class="caja-matriz-2 guide4" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-left: 1px solid purple; height: 100%; right: 2.5mm;"></div> --}}
+                                        {{-- <div class="caja-matriz-2 guide4" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-left: 1px solid purple; height: 100%; right: 0mm;"></div> --}}
 
                                         {{-- Tarea 5: imagen de fondo solo hasta el límite matrix-box (identation+matrix desde la derecha) --}}
                                         <div id="containment-wrapper4" style="width: 100%; height: calc(100% - 0mm); position: relative;">
-                                            <div id="design-back-bg" style="position: absolute; left: 0; top: 0; right: 42.5mm; bottom: 0; z-index: 0; pointer-events: none; background-color: #dfdfdf; background-size: cover; background-position: center;"></div>
+                                            <div id="design-back-bg" style="position: absolute; left: 0; top: 0; right: 40mm; bottom: 0; z-index: 0; pointer-events: none; background-color: #dfdfdf; background-size: cover; background-position: center;"></div>
                                             <div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 38.7969px; left: 44.8125px; width: 111px; height: 74px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 380px; height: 140px; resize: both; overflow: hidden; position: absolute; top: 17.5938px; left: 173px;">
                                                 <span class="ui-draggable-handle"><h3><strong>Descargate la APP</strong><br><strong>PARTILOT</strong><br><strong>Y Comprueba tu Participación</strong></h3></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
@@ -3607,10 +3607,10 @@ $('#format').change(function (e) {
    * Fondo SOLO dentro de márgenes morados (identation).
    * Capa absoluta inset en mm: fiable en editor, html2canvas y DomPDF (sin calc()).
    */
-  /** Sangres: 0 es válido; solo default 2.5 si el campo está vacío o no es número. */
+  /** Sangres: 0 es válido; solo default 0 si el campo está vacío o no es número. */
   function parseIdentationMm() {
     var v = parseFloat($('#identation').val());
-    return Number.isFinite(v) ? v : 2.5;
+    return Number.isFinite(v) ? v : 0;
   }
 
   function marginBgLayerId(stepNum) {

@@ -72,6 +72,35 @@ class DesignFormat extends Model
         'approval_decided_at' => 'datetime',
     ];
 
+    /**
+     * Márgenes / sangres por defecto al crear un diseño nuevo.
+     *
+     * @return array<string, mixed>
+     */
+    public static function defaultLayoutAttributes(): array
+    {
+        return [
+            'margins' => [
+                'up' => 1,
+                'right' => 1,
+                'left' => 1,
+                'top' => 1,
+            ],
+            'margin_up' => 1,
+            'margin_right' => 1,
+            'margin_left' => 1,
+            'margin_top' => 1,
+            'identation' => 0,
+            'cut_lines' => 2.5,
+            'matrix_box' => 40,
+            'margin_custom' => 1,
+            'horizontal_space' => 0,
+            'vertical_space' => 0,
+            'page_rigth' => 0,
+            'page_bottom' => 0,
+        ];
+    }
+
     public function entity()
     {
         return $this->belongsTo(Entity::class);

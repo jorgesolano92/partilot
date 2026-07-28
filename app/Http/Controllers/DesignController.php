@@ -542,14 +542,14 @@ class DesignController extends Controller
                         ->first();
 
                     if (! $design) {
-                        $design = DesignFormat::create([
+                        $design = DesignFormat::create(array_merge(DesignFormat::defaultLayoutAttributes(), [
                             'entity_id' => (int) $invitation->entity_id,
                             'lottery_id' => (int) $invitation->lottery_id,
                             'set_id' => (int) $invitation->set_id,
                             'output' => [
                                 'participations_per_book' => (int) ($invitation->participations_per_book ?? 50),
                             ],
-                        ]);
+                        ]));
                     }
 
                     $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
@@ -5872,14 +5872,14 @@ class DesignController extends Controller
             ->first();
 
         if (! $design) {
-            $design = DesignFormat::create([
+            $design = DesignFormat::create(array_merge(DesignFormat::defaultLayoutAttributes(), [
                 'entity_id' => (int) $invitation->entity_id,
                 'lottery_id' => (int) $invitation->lottery_id,
                 'set_id' => (int) $invitation->set_id,
                 'output' => [
                     'participations_per_book' => (int) ($invitation->participations_per_book ?? 50),
                 ],
-            ]);
+            ]));
         }
 
         $expectedTotal = round((float) ($quote['total'] ?? 0), 2);
@@ -8292,7 +8292,7 @@ class DesignController extends Controller
             ? $approvalService->resolveDesignerTypeForSave(auth()->user(), $entity)
             : DesignApprovalService::DESIGNER_ADMINISTRATION;
 
-        $design = DesignFormat::create([
+        $design = DesignFormat::create(array_merge(DesignFormat::defaultLayoutAttributes(), [
             'entity_id' => $entity->id,
             'lottery_id' => $lotteryId,
             'set_id' => $set->id,
@@ -8304,8 +8304,7 @@ class DesignController extends Controller
             'back_html' => '',
             'backgrounds' => [],
             'output' => [],
-            'margins' => [],
-        ]);
+        ]));
 
         app(ManagementFeeService::class)->ensureSnapshot($set, $design);
 
