@@ -4915,7 +4915,7 @@ class DesignController extends Controller
     /**
      * Convierte rutas relativas de imágenes en HTML a URLs absolutas (para vista/editor).
      */
-    private function ensureAbsoluteUrlsInHtml(string $html): string
+    public function ensureAbsoluteUrlsInHtml(string $html): string
     {
         if ($html === '') {
             return $html;

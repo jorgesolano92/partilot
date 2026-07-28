@@ -86,6 +86,7 @@ Route::get('/storage/{path}', function ($path) {
 
 Route::get('comprobar-participacion', [App\Http\Controllers\ApiController::class, 'showParticipationTicket']);
 Route::get('comprobar-participaciones', [App\Http\Controllers\ApiController::class, 'showParticipationTicket']);
+Route::get('comprobar-participaciones/imagen', [App\Http\Controllers\ApiController::class, 'showParticipationCheckImage']);
 Route::get('/participation-ticket', [ApiController::class, 'showParticipationTicket']);
 
 // Rutas de autenticación

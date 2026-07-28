@@ -133,6 +133,121 @@ h1, h3, h4, h5, h6 { margin-top: 0; }
 .status-no-prize { background: #f8d7da; color: #721c24; }
 .status-pending { background: #fff3cd; color: #856404; }
 
+.preview-wrap {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0.75rem;
+    margin-bottom: 1.25rem;
+    text-align: center;
+    overflow: hidden;
+}
+
+.preview-wrap img,
+.preview-img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 320px;
+    margin: 0 auto;
+    border: 0;
+    border-radius: 8px;
+    background: #fff;
+    object-fit: contain;
+}
+
+.preview-frame {
+    width: 100%;
+    min-height: 220px;
+    height: 240px;
+    border: 0;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.details-card {
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 1.1rem 1.15rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e2e8f0;
+}
+
+.details-card h5 {
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 0.98rem;
+}
+
+.detail-row:last-child { border-bottom: 0; }
+.detail-row strong { color: #0f172a; }
+
+.amount-hero {
+    text-align: center;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0.35rem 0 0.15rem;
+}
+
+.amount-sub {
+    text-align: center;
+    color: #64748b;
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}
+
+.status-box {
+    border-radius: 12px;
+    padding: 1.1rem 1rem;
+    text-align: center;
+    margin: 1rem 0;
+}
+
+.status-box h4 { margin: 0 0 0.4rem; font-size: 1.15rem; }
+.status-box p { margin: 0; font-size: 0.95rem; }
+
+.status-box.status-pending {
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    color: #9a3412;
+}
+
+.status-box.status-winner {
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    color: #14532d;
+}
+
+.status-box.status-no-prize {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+}
+
+.badge-pill {
+    display: inline-block;
+    margin-top: 0.75rem;
+    background: #ea580c;
+    color: #fff;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
 .store-buttons {
     display: flex;
     flex-wrap: wrap;

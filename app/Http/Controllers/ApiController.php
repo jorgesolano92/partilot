@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Exception;
 use App\Support\ParticipationTicketReference;
 use App\Support\PanelPassword;
+use App\Models\Set;
 use App\Services\ParticipationPublicCheckService;
 
 class ApiController extends Controller
@@ -2041,6 +2042,59 @@ class ApiController extends Controller
         $error = $result['error'];
 
         return view('social.participation-ticket', compact('ticket', 'error'));
+    }
+
+    /**
+     * Imagen / previsualización pública de la participación leída por QR.
+     */
+    public function showParticipationCheckImage(Request $request)
+    {
+        $service = app(ParticipationPublicCheckService::class);
+        $result = $service->check(
+            $request->query('ref'),
+            is_string($request->query('sig')) ? $request->query('sig') : null
+        );
+
+        if (! $result['success'] || empty($result['ticket']['set']['id'])) {
+            abort(404, $result['error'] ?? 'Participación no encontrada.');
+        }
+
+        $set = Set::with(['reserve.lottery', 'reserve.entity', 'designFormats'])->find($result['ticket']['set']['id']);
+        if (! $set) {
+            abort(404);
+        }
+
+        $design = $service->resolveDesignForSet($set);
+        $snapshotPath = $service->resolveSnapshotAbsolutePath($design);
+        if ($snapshotPath) {
+            $mime = mime_content_type($snapshotPath) ?: 'image/png';
+
+            return response()->file($snapshotPath, [
+                'Content-Type' => $mime,
+                'Cache-Control' => 'public, max-age=300',
+            ]);
+        }
+
+        if (! $design || empty($design->participation_html)) {
+            abort(404, 'No hay previsualización disponible para esta participación.');
+        }
+
+        $designController = app(DesignController::class);
+        $html = $designController->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+        $html = $designController->insetBackgroundWithinMargins(
+            $html,
+            (float) ($design->identation ?? 2.5),
+            'containment-wrapper2',
+            'design-participation-bg'
+        );
+
+        return view('social.participation-check-preview', [
+            'design' => $design,
+            'set' => $set,
+            'ticket' => $result['ticket'],
+            'html' => $html,
+            'reservation_numbers' => $result['ticket']['reserve']['reservation_numbers'] ?? [],
+        ]);
     }
 
     /**

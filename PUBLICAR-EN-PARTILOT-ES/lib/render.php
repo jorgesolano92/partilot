@@ -62,7 +62,9 @@ function partilot_render_ticket(array $ticket, array $config): void
     $reserve = $ticket['reserve'] ?? [];
     $data = $ticket['data'] ?? [];
     $set = $ticket['set'] ?? [];
-    $prize = $ticket['prize_info'] ?? [];
+    $prize = $ticket['prize_info'] ?? null;
+    $drawStatus = (string) ($ticket['draw_status'] ?? '');
+    $previewUrl = (string) ($ticket['preview_image_url'] ?? '');
 
     $drawDate = $lottery['draw_date'] ?? null;
     $drawFormatted = 'N/A';
@@ -76,42 +78,86 @@ function partilot_render_ticket(array $ticket, array $config): void
 
     $numbers = $reserve['reservation_numbers'] ?? [];
     $numbersHtml = '';
+    $numbersList = [];
     foreach ($numbers as $number) {
-        $numbersHtml .= '<div class="number-box">' . str_pad((string) $number, 5, '0', STR_PAD_LEFT) . '</div>';
+        $padded = str_pad((string) $number, 5, '0', STR_PAD_LEFT);
+        $numbersHtml .= '<div class="number-box">' . $padded . '</div>';
+        $numbersList[] = $padded;
     }
 
-    $prizeHtml = '';
-    if (! empty($prize)) {
-        if (! empty($prize['has_won'])) {
-            $amount = number_format((float) ($prize['prize_amount'] ?? 0), 2);
-            $prizeHtml = '<div class="prize-info text-center"><h3>¡FELICIDADES!</h3>'
-                . '<div class="prize-amount">' . $amount . '€</div>'
-                . '<p><strong>Premio por Participación</strong></p>'
-                . '<span class="status-badge status-winner">GANADOR</span></div>';
+    $played = (float) ($set['played_amount'] ?? 0);
+    $donation = (float) ($set['donation_amount'] ?? 0);
+    $amountLabel = (string) ($set['amount_label'] ?? '');
+    if ($amountLabel === '') {
+        $total = (float) ($set['total_amount'] ?? ($played + $donation));
+        $amountLabel = number_format($total, 2, ',', '.') . '€';
+    }
+
+    $previewHtml = '';
+    if ($previewUrl !== '') {
+        $safePreview = partilot_escape($previewUrl);
+        $previewHtml = '<div class="preview-wrap">'
+            . '<img src="' . $safePreview . '" alt="Participación" class="preview-img"'
+            . ' onerror="this.style.display=\'none\';var f=this.nextElementSibling;if(f){f.style.display=\'block\';}">'
+            . '<iframe src="' . $safePreview . '" title="Previsualización" class="preview-frame" style="display:none"></iframe>'
+            . '</div>';
+    }
+
+    $detailsHtml = '<div class="details-card">'
+        . '<h5>' . partilot_escape($lottery['name'] ?? 'Sorteo') . '</h5>'
+        . '<div class="detail-row"><span>Fecha del sorteo</span><strong>' . partilot_escape($drawFormatted) . '</strong></div>'
+        . '<div class="detail-row"><span>Entidad</span><strong>' . partilot_escape($reserve['entity']['name'] ?? 'N/A') . '</strong></div>'
+        . '<div class="detail-row"><span>Nº de sorteo</span><strong>'
+        . partilot_escape($numbersList !== [] ? implode(', ', $numbersList) : 'N/A')
+        . '</strong></div>'
+        . '<div class="detail-row"><span>Participación</span><strong>'
+        . partilot_escape($data['participation_code'] ?? 'N/A')
+        . '</strong></div>'
+        . '</div>';
+
+    $amountHtml = '<div class="details-card text-center">'
+        . '<h5>Importe de la participación</h5>'
+        . '<div class="amount-hero">' . partilot_escape($amountLabel) . '</div>';
+    if ($donation > 0 && $played > 0) {
+        $amountHtml .= '<p class="amount-sub">Jugado ' . number_format($played, 2, ',', '.')
+            . '€ + donativo ' . number_format($donation, 2, ',', '.') . '€</p>';
+    }
+    $amountHtml .= '</div>';
+
+    $numbersSection = $numbersHtml !== ''
+        ? '<div class="numbers-grid" style="justify-content:center;margin-bottom:1rem;">' . $numbersHtml . '</div>'
+        : '';
+
+    $statusHtml = '';
+    $isPending = in_array($drawStatus, ['pending_celebration', 'pending_results'], true)
+        || $prize === null
+        || $prize === [];
+
+    if ($isPending) {
+        if ($drawStatus === 'pending_celebration') {
+            $statusHtml = '<div class="status-box status-pending">'
+                . '<h4>Sorteo pendiente de celebración</h4>'
+                . '<p>El sorteo aún no se ha celebrado. Vuelve a consultar después de la fecha del sorteo para ver si tu participación tiene premio.</p>'
+                . '<span class="badge-pill">SORTEO NO CELEBRADO</span></div>';
         } else {
-            $prizeHtml = '<div class="prize-info text-center"><h4>Sin Premio</h4>'
-                . '<p>Esta participación no ha resultado premiada en este sorteo.</p>'
-                . '<span class="status-badge status-no-prize">SIN PREMIO</span></div>';
+            $statusHtml = '<div class="status-box status-pending">'
+                . '<h4>Resultados pendientes</h4>'
+                . '<p>El sorteo ya tiene fecha, pero los resultados aún no están publicados.</p>'
+                . '<span class="badge-pill">RESULTADOS PENDIENTES</span></div>';
         }
+    } elseif (! empty($prize['has_won'])) {
+        $amount = number_format((float) ($prize['prize_amount'] ?? 0), 2, ',', '.');
+        $statusHtml = '<div class="status-box status-winner">'
+            . '<h4>¡Felicidades!</h4>'
+            . '<div class="prize-amount">' . $amount . '€</div>'
+            . '<p>Premio por participación</p></div>';
     } else {
-        $prizeHtml = '<div class="text-center"><h4>Resultados Pendientes</h4>'
-            . '<p>Los resultados de este sorteo aún no han sido publicados.</p>'
-            . '<span class="status-badge status-pending">PENDIENTE</span></div>';
+        $statusHtml = '<div class="status-box status-no-prize">'
+            . '<h4>Sin premio</h4>'
+            . '<p>Esta participación no ha resultado premiada en este sorteo.</p></div>';
     }
 
-    $body = '<div class="lottery-info">'
-        . '<h4>' . partilot_escape($lottery['name'] ?? 'Sorteo') . '</h4>'
-        . '<p class="mb-1"><strong>Fecha del Sorteo:</strong> ' . partilot_escape($drawFormatted) . '</p>'
-        . '<p class="mb-0"><strong>Entidad:</strong> ' . partilot_escape($reserve['entity']['name'] ?? 'N/A') . '</p>'
-        . '</div>'
-        . '<div class="row">'
-        . '<div class="col-md-6"><h5>Números de la Participación</h5><div class="numbers-grid">' . $numbersHtml . '</div></div>'
-        . '<div class="col-md-6"><h5>Información del Ticket</h5>'
-        . '<p><strong>Referencia:</strong> ' . partilot_escape($data['participation_number'] ?? 'N/A') . '</p>'
-        . '<p><strong>Participación:</strong> ' . partilot_escape($data['participation_code'] ?? 'N/A') . '</p>'
-        . '<p><strong>Precio:</strong> ' . number_format((float) ($set['played_amount'] ?? 0), 2) . '€</p>'
-        . '</div></div>'
-        . $prizeHtml;
+    $body = $previewHtml . $detailsHtml . $amountHtml . $numbersSection . $statusHtml;
 
     header('Cache-Control: public, max-age=60');
     partilot_layout('Resultado', $body, $config);
