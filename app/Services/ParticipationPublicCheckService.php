@@ -197,8 +197,14 @@ class ParticipationPublicCheckService
                     'reservation_numbers' => $reservedNumbers,
                 ],
                 'lottery' => [
-                    'name' => $lottery->name ?? null,
-                    'draw_date' => $lottery->draw_date ?? null,
+                    'name' => $lottery?->displayLabel() ?? ($lottery->name ?? null),
+                    'draw_number' => trim((string) ($lottery->name ?? '')) !== ''
+                        ? trim((string) $lottery->name)
+                        : ($lottery?->displayLabel() ?? null),
+                    // Fecha civil (Y-m-d) para evitar desfase UTC → día anterior en el cliente.
+                    'draw_date' => $lottery?->draw_date
+                        ? Carbon::parse($lottery->draw_date)->timezone(config('app.timezone', 'Europe/Madrid'))->format('Y-m-d')
+                        : null,
                     'ticket_price' => $lottery->ticket_price ?? 6,
                 ],
                 'draw_status' => $drawStatus,
@@ -219,7 +225,9 @@ class ParticipationPublicCheckService
         }
 
         try {
-            $drawDay = Carbon::parse($lottery->draw_date)->startOfDay();
+            $drawDay = Carbon::parse($lottery->draw_date)
+                ->timezone(config('app.timezone', 'Europe/Madrid'))
+                ->startOfDay();
         } catch (\Throwable) {
             return 'pending_celebration';
         }
@@ -253,9 +261,6 @@ class ParticipationPublicCheckService
             return number_format($n, 2, ',', '.');
         };
 
-        if ($donation > 0 && $played > 0) {
-            return $fmt($total).'€ ('.$fmt($played).'+'.$fmt($donation).')';
-        }
         if ($total > 0) {
             return $fmt($total).'€';
         }

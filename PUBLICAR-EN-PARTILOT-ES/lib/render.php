@@ -70,7 +70,13 @@ function partilot_render_ticket(array $ticket, array $config): void
     $drawFormatted = 'N/A';
     if ($drawDate) {
         try {
-            $drawFormatted = (new DateTimeImmutable((string) $drawDate))->format('d-m-Y');
+            // Preferir fecha civil Y-m-d (sin hora) para no restar un día por UTC.
+            $raw = (string) $drawDate;
+            if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $raw, $m)) {
+                $drawFormatted = $m[3] . '-' . $m[2] . '-' . $m[1];
+            } else {
+                $drawFormatted = (new DateTimeImmutable($raw))->format('d-m-Y');
+            }
         } catch (Exception) {
             $drawFormatted = partilot_escape((string) $drawDate);
         }
@@ -78,11 +84,14 @@ function partilot_render_ticket(array $ticket, array $config): void
 
     $numbers = $reserve['reservation_numbers'] ?? [];
     $numbersHtml = '';
-    $numbersList = [];
     foreach ($numbers as $number) {
         $padded = str_pad((string) $number, 5, '0', STR_PAD_LEFT);
         $numbersHtml .= '<div class="number-box">' . $padded . '</div>';
-        $numbersList[] = $padded;
+    }
+
+    $drawNumber = trim((string) ($lottery['draw_number'] ?? $lottery['name'] ?? ''));
+    if ($drawNumber === '') {
+        $drawNumber = 'N/A';
     }
 
     $played = (float) ($set['played_amount'] ?? 0);
@@ -92,6 +101,8 @@ function partilot_render_ticket(array $ticket, array $config): void
         $total = (float) ($set['total_amount'] ?? ($played + $donation));
         $amountLabel = number_format($total, 2, ',', '.') . '€';
     }
+    // Por si llega una etiqueta antigua con "(4+1)".
+    $amountLabel = preg_replace('/\s*\([^)]*\)\s*$/', '', $amountLabel) ?: $amountLabel;
 
     // Solo <img>: ModSecurity/COMODO (regla 214540) bloquea iframes en la salida HTML.
     $previewHtml = '';
@@ -108,7 +119,7 @@ function partilot_render_ticket(array $ticket, array $config): void
         . '<div class="detail-row"><span>Fecha del sorteo</span><strong>' . partilot_escape($drawFormatted) . '</strong></div>'
         . '<div class="detail-row"><span>Entidad</span><strong>' . partilot_escape($reserve['entity']['name'] ?? 'N/A') . '</strong></div>'
         . '<div class="detail-row"><span>Nº de sorteo</span><strong>'
-        . partilot_escape($numbersList !== [] ? implode(', ', $numbersList) : 'N/A')
+        . partilot_escape($drawNumber)
         . '</strong></div>'
         . '<div class="detail-row"><span>Participación</span><strong>'
         . partilot_escape($data['participation_code'] ?? 'N/A')

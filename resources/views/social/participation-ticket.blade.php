@@ -295,7 +295,19 @@
                         <div class="detail-row">
                             <span>Fecha del sorteo</span>
                             <strong>
-                                {{ !empty($ticket['lottery']['draw_date']) ? \Carbon\Carbon::parse($ticket['lottery']['draw_date'])->format('d-m-Y') : 'N/A' }}
+                                @if(!empty($ticket['lottery']['draw_date']))
+                                    @php
+                                        $rawDraw = (string) $ticket['lottery']['draw_date'];
+                                        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $rawDraw, $m)) {
+                                            $drawLabel = $m[3].'-'.$m[2].'-'.$m[1];
+                                        } else {
+                                            $drawLabel = \Carbon\Carbon::parse($rawDraw)->timezone(config('app.timezone'))->format('d-m-Y');
+                                        }
+                                    @endphp
+                                    {{ $drawLabel }}
+                                @else
+                                    N/A
+                                @endif
                             </strong>
                         </div>
                         <div class="detail-row">
@@ -304,15 +316,7 @@
                         </div>
                         <div class="detail-row">
                             <span>Nº de sorteo</span>
-                            <strong>
-                                @if(!empty($ticket['reserve']['reservation_numbers']))
-                                    @foreach($ticket['reserve']['reservation_numbers'] as $number)
-                                        {{ str_pad($number, 5, '0', STR_PAD_LEFT) }}@if(!$loop->last), @endif
-                                    @endforeach
-                                @else
-                                    N/A
-                                @endif
-                            </strong>
+                            <strong>{{ $ticket['lottery']['draw_number'] ?? $ticket['lottery']['name'] ?? 'N/A' }}</strong>
                         </div>
                         <div class="detail-row">
                             <span>Participación</span>
