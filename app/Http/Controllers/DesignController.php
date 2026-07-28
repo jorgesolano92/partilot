@@ -4345,8 +4345,12 @@ class DesignController extends Controller
 
         if ($type === 'participation') {
             $prepared = $this->prepareParticipationHtmlForPdf($html, $identation);
-            $ticket = $this->sampleTicketForPreview($design);
-            $qrCodes = $this->buildParticipationQrMap([(string) $ticket['r']]);
+            // Hoja completa (rows×cols) con refs/QR en ceros — igual que la muestra de aprobación.
+            $tickets = $this->buildParticipationSampleTicketsForPreview($perPage);
+            $qrCodes = $this->buildParticipationQrMap(array_values(array_unique(array_map(
+                static fn (array $t): string => (string) $t['r'],
+                $tickets
+            ))));
 
             // Misma ruta que la exportación real cuando el stamp está activo.
             if (config('pdf_optimization.use_stamp_template', false) && $design) {
@@ -4363,7 +4367,7 @@ class DesignController extends Controller
                     app(\App\Services\ParticipationPdfStampExporter::class)->exportToFile(
                         $shell,
                         $prepared,
-                        [$ticket],
+                        $tickets,
                         $qrCodes,
                         $tmp,
                         $slotsHtml
@@ -4388,7 +4392,7 @@ class DesignController extends Controller
             $layoutDesign->identation = $identation;
             $layoutDesign->cut_lines = $cutLines;
 
-            $pages = $this->generatePagesOptimized([$ticket], 1, $perPage);
+            $pages = $this->generatePagesOptimized($tickets, 1, $perPage);
             $pdf = Pdf::loadView('design.pdf_participation', $this->participationPdfViewData(
                 $layoutDesign,
                 $pages,
@@ -4464,22 +4468,24 @@ class DesignController extends Controller
     }
 
     /**
-     * @return array{r: string, n: int}
+     * Tickets ficticios para rellenar 1 hoja completa en «Previsualizar PDF»
+     * (refs/QR en ceros, como la muestra de aprobación).
+     *
+     * @return list<array{r: string, n: int}>
      */
-    private function sampleTicketForPreview(?DesignFormat $design): array
+    private function buildParticipationSampleTicketsForPreview(int $perPage): array
     {
-        if ($design && $design->set_id) {
-            $set = Set::select('id', 'tickets')->find($design->set_id);
-            $tickets = is_array($set?->tickets) ? $set->tickets : [];
-            if ($tickets !== [] && isset($tickets[0]['r'])) {
-                return [
-                    'r' => (string) $tickets[0]['r'],
-                    'n' => (int) ($tickets[0]['n'] ?? 1),
-                ];
-            }
+        $perPage = max(1, $perPage);
+        $zeroRef = str_repeat('0', \App\Support\ParticipationTicketReference::LENGTH);
+        $tickets = [];
+        for ($i = 1; $i <= $perPage; $i++) {
+            $tickets[] = [
+                'r' => $zeroRef,
+                'n' => $i,
+            ];
         }
 
-        return ['r' => '00000000000000000001', 'n' => 1];
+        return $tickets;
     }
 
     /**

@@ -1,4 +1,4 @@
-{{-- Botón + JS: previsualizar 1 participación / portada / trasera del paso actual --}}
+{{-- Botón + JS: previsualizar hoja completa (participación) / portada / trasera del paso actual --}}
 @php
     $previewPdfUrl = $preview_pdf_url
         ?? ((isset($printShopOrder) && $printShopOrder)
