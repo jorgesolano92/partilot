@@ -26,6 +26,14 @@ class SetController extends Controller
     {
         $user = auth()->user();
         $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+        $entityFilterIdRaw = $request->query('entity_id');
+        $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
+            ? (int) $entityFilterIdRaw
+            : null;
+
+        if ($entityFilterId !== null && ! $user->canAccessEntity((int) $entityFilterId)) {
+            abort(403, 'No tienes permisos para gestionar esta entidad.');
+        }
 
         $query = Set::with(['entity', 'reserve'])
             ->forUser($user);
@@ -34,11 +42,19 @@ class SetController extends Controller
             $query->whereHas('entity', fn ($q) => $q->where('administration_id', $filterAdministration->id));
         }
 
+        if ($entityFilterId !== null) {
+            $query->where('entity_id', $entityFilterId);
+        }
+
         $sets = $query
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('sets.index', compact('sets', 'filterAdministration'));
+        $entitiesForFilter = Entity::forUser($user)
+            ->orderBy('name')
+            ->get(['id', 'name', 'province', 'city']);
+
+        return view('sets.index', compact('sets', 'filterAdministration', 'entitiesForFilter', 'entityFilterId'));
     }
 
     /**

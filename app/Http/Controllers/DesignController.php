@@ -7748,9 +7748,22 @@ class DesignController extends Controller
      * Mostrar todos los formatos de diseño.
      * Filtra por entidades accesibles del usuario (respeta rol contexto: gestor administración / gestor entidad).
      */
-    public function index()
+    public function index(Request $request)
     {
+        $entityFilterIdRaw = $request->query('entity_id');
+        $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
+            ? (int) $entityFilterIdRaw
+            : null;
+
         $entityIds = auth()->user()->accessibleEntityIds();
+        if ($entityFilterId !== null) {
+            if (! auth()->user()->canAccessEntity((int) $entityFilterId)) {
+                abort(403, 'No tienes permisos para gestionar esta entidad.');
+            }
+
+            $entityIds = [(int) $entityFilterId];
+        }
+
         $designs = DesignFormat::with(['entity', 'lottery', 'set'])
             ->whereIn('entity_id', $entityIds)
             ->orderByDesc('id')

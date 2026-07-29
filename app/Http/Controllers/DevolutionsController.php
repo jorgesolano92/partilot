@@ -303,14 +303,28 @@ class DevolutionsController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         if ($redirect = $this->redirectUnlessDevolutionsWebAccess()) {
             return $redirect;
         }
 
+        $entityFilterIdRaw = $request->query('entity_id');
+        $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
+            ? (int) $entityFilterIdRaw
+            : null;
+
         $query = Devolution::with(['entity', 'lottery', 'seller', 'user', 'payments'])
             ->forUser(auth()->user());
+
+        if ($entityFilterId !== null) {
+            if (! auth()->user()->canManageEntityDevolutions($entityFilterId)) {
+                abort(403, 'No tienes permisos para gestionar devoluciones de esta entidad.');
+            }
+
+            $query->where('entity_id', $entityFilterId);
+        }
+
         $this->scopeDevolutionsToManagedEntities($query);
         $devolutions = $query
             ->orderBy('devolution_date', 'desc')

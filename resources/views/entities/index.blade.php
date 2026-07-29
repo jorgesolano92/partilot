@@ -105,9 +105,9 @@
                                     </td>
                                     <td class="no-click" style="cursor: default;">
                                         <a class="btn btn-sm btn-light" title="Ver entidad" href="{{url('entities/view', $entity->id)}}"><img src="{{url('icons_/persons.svg')}}" alt="" width="12"></a>
-                                        <a class="btn btn-sm btn-light" title="Diseños" href="{{url('design')}}"><img src="{{url('icons_/design.svg')}}" alt="" width="12"></a>
-                                        <a class="btn btn-sm btn-light" title="Participaciones"><img src="{{url('icons_/participations.svg')}}" alt="" width="12"></a>
-                                        <a class="btn btn-sm btn-light" title="Devoluciones"><img src="{{url('icons_/returns.svg')}}" alt="" width="12"></a>
+                                        <a class="btn btn-sm btn-light" title="Diseños" href="{{ route('design.index', ['entity_id' => $entity->id]) }}"><img src="{{url('icons_/design.svg')}}" alt="" width="12"></a>
+                                        <a class="btn btn-sm btn-light" title="Participaciones" href="{{ route('sets.index', ['entity_id' => $entity->id]) }}"><img src="{{url('icons_/participations.svg')}}" alt="" width="12"></a>
+                                        <a class="btn btn-sm btn-light" title="Devoluciones" href="{{ route('devolutions.index', ['entity_id' => $entity->id]) }}"><img src="{{url('icons_/returns.svg')}}" alt="" width="12"></a>
                                         @if($canAddEntity ?? true)
                                         <button type="button" class="btn btn-sm btn-danger delete-btn" title="Eliminar entidad" data-id="{{$entity->id}}" data-name="{{$entity->name}}"><i class="ri-delete-bin-6-line"></i></button>
                                         @endif
