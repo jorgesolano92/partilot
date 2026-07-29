@@ -158,7 +158,6 @@
     /* Mejorar visualización de imágenes de fondo */
     [id*="containment-wrapper"] {
         background-size: cover !important;
-        /* background-size: calc(100% - 20px) calc(100% - 20px) !important; */
         background-repeat: no-repeat !important;
         background-position: center center !important;
         background-attachment: scroll !important;
@@ -1915,8 +1914,16 @@ $('#save-continue-step').click(function(event) {
 function getMarginBoundsPx() {
     var $box = $('#step-' + step + ' .format-box');
     if (!$box.length) return null;
-    var r = $box[0].getBoundingClientRect();
-    var boxW = r.width, boxH = r.height;
+    // offsetWidth/Height ignoran el zoom (transform); getBoundingClientRect lo incluye y afloja los límites.
+    var el = $box[0];
+    var boxW = el.offsetWidth;
+    var boxH = el.offsetHeight;
+    if (!(boxW > 0) || !(boxH > 0)) {
+      var r = el.getBoundingClientRect();
+      var z = (typeof designZoom === 'number' && designZoom > 0) ? designZoom : 1;
+      boxW = r.width / z;
+      boxH = r.height / z;
+    }
     var ticketW = parseFloat($('#ticket-size').data('w')) || 200;
     var ticketH = parseFloat($('#ticket-size').data('h')) || 92;
     var scaleX = boxW / ticketW, scaleY = boxH / ticketH;
@@ -1969,7 +1976,8 @@ function getMarginBoundsPx() {
     var $bg = $('#' + bgId);
 
     if (stepNum === 4) {
-      var rightMm = identationMm + matrixMm;
+      // Trasera: fondo en todo el canvas salvo la franja de matriz.
+      var rightMm = matrixMm;
       if (!$bg.length) {
         var bgColor4 = $wrap.css('background-color') || '#dfdfdf';
         var bgImg4 = $wrap.css('background-image');
@@ -1989,13 +1997,13 @@ function getMarginBoundsPx() {
       return $bg;
     }
 
+    // Fondo en todo el canvas (incluye sangres). Las guías moradas solo marcan zona segura.
     if (!$bg.length) {
       var bgColor = $wrap.css('background-color');
       var bgImg = $wrap.css('background-image');
       $wrap.prepend(
-        '<div id="' + bgId + '" class="design-margin-bg" style="position:absolute;left:' + identationMm +
-        'mm;top:' + identationMm + 'mm;right:' + identationMm + 'mm;bottom:' + identationMm +
-        'mm;z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+        '<div id="' + bgId + '" class="design-margin-bg" style="position:absolute;left:0;top:0;right:0;bottom:0;' +
+        'z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
       );
       $bg = $('#' + bgId);
       if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
@@ -2005,10 +2013,10 @@ function getMarginBoundsPx() {
       $wrap.css({ 'background-color': '#ffffff', 'background-image': 'none' });
     } else {
       $bg.css({
-        left: identationMm + 'mm',
-        top: identationMm + 'mm',
-        right: identationMm + 'mm',
-        bottom: identationMm + 'mm',
+        left: '0',
+        top: '0',
+        right: '0',
+        bottom: '0',
         position: 'absolute',
         zIndex: 0,
         pointerEvents: 'none'
@@ -3019,7 +3027,8 @@ function reapplyElementEvents() {
     var dragClickOffsetX, dragClickOffsetY;
     $('#containment-wrapper' + step).find('.elements').draggable({ 
       handle: 'span', 
-      containment: "#containment-wrapper"+step, 
+      // Con zoom, el containment nativo de jQuery UI usa coords escaladas y falla.
+      containment: (typeof designZoom === 'number' && designZoom !== 1) ? false : "#containment-wrapper"+step, 
       scroll: false, 
       start: function(event, ui){
         selectDesignElement($(this));

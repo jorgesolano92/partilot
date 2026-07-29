@@ -1673,7 +1673,7 @@ class DesignController extends Controller
         $html = $this->materializePdfBackgroundCoverBitmap(
             $html,
             'design-participation-bg',
-            $identationMm,
+            0,
             (float) config('pdf_optimization.bg_pixel_scale', 1.0)
         );
         // Fondo como <img> una sola vez en la plantilla (misma ruta → DomPDF reutiliza XObject).
@@ -1920,12 +1920,12 @@ class DesignController extends Controller
 
     /**
      * Genera un PNG cover-crop al tamaño de la capa (2× CSS @96dpi) y lo usa como fondo
-     * con background-size:100% 100%. Misma geometría que cover+márgenes, más nítido en DomPDF.
+     * con background-size:100% 100%. Misma geometría que el canvas a sangre completa.
      */
     public function materializePdfBackgroundCoverBitmap(
         string $html,
         string $bgId,
-        float $identationMm = 2.5,
+        float $identationMm = 0,
         float $pixelScale = 1.0,
         ?float $innerWidthMm = null,
         ?float $innerHeightMm = null
@@ -1935,8 +1935,10 @@ class DesignController extends Controller
         }
 
         [$boxWmm, $boxHmm] = $this->resolveFormatBoxSizeMmFromHtml($html);
-        $innerWmm = $innerWidthMm ?? max(1.0, $boxWmm - (2 * max(0, $identationMm)));
-        $innerHmm = $innerHeightMm ?? max(1.0, $boxHmm - (2 * max(0, $identationMm)));
+        // Bitmap = tamaño real de la capa de fondo (canvas completo, o canvas−matriz en trasera).
+        unset($identationMm);
+        $innerWmm = $innerWidthMm ?? max(1.0, $boxWmm);
+        $innerHmm = $innerHeightMm ?? max(1.0, $boxHmm);
         $scale = max(1.0, min(3.0, $pixelScale));
         $targetW = max(32, (int) round(($innerWmm / 25.4) * 96 * $scale));
         $targetH = max(32, (int) round(($innerHmm / 25.4) * 96 * $scale));
@@ -2794,7 +2796,8 @@ class DesignController extends Controller
     }
 
     /**
-     * Fondo solo dentro de los márgenes (identation): capa absoluta inset en mm.
+     * Fondo a sangre completa (todo el canvas de la participación).
+     * Las sangres (identation) quedan como guía visual; no recortan el fondo.
      * Evita background-size:calc() (poco fiable en DomPDF).
      */
     public function insetBackgroundWithinMargins(
@@ -2807,11 +2810,9 @@ class DesignController extends Controller
             return $html;
         }
 
-        $mm = max(0, round($identationMm, 2));
-        // DomPDF ignora a menudo right/bottom en absolute; width/height+calc sí respeta
-        // márgenes superiores e inferiores iguales (sin recortar solo la img).
-        $twice = round(2 * $mm, 2);
-        $insetCss = "left:{$mm}mm;top:{$mm}mm;width:calc(100% - {$twice}mm);height:calc(100% - {$twice}mm);right:auto;bottom:auto";
+        // Firma conservada; el fondo ocupa el canvas completo.
+        unset($identationMm);
+        $insetCss = 'left:0;top:0;width:100%;height:100%;right:auto;bottom:auto';
 
         if (preg_match('/id=(["\'])'.preg_quote($bgId, '/').'\1/i', $html)) {
             $html = preg_replace_callback(
@@ -2898,8 +2899,8 @@ class DesignController extends Controller
     }
 
     /**
-     * Fondo de trasera: ocupa todo salvo la franja derecha de matriz (identation + matrix_box),
-     * igual que el editor (left/top/bottom 0, right = sangría+matriz).
+     * Fondo de trasera: todo el canvas salvo la franja derecha de matriz (matrix_box),
+     * igual que el editor (left/top/bottom 0, right = matriz).
      */
     public function insetBackBackgroundLeavingMatrix(
         string $html,
@@ -2912,7 +2913,8 @@ class DesignController extends Controller
             return $html;
         }
 
-        $rightMm = max(0, round($identationMm + $matrixMm, 2));
+        unset($identationMm);
+        $rightMm = max(0, round($matrixMm, 2));
         $insetCss = "left:0;top:0;width:calc(100% - {$rightMm}mm);height:100%;right:auto;bottom:auto";
 
         if (preg_match('/id=(["\'])'.preg_quote($bgId, '/').'\1/i', $html)) {
@@ -3730,17 +3732,17 @@ class DesignController extends Controller
             $html = $this->materializePdfBackgroundCoverBitmap(
                 $html,
                 $bgId,
-                $identationMm,
+                0,
                 $bgPixelScale
             );
         } else {
             [$boxWmm, $boxHmm] = $this->resolveFormatBoxSizeMmFromHtml($html);
-            $rightMm = max(0, $identationMm + $matrixMm);
+            $rightMm = max(0, $matrixMm);
             $innerWmm = max(1.0, $boxWmm - $rightMm);
             $html = $this->materializePdfBackgroundCoverBitmap(
                 $html,
                 $bgId,
-                $identationMm,
+                0,
                 $bgPixelScale,
                 $innerWmm,
                 $boxHmm

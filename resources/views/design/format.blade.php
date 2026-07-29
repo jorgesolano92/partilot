@@ -2421,11 +2421,19 @@ $('#format').change(function (e) {
   var dragClickOffsetX, dragClickOffsetY;
 
   // Límites = borde morado (identation / Sangres). Trasera: derecho = matrix-box (no pasar de la matriz)
+  // Usar offsetWidth/Height (sin transform): getBoundingClientRect incluye el zoom y afloja los límites.
   function getMarginBoundsPx() {
     var $box = $('#step-' + step + ' .format-box');
     if (!$box.length) return null;
-    var r = $box[0].getBoundingClientRect();
-    var boxW = r.width, boxH = r.height;
+    var el = $box[0];
+    var boxW = el.offsetWidth;
+    var boxH = el.offsetHeight;
+    if (!(boxW > 0) || !(boxH > 0)) {
+      var r = el.getBoundingClientRect();
+      var z = (typeof designZoom === 'number' && designZoom > 0) ? designZoom : 1;
+      boxW = r.width / z;
+      boxH = r.height / z;
+    }
     var ticketW = parseFloat($('#ticket-size').data('w')) || 200;
     var ticketH = parseFloat($('#ticket-size').data('h')) || 92;
     var scaleX = boxW / ticketW, scaleY = boxH / ticketH;
@@ -2477,7 +2485,8 @@ $('#format').change(function (e) {
 
     $cont.find('.elements').draggable({
       handle: 'span',
-      containment: '#containment-wrapper'+step,
+      // Con zoom, el containment nativo de jQuery UI usa coords escaladas y falla.
+      containment: (typeof designZoom === 'number' && designZoom !== 1) ? false : '#containment-wrapper'+step,
       scroll: false,
       start: function(event, ui){
         selectDesignElement($(this));
@@ -3631,7 +3640,8 @@ $('#format').change(function (e) {
     var $bg = $('#' + bgId);
 
     if (stepNum === 4) {
-      var rightMm = identationMm + matrixMm;
+      // Trasera: fondo en todo el canvas salvo la franja de matriz.
+      var rightMm = matrixMm;
       if (!$bg.length) {
         var bgColor4 = $wrap.css('background-color') || '#dfdfdf';
         var bgImg4 = $wrap.css('background-image');
@@ -3651,13 +3661,13 @@ $('#format').change(function (e) {
       return $bg;
     }
 
+    // Fondo en todo el canvas (incluye sangres). Las guías moradas solo marcan zona segura.
     if (!$bg.length) {
       var bgColor = $wrap.css('background-color');
       var bgImg = $wrap.css('background-image');
       $wrap.prepend(
-        '<div id="' + bgId + '" class="design-margin-bg" style="position:absolute;left:' + identationMm +
-        'mm;top:' + identationMm + 'mm;right:' + identationMm + 'mm;bottom:' + identationMm +
-        'mm;z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+        '<div id="' + bgId + '" class="design-margin-bg" style="position:absolute;left:0;top:0;right:0;bottom:0;' +
+        'z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
       );
       $bg = $('#' + bgId);
       if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
@@ -3667,10 +3677,10 @@ $('#format').change(function (e) {
       $wrap.css({ 'background-color': '#ffffff', 'background-image': 'none' });
     } else {
       $bg.css({
-        left: identationMm + 'mm',
-        top: identationMm + 'mm',
-        right: identationMm + 'mm',
-        bottom: identationMm + 'mm',
+        left: '0',
+        top: '0',
+        right: '0',
+        bottom: '0',
         position: 'absolute',
         zIndex: 0,
         pointerEvents: 'none'
@@ -3678,7 +3688,6 @@ $('#format').change(function (e) {
       $wrap.css({ 'background-image': 'none' });
       var wrapBg = $wrap.css('background-color');
       if (wrapBg && wrapBg !== 'rgba(0, 0, 0, 0)' && wrapBg !== 'transparent' && wrapBg !== 'rgb(255, 255, 255)') {
-        // Migrar fondo residual del wrapper a la capa inset
         if (!$bg.css('background-image') || $bg.css('background-image') === 'none') {
           var layerBg = $bg.css('background-color');
           if (!layerBg || layerBg === 'rgba(0, 0, 0, 0)' || layerBg === 'transparent') {
