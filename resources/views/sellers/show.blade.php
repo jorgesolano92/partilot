@@ -1239,8 +1239,8 @@ function initDatatable()
         "language": {
           url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
         },
-        "pageLength": 10,
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+        "pageLength": 20,
+        "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
         "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
                '<"row"<"col-sm-12"tr>>' +
                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
@@ -1273,8 +1273,8 @@ function initDatatable()
         "language": {
           url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
         },
-        "pageLength": 10,
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+        "pageLength": 20,
+        "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
         "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
                '<"row"<"col-sm-12"tr>>' +
                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
@@ -2049,8 +2049,8 @@ function initDatatable()
          "language": {
            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
          },
-         "pageLength": 10,
-         "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+         "pageLength": 20,
+         "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
          "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
                 '<"row"<"col-sm-12"tr>>' +
                 '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',

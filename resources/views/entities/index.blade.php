@@ -106,6 +106,7 @@
                                     <td class="no-click" style="cursor: default;">
                                         <a class="btn btn-sm btn-light" title="Ver entidad" href="{{url('entities/view', $entity->id)}}"><img src="{{url('icons_/persons.svg')}}" alt="" width="12"></a>
                                         <a class="btn btn-sm btn-light" title="Diseños" href="{{ route('design.index', ['entity_id' => $entity->id]) }}"><img src="{{url('icons_/design.svg')}}" alt="" width="12"></a>
+                                        <a class="btn btn-sm btn-light" title="Reservas" href="{{ route('reserves.index', ['entity_id' => $entity->id]) }}"><img src="{{url('icons_/reservas.svg')}}" alt="" width="12"></a>
                                         <a class="btn btn-sm btn-light" title="Participaciones" href="{{ route('sets.index', ['entity_id' => $entity->id]) }}"><img src="{{url('icons_/participations.svg')}}" alt="" width="12"></a>
                                         <a class="btn btn-sm btn-light" title="Devoluciones" href="{{ route('devolutions.index', ['entity_id' => $entity->id]) }}"><img src="{{url('icons_/returns.svg')}}" alt="" width="12"></a>
                                         @if($canAddEntity ?? true)

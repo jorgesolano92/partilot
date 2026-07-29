@@ -1611,8 +1611,8 @@ $(document).ready(function() {
             "language": {
                 url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
             },
-            "pageLength": 10,
-            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+            "pageLength": 20,
+            "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
             "ajax": {
                 "url": "{{ route('devolutions.entities') }}",
                 "type": "GET",
@@ -1699,8 +1699,8 @@ $(document).ready(function() {
             "language": {
                 url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
             },
-            "pageLength": 10,
-            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+            "pageLength": 20,
+            "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
             "ajax": {
                 "url": "{{ route('devolutions.lotteries') }}",
                 "type": "GET",
@@ -1763,8 +1763,8 @@ $(document).ready(function() {
             "language": {
                 url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
             },
-            "pageLength": 10,
-            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+            "pageLength": 20,
+            "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
             "ajax": {
                 "url": "{{ route('devolutions.sellers') }}",
                 "type": "GET",

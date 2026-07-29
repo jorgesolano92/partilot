@@ -39,6 +39,12 @@
         }, 50);
     }
 
+    var PARTILOT_DT_PAGE_LENGTH = 20;
+    var PARTILOT_DT_LENGTH_MENU = [
+        [20, 50, 100, -1],
+        [20, 50, 100, 'Todos'],
+    ];
+
     function normalizeListTableOptions(opts) {
         if (!opts || typeof opts !== 'object') {
             return opts;
@@ -49,6 +55,12 @@
         delete o.scrollY;
         if (o.autoWidth === undefined) {
             o.autoWidth = false;
+        }
+        if (o.pageLength === undefined) {
+            o.pageLength = PARTILOT_DT_PAGE_LENGTH;
+        }
+        if (o.lengthMenu === undefined) {
+            o.lengthMenu = PARTILOT_DT_LENGTH_MENU;
         }
         o.language = $.extend(true, {}, PARTILOT_DT_LANG, o.language || {});
 
@@ -67,6 +79,8 @@
         $.extend(true, $.fn.dataTable.defaults, {
             language: PARTILOT_DT_LANG,
             autoWidth: false,
+            pageLength: PARTILOT_DT_PAGE_LENGTH,
+            lengthMenu: PARTILOT_DT_LENGTH_MENU,
         });
     }
 

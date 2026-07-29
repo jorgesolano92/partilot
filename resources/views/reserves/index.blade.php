@@ -27,8 +27,21 @@
 
                     @include('partials.administration-list-filter-banner', [
                         'filterAdministration' => $filterAdministration ?? null,
-                        'clearFilterUrl' => route('reserves.index'),
+                        'clearFilterUrl' => route('reserves.index', array_filter([
+                            'entity_id' => $entityFilterId ?? null,
+                        ])),
                     ])
+
+                    @if(!empty($filterEntity))
+                        <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span>
+                                Filtrando por entidad: <strong>{{ $filterEntity->name }}</strong>
+                            </span>
+                            <a href="{{ route('reserves.index', array_filter([
+                                'administration_id' => $filterAdministration->id ?? null,
+                            ])) }}" class="btn btn-sm btn-light">Quitar filtro</a>
+                        </div>
+                    @endif
 
                     <div class="{{$reserves->count() > 0 ? '' : 'd-none'}}">
                         <h4 class="header-title">
@@ -94,7 +107,7 @@
                                     <td>{{ $reserve->reservation_tickets ?? 0 }}</td>
                                     <td><b>{{ number_format($totalReserva, 2) }} €</b></td>
                                     <td class="no-click" style="cursor: default;">
-                                        <a class="btn btn-sm btn-light"><img src="{{url('icons_/participations.svg')}}" alt="" width="12"></a>
+                                        <a class="btn btn-sm btn-light" title="Sets de participaciones" href="{{ route('sets.index', ['reserve_id' => $reserve->id]) }}"><img src="{{url('icons_/participations.svg')}}" alt="" width="12"></a>
                                         <a href="{{url('reserves/edit', $reserve->id)}}" class="btn btn-sm btn-light"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
                                         <button class="btn btn-sm btn-danger delete-btn" data-id="{{$reserve->id}}" data-name="reserva #{{$reserve->id}}"><i class="ri-delete-bin-6-line"></i></button>
                                     </td>

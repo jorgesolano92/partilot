@@ -24,6 +24,14 @@ class ReserveController extends Controller
     {
         $user = auth()->user();
         $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+        $entityFilterIdRaw = $request->query('entity_id');
+        $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
+            ? (int) $entityFilterIdRaw
+            : null;
+
+        if ($entityFilterId !== null && ! $user->canAccessEntity((int) $entityFilterId)) {
+            abort(403, 'No tienes permisos para gestionar esta entidad.');
+        }
 
         $query = Reserve::with(['entity', 'lottery'])
             ->forUser($user);
@@ -32,11 +40,24 @@ class ReserveController extends Controller
             $query->whereHas('entity', fn ($q) => $q->where('administration_id', $filterAdministration->id));
         }
 
+        if ($entityFilterId !== null) {
+            $query->where('entity_id', $entityFilterId);
+        }
+
         $reserves = $query
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('reserves.index', compact('reserves', 'filterAdministration'));
+        $filterEntity = $entityFilterId !== null
+            ? Entity::forUser($user)->find($entityFilterId)
+            : null;
+
+        return view('reserves.index', compact(
+            'reserves',
+            'filterAdministration',
+            'entityFilterId',
+            'filterEntity'
+        ));
     }
 
     /**

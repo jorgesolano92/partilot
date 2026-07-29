@@ -30,9 +30,21 @@ class SetController extends Controller
         $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
             ? (int) $entityFilterIdRaw
             : null;
+        $reserveFilterIdRaw = $request->query('reserve_id');
+        $reserveFilterId = $reserveFilterIdRaw !== null && $reserveFilterIdRaw !== ''
+            ? (int) $reserveFilterIdRaw
+            : null;
 
         if ($entityFilterId !== null && ! $user->canAccessEntity((int) $entityFilterId)) {
             abort(403, 'No tienes permisos para gestionar esta entidad.');
+        }
+
+        $reserveFilter = null;
+        if ($reserveFilterId !== null) {
+            $reserveFilter = Reserve::with('entity')->findOrFail($reserveFilterId);
+            if (! $user->canAccessEntity((int) $reserveFilter->entity_id)) {
+                abort(403, 'No tienes permisos para gestionar esta reserva.');
+            }
         }
 
         $query = Set::with(['entity', 'reserve'])
@@ -46,6 +58,10 @@ class SetController extends Controller
             $query->where('entity_id', $entityFilterId);
         }
 
+        if ($reserveFilterId !== null) {
+            $query->where('reserve_id', $reserveFilterId);
+        }
+
         $sets = $query
             ->orderBy('created_at', 'desc')
             ->get();
@@ -54,7 +70,14 @@ class SetController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'province', 'city']);
 
-        return view('sets.index', compact('sets', 'filterAdministration', 'entitiesForFilter', 'entityFilterId'));
+        return view('sets.index', compact(
+            'sets',
+            'filterAdministration',
+            'entitiesForFilter',
+            'entityFilterId',
+            'reserveFilterId',
+            'reserveFilter'
+        ));
     }
 
     /**

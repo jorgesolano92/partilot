@@ -27,23 +27,43 @@
 
                     @include('partials.administration-list-filter-banner', [
                         'filterAdministration' => $filterAdministration ?? null,
-                        'clearFilterUrl' => route('sets.index', array_filter(['entity_id' => $entityFilterId ?? null])),
+                        'clearFilterUrl' => route('sets.index', array_filter([
+                            'entity_id' => $entityFilterId ?? null,
+                            'reserve_id' => $reserveFilterId ?? null,
+                        ])),
                     ])
 
                     @php
                         $showEntityFilter = isset($entitiesForFilter)
                             && $entitiesForFilter->count() > 0
-                            && (auth()->user()?->isAdministration() || auth()->user()?->isSuperAdmin());
+                            && (auth()->user()?->isAdministration() || auth()->user()?->isSuperAdmin())
+                            && empty($reserveFilterId);
                         $filterEntity = null;
                         if (!empty($entityFilterId) && isset($entitiesForFilter)) {
                             $filterEntity = $entitiesForFilter->firstWhere('id', (int) $entityFilterId);
                         }
                         $clearEntityFilterUrl = route('sets.index', array_filter([
                             'administration_id' => $filterAdministration->id ?? null,
+                            'reserve_id' => $reserveFilterId ?? null,
+                        ]));
+                        $clearReserveFilterUrl = route('sets.index', array_filter([
+                            'administration_id' => $filterAdministration->id ?? null,
+                            'entity_id' => $entityFilterId ?? null,
                         ]));
                     @endphp
 
-                    @if($filterEntity)
+                    @if(!empty($reserveFilter))
+                        <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span>
+                                Filtrando por reserva:
+                                <strong>#RS{{ str_pad($reserveFilter->id, 4, '0', STR_PAD_LEFT) }}</strong>
+                                @if($reserveFilter->entity)
+                                    ({{ $reserveFilter->entity->name }})
+                                @endif
+                            </span>
+                            <a href="{{ $clearReserveFilterUrl }}" class="btn btn-sm btn-light">Quitar filtro</a>
+                        </div>
+                    @elseif($filterEntity)
                         <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <span>
                                 Filtrando por entidad: <strong>{{ $filterEntity->name }}</strong>
