@@ -5,6 +5,7 @@
 @section('content')
 
 <style>
+    @include('design.partials.design_canvas_styles')
     #capture-wrap button {
         display: none;
     }

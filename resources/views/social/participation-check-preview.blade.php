@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Previsualización participación</title>
     <style>
+        @include('design.partials.design_canvas_styles')
         html, body { margin: 0; padding: 0; background: #f3f4f6; }
         #capture-wrap { padding: 8px; }
         #capture-wrap button,
@@ -30,8 +31,6 @@
             display: block;
         }
     </style>
-    @include('design.partials.design_custom_fonts')
-    @include('design.partials.design_canvas_styles')
 </head>
 <body>
     <div id="capture-wrap">
