@@ -2658,7 +2658,7 @@ class DesignController extends Controller
     }
 
     /**
-     * Garantiza cajas .qr ≥ min_print_size_mm (por defecto 15 mm / 1,5×1,5 cm).
+     * Garantiza cajas .qr ≥ min_print_size_mm (por defecto 9 mm / 0,9×0,9 cm).
      * Centra el recuadro al ampliar para no desplazar el diseño.
      */
     public function enforceQrMinPrintSizeInHtml(string $html, ?float $minMm = null): string
@@ -2667,7 +2667,7 @@ class DesignController extends Controller
             return $html;
         }
 
-        $minMm = $minMm ?? (float) config('qr_optimization.qr_code.min_print_size_mm', 15);
+        $minMm = $minMm ?? (float) config('qr_optimization.qr_code.min_print_size_mm', 9);
         $minMm = max(5.0, $minMm);
         $minPx = $minMm * 96.0 / 25.4;
 

@@ -1339,9 +1339,9 @@ function enableDesignElementsResize($scope) {
   }
 }
 
-/** Mínimo 1,5×1,5 cm (15 mm ≈ 57px @ 96dpi). Amplía sin mover left/top. */
+/** Mínimo 0,9×0,9 cm (9 mm ≈ 35px @ 96dpi). Amplía sin mover left/top. */
 function enforceQrMinSize($scope) {
-  var minPx = Math.ceil(15 * 96 / 25.4);
+  var minPx = Math.ceil(9 * 96 / 25.4);
   var $root = ($scope && $scope.length) ? $scope : $(document);
   $root.find('.elements.qr').each(function () {
     var el = this;

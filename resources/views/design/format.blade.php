@@ -2288,9 +2288,9 @@ $('#format').change(function (e) {
     }
   }
 
-  /** Mínimo 1,5×1,5 cm (15 mm ≈ 57px @ 96dpi). Amplía sin mover left/top. */
+  /** Mínimo 0,9×0,9 cm (9 mm ≈ 35px @ 96dpi). Amplía sin mover left/top. */
   function enforceQrMinSize($scope) {
-    var minPx = Math.ceil(15 * 96 / 25.4);
+    var minPx = Math.ceil(9 * 96 / 25.4);
     var $root = ($scope && $scope.length) ? $scope : $(document);
     $root.find('.elements.qr').each(function () {
       var el = this;
@@ -2954,7 +2954,7 @@ $('#format').change(function (e) {
 
   $('.add-qr').click(function (e) {
       e.preventDefault();
-      var qrMinPx = Math.ceil(15 * 96 / 25.4);
+      var qrMinPx = Math.ceil(9 * 96 / 25.4);
       $('#containment-wrapper'+step).append(`<div class="elements element-critical qr" style="resize: both; overflow: hidden; position: absolute; top: 0; width: ${qrMinPx}px; height: ${qrMinPx}px; min-width: ${qrMinPx}px; min-height: ${qrMinPx}px;"><span><img style="width: 100%; height: 100%" src="{{url('basicqr.jpg')}}" alt=""></span></div>`);
 
       setupDraggable();
@@ -3997,7 +3997,7 @@ $('#format').change(function (e) {
     if (!$wrap.length) return;
 
     if ($wrap.find('.elements.qr').length === 0) {
-      var qrMinPx = Math.ceil(15 * 96 / 25.4);
+      var qrMinPx = Math.ceil(9 * 96 / 25.4);
       var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:'+qrMinPx+'px;height:'+qrMinPx+'px;min-width:'+qrMinPx+'px;min-height:'+qrMinPx+'px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
       $wrap.append(qrHtml);
     }

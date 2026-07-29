@@ -415,7 +415,7 @@ class CoverBackPdfStampExporter
                 $q = $slots['qr'];
                 $boxW = $q['w'] * $scaleX;
                 $boxH = $q['h'] * $scaleY;
-                $minMm = max(5.0, (float) config('qr_optimization.qr_code.min_print_size_mm', 15));
+                $minMm = max(5.0, (float) config('qr_optimization.qr_code.min_print_size_mm', 9));
                 $side = max($boxW, $boxH, $minMm);
                 $qx = $originX + ($q['x'] * $scaleX);
                 $qy = $originY + ($q['y'] * $scaleY);

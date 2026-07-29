@@ -139,9 +139,9 @@
     margin: 0 !important;
     overflow: hidden !important;
     background-color: #fff;
-    /* Mínimo 1,5 cm ≈ 57px @ 96dpi (mismo valor que enforceQrMinSize; no usar mm aquí). */
-    min-width: 57px !important;
-    min-height: 57px !important;
+    /* Mínimo 0,9 cm ≈ 35px @ 96dpi (mismo valor que enforceQrMinSize; no usar mm aquí). */
+    min-width: 35px !important;
+    min-height: 35px !important;
 }
 
 .format-box .elements.qr img,

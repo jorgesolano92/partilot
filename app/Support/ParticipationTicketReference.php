@@ -167,7 +167,7 @@ class ParticipationTicketReference
             throw new InvalidArgumentException('Referencia inválida para URL firmada.');
         }
 
-        // De momento sin &sig= ni host panel.*: URL más corta → QR más denso / imprimible a ~1,5 cm.
+        // De momento sin &sig= ni host panel.*: URL más corta → QR más denso / imprimible a ~0,9 cm.
         return self::publicCheckBaseUrl()
             .'/comprobar-participaciones?ref='.$reference;
     }
