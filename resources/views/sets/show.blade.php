@@ -41,6 +41,7 @@
                                     </div>
                                 </li>
 
+                                @if(auth()->user()?->isSuperAdmin())
                                 <li class="nav-item">
                                     <div class="form-wizard-element" data-bs-toggle="tab" data-bs-target="#participaciones">
                                         <span>&nbsp;&nbsp;</span>
@@ -48,6 +49,7 @@
                                         <label>Participaciones</label>
                                     </div>
                                 </li>
+                                @endif
                             </ul>
                             <a href="{{url('sets')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
                                 <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span>
@@ -259,14 +261,15 @@
 
                                         <div class="tab-pane fade" id="participaciones">
 
+                                            @if(auth()->user()?->isSuperAdmin())
                                             @php
-                                                $participaciones = $set->tickets ?? [];
+                                                $participaciones = $ticketCodes ?? [];
                                             @endphp
 
                                             <h4 class="mb-0 mt-1 d-flex align-items-center justify-content-between">
                                                 <span>Participaciones de este set</span>
                                             </h4>
-                                            <small><i>Datos de las participaciones</i></small>
+                                            <small><i>Referencias del set (solo superadministrador)</i></small>
                                             <br>
 
                                             <div>
@@ -287,6 +290,7 @@
                                                     </tbody>
                                                 </table>
                                             </div>
+                                            @endif
 
                                         </div>
 

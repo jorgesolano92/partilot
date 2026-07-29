@@ -39,15 +39,7 @@
                         <div class="col-md-9">
                             <div class="form-card bs">
                                 <div style="min-height: 658px;">
-                                    {{-- Formulario para importar XML --}}
-                                    <form action="{{ route('sets.importXml', $set->id) }}" method="POST" enctype="multipart/form-data" class="mb-4">
-                                        @csrf
-                                        <div class="mb-3">
-                                            <label for="xml_file" class="form-label">Importar archivo XML de participaciones</label>
-                                            <input type="file" name="xml_file" id="xml_file" class="form-control" accept=".xml" required>
-                                        </div>
-                                        <button type="submit" class="btn btn-dark">Importar XML</button>
-                                    </form>
+                                    {{-- Sin importación XML: las referencias se generan al crear el set --}}
                                     <h4 class="mb-0 mt-1">Reserva en la que se generó el Set</h4>
                                     <small><i>Datos de la reserva asociada</i></small>
                                     <br>

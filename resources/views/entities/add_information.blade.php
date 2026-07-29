@@ -158,7 +158,7 @@
 
 	                    			<div class="form-group mt-2 mb-3">
 	                    				<input type="hidden" name="remove_image" id="remove_image_input" value="0">
-	                    				<div class="photo-preview" id="entity-image-preview" @if(session('entity_information.image')) style="background-image: url('{{ asset('uploads/' . session('entity_information.image')) }}'); background-size: cover;" @endif>
+	                    				<div class="photo-preview logo-round" id="entity-image-preview" @if(session('entity_information.image')) style="background-image: url('{{ asset('uploads/' . session('entity_information.image')) }}'); background-size: cover;" @endif>
 	                    					@if(!session('entity_information.image'))
 	                    						<i class="ri-image-add-line"></i>
 	                    					@endif

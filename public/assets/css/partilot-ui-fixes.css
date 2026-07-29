@@ -246,6 +246,31 @@ small.text-muted,
     min-width: 2rem;
 }
 
+/* Logos de entidad / org: marco cuadrado redondeado (override del círculo 50px) */
+.logo-round.photo-preview,
+.logo-round.photo-preview-2,
+.logo-round.photo-preview-3,
+.photo-preview.logo-round,
+.photo-preview-2.logo-round,
+.photo-preview-3.logo-round {
+    border-radius: 12px !important;
+    padding: 0 !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.logo-round.photo-preview i,
+.logo-round.photo-preview-2 i,
+.logo-round.photo-preview-3 i,
+.photo-preview.logo-round i,
+.photo-preview-2.logo-round i,
+.photo-preview-3.logo-round i {
+    line-height: 1;
+}
+
 /* Ficha entidad: cabecera icono + nombre sin solapamiento */
 .entity-profile-head .photo-preview-3,
 .entity-profile-head .photo-preview-2 {

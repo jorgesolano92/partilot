@@ -465,7 +465,12 @@ class SetController extends Controller
         }
 
         $set->load(['entity', 'reserve']);
-        return view('sets.show', compact('set'));
+
+        $ticketCodes = auth()->user()?->isSuperAdmin()
+            ? (is_array($set->tickets) ? $set->tickets : [])
+            : [];
+
+        return view('sets.show', compact('set', 'ticketCodes'));
     }
 
     /**
@@ -586,17 +591,13 @@ class SetController extends Controller
         }
 
         // Cargar las relaciones necesarias
-        $set->load(['entity.administration', 'reserve.lottery', 'reserve', 'participations', 'designFormats']);
+        $set->load(['entity.administration', 'reserve.lottery', 'reserve']);
 
         // Obtener datos necesarios
         $entity = $set->entity;
         $administration = $entity->administration;
         $reserve = $set->reserve;
         $lottery = $reserve->lottery;
-
-        // Determinar si es set físico o digital
-        $isDigital = $set->digital_participations > 0 && $set->physical_participations == 0;
-        $isPhysical = $set->physical_participations > 0;
 
         // Crear el contenido XML
         $xmlContent = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
@@ -629,40 +630,22 @@ class SetController extends Controller
         $xmlContent .= '  <pagowebpage><![CDATA[loteria-empresas-parti.php?ref=]]></pagowebpage>' . "\n";
         $xmlContent .= '  <participaciones>' . "\n";
 
-        // Tarea 14 y 15: Generar participaciones con referencias reales
-        if ($isPhysical) {
-            // Para sets físicos: intentar usar participation_code de las participaciones con diseño
-            $participations = $set->participations()
-                ->whereNotNull('participation_code')
-                ->orderBy('participation_number')
-                ->get();
+        // <r> debe ser la referencia del ticket (tickets.r), no el código 1/00001
+        $tickets = is_array($set->tickets) ? $set->tickets : [];
 
-            if ($participations->count() > 0) {
-                // Usar referencias reales de participaciones existentes
-                foreach ($participations as $participation) {
-                    $reference = $participation->participation_code ?? 'REF' . str_pad($participation->participation_number ?? $participation->id, 6, '0', STR_PAD_LEFT);
-                    $xmlContent .= '   <p><s>' . ($participation->participation_number ?? $participation->id) . '</s><r>' . htmlspecialchars($reference, ENT_XML1, 'UTF-8') . '</r></p>' . "\n";
+        if (count($tickets) > 0) {
+            foreach ($tickets as $ticket) {
+                $number = $ticket['n'] ?? 0;
+                $reference = (string) ($ticket['r'] ?? '');
+                if ($reference === '') {
+                    continue;
                 }
-            } else {
-                // Si no hay participaciones creadas aún, usar tickets del set o generar REF
-                if ($set->tickets && is_array($set->tickets) && count($set->tickets) > 0) {
-                    foreach ($set->tickets as $ticket) {
-                        $reference = $ticket['r'] ?? 'REF' . str_pad($ticket['n'] ?? 0, 6, '0', STR_PAD_LEFT);
-                        $xmlContent .= '   <p><s>' . ($ticket['n'] ?? 0) . '</s><r>' . htmlspecialchars($reference, ENT_XML1, 'UTF-8') . '</r></p>' . "\n";
-                    }
-                } else {
-                    // Fallback: generar REF000001, REF000002, etc.
-                    for ($i = 1; $i <= $set->total_participations; $i++) {
-                        $xmlContent .= '   <p><s>' . $i . '</s><r>REF' . str_pad($i, 6, '0', STR_PAD_LEFT) . '</r></p>' . "\n";
-                    }
-                }
+                $xmlContent .= '   <p><s>' . htmlspecialchars((string) $number, ENT_XML1, 'UTF-8') . '</s><r>' . htmlspecialchars($reference, ENT_XML1, 'UTF-8') . '</r></p>' . "\n";
             }
         } else {
-            // Tarea 15: Para sets digitales, generar referencias únicas
-            for ($i = 1; $i <= $set->total_participations; $i++) {
-                // Generar referencia única: DIG + set_id + número de participación
-                $reference = 'DIG' . str_pad($set->id, 6, '0', STR_PAD_LEFT) . str_pad($i, 6, '0', STR_PAD_LEFT);
-                $xmlContent .= '   <p><s>' . $i . '</s><r>' . htmlspecialchars($reference, ENT_XML1, 'UTF-8') . '</r></p>' . "\n";
+            // Sin tickets guardados: no inventar códigos de participación (1/00001)
+            for ($i = 1; $i <= (int) $set->total_participations; $i++) {
+                $xmlContent .= '   <p><s>' . $i . '</s><r></r></p>' . "\n";
             }
         }
 
@@ -711,6 +694,8 @@ class SetController extends Controller
      */
     public function importXml(Request $request, $id)
     {
+        abort(403, 'La importación de XML de participaciones está deshabilitada. Las referencias se generan al crear el set.');
+
         $request->validate([
             'xml_file' => 'required|file|mimes:xml',
         ]);

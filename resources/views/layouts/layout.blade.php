@@ -245,12 +245,20 @@
                 border-bottom: 1px solid silver;
                 outline: none;
               }
-            /* Logos redondos: mismo tamaño, imagen como background cover */
+            /* Logos entidad: cuadrado con bordes redondeados; cover centra y rellena el marco */
             .logo-round {
-                border-radius: 50% !important;
+                border-radius: 12px !important;
                 overflow: hidden;
                 background-size: cover !important;
                 background-position: center !important;
+                background-repeat: no-repeat !important;
+            }
+            .logo-round > img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                object-position: center;
+                display: block;
             }
             .logo-round-sm {
                 width: 48px;
