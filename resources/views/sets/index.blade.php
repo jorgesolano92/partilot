@@ -27,16 +27,54 @@
 
                     @include('partials.administration-list-filter-banner', [
                         'filterAdministration' => $filterAdministration ?? null,
-                        'clearFilterUrl' => route('sets.index'),
+                        'clearFilterUrl' => route('sets.index', array_filter(['entity_id' => $entityFilterId ?? null])),
                     ])
+
+                    @php
+                        $showEntityFilter = isset($entitiesForFilter)
+                            && $entitiesForFilter->count() > 0
+                            && (auth()->user()?->isAdministration() || auth()->user()?->isSuperAdmin());
+                        $filterEntity = null;
+                        if (!empty($entityFilterId) && isset($entitiesForFilter)) {
+                            $filterEntity = $entitiesForFilter->firstWhere('id', (int) $entityFilterId);
+                        }
+                        $clearEntityFilterUrl = route('sets.index', array_filter([
+                            'administration_id' => $filterAdministration->id ?? null,
+                        ]));
+                    @endphp
+
+                    @if($filterEntity)
+                        <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span>
+                                Filtrando por entidad: <strong>{{ $filterEntity->name }}</strong>
+                            </span>
+                            <a href="{{ $clearEntityFilterUrl }}" class="btn btn-sm btn-light">Quitar filtro</a>
+                        </div>
+                    @endif
 
                     <div class="{{$sets->count() > 0 ? '' : 'd-none'}}">
                         <h4 class="header-title">
 
                             <div class="float-start d-flex align-items-start">
-                                <input type="text" class="form-control" style="margin-right: 8px ;" placeholder="Provincia">
-                                <input type="text" class="form-control" style="margin-right: 8px ;" placeholder="Localidad">
-                                <input type="text" class="form-control" placeholder="Status">
+                                @if($showEntityFilter)
+                                    <select class="form-control" style="min-width: 200px;"
+                                        onchange="(function(sel) {
+                                            const url = new URL(window.location.href);
+                                            if (sel.value) {
+                                                url.searchParams.set('entity_id', sel.value);
+                                            } else {
+                                                url.searchParams.delete('entity_id');
+                                            }
+                                            window.location.href = url.toString();
+                                        })(this)">
+                                        <option value="">Todas las entidades</option>
+                                        @foreach($entitiesForFilter as $entity)
+                                            <option value="{{ $entity->id }}" {{ (isset($entityFilterId) && (int) $entityFilterId === (int) $entity->id) ? 'selected' : '' }}>
+                                                {{ $entity->name ?? '#'.$entity->id }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @endif
                             </div>
 
                             <a href="{{url('sets/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
