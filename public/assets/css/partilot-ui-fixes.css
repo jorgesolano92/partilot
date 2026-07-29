@@ -255,7 +255,7 @@ small.text-muted,
 .photo-preview-3.logo-round {
     border-radius: 12px !important;
     padding: 0 !important;
-    background-size: cover !important;
+    background-size: 100% !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
     display: flex;

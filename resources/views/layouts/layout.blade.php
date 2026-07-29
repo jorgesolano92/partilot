@@ -245,18 +245,18 @@
                 border-bottom: 1px solid silver;
                 outline: none;
               }
-            /* Logos entidad: cuadrado con bordes redondeados; cover centra y rellena el marco */
+            /* Logos entidad: cuadrado con bordes redondeados; ancho 100% para ajustarse al marco */
             .logo-round {
                 border-radius: 12px !important;
                 overflow: hidden;
-                background-size: cover !important;
+                background-size: 100% !important;
                 background-position: center !important;
                 background-repeat: no-repeat !important;
             }
             .logo-round > img {
                 width: 100%;
-                height: 100%;
-                object-fit: cover;
+                height: auto;
+                object-fit: unset;
                 object-position: center;
                 display: block;
             }
