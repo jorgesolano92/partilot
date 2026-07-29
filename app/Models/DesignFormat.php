@@ -59,6 +59,7 @@ class DesignFormat extends Model
         'approval_decided_at',
         'approved_by_user_id',
         'approval_rejection_reason',
+        'participation_export_locked_at',
     ];
 
     protected $casts = [
@@ -70,6 +71,7 @@ class DesignFormat extends Model
         'back_skipped' => 'boolean',
         'submitted_for_approval_at' => 'datetime',
         'approval_decided_at' => 'datetime',
+        'participation_export_locked_at' => 'datetime',
     ];
 
     /**

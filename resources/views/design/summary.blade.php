@@ -53,22 +53,6 @@
                         $canDownloadPendingSample = ! empty($canDownloadPendingSample);
                     @endphp
 
-                    @if(!empty($summaryStatus))
-                        <div class="alert alert-{{ ($summaryStatus['tone'] ?? 'warning') === 'success' ? 'success' : 'warning' }} text-start partilot-page-panel__narrow mx-auto mb-4">
-                            @if(!empty($summaryStatus['title']))
-                                <h5 class="mb-2">
-                                    @if(($summaryStatus['tone'] ?? '') !== 'success')
-                                        <i class="ri-error-warning-line me-1"></i>
-                                    @else
-                                        <i class="ri-checkbox-circle-line me-1"></i>
-                                    @endif
-                                    {{ $summaryStatus['title'] }}
-                                </h5>
-                            @endif
-                            <p class="mb-0 small">{{ $summaryStatus['message'] ?? '' }}</p>
-                        </div>
-                    @endif
-
                     @if($entityMustPayNow && !empty($managementFeeData['can_pay_stripe']))
                         <div class="text-center mb-4">
                             <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-success btn-lg">
@@ -103,8 +87,32 @@
                         </div>
                     @endif
 
+                    <div class="design-summary-cards">
+                    @if(!empty($exportLocked))
+                        <div class="alert alert-secondary text-start design-summary-card">
+                            <h5 class="mb-2"><i class="ri-lock-line me-1"></i> Diseño bloqueado</h5>
+                            <p class="mb-0 small">Ya se descargó el PDF de participaciones. El diseño no se puede editar; puede seguir descargando archivos desde esta pantalla.</p>
+                        </div>
+                    @endif
+
+                    @if(!empty($summaryStatus))
+                        <div class="alert alert-{{ ($summaryStatus['tone'] ?? 'warning') === 'success' ? 'success' : 'warning' }} text-start design-summary-card">
+                            @if(!empty($summaryStatus['title']))
+                                <h5 class="mb-2">
+                                    @if(($summaryStatus['tone'] ?? '') !== 'success')
+                                        <i class="ri-error-warning-line me-1"></i>
+                                    @else
+                                        <i class="ri-checkbox-circle-line me-1"></i>
+                                    @endif
+                                    {{ $summaryStatus['title'] }}
+                                </h5>
+                            @endif
+                            <p class="mb-0 small">{{ $summaryStatus['message'] ?? '' }}</p>
+                        </div>
+                    @endif
+
                     @if(!empty($printOrderLock['completed']))
-                        <div class="alert alert-success text-start partilot-page-panel__narrow mx-auto mb-4">
+                        <div class="alert alert-success text-start design-summary-card">
                             <i class="ri-checkbox-circle-line me-1"></i>
                             <strong>Impresión completada.</strong>
                             La imprenta marcó la orden
@@ -121,7 +129,7 @@
                             @endif
                         </div>
                     @elseif(!empty($printOrderLock['locked']))
-                        <div class="alert alert-info text-start partilot-page-panel__narrow mx-auto mb-4">
+                        <div class="alert alert-info text-start design-summary-card">
                             <i class="ri-printer-line me-1"></i>
                             <strong>En imprenta.</strong>
                             @if(!empty($latestPrintOrder?->order_code))
@@ -133,7 +141,7 @@
                     @endif
 
                     @if($entityViewer && !empty($entityFeeDue) && empty($awaitingEntityFeeBeforeDesign))
-                        <div class="alert alert-warning text-start partilot-page-panel__narrow mx-auto mb-4">
+                        <div class="alert alert-warning text-start design-summary-card">
                             <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión PARTILOT</h5>
                             <p class="mb-3 small">
                                 @if(!empty($printOrderLock['completed']))
@@ -159,7 +167,7 @@
                     @endif
 
                     @if(!empty($designApproval) && !empty($designApproval['required']))
-                        <div id="approval" class="alert {{ !empty($designApproval['blocks_export']) ? 'alert-warning' : 'alert-light border' }} text-start partilot-page-panel__narrow mx-auto mb-4">
+                        <div id="approval" class="alert {{ !empty($designApproval['blocks_export']) ? 'alert-warning' : 'alert-light border' }} text-start design-summary-card">
                             <h5 class="mb-3">Aprobación de la entidad</h5>
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Estado</span>
@@ -192,7 +200,7 @@
                     @endif
 
                     @if(!empty($managementFee))
-                        <div class="alert {{ !empty($managementFee['blocks_export']) ? 'alert-warning' : 'alert-light border' }} text-start partilot-page-panel__narrow mx-auto mb-4">
+                        <div class="alert {{ !empty($managementFee['blocks_export']) ? 'alert-warning' : 'alert-light border' }} text-start design-summary-card">
                             <h5 class="mb-3">Cuota de gestión PARTILOT</h5>
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Estado</span>
@@ -297,6 +305,24 @@
                             @endif
                         </div>
                     @endif
+
+                    @if(!empty($latestPrintOrder))
+                        <div class="alert alert-light border text-start design-summary-card">
+                            <div class="d-flex justify-content-between">
+                                <span>Última orden</span>
+                                <strong>{{ $latestPrintOrder->order_code }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Estado</span>
+                                <strong>{{ \App\Models\PrintOrder::statusLabel((string) $latestPrintOrder->status) }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Importe</span>
+                                <strong>{{ number_format((float) $latestPrintOrder->quoted_amount, 2, ',', '.') }}€</strong>
+                            </div>
+                        </div>
+                    @endif
+                    </div>{{-- /.design-summary-cards --}}
 
                     @php
                         $isDigitalSet = $design->set
@@ -429,23 +455,6 @@
                                 Muestra de maquetación: todas las participaciones de la hoja usan referencia en ceros y el QR correspondiente. No incluye números reales del set.
                             </p>
                         @endif
-                    @endif
-
-                    @if(!empty($latestPrintOrder))
-                        <div class="alert alert-light border text-start partilot-page-panel__narrow mx-auto">
-                            <div class="d-flex justify-content-between">
-                                <span>Última orden</span>
-                                <strong>{{ $latestPrintOrder->order_code }}</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span>Estado</span>
-                                <strong>{{ \App\Models\PrintOrder::statusLabel((string) $latestPrintOrder->status) }}</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span>Importe</span>
-                                <strong>{{ number_format((float) $latestPrintOrder->quoted_amount, 2, ',', '.') }}€</strong>
-                            </div>
-                        </div>
                     @endif
 
                     <hr class="my-4">

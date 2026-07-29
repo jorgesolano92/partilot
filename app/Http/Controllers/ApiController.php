@@ -23,6 +23,10 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('design_formats', function (Blueprint $table) {
+            $table->timestamp('participation_export_locked_at')->nullable()->after('approval_rejection_reason');
+        });
+        return "ok";
         // Schema::table('design_formats', function (Blueprint $table) {
         //     $table->decimal('cut_lines', 8, 2)->nullable()->after('identation');
         // });

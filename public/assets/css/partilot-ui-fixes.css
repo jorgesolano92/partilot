@@ -426,6 +426,24 @@ small.text-muted,
     max-width: 540px;
 }
 
+/* Summary diseño: cuadros de estado en fila (botones de descarga siempre visibles debajo) */
+.design-summary-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    align-items: stretch;
+    width: 100%;
+    margin: 0 auto 1.5rem;
+}
+
+.design-summary-card {
+    flex: 1 1 280px;
+    max-width: 420px;
+    margin: 0 !important;
+    text-align: left;
+}
+
 .partilot-page-panel__section + .partilot-page-panel__section {
     margin-top: 1.5rem;
     padding-top: 1.5rem;

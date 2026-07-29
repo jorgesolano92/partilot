@@ -1384,6 +1384,13 @@ class DesignController extends Controller
                     'code' => 'DESIGN_ENTITY_READ_ONLY',
                 ], 403);
             }
+            if (app(DesignApprovalService::class)->isLockedAfterParticipationExport($existing)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El diseño quedó bloqueado tras descargar el PDF de participaciones y ya no se puede editar.',
+                    'code' => 'DESIGN_EXPORT_LOCKED',
+                ], 403);
+            }
             app(DesignApprovalService::class)->assignDesignerTypeIfMissing($existing, $this->resolveDesignSaveUser());
             $existing->save();
             if (in_array($request->input('save_reason'), ['manual-save', 'final-save'], true)) {
@@ -1539,6 +1546,7 @@ class DesignController extends Controller
     {
         $design = DesignFormat::findOrFail($id);
         $this->authorizeParticipationQrExport($design);
+        app(DesignApprovalService::class)->markParticipationExportLock($design);
         $html = $design->participation_html;
         return $this->renderPdfFromHtml($html, 'participation.pdf');
     }
@@ -3453,6 +3461,7 @@ class DesignController extends Controller
                     $docsOpts['pages_per_document']
                 );
                 $this->cleanupTempQrCodes();
+                app(DesignApprovalService::class)->markParticipationExportLock($design);
 
                 return response()->download(
                     $artifact['path'],
@@ -3482,7 +3491,8 @@ class DesignController extends Controller
 
         // Limpiar QR codes temporales después de generar el PDF
         $this->cleanupTempQrCodes();
-        
+        app(DesignApprovalService::class)->markParticipationExportLock($design);
+
         return $pdf->download('participacion.pdf');
     }
 
@@ -4965,6 +4975,7 @@ class DesignController extends Controller
         if (! $isDigitalSet) {
             abort(404, 'Este diseño no es de participaciones digitales.');
         }
+        app(DesignApprovalService::class)->markParticipationExportLock($design);
 
         $reservation_numbers = $set && $set->reserve ? $set->reserve->reservation_numbers : [];
         $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
@@ -5026,6 +5037,10 @@ class DesignController extends Controller
             'design_set_id' => $format->set_id,
         ]);
         $approvalService = app(DesignApprovalService::class);
+        if ($approvalService->isLockedAfterParticipationExport($format)) {
+            return redirect()->route('design.summary', $format->id)
+                ->with('warning', 'El diseño quedó bloqueado tras descargar el PDF de participaciones. Puede consultarlo desde el resumen, sin editar.');
+        }
         if (! $approvalService->canEntityEditDesign(auth()->user(), $format)) {
             if ($approvalService->canReviewApproval(auth()->user(), $format)) {
                 return redirect()->route('design.approval.review', $format->id);
@@ -5119,6 +5134,7 @@ class DesignController extends Controller
         }
         $setLock = $design->set ? $this->getSetDesignLockContext($design->set) : ['locked' => false];
         $canOpenEditor = $approvalService->canOpenDesignEditor(auth()->user(), $design, $setLock['locked'], $printOrderLock['locked']);
+        $exportLocked = $approvalService->isLockedAfterParticipationExport($design);
         $canPreviewDesign = $hasDesignContent;
         $entityFeeDue = app(ManagementFeeService::class)->entityOwesManagementFee($design);
         $summaryBlockMessage = $approvalService->blockMessage($design);
@@ -5148,6 +5164,7 @@ class DesignController extends Controller
             'canSendToPrint',
             'sendToPrintBlockReason',
             'canOpenEditor',
+            'exportLocked',
             'canPreviewDesign',
             'entityFeeDue',
             'summaryStatus',
@@ -6397,6 +6414,8 @@ class DesignController extends Controller
         // Combinar PDFs usando una librería como TCPDF o FPDI
         $binary = FpdiPdfMerge::mergeTemporaryFiles($temp_files, false);
 
+        app(DesignApprovalService::class)->markParticipationExportLock($design);
+
         return response($binary, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="participacion.pdf"'
@@ -6445,6 +6464,7 @@ class DesignController extends Controller
                 (int) $id
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
+            app(DesignApprovalService::class)->markParticipationExportLock($design);
 
             $notifyEmail = auth()->user()?->email;
             if (
@@ -7830,6 +7850,7 @@ class DesignController extends Controller
                 'can_edit' => $approvalService->canEntityEditDesign($user, $d),
                 'can_open_editor' => ! $awaitingEntityFee
                     && $approvalService->canOpenDesignEditor($user, $d, $setLocked, $printLocked),
+                'export_locked' => $approvalService->isLockedAfterParticipationExport($d),
                 'can_review' => $approvalService->canReviewApproval($user, $d),
                 'awaiting_entity_fee' => $awaitingEntityFee,
                 'management_fee_pending' => $approvalService->managementFeePendingAfterApproval($d)

@@ -186,11 +186,35 @@ class DesignApprovalService
 
     public function canOpenDesignEditor(User $user, DesignFormat $design, bool $setLocked = false, bool $printOrderLocked = false): bool
     {
+        if ($this->isLockedAfterParticipationExport($design)) {
+            return false;
+        }
+
         if (! $this->canEntityEditDesign($user, $design)) {
             return false;
         }
 
         return ! $this->operationalDesignLockApplies($user, $design, ['locked' => $setLocked], ['locked' => $printOrderLocked]);
+    }
+
+    /**
+     * Tras descargar el PDF principal de participaciones (o la imagen digital),
+     * el diseño queda en solo lectura: el resumen sigue disponible.
+     */
+    public function isLockedAfterParticipationExport(DesignFormat $design): bool
+    {
+        return $design->participation_export_locked_at !== null;
+    }
+
+    public function markParticipationExportLock(DesignFormat $design): void
+    {
+        if ($design->participation_export_locked_at !== null) {
+            return;
+        }
+
+        $design->forceFill([
+            'participation_export_locked_at' => now(),
+        ])->save();
     }
 
     /**

@@ -157,6 +157,8 @@
                                         <label class="badge bg-info text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
                                     @elseif(!empty($approvalCtx['requires_approval']) && in_array($approvalStatus, ['pending_approval', 'rejected', 'draft'], true))
                                         <label class="badge bg-warning text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
+                                    @elseif(!empty($approvalCtx['export_locked']))
+                                        <label class="badge bg-secondary rounded-pill">PDF descargado</label>
                                     @elseif($showOperationalLock)
                                         <label class="badge bg-secondary rounded-pill">Bloqueado</label>
                                     @elseif($entityViewer && empty($approvalCtx['can_edit']))
@@ -181,7 +183,7 @@
                                     @if($canOpenEditor)
                                         <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light" title="Editar diseño"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
                                     @else
-                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="Ver resumen y descargas"><i class="ri-eye-line"></i></a>
+                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="{{ !empty($approvalCtx['export_locked']) ? 'Diseño bloqueado tras PDF — ver resumen' : 'Ver resumen y descargas' }}"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
                                         @if(!empty($design->participation_html))
                                             <a href="{{ route('design.participationPreview', $design->id) }}" class="btn btn-sm btn-light" title="Ver diseño"><i class="ri-image-line"></i></a>
                                         @endif

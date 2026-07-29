@@ -6,14 +6,14 @@
 
 <style>
     @include('design.partials.design_canvas_styles')
-    #capture-wrap button {
+    .js-capture-root button {
         display: none;
     }
-    #capture-wrap .margen-izquierdo,
-    #capture-wrap .margen-arriba,
-    #capture-wrap .margen-derecho,
-    #capture-wrap .margen-abajo,
-    #capture-wrap .caja-matriz {
+    .js-capture-root .margen-izquierdo,
+    .js-capture-root .margen-arriba,
+    .js-capture-root .margen-derecho,
+    .js-capture-root .margen-abajo,
+    .js-capture-root .caja-matriz {
         display: none;
     }
 </style>
@@ -55,7 +55,7 @@
                                         <i class="ri-edit-line"></i> Editar diseño
                                     </a>
                                     <button type="button" class="btn btn-sm btn-primary" id="btn-download">
-                                        <i class="ri-download-2-line"></i> Descargar PNG
+                                        <i class="ri-download-2-line"></i> Descargar JPG
                                     </button>
                                 </div>
                             </div>
@@ -67,7 +67,7 @@
                                     $matrixBoxMm = (float)($design->matrix_box ?? 40);
                                     $captureWidth = max(10, 200 - $matrixBoxMm);
                                 @endphp
-                                <div id="capture-wrap" style="background:#fff; display:inline-block; width: {{ $captureWidth }}mm; height: 92mm; overflow: hidden; border: 1px solid #e5e5e5; position: relative;">
+                                <div id="capture-wrap" class="js-capture-root" style="background:#fff; display:inline-block; width: {{ $captureWidth }}mm; height: 92mm; overflow: hidden; border: 1px solid #e5e5e5; position: relative;">
                                     <div id="capture" style="width: 200mm; height: 92mm; position: relative; overflow: hidden; right: {{ $matrixBoxMm }}mm;">
                                         {!! $html !!}
                                     </div>
@@ -95,25 +95,31 @@
 
 @section('scripts')
 <script src="{{ asset('assets/libs/html2canvas/html2canvas.min.js') }}"></script>
+@include('design.partials.capture_participation_image')
 <script>
 document.getElementById('btn-download')?.addEventListener('click', async function () {
     const el = document.getElementById('capture-wrap');
-    if (!el) return;
+    if (!el || !window.PartilotCaptureParticipationImage) return;
 
     const btn = this;
     btn.disabled = true;
-    const old = btn.innerText;
-    btn.innerText = 'Generando...';
+    const old = btn.innerHTML;
+    btn.innerHTML = '<i class="ri-loader-4-line"></i> Generando…';
     try {
-        const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
-        const link = document.createElement('a');
-        const id = {{ (int) $design->id }};
-        link.download = `participacion-digital-design-${id}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        const widthMm = {{ (float) max(10, 200 - (float) ($design->matrix_box ?? 40)) }};
+        await window.PartilotCaptureParticipationImage.download(el, {
+            widthMm: widthMm,
+            heightMm: 92,
+            mime: 'image/jpeg',
+            quality: 0.85,
+            filename: 'participacion-digital-design-{{ (int) $design->id }}.jpg',
+        });
+    } catch (err) {
+        console.error(err);
+        alert('No se pudo generar la imagen. Prueba de nuevo.');
     } finally {
         btn.disabled = false;
-        btn.innerText = old;
+        btn.innerHTML = old;
     }
 });
 </script>
