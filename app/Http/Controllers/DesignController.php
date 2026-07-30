@@ -6970,7 +6970,7 @@ class DesignController extends Controller
 
         $approvalService = app(DesignApprovalService::class);
         if (! $approvalService->canDownloadPendingParticipationSample(auth()->user(), $design)) {
-            abort(403, 'Solo la administración puede descargar la muestra mientras el diseño está pendiente de aprobación.');
+            abort(403, 'Solo la administración puede descargar la muestra mientras el diseño no esté aprobado por la entidad.');
         }
 
         ini_set('max_execution_time', '120');

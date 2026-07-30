@@ -184,6 +184,16 @@
                                     </button>
                                 </form>
                             @endif
+                            @if($canDownloadPendingSample && !empty($design->participation_html))
+                                <div class="text-end mt-3">
+                                    <a href="{{ route('design.exportParticipationSamplePdf', $design->id) }}"
+                                       class="btn btn-outline-primary btn-sm"
+                                       target="_blank"
+                                       title="Una hoja con referencias y QR en ceros (sin datos reales)">
+                                        <i class="ri-file-pdf-line me-1"></i> Descargar muestra (1 hoja)
+                                    </a>
+                                </div>
+                            @endif
                             @if(!empty($designApproval['can_review']))
                                 <div class="text-end mt-3">
                                     <a href="{{ route('design.approval.review', $design->id) }}" class="btn btn-primary btn-sm">
@@ -437,12 +447,12 @@
                                 <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente (entidad)</h5>
                                 <p class="mb-0 small">{{ $qrBlockTitle }}</p>
                             </div>
-                        @else
+                        @elseif(empty($designApproval['required']) || empty($canDownloadPendingSample))
                         <p class="small text-muted partilot-page-panel__narrow mx-auto mb-4">
                             <i class="ri-information-line me-1"></i> {{ $qrBlockTitle }}
                         </p>
                         @endif
-                        @if($canDownloadPendingSample && !$isDigitalSet && !empty($design->participation_html))
+                        @if($canDownloadPendingSample && !$isDigitalSet && !empty($design->participation_html) && (empty($designApproval['required'])))
                             <div class="d-flex flex-wrap justify-content-center gap-3 mb-4">
                                 <a href="{{ route('design.exportParticipationSamplePdf', $design->id) }}"
                                    class="btn btn-outline-primary"

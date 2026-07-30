@@ -733,7 +733,8 @@ class DesignApprovalService
     }
 
     /**
-     * Administración (o superadmin): muestra de 1 hoja con refs/QR en ceros mientras espera aprobación de entidad.
+     * Administración (o superadmin): muestra de 1 hoja con refs/QR en ceros
+     * mientras el diseño aún no está aprobado por la entidad (borrador, pendiente o rechazado).
      */
     public function canDownloadPendingParticipationSample(?User $user, DesignFormat $design): bool
     {
@@ -749,7 +750,12 @@ class DesignApprovalService
             return false;
         }
 
-        if ($this->normalizedApprovalStatus($design->approval_status) !== self::STATUS_PENDING) {
+        if (! $this->requiresEntityApproval($design)) {
+            return false;
+        }
+
+        $status = $this->normalizedApprovalStatus($design->approval_status);
+        if (! in_array($status, [self::STATUS_DRAFT, self::STATUS_PENDING, self::STATUS_REJECTED], true)) {
             return false;
         }
 
