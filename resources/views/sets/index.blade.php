@@ -79,13 +79,13 @@
                                 @if($showEntityFilter)
                                     <select class="form-control" style="min-width: 200px;"
                                         onchange="(function(sel) {
-                                            const url = new URL(window.location.href);
+                                            var u = new window.URL(window.location.href);
                                             if (sel.value) {
-                                                url.searchParams.set('entity_id', sel.value);
+                                                u.searchParams.set('entity_id', sel.value);
                                             } else {
-                                                url.searchParams.delete('entity_id');
+                                                u.searchParams.delete('entity_id');
                                             }
-                                            window.location.href = url.toString();
+                                            window.location.href = u.toString();
                                         })(this)">
                                         <option value="">Todas las entidades</option>
                                         @foreach($entitiesForFilter as $entity)
