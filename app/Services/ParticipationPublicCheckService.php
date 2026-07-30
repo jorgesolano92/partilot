@@ -231,7 +231,7 @@ class ParticipationPublicCheckService
      * @param  object|null  $lottery
      * @return 'pending_celebration'|'pending_results'|'completed'
      */
-    protected function resolveDrawStatus($lottery): string
+    public function resolveDrawStatus($lottery): string
     {
         if (! $lottery || empty($lottery->draw_date)) {
             return 'pending_celebration';
@@ -262,6 +262,15 @@ class ParticipationPublicCheckService
 
         // Día del sorteo o posterior sin escrutinio publicado.
         return 'pending_results';
+    }
+
+    public function drawStatusLabel(string $drawStatus): string
+    {
+        return match ($drawStatus) {
+            'completed' => 'Sorteado',
+            'pending_results' => 'Pendiente de resultados',
+            default => 'Pendiente de sorteo',
+        };
     }
 
     protected function formatAmountLabel(float $totalPlayed, float $donation, float $total): string

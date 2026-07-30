@@ -81,14 +81,21 @@ class LotteryDigitalizationService
     }
 
     /**
-     * @return array{can_digitalize: bool, can_store_in_warehouse: bool, digitalization_closed: bool, notice: ?string}
+     * @return array{
+     *   can_digitalize: bool,
+     *   can_store_in_warehouse: bool,
+     *   can_manage: bool,
+     *   digitalization_closed: bool,
+     *   notice: ?string
+     * }
      */
-    public function walletRegistrationOptions(Participation $participation, ?Lottery $lottery): array
+    public function walletRegistrationOptions(Participation $participation, ?Lottery $lottery, bool $hasWon = false, ?string $drawStatus = null): array
     {
         if (! $lottery) {
             return [
                 'can_digitalize' => false,
                 'can_store_in_warehouse' => false,
+                'can_manage' => false,
                 'digitalization_closed' => false,
                 'notice' => null,
             ];
@@ -96,12 +103,21 @@ class LotteryDigitalizationService
 
         $closed = $this->isDigitalizationClosed($lottery);
         $physical = $this->isPhysicalParticipation($participation);
+        $sorteado = $drawStatus === 'completed';
+
+        // Tras el sorteo no se «digitaliza»; se gestiona (cobrar/donar/código) si hay premio.
+        $canDigitalize = $physical && ! $closed && ! $sorteado;
+        $canStore = $physical && ! $closed && ! $sorteado;
+        $canManage = $physical && $sorteado && $hasWon;
 
         return [
-            'can_digitalize' => $physical && ! $closed,
-            'can_store_in_warehouse' => $physical && ! $closed,
+            'can_digitalize' => $canDigitalize,
+            'can_store_in_warehouse' => $canStore,
+            'can_manage' => $canManage,
             'digitalization_closed' => $closed,
-            'notice' => $closed ? $this->digitalizationClosedMessage($lottery) : null,
+            'notice' => $closed && ! $canManage
+                ? $this->digitalizationClosedMessage($lottery)
+                : null,
         ];
     }
 }
