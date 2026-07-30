@@ -89,6 +89,11 @@
                     <input type="number" class="form-control" id="designPdfPartPagesPerDoc" min="1" value="150" style="max-width: 140px;">
                     <p class="small text-muted mt-1 mb-0" id="designPdfPartDocsHint"></p>
                 </div>
+
+                <h6 class="mt-3 mb-2">Nombre del archivo</h6>
+                <label for="designPdfPartDownloadName" class="form-label">Se guardará como</label>
+                <input type="text" class="form-control" id="designPdfPartDownloadName" maxlength="160" autocomplete="off">
+                <p class="small text-muted mt-1 mb-0">Puede editarlo. Se añadirá automáticamente <code>.pdf</code> o <code>.zip</code>.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
@@ -124,6 +129,11 @@
                     <input type="number" class="form-control" id="designPdfCoverPagesPerDoc" min="1" value="150" style="max-width: 140px;">
                     <p class="small text-muted mt-1 mb-0" id="designPdfCoverDocsHint"></p>
                 </div>
+
+                <h6 class="mt-3 mb-2">Nombre del archivo</h6>
+                <label for="designPdfCoverDownloadName" class="form-label">Se guardará como</label>
+                <input type="text" class="form-control" id="designPdfCoverDownloadName" maxlength="160" autocomplete="off">
+                <p class="small text-muted mt-1 mb-0">Puede editarlo. Se añadirá automáticamente <code>.pdf</code> o <code>.zip</code>.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
@@ -162,6 +172,11 @@
                     <input type="number" class="form-control" id="designPdfBackPagesPerDoc" min="1" value="150" style="max-width: 140px;">
                     <p class="small text-muted mt-1 mb-0" id="designPdfBackDocsHint"></p>
                 </div>
+
+                <h6 class="mt-3 mb-2">Nombre del archivo</h6>
+                <label for="designPdfBackDownloadName" class="form-label">Se guardará como</label>
+                <input type="text" class="form-control" id="designPdfBackDownloadName" maxlength="160" autocomplete="off">
+                <p class="small text-muted mt-1 mb-0">Puede editarlo. Se añadirá automáticamente <code>.pdf</code> o <code>.zip</code>.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
@@ -401,7 +416,25 @@
     var mode = $('input[name="' + prefix + 'DocsMode"]:checked').val() || '1';
     if (mode !== '2') mode = '1';
     var pages = partilotParsePositiveInt($('#' + prefix + 'PagesPerDoc').val(), 150);
-    return 'documents_mode=' + encodeURIComponent(mode) + '&pages_per_document=' + encodeURIComponent(pages);
+    var q = 'documents_mode=' + encodeURIComponent(mode) + '&pages_per_document=' + encodeURIComponent(pages);
+    var downloadName = $.trim($('#' + prefix + 'DownloadName').val() || '');
+    if (downloadName) {
+      q += '&download_name=' + encodeURIComponent(downloadName);
+    }
+    return q;
+  }
+
+  function partilotDefaultDownloadBase(designName, suffix) {
+    var base = $.trim(designName || '');
+    if (!base) base = 'Diseño';
+    // Barras de fechas (15/07/2026) no son válidas en nombres de archivo Windows.
+    base = base.replace(/[\/\\:*?"<>|]/g, '-');
+    base = base.replace(/\s+/g, ' ').replace(/^[\s.-]+|[\s.-]+$/g, '');
+    return base + ' - ' + suffix;
+  }
+
+  function partilotFillDownloadName(inputId, designName, suffix) {
+    $('#' + inputId).val(partilotDefaultDownloadBase(designName, suffix));
   }
 
   function partilotSyncBtnDocsDefaults($btn, prefix) {
@@ -516,6 +549,7 @@
       $('#designPdfPartFrom').attr('max', total > 0 ? total : '');
       $('#designPdfPartTo').attr('max', total > 0 ? total : '');
       partilotFillDocsFields('designPdfPart', meta, total > 0 ? total : 0);
+      partilotFillDownloadName('designPdfPartDownloadName', $btn.attr('data-design-name'), 'participaciones');
       partilotModalShow($modal[0]);
       return;
     }
@@ -526,6 +560,7 @@
       $cModal.data('pdf-wait-url', baseUrl).data('pdf-wait-title', title).data('pdf-wait-btn', $btn)
         .data('pdf-grid-meta', meta).data('pdf-item-count', coverCount);
       partilotFillDocsFields('designPdfCover', meta, coverCount);
+      partilotFillDownloadName('designPdfCoverDownloadName', $btn.attr('data-design-name'), 'portadas');
       partilotModalShow($cModal[0]);
       return;
     }
@@ -536,11 +571,16 @@
       var defCount = total > 0 ? total : 1;
       $('#designPdfBackCount').val(defCount);
       partilotFillDocsFields('designPdfBack', meta, defCount);
+      partilotFillDownloadName('designPdfBackDownloadName', $btn.attr('data-design-name'), 'traseras');
       partilotModalShow($bModal[0]);
       return;
     }
 
-    partilotStartDesignPdfAjax(baseUrl, title, $btn);
+    partilotStartDesignPdfAjax(
+      partilotAppendQuery(baseUrl, 'download_name=' + encodeURIComponent(partilotDefaultDownloadBase($btn.attr('data-design-name'), 'pdf'))),
+      title,
+      $btn
+    );
   });
 
   $('#designPdfPartConfirm').on('click', function () {
@@ -558,6 +598,10 @@
       partilotNotifyPdf('error', title, '«Desde» no puede ser mayor que «hasta».', false);
       return;
     }
+    if (!$.trim($('#designPdfPartDownloadName').val() || '')) {
+      partilotNotifyPdf('error', title, 'Indique un nombre para el archivo.', false);
+      return;
+    }
     var url = partilotAppendQuery(baseUrl, 'pdf_from=' + encodeURIComponent(from) + '&pdf_to=' + encodeURIComponent(to) + '&' + partilotReadDocsQuery('designPdfPart'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfPart');
     partilotModalHide($modal[0]);
@@ -569,6 +613,10 @@
     var baseUrl = $modal.data('pdf-wait-url');
     var title = $modal.data('pdf-wait-title') || 'PDF';
     var $btn = $modal.data('pdf-wait-btn');
+    if (!$.trim($('#designPdfCoverDownloadName').val() || '')) {
+      partilotNotifyPdf('error', title, 'Indique un nombre para el archivo.', false);
+      return;
+    }
     var url = partilotAppendQuery(baseUrl, partilotReadDocsQuery('designPdfCover'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfCover');
     partilotModalHide($modal[0]);
@@ -583,6 +631,10 @@
     var n = parseInt($('#designPdfBackCount').val(), 10);
     if (!n || n < 1 || n > 100000) {
       partilotNotifyPdf('error', title, 'Indique un número de traseras entre 1 y 100000.', false);
+      return;
+    }
+    if (!$.trim($('#designPdfBackDownloadName').val() || '')) {
+      partilotNotifyPdf('error', title, 'Indique un nombre para el archivo.', false);
       return;
     }
     var url = partilotAppendQuery(baseUrl, 'count=' + encodeURIComponent(n) + '&' + partilotReadDocsQuery('designPdfBack'));

@@ -371,6 +371,7 @@
                             data-documents-mode="{{ $pdfOutPart['documents_mode'] ?? '1' }}"
                             data-pages-per-document="{{ $pdfOutPart['pages_per_document'] ?? 150 }}"
                             data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
+                            data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"
                             data-title="Participaciones">
                             <i class="ri-file-pdf-line me-1"></i> Descargar PDF participaciones
                         </button>
@@ -395,6 +396,7 @@
                             data-cover-count="{{ $pdfCoverCount }}"
                             data-documents-mode="{{ $pdfOutCover['documents_mode'] ?? '1' }}"
                             data-pages-per-document="{{ $pdfOutCover['pages_per_document'] ?? 150 }}"
+                            data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"
                             data-title="Portadas">
                             <i class="ri-file-pdf-line me-1"></i> PDF portadas (tacos)
                         </button>
@@ -412,6 +414,7 @@
                             data-documents-mode="{{ $pdfOutBack['documents_mode'] ?? '1' }}"
                             data-pages-per-document="{{ $pdfOutBack['pages_per_document'] ?? 150 }}"
                             data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
+                            data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"
                             data-title="Traseras">
                             <i class="ri-file-pdf-line me-1"></i> PDF traseras
                         </button>

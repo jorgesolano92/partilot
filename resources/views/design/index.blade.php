@@ -219,6 +219,7 @@
                                         data-cover-count="{{ $pdfCoverCount }}"
                                         data-documents-mode="{{ $pdfOut['documents_mode'] ?? '1' }}"
                                         data-pages-per-document="{{ $pdfOut['pages_per_document'] ?? 150 }}"
+                                        data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"
                                         data-title="Portadas"><i class="ri-book-2-line"></i></button>
                                     @endif
                                     @if(! $blocksExport && $hasBack)
@@ -235,6 +236,7 @@
                                         data-documents-mode="{{ $pdfOutBack['documents_mode'] ?? '1' }}"
                                         data-pages-per-document="{{ $pdfOutBack['pages_per_document'] ?? 150 }}"
                                         data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
+                                        data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"
                                         data-title="Traseras"><i class="ri-stack-line"></i></button>
                                     @endif
                                     @if($isDigital)
@@ -269,6 +271,7 @@
                                             data-documents-mode="{{ $pdfOutPart['documents_mode'] ?? '1' }}"
                                             data-pages-per-document="{{ $pdfOutPart['pages_per_document'] ?? 150 }}"
                                             data-total-participations="{{ $design->set ? (int)$design->set->total_participations : 0 }}"
+                                            data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"
                                             data-title="Participaciones"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
                                         @endif
                                     @endif

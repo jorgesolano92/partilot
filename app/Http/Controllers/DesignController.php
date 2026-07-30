@@ -6457,6 +6457,12 @@ class DesignController extends Controller
                 $docsOpts['documents_mode'],
                 $docsOpts['pages_per_document']
             );
+            $artifact['download_name'] = $this->resolveExportDownloadName(
+                $request,
+                $design,
+                'participaciones',
+                (bool) ($artifact['is_zip'] ?? false)
+            );
 
             clearstatcache(true, $artifact['path']);
             if (! is_file($artifact['path']) || filesize($artifact['path']) < 1) {
@@ -6551,6 +6557,54 @@ class DesignController extends Controller
         }
 
         return $opts;
+    }
+
+    /**
+     * Nombre de descarga editable: design_name + sufijo (- participaciones / - portadas / - traseras).
+     * Acepta `download_name` / `download_filename` en la query (sin o con extensión).
+     */
+    private function resolveExportDownloadName(
+        Request $request,
+        DesignFormat $design,
+        string $kindSuffix,
+        bool $isZip = false
+    ): string {
+        $requested = $request->query('download_name', $request->input('download_name'));
+        if (! is_string($requested) || trim($requested) === '') {
+            $requested = $request->query('download_filename', $request->input('download_filename'));
+        }
+
+        $base = is_string($requested) ? trim($requested) : '';
+        if ($base === '') {
+            $designLabel = trim((string) ($design->design_name ?? ''));
+            if ($designLabel === '') {
+                $designLabel = 'Diseño '.$design->id;
+            }
+            $base = $designLabel.' - '.$kindSuffix;
+        }
+
+        $base = preg_replace('/\.(pdf|zip)$/i', '', $base) ?? $base;
+        $base = $this->sanitizeExportDownloadBasename($base);
+        if ($base === '') {
+            $base = 'diseno-'.$design->id.'-'.$kindSuffix;
+        }
+
+        return $base.($isZip ? '.zip' : '.pdf');
+    }
+
+    private function sanitizeExportDownloadBasename(string $name): string
+    {
+        $name = html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $name = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $name);
+        $name = preg_replace('/\s+/u', ' ', $name) ?? $name;
+        $name = trim($name, " \t.-");
+        if (function_exists('mb_substr')) {
+            $name = mb_substr($name, 0, 160, 'UTF-8');
+        } else {
+            $name = substr($name, 0, 160);
+        }
+
+        return trim($name, " \t.-");
     }
 
     /**
@@ -7430,6 +7484,12 @@ class DesignController extends Controller
                 $docsOpts['documents_mode'],
                 $docsOpts['pages_per_document']
             );
+            $artifact['download_name'] = $this->resolveExportDownloadName(
+                $request,
+                $design,
+                'portadas',
+                (bool) ($artifact['is_zip'] ?? false)
+            );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
@@ -7483,9 +7543,6 @@ class DesignController extends Controller
         $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
 
         $job_id = 'pdf_back_'.$id.'_'.time();
-        $filename = $exactCount !== null
-            ? 'traseras-'.$exactCount.'.pdf'
-            : ($copies === 'one' ? 'trasera.pdf' : 'traseras.pdf');
 
         \App\Support\PdfJobStatus::markProcessing($job_id);
         \App\Support\PdfJobStatus::touchPresence($job_id);
@@ -7502,10 +7559,16 @@ class DesignController extends Controller
                 $docsOpts['documents_mode'],
                 $docsOpts['pages_per_document']
             );
+            $artifact['download_name'] = $this->resolveExportDownloadName(
+                $request,
+                $design,
+                'traseras',
+                (bool) ($artifact['is_zip'] ?? false)
+            );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
-                $artifact['download_name'] ?: $filename,
+                $artifact['download_name'],
                 (int) $id
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
