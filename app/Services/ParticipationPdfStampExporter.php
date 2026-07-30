@@ -318,6 +318,7 @@ class ParticipationPdfStampExporter
                     'color' => $color,
                     'bold' => $bold,
                     'vertical' => $vertical,
+                    'prefix' => $this->extractDynamicLabelPrefix($inner, 'reference'),
                 ];
             } elseif (str_contains($class, 'participation')) {
                 $slots['participations'][] = $box + [
@@ -325,6 +326,7 @@ class ParticipationPdfStampExporter
                     'color' => $color,
                     'bold' => $bold,
                     'vertical' => $vertical,
+                    'prefix' => $this->extractDynamicLabelPrefix($inner, 'participation'),
                 ];
             } elseif (str_contains($class, 'images')) {
                 $src = null;
@@ -338,6 +340,29 @@ class ParticipationPdfStampExporter
         }
 
         return $slots;
+    }
+
+    /**
+     * Prefijo visible en la caja del editor (p. ej. "Nº " / "Nº Ref: ") para estamparlo igual en el PDF.
+     */
+    private function extractDynamicLabelPrefix(string $innerHtml, string $kind): string
+    {
+        $text = html_entity_decode(strip_tags($innerHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/u', ' ', trim($text)) ?? '';
+
+        if ($kind === 'reference') {
+            if (preg_match('/^((?:N[º°o]\.?\s*)?Ref\s*:\s*)/iu', $text, $m)) {
+                return $m[1];
+            }
+
+            return '';
+        }
+
+        if (preg_match('/^((?:N[º°o]\.?\s*)+)/iu', $text, $m)) {
+            return 'Nº ';
+        }
+
+        return '';
     }
 
     /**
@@ -528,7 +553,7 @@ class ParticipationPdfStampExporter
             $this->debugStampBox($pdf, $bx, $by, $bw, $bh);
             $this->stampText(
                 $pdf,
-                $ref,
+                ($box['prefix'] ?? '').$ref,
                 $bx,
                 $by,
                 $bw,
@@ -551,7 +576,7 @@ class ParticipationPdfStampExporter
             $this->debugStampBox($pdf, $bx, $by, $bw, $bh);
             $this->stampText(
                 $pdf,
-                $num,
+                ($box['prefix'] ?? '').$num,
                 $bx,
                 $by,
                 $bw,
