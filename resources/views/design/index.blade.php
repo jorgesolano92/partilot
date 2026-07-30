@@ -184,12 +184,12 @@
                                         <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light" title="Editar diseño"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
                                     @else
                                         <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="{{ !empty($approvalCtx['export_locked']) ? 'Diseño bloqueado tras PDF — ver resumen' : 'Ver resumen y descargas' }}"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
-                                        @if(!empty($design->participation_html))
-                                            <a href="{{ route('design.participationPreview', $design->id) }}" class="btn btn-sm btn-light" title="Ver diseño"><i class="ri-image-line"></i></a>
-                                        @endif
                                         @if(!empty($approvalCtx['can_review']))
                                             <a href="{{ route('design.approval.review', $design->id) }}" class="btn btn-sm btn-primary" title="Revisar y aprobar"><i class="ri-checkbox-circle-line"></i></a>
                                         @endif
+                                    @endif
+                                    @if(!empty($design->participation_html))
+                                        <a href="{{ route('design.participationPreview', $design->id) }}" class="btn btn-sm btn-light" title="Ver diseño"><i class="ri-image-line"></i></a>
                                     @endif
                                     @if($feePending && !empty($approvalCtx['acts_as_administration']) && empty($approvalCtx['entity_fee_due']))
                                         <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-success" title="Gestionar pago cuota de gestión"><i class="ri-bank-card-line"></i></a>
