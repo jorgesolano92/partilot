@@ -209,6 +209,14 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
     .elements.element-critical {
         z-index: 10000 !important;
     }
+    /* Participación/referencia por encima del QR (se solapan en la plantilla) para poder editar */
+    .elements.element-critical.participation,
+    .elements.element-critical.reference {
+        z-index: 10002 !important;
+    }
+    .elements.element-critical.qr {
+        z-index: 10001 !important;
+    }
     /* Área de arrastre: span del QR y primer span de texto ocupan el elemento para handle: 'span' */
     .elements.qr > span {
         display: block;
@@ -658,7 +666,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             Fondo<input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
                                         </label> --}}
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
-                                        <button title="Solo campos obligatorios" class="btn btn-sm btn-outline-dark reset-mandatory-canvas" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-grid-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" data-id="2" title="Elimina los campos de ejemplo y deja solo los obligatorios (número, participación, referencia, QR). Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -746,11 +754,13 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             <span class="ui-draggable-handle"><p style="text-align:center;"><span style="color:hsl(0,0%,0%);font-size:26px;" class="ui-draggable-handle"><strong>{{ number_format($set->played_amount, 2, ',', '.') }}€</strong></span><br><span style="color:hsl(0,0%,0%);font-size:14px;" class="ui-draggable-handle"><strong>Donativo:</strong></span><br><span style="color:hsl(0,0%,0%);font-size:18px;" class="ui-draggable-handle"><strong>{{ number_format($set->donation_amount, 2, ',', '.') }}€</strong></span></p></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                             </div><div class="elements element-critical participation text ui-draggable" style="padding: 10px; width: 80px; height: 42px; resize: both; overflow: hidden; position: absolute; top: 218px; left: 662px;">
+                                                <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle"><strong>Nº 1/0001</strong></span></p></span>
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 92px; height: 36px; resize: both; overflow: hidden; position: absolute; top: 247.797px; left: 490.781px;">
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-size:12px;" class="ui-draggable-handle"><strong>DEPOSITARIO</strong></span></p></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                             </div><div class="elements element-critical reference text ui-draggable" style="padding: 10px; width: 227px; height: 40px; resize: both; overflow: hidden; position: absolute; top: 278.688px; left: 459.703px;">
+                                                <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-size:12px;" class="ui-draggable-handle"><strong>Nº Ref: 00000000000000000000</strong></span></p></span>
                                             </div>
                                         <div class="elements element-critical qr ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 253.562px; left: 666.588px; width: 76px; height: 76px; min-width: 76px; min-height: 76px;"><span class="ui-draggable-handle"></span></div>
@@ -798,6 +808,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
                                         <button title="Agregar barra superior" class="btn btn-sm btn-dark add-top" data-id="3" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-top-line"></i></button>
                                         <button title="Agregar barra inferior" class="btn btn-sm btn-dark add-bottom" data-id="3" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-bottom-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" data-id="3" title="Elimina los campos de ejemplo y deja solo los obligatorios. Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -891,6 +902,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
                                         <button title="Agregar barra superior" class="btn btn-sm btn-dark add-top" data-id="4" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-top-line"></i></button>
                                         <button title="Agregar barra inferior" class="btn btn-sm btn-dark add-bottom" data-id="4" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-bottom-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" data-id="4" title="Elimina los campos de ejemplo y deja solo los obligatorios. Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -1155,6 +1167,9 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
       </div>
       <div class="modal-body">
         
+        <p class="text-muted small mb-2 mb-md-3" style="margin-bottom: 0.75rem;">
+          Mientras editas, el texto se muestra en negro para que se lea bien. El color real (p. ej. blanco) se verá en el diseño al aceptar.
+        </p>
         <div class="editor-container__editor"><div id="editor" style="height: 200px;"></div></div>
         {{-- <div class="editor-container editor-container_document-editor" id="editor-container">
             <div class="editor-container__editor-wrapper">
@@ -1804,7 +1819,8 @@ $('#format').change(function (e) {
       font_names: designEditorFonts,
       contentsCss: [
         CKEDITOR.getUrl('contents.css'),
-        '{{ asset('assets/css/design-editor-fonts.css') }}'
+        '{{ asset('assets/css/design-editor-fonts.css') }}',
+        '{{ asset('assets/css/design-ckeditor-edit.css') }}'
       ],
       toolbar: [
         { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
@@ -2626,17 +2642,39 @@ $('#format').change(function (e) {
     if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
   }
 
+  function ensureElementEditButtons($root) {
+    var $scope = $root && $root.length ? $root : $(document);
+    $scope.find('.elements.text').each(function() {
+      if ($(this).find('> .edit-btn, .edit-btn').length === 0) {
+        $(this).prepend('<button type="button" class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>');
+      }
+    });
+    $scope.find('.elements.images').each(function() {
+      if ($(this).find('> .edit-btn, .edit-btn').length === 0) {
+        $(this).append('<button type="button" class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button>');
+      }
+    });
+  }
+
   function bindCanvasEditButtons() {
-    $('.elements.text .edit-btn').off('click.editelement').on('click.editelement', function(e) {
+    // Delegados: funcionan aunque el HTML se recargue o falte el botón al inicio
+    $(document).off('click.editelement', '.elements.text .edit-btn').on('click.editelement', '.elements.text .edit-btn', function(e) {
       e.preventDefault();
       e.stopPropagation();
       editelements.call(this, e);
       return false;
     });
-    $('.elements.images .edit-btn').off('click.changeimage').on('click.changeimage', function(e) {
+    $(document).off('click.changeimage', '.elements.images .edit-btn').on('click.changeimage', '.elements.images .edit-btn', function(e) {
       e.preventDefault();
       e.stopPropagation();
       changeImage.call(this, e);
+      return false;
+    });
+    $(document).off('dblclick.edittext', '.elements.text').on('dblclick.edittext', '.elements.text', function(e) {
+      if ($(e.target).closest('.edit-btn').length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      editelements.call($(this).find('.edit-btn').get(0) || this, e);
       return false;
     });
   }
@@ -2665,8 +2703,11 @@ $('#format').change(function (e) {
 
   function initCanvasInteractions() {
     if (step < 2 || step > 4) return;
-    enableDesignElementsResize($('#containment-wrapper' + step));
-    clearStaleTextPlaceholders($('#containment-wrapper' + step));
+    var $wrap = $('#containment-wrapper' + step);
+    enableDesignElementsResize($wrap);
+    ensureElementEditButtons($wrap.length ? $wrap : $(document));
+    markCriticalDesignElements($wrap);
+    clearStaleTextPlaceholders($wrap);
     bindCanvasEditButtons();
     setupDraggable();
     setupResizeObserver();
@@ -2864,19 +2905,51 @@ $('#format').change(function (e) {
       updateUndoRedoButtons();
   });
 
-  $('.reset-mandatory-canvas').click(function (e) {
+  function markCriticalDesignElements($root) {
+    var $scope = $root && $root.length ? $root : $('#containment-wrapper' + step);
+    $scope.find('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini')
+      .addClass('element-critical');
+  }
+
+  $(document).off('click.resetMandatory', '.reset-mandatory-canvas').on('click.resetMandatory', '.reset-mandatory-canvas', function (e) {
       e.preventDefault();
-      if (!confirm('¿Eliminar todos los elementos opcionales y dejar solo los campos obligatorios?')) {
+      if (step < 2 || step > 4) return;
+
+      var $wrap = $('#containment-wrapper' + step);
+      if (!$wrap.length) return;
+
+      markCriticalDesignElements($wrap);
+      var $removable = $wrap.find('.elements').not('.element-critical');
+      var count = $removable.length;
+      if (count === 0) {
+        alert('No hay campos de ejemplo que limpiar. Solo quedan los obligatorios.');
         return;
       }
-      $('#containment-wrapper' + step + ' .elements').not('.element-critical').remove();
+
+      if (!confirm(
+        'Se eliminarán ' + count + ' campo(s) de ejemplo de este paso.\n\n' +
+        'Se conservan los obligatorios (número, participación, referencia, QR, etc.).\n' +
+        'Puedes deshacer con el botón Deshacer.\n\n¿Continuar?'
+      )) {
+        return;
+      }
+
+      $removable.remove();
       $('.elements').removeClass('selected');
       selectedElement = null;
+      actualElement = null;
       $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-      rebindEventsAfterRestore();
+      if (typeof rebindEventsAfterRestore === 'function') {
+        rebindEventsAfterRestore();
+      } else if (typeof initCanvasInteractions === 'function') {
+        initCanvasInteractions();
+      }
       markDesignDirty();
       saveHistoryState();
       updateUndoRedoButtons();
+      if (typeof syncCurrentStepToLocalStorage === 'function') {
+        syncCurrentStepToLocalStorage();
+      }
   });
 
   function syncSkipBackBannerUi() {
@@ -4128,6 +4201,9 @@ $('#format').change(function (e) {
     if (d.participation_html && $('#step-2 .format-box').length) {
       $('#step-2 .format-box').first().replaceWith(d.participation_html);
       enableDesignElementsResize($('#step-2 .format-box'));
+      if (typeof ensureElementEditButtons === 'function') {
+        ensureElementEditButtons($('#step-2 #containment-wrapper2'));
+      }
       var inner = $('#step-2 #containment-wrapper2').html();
       if (inner) localStorage.setItem('step2', inner);
     }

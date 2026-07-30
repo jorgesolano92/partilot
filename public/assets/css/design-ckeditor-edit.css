@@ -1,0 +1,15 @@
+/**
+ * Solo afecta a la vista del CKEditor (no al HTML guardado).
+ * Texto siempre legible al editar; el color real se ve en el lienzo al aceptar.
+ */
+body.cke_editable {
+  background-color: #f3f4f6 !important;
+  color: #111111 !important;
+}
+
+body.cke_editable,
+body.cke_editable * {
+  color: #111111 !important;
+  /* Evita fondo negro/oscuro del propio texto que ocultaría el color forzado */
+  background-color: transparent !important;
+}
