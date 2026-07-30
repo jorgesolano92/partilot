@@ -185,18 +185,71 @@
   }
 
   function partilotTriggerDownload(url) {
-    var iframe = document.createElement('iframe');
-    iframe.setAttribute('style', 'display:none;width:0;height:0;border:0');
-    iframe.setAttribute('src', url);
-    document.body.appendChild(iframe);
+    if (!url) return;
+    // Preferir <a download>: más fiable que iframe tras una petición async (el gesto de usuario ya caducó).
+    try {
+      var a = document.createElement('a');
+      a.href = url;
+      a.setAttribute('download', '');
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        a.remove();
+      }, 2000);
+    } catch (err) {}
+    // Refuerzo: si el <a> no arrancó la descarga, reintentar por navegación diferida.
     setTimeout(function () {
-      iframe.remove();
-    }, 180000);
+      try {
+        var iframe = document.createElement('iframe');
+        iframe.setAttribute('style', 'display:none;width:0;height:0;border:0');
+        iframe.setAttribute('src', url);
+        document.body.appendChild(iframe);
+        setTimeout(function () {
+          iframe.remove();
+        }, 180000);
+      } catch (e2) {}
+    }, 400);
+  }
+
+  function partilotOpenDownloadPlaceholder() {
+    // Debe llamarse en el mismo tick del click del usuario (antes del AJAX).
+    try {
+      var w = window.open('about:blank', 'partilot_pdf_download');
+      if (w) {
+        try {
+          w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preparando PDF…</title></head><body style="font-family:sans-serif;padding:24px;color:#333"><p>Generando el PDF…</p><p style="color:#666;font-size:14px">Esta ventana se actualizará sola para iniciar la descarga.</p></body></html>');
+          w.document.close();
+        } catch (e) {}
+      }
+      return w;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function partilotFinishDownload(url, title, dlWin) {
+    if (!url) return;
+    if (dlWin && !dlWin.closed) {
+      try {
+        dlWin.location = url;
+        partilotNotifyPdf('success', title || 'PDF', 'Descarga iniciada en la ventana emergente.', false);
+        return;
+      } catch (err) {}
+    }
+    partilotTriggerDownload(url);
+    partilotNotifyPdf(
+      'success',
+      title || 'PDF',
+      'Si la descarga no empieza, <a href="' + url + '" target="_blank" rel="noopener">pulse aquí para descargar</a>.',
+      true
+    );
   }
 
   function partilotNotifyPdf(type, title, message, sticky) {
     if (typeof PNotify === 'undefined') {
-      if (message) window.alert(title + '\\n\\n' + message);
+      if (message) window.alert(title + '\\n\\n' + message.replace(/<[^>]+>/g, ''));
       return;
     }
     partilotRemoveAllNotifies();
@@ -221,9 +274,12 @@
     new PNotify(opts);
   }
 
-  function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl) {
+  function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl, dlWin) {
     if (attemptsLeft <= 0) {
       if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+      if (dlWin && !dlWin.closed) {
+        try { dlWin.close(); } catch (e) {}
+      }
       partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si el PDF era grande, vuelva a intentarlo; si el problema continúa, revise el log del servidor.');
       return;
     }
@@ -231,22 +287,27 @@
       .done(function (st) {
         if (st && st.status === 'failed') {
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+          if (dlWin && !dlWin.closed) {
+            try { dlWin.close(); } catch (e) {}
+          }
           partilotNotifyPdf('error', notifyTitle || 'PDF', st.message || 'La generación del PDF falló.', false);
           return;
         }
         if (st && st.status === 'completed' && st.download_url) {
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
           partilotRemoveAllNotifies();
-          partilotTriggerDownload(st.download_url);
-          partilotNotifyPdf('success', notifyTitle || 'PDF', 'Descarga iniciada. Si no ve el archivo, compruebe descargas y el bloqueador.', false);
+          partilotFinishDownload(st.download_url, notifyTitle, dlWin);
           return;
         }
         setTimeout(function () {
-          partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl);
+          partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl, dlWin);
         }, 2000);
       })
       .fail(function () {
         if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+        if (dlWin && !dlWin.closed) {
+          try { dlWin.close(); } catch (e) {}
+        }
         partilotNotifyPdf('error', notifyTitle || 'PDF', 'No se pudo consultar el estado del PDF.');
       });
   }
@@ -334,7 +395,7 @@
     return baseUrl + sep + query;
   }
 
-  function partilotStartDesignPdfAjax(url, title, $btn) {
+  function partilotStartDesignPdfAjax(url, title, $btn, dlWin) {
     $btn.prop('disabled', true);
     partilotNotifyPdf('info', title, 'Generando PDF…', true);
     $.ajax({ url: url, method: 'GET', dataType: 'json', timeout: 300000 })
@@ -342,24 +403,32 @@
         if (data && data.status === 'completed' && data.download_url) {
           $btn.prop('disabled', false);
           partilotRemoveAllNotifies();
-          partilotTriggerDownload(data.download_url);
-          partilotNotifyPdf('success', title, 'Descarga iniciada. Si no ve el archivo, compruebe descargas y el bloqueador.', false);
+          partilotFinishDownload(data.download_url, title, dlWin);
           return;
         }
         if (data && data.status === 'failed') {
           $btn.prop('disabled', false);
+          if (dlWin && !dlWin.closed) {
+            try { dlWin.close(); } catch (e) {}
+          }
           partilotNotifyPdf('error', title, data.message || 'La generación del PDF falló.', false);
           return;
         }
         if (data && data.status === 'processing' && data.check_url) {
-          partilotPollPdfStatus(data.check_url, title, 1800, true, $btn);
+          partilotPollPdfStatus(data.check_url, title, 1800, true, $btn, dlWin);
           return;
         }
         $btn.prop('disabled', false);
+        if (dlWin && !dlWin.closed) {
+          try { dlWin.close(); } catch (e) {}
+        }
         partilotNotifyPdf('error', title, data && data.message ? data.message : 'Respuesta inesperada al iniciar la generación.', false);
       })
       .fail(function (xhr) {
         $btn.prop('disabled', false);
+        if (dlWin && !dlWin.closed) {
+          try { dlWin.close(); } catch (e) {}
+        }
         var msg = 'No se pudo generar el PDF.';
         try {
           var j = xhr.responseJSON;
@@ -458,7 +527,7 @@
       return;
     }
 
-    partilotStartDesignPdfAjax(baseUrl, title, $btn);
+    partilotStartDesignPdfAjax(baseUrl, title, $btn, partilotOpenDownloadPlaceholder());
   });
 
   $('#designPdfPartConfirm').on('click', function () {
@@ -478,8 +547,9 @@
     }
     var url = partilotAppendQuery(baseUrl, 'pdf_from=' + encodeURIComponent(from) + '&pdf_to=' + encodeURIComponent(to) + '&' + partilotReadDocsQuery('designPdfPart'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfPart');
+    var dlWin = partilotOpenDownloadPlaceholder();
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn, dlWin);
   });
 
   $('#designPdfCoverConfirm').on('click', function () {
@@ -489,8 +559,9 @@
     var $btn = $modal.data('pdf-wait-btn');
     var url = partilotAppendQuery(baseUrl, partilotReadDocsQuery('designPdfCover'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfCover');
+    var dlWin = partilotOpenDownloadPlaceholder();
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn, dlWin);
   });
 
   $('#designPdfBackConfirm').on('click', function () {
@@ -505,8 +576,9 @@
     }
     var url = partilotAppendQuery(baseUrl, 'count=' + encodeURIComponent(n) + '&' + partilotReadDocsQuery('designPdfBack'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfBack');
+    var dlWin = partilotOpenDownloadPlaceholder();
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn, dlWin);
   });
 })(window.jQuery);
 </script>

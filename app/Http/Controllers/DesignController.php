@@ -6458,6 +6458,11 @@ class DesignController extends Controller
                 $docsOpts['pages_per_document']
             );
 
+            clearstatcache(true, $artifact['path']);
+            if (! is_file($artifact['path']) || filesize($artifact['path']) < 1) {
+                throw new \RuntimeException('El PDF se generó pero el archivo no está disponible en disco.');
+            }
+
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
                 $artifact['download_name'],
@@ -7125,8 +7130,20 @@ class DesignController extends Controller
             abort(410, 'El enlace de descarga ha caducado (máximo '.GeneratedPdfCatalog::TTL_DAYS.' días).');
         }
 
-        $file_path = GeneratedPdfCatalog::artifactPath($job_id, (string) ($meta['download_name'] ?? ''));
-        if (! is_file($file_path)) {
+        $downloadName = (string) ($meta['download_name'] ?? '');
+        $file_path = null;
+        // En Windows el antivirus / indexador a veces bloquea el archivo justo tras escribirlo.
+        for ($attempt = 0; $attempt < 8; $attempt++) {
+            clearstatcache(true, GeneratedPdfCatalog::artifactPath($job_id, $downloadName));
+            $candidate = GeneratedPdfCatalog::artifactPath($job_id, $downloadName);
+            if (is_file($candidate) && filesize($candidate) > 0) {
+                $file_path = $candidate;
+                break;
+            }
+            usleep(150000);
+        }
+
+        if ($file_path === null || ! is_file($file_path)) {
             abort(404, 'PDF no encontrado o el enlace ha caducado.');
         }
 
