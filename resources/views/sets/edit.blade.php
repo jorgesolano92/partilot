@@ -113,11 +113,15 @@
                                     <form action="{{ url('sets/update/' . $set->id) }}" method="POST">
                                         @csrf
                                         @method('PUT')
-                                        <div class="alert alert-info mb-3" role="alert">
-                                            <strong>Nota:</strong> Los sets creados no se pueden modificar, excepto la <strong>fecha límite de cierre de venta</strong>. El resto de datos son solo consulta.
+                                        <div class="alert {{ !empty($canEditConfig) ? 'alert-warning' : 'alert-info' }} mb-3" role="alert">
+                                            @if(!empty($canEditConfig))
+                                                <strong>Editable:</strong> todavía no se ha empezado a diseñar la participación. Puede corregir la configuración del set o borrarlo desde el listado.
+                                            @else
+                                                <strong>Nota:</strong> El diseño ya se ha empezado. Solo se puede modificar la <strong>fecha límite de cierre de venta</strong>. El resto de datos son solo consulta.
+                                            @endif
                                         </div>
                                         <h4 class="mb-0 mt-1">Configuración del Set</h4>
-                                        <small><i>Solo la fecha límite es editable</i></small>
+                                        <small><i>{{ !empty($canEditConfig) ? 'Puede modificar los datos del set' : 'Solo la fecha límite es editable' }}</i></small>
                                         <br>
                                         <div class="row">
                                             <div class="col-6">
@@ -127,7 +131,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/19.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="text" value="{{$set->set_name}}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                        <input class="form-control" type="text" name="set_name" value="{{ old('set_name', $set->set_name) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? 'required' : 'readonly' }}>
                                                     </div>
                                                 </div>
                                             </div>
@@ -138,7 +142,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="number" step="0.01" value="{{$set->played_amount}}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                        <input class="form-control" type="number" step="0.01" name="played_amount" id="played_amount" value="{{ old('played_amount', $set->played_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? '' : 'readonly' }}>
                                                     </div>
                                                 </div>
                                             </div>
@@ -149,7 +153,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="number" step="0.01" value="{{$set->donation_amount}}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                        <input class="form-control" type="number" step="0.01" name="donation_amount" id="donation_amount" value="{{ old('donation_amount', $set->donation_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? '' : 'readonly' }}>
                                                     </div>
                                                 </div>
                                             </div>
@@ -160,7 +164,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="number" step="0.01" value="{{$set->total_participation_amount}}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                        <input class="form-control" type="number" step="0.01" name="total_participation_amount" id="total_participation_amount" value="{{ old('total_participation_amount', $set->total_participation_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? '' : 'readonly' }}>
                                                     </div>
                                                 </div>
                                             </div>
@@ -171,7 +175,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/20.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="number" value="{{$set->total_participations}}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                        <input class="form-control" type="number" name="total_participations" id="total_participations" value="{{ old('total_participations', $set->getAttributes()['total_participations'] ?? $set->total_participations) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? 'required min=1' : 'readonly' }}>
                                                     </div>
                                                 </div>
                                             </div>
@@ -182,8 +186,11 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="number" step="0.01" value="{{$set->total_amount}}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                        <input class="form-control" type="number" step="0.01" name="total_amount" id="total_amount" value="{{ old('total_amount', $set->getAttributes()['total_amount'] ?? $set->total_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? 'required' : 'readonly' }}>
                                                     </div>
+                                                    @if(!empty($canEditConfig))
+                                                        <small class="text-muted">Disponible en reserva: {{ number_format($availableAmount, 2, ',', '.') }} €</small>
+                                                    @endif
                                                 </div>
                                             </div>
                                             <div class="col-3">
@@ -193,7 +200,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" name="deadline_date" type="date" value="{{$set->deadline_date ? \Carbon\Carbon::parse($set->deadline_date)->format('Y-m-d') : ''}}" style="border-radius: 0 30px 30px 0;">
+                                                        <input class="form-control" name="deadline_date" type="date" value="{{ old('deadline_date', $set->deadline_date ? \Carbon\Carbon::parse($set->deadline_date)->format('Y-m-d') : '') }}" style="border-radius: 0 30px 30px 0;">
                                                     </div>
                                                 </div>
                                             </div>
@@ -207,21 +214,21 @@
                                                     <label class="label-control">Tipo de Participación</label>
                                                     
                                                     <div class="form-check mt-3">
-                                                        <input class="form-check-input" type="radio" name="participation_type" id="participation_type_physical" value="physical" {{ $set->physical_participations > 0 ? 'checked' : '' }} disabled>
+                                                        <input class="form-check-input" type="radio" name="participation_type" id="participation_type_physical" value="physical" {{ (old('participation_type', $set->physical_participations > 0 ? 'physical' : 'digital') === 'physical') ? 'checked' : '' }} {{ !empty($canEditConfig) ? '' : 'disabled' }}>
                                                         <label class="form-check-label" for="participation_type_physical">
-                                                            <strong>Participaciones Físicas</strong> ({{ $set->physical_participations }})
+                                                            <strong>Participaciones Físicas</strong>
                                                         </label>
                                                     </div>
                                                     
                                                     <div class="form-check mt-2">
-                                                        <input class="form-check-input" type="radio" name="participation_type" id="participation_type_digital" value="digital" {{ $set->digital_participations > 0 ? 'checked' : '' }} disabled>
+                                                        <input class="form-check-input" type="radio" name="participation_type" id="participation_type_digital" value="digital" {{ (old('participation_type', $set->digital_participations > 0 ? 'digital' : 'physical') === 'digital') ? 'checked' : '' }} {{ !empty($canEditConfig) ? '' : 'disabled' }}>
                                                         <label class="form-check-label" for="participation_type_digital">
-                                                            <strong>Participaciones Digitales</strong> ({{ $set->digital_participations }})
+                                                            <strong>Participaciones Digitales</strong>
                                                         </label>
                                                     </div>
                                                     
-                                                    <input type="hidden" name="physical_participations" value="{{ $set->physical_participations }}">
-                                                    <input type="hidden" name="digital_participations" value="{{ $set->digital_participations }}">
+                                                    <input type="hidden" name="physical_participations" id="physical_participations" value="{{ old('physical_participations', $set->physical_participations) }}">
+                                                    <input type="hidden" name="digital_participations" id="digital_participations" value="{{ old('digital_participations', $set->digital_participations) }}">
                                                 </div>
                                             </div>
                                         </div>
@@ -264,6 +271,33 @@ $(document).ready(function() {
             }
         });
     }
+
+    @if(!empty($canEditConfig))
+    function syncParticipationType() {
+        var total = parseInt($('#total_participations').val(), 10) || 0;
+        var type = $('input[name="participation_type"]:checked').val() || 'physical';
+        if (type === 'digital') {
+            $('#physical_participations').val(0);
+            $('#digital_participations').val(total);
+        } else {
+            $('#physical_participations').val(total);
+            $('#digital_participations').val(0);
+        }
+    }
+    function recalcTotals() {
+        var played = parseFloat($('#played_amount').val()) || 0;
+        var donation = parseFloat($('#donation_amount').val()) || 0;
+        var totalPart = Math.round((played + donation) * 100) / 100;
+        $('#total_participation_amount').val(totalPart.toFixed(2));
+        var qty = parseInt($('#total_participations').val(), 10) || 0;
+        var totalAmount = Math.round((played * qty) * 100) / 100;
+        $('#total_amount').val(totalAmount.toFixed(2));
+        syncParticipationType();
+    }
+    $('#played_amount, #donation_amount, #total_participations').on('input change', recalcTotals);
+    $('input[name="participation_type"]').on('change', syncParticipationType);
+    syncParticipationType();
+    @endif
 });
 
 </script>

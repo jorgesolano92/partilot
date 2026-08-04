@@ -2306,9 +2306,9 @@ class ApiController extends Controller
                     if ($countBlocking > 0) {
                         $canDelete = false;
                         $message = 'No se puede eliminar el set: hay participaciones asignadas o vendidas. Debe realizar la devolución de todas ellas antes de poder eliminar el set.';
-                    } elseif ($set->designFormats()->count() > 0) {
+                    } elseif ($set->hasRealDesignWork()) {
                         $canDelete = false;
-                        $message = 'El set no se puede borrar porque tiene diseños asociados.';
+                        $message = 'El set no se puede borrar porque tiene un diseño en curso o ya trabajado. Elimine o vacíe el diseño primero.';
                     }
                 }
                 break;
@@ -2397,6 +2397,15 @@ class ApiController extends Controller
                         'message' => 'No se puede eliminar el set: hay participaciones asignadas o vendidas. Debe realizar la devolución de todas ellas antes de poder eliminar el set.'
                     ], 422);
                 }
+                if ($set->hasRealDesignWork()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'El set no se puede borrar porque tiene un diseño en curso o ya trabajado.',
+                    ], 422);
+                }
+                // Placeholders vacíos del editor no deben impedir el borrado.
+                $set->purgeEmptyDesignFormats();
+                \App\Models\Participation::where('set_id', $set->id)->delete();
                 $set->delete();
                 break;
             }

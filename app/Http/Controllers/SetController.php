@@ -496,11 +496,15 @@ class SetController extends Controller
         if ($availableAmount < 0) {
             $availableAmount = 0;
         }
-        return view('sets.edit', compact('set', 'entities', 'reserves', 'availableAmount'));
+        $canEditConfig = ! $set->hasRealDesignWork();
+
+        return view('sets.edit', compact('set', 'entities', 'reserves', 'availableAmount', 'canEditConfig'));
     }
 
     /**
-     * Actualizar set. Solo se puede modificar la fecha límite de cierre de venta.
+     * Actualizar set.
+     * Sin diseño real: se puede reconfigurar.
+     * Con diseño empezado: solo la fecha límite de cierre de venta.
      */
     public function update(Request $request, Set $set)
     {
@@ -512,14 +516,87 @@ class SetController extends Controller
             return $response;
         }
 
+        $canEditConfig = ! $set->hasRealDesignWork();
+
+        if (! $canEditConfig) {
+            $validated = $request->validate([
+                'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($set->reserve_id)])
+            ]);
+
+            $set->update(['deadline_date' => $validated['deadline_date']]);
+
+            return redirect()->route('sets.show', $set->id)
+                ->with('success', 'Fecha límite actualizada correctamente.');
+        }
+
         $validated = $request->validate([
+            'set_name' => 'required|string|max:255',
+            'played_amount' => 'nullable|numeric|min:0',
+            'donation_amount' => 'nullable|numeric|min:0',
+            'total_participation_amount' => 'nullable|numeric|min:0',
+            'total_participations' => 'required|integer|min:1',
+            'total_amount' => 'required|numeric|min:0',
+            'physical_participations' => 'nullable|integer|min:0',
+            'digital_participations' => 'nullable|integer|min:0',
             'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($set->reserve_id)])
         ]);
 
-        $set->update(['deadline_date' => $validated['deadline_date']]);
+        $reserve = $set->reserve;
+        $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
+        $reserveTotalAmount = max(
+            (float) $reserve->total_amount,
+            $numNumbers > 0 ? round($numNumbers * (float) $reserve->reservation_amount, 2) : (float) $reserve->total_amount
+        );
+        $usedByOthers = (float) Set::where('reserve_id', $set->reserve_id)->where('id', '!=', $set->id)->sum('total_amount');
+        $availableAmount = $reserveTotalAmount - $usedByOthers;
+        if ($availableAmount < 0) {
+            $availableAmount = 0;
+        }
+        if ((float) $validated['total_amount'] > $availableAmount + 0.001) {
+            return back()->withInput()->withErrors([
+                'total_amount' => 'El importe del set supera el disponible para esta reserva (máximo: '.number_format($availableAmount, 2).' €).',
+            ]);
+        }
+
+        $physical = (int) ($validated['physical_participations'] ?? 0);
+        $digital = (int) ($validated['digital_participations'] ?? 0);
+        if ($physical + $digital !== (int) $validated['total_participations']) {
+            // Mantener coherencia: si solo llega uno (radios), repartir al tipo marcado.
+            if ($request->input('participation_type') === 'digital') {
+                $digital = (int) $validated['total_participations'];
+                $physical = 0;
+            } else {
+                $physical = (int) $validated['total_participations'];
+                $digital = 0;
+            }
+        }
+
+        // Quitar placeholders vacíos antes de regenerar tickets/participaciones.
+        $set->purgeEmptyDesignFormats();
+        Participation::where('set_id', $set->id)->delete();
+
+        $tickets = Set::generateTickets(
+            $set->entity_id,
+            $set->reserve_id,
+            $set->created_at ?? now(),
+            (int) $validated['total_participations']
+        );
+
+        $set->update([
+            'set_name' => $validated['set_name'],
+            'played_amount' => $validated['played_amount'] ?? 0,
+            'donation_amount' => $validated['donation_amount'] ?? 0,
+            'total_participation_amount' => $validated['total_participation_amount'] ?? null,
+            'total_participations' => (int) $validated['total_participations'],
+            'total_amount' => $validated['total_amount'],
+            'physical_participations' => $physical,
+            'digital_participations' => $digital,
+            'deadline_date' => $validated['deadline_date'],
+            'tickets' => $tickets,
+        ]);
 
         return redirect()->route('sets.show', $set->id)
-            ->with('success', 'Fecha límite actualizada correctamente.');
+            ->with('success', 'Set actualizado correctamente.');
     }
 
     /**
@@ -545,6 +622,13 @@ class SetController extends Controller
                 ->with('error', 'No se puede eliminar el set: hay participaciones asignadas o vendidas. Debe realizar la devolución de todas ellas antes de poder eliminar el set.');
         }
 
+        if ($set->hasRealDesignWork()) {
+            return redirect()->back()
+                ->with('error', 'El set no se puede borrar porque tiene un diseño en curso o ya trabajado.');
+        }
+
+        $set->purgeEmptyDesignFormats();
+        Participation::where('set_id', $set->id)->delete();
         $set->delete();
 
         return redirect()->route('sets.index')

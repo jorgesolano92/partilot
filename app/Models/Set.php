@@ -310,6 +310,80 @@ class Set extends Model
     }
 
     /**
+     * Hay trabajo real de diseño (no solo un placeholder vacío).
+     * Mientras sea false, el set se puede reconfigurar o borrar.
+     */
+    public function hasRealDesignWork(): bool
+    {
+        $this->loadMissing('designFormats');
+
+        $approval = app(\App\Services\DesignApprovalService::class);
+
+        foreach ($this->designFormats as $design) {
+            if ($approval->designHasParticipationContent($design)) {
+                return true;
+            }
+
+            $cover = trim(strip_tags((string) ($design->cover_html ?? '')));
+            $back = trim(strip_tags((string) ($design->back_html ?? '')));
+            if ($cover !== '' || $back !== '') {
+                return true;
+            }
+
+            if ($design->participation_export_locked_at !== null) {
+                return true;
+            }
+
+            $status = $approval->normalizedApprovalStatus($design->approval_status);
+            if (in_array($status, [
+                \App\Services\DesignApprovalService::STATUS_PENDING,
+                \App\Services\DesignApprovalService::STATUS_APPROVED,
+            ], true)) {
+                return true;
+            }
+        }
+
+        return \App\Models\PrintOrder::query()
+            ->where('set_id', $this->id)
+            ->exists();
+    }
+
+    /**
+     * Elimina diseños vacíos (placeholders) y sus participaciones asociadas.
+     */
+    public function purgeEmptyDesignFormats(): int
+    {
+        $deleted = 0;
+        $approval = app(\App\Services\DesignApprovalService::class);
+
+        foreach ($this->designFormats()->get() as $design) {
+            if ($approval->designHasParticipationContent($design)) {
+                continue;
+            }
+            $cover = trim(strip_tags((string) ($design->cover_html ?? '')));
+            $back = trim(strip_tags((string) ($design->back_html ?? '')));
+            if ($cover !== '' || $back !== '') {
+                continue;
+            }
+            if ($design->participation_export_locked_at !== null) {
+                continue;
+            }
+            $status = $approval->normalizedApprovalStatus($design->approval_status);
+            if (in_array($status, [
+                \App\Services\DesignApprovalService::STATUS_PENDING,
+                \App\Services\DesignApprovalService::STATUS_APPROVED,
+            ], true)) {
+                continue;
+            }
+
+            $design->delete();
+            $deleted++;
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Obtener el total de participaciones restando las anuladas
      */
     public function getTotalParticipationsAttribute()
