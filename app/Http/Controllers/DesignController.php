@@ -5237,6 +5237,19 @@ class DesignController extends Controller
             ->with('success', 'Diseño enviado a la entidad para su aprobación.');
     }
 
+    public function resendApprovalNotification($id)
+    {
+        $design = DesignFormat::with('set')->findOrFail($id);
+        if (! auth()->user()->canAccessEntity((int) $design->entity_id)) {
+            abort(403, 'No tienes permisos para esta operación.');
+        }
+
+        app(DesignApprovalService::class)->resendApprovalNotification($design, auth()->user());
+
+        return redirect()->route('design.summary', $design->id)
+            ->with('success', 'Se ha reenviado el correo de aprobación a la entidad. El enlace de revisión es el mismo.');
+    }
+
     public function approveDesign($id)
     {
         $design = DesignFormat::with('set')->findOrFail($id);
@@ -5259,8 +5272,14 @@ class DesignController extends Controller
     public function rejectDesign(Request $request, $id)
     {
         $design = DesignFormat::with('set')->findOrFail($id);
-        $reason = $request->input('reason');
-        app(DesignApprovalService::class)->reject($design, auth()->user(), is_string($reason) ? $reason : null);
+        $validated = $request->validate([
+            'reason' => 'required|string|min:5|max:2000',
+        ], [
+            'reason.required' => 'Debe indicar el motivo del rechazo.',
+            'reason.min' => 'El motivo del rechazo debe tener al menos 5 caracteres.',
+        ]);
+
+        app(DesignApprovalService::class)->reject($design, auth()->user(), $validated['reason']);
 
         $message = app(DesignApprovalService::class)->isPrintShopDesign($design)
             ? 'Diseño rechazado. La imprenta deberá corregirlo y reenviarlo a la entidad.'
@@ -7927,6 +7946,7 @@ class DesignController extends Controller
                 'status' => $approvalService->normalizedApprovalStatus($d->approval_status),
                 'requires_approval' => $approvalService->requiresEntityApproval($d),
                 'can_submit' => $approvalService->canSubmitForApproval($user, $d) && ! $awaitingEntityFee,
+                'can_resend_approval' => $approvalService->canResendApprovalNotification($user, $d) && ! $awaitingEntityFee,
                 'can_edit' => $approvalService->canEntityEditDesign($user, $d),
                 'can_open_editor' => ! $awaitingEntityFee
                     && $approvalService->canOpenDesignEditor($user, $d, $setLocked, $printLocked),

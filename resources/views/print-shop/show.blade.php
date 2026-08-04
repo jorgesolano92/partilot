@@ -162,7 +162,7 @@
                                             <i class="ri-close-circle-line me-1"></i>
                                             <strong>Rechazado por la entidad.</strong>
                                             @if(filled($linkedDesign->approval_rejection_reason))
-                                                <span class="d-block mt-1 small">{{ $linkedDesign->approval_rejection_reason }}</span>
+                                                <span class="d-block mt-1 small"><strong>Motivo:</strong> {{ $linkedDesign->approval_rejection_reason }}</span>
                                             @endif
                                             Corrija el diseño y guárdelo de nuevo para reenviarlo a la entidad.
                                         </div>

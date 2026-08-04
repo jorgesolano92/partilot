@@ -180,6 +180,12 @@
                                             <button type="submit" class="btn btn-sm btn-warning text-dark" title="Enviar a la entidad para aprobación"><i class="ri-send-plane-line"></i></button>
                                         </form>
                                     @endif
+                                    @if(!empty($approvalCtx['can_resend_approval']))
+                                        <form action="{{ route('design.resendApproval', $design->id) }}" method="POST" class="d-inline" onclick="event.stopPropagation();" onsubmit="return confirm('¿Reenviar el correo de aprobación a la entidad?');">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Reenviar correo de aprobación"><i class="ri-mail-send-line"></i></button>
+                                        </form>
+                                    @endif
                                     @if($canOpenEditor)
                                         <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light" title="Editar diseño"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
                                     @else

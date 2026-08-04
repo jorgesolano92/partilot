@@ -22,6 +22,7 @@ trait AutoSelectsPanelScope
 
     protected function putSelectedAdministrationInSession(Request $request, Administration $administration): void
     {
+        $request->session()->put('selected_administration_id', (int) $administration->id);
         $request->session()->put('selected_administration', $administration);
     }
 

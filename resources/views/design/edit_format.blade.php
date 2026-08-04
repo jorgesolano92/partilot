@@ -207,6 +207,13 @@
                 </div>
                 <h4 class="page-title">{{ !empty($printShopOrder) ? 'Editar diseño — '.$printShopOrder->order_code : 'Editar Formato' }}</h4>
             </div>
+            @if(($format->approval_status ?? null) === \App\Services\DesignApprovalService::STATUS_REJECTED && filled($format->approval_rejection_reason))
+                <div class="alert alert-danger">
+                    <strong>Diseño rechazado por la entidad.</strong>
+                    <div class="mt-1">Motivo / observaciones: {{ $format->approval_rejection_reason }}</div>
+                    <div class="small mt-2 mb-0">Corrija el diseño y, al terminar, vuelva al resumen para reenviarlo a aprobación.</div>
+                </div>
+            @endif
         </div>
     </div>
     <form method="POST" action="{{ $update_format_url ?? route('design.updateFormat', $format->id) }}" id="edit-format-form">

@@ -174,15 +174,31 @@
                                 <strong>{{ $designApproval['status_label'] }}</strong>
                             </div>
                             @if(!empty($designApproval['rejection_reason']))
-                                <p class="small text-danger mb-2">{{ $designApproval['rejection_reason'] }}</p>
+                                <div class="alert alert-danger py-2 px-3 mb-3">
+                                    <strong class="d-block mb-1">Motivo del rechazo / observaciones</strong>
+                                    <span class="small">{{ $designApproval['rejection_reason'] }}</span>
+                                </div>
                             @endif
                             @if(!empty($designApproval['can_submit']))
                                 <form action="{{ route('design.submitForApproval', $design->id) }}" method="POST" class="text-end mt-3" onsubmit="return confirm('¿Enviar este diseño a la entidad para su aprobación?');">
                                     @csrf
                                     <button type="submit" class="btn btn-warning btn-sm text-dark">
-                                        <i class="ri-send-plane-line me-1"></i> Enviar a la entidad para aprobación
+                                        <i class="ri-send-plane-line me-1"></i>
+                                        {{ ($designApproval['status'] ?? '') === 'rejected' ? 'Corregir y reenviar a la entidad' : 'Enviar a la entidad para aprobación' }}
                                     </button>
                                 </form>
+                            @endif
+                            @if(!empty($designApproval['can_resend_approval']))
+                                <form action="{{ route('design.resendApproval', $design->id) }}" method="POST" class="text-end mt-3" onsubmit="return confirm('¿Reenviar el correo de aprobación a la entidad? El enlace de revisión será el mismo.');">
+                                    @csrf
+                                    <button type="submit" class="btn btn-outline-warning btn-sm">
+                                        <i class="ri-mail-send-line me-1"></i> Reenviar correo de aprobación
+                                    </button>
+                                </form>
+                                <p class="small text-muted text-end mt-2 mb-0">
+                                    El enlace del correo no cambia: la entidad revisa siempre el diseño actual en
+                                    <a href="{{ $designApproval['review_url'] ?? route('design.approval.review', $design->id) }}" target="_blank" rel="noopener">esta página</a>.
+                                </p>
                             @endif
                             @if($canDownloadPendingSample && !empty($design->participation_html))
                                 <div class="text-end mt-3">

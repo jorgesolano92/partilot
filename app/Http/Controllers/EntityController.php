@@ -70,11 +70,13 @@ class EntityController extends Controller
 
     /**
      * Show the form for creating a new resource - Paso 1: Seleccionar administración
-     * Al iniciar una nueva entidad se limpia entity_information (y la imagen) para no arrastrar datos anteriores.
+     * Solo se limpia el borrador de entidad al empezar de cero (?reset=1), no en redirecciones intermedias.
      */
     public function create(Request $request)
     {
-        request()->session()->forget('entity_information');
+        if ($request->boolean('reset')) {
+            $request->session()->forget(['entity_information', 'entity_manager', 'selected_administration', 'selected_administration_id']);
+        }
 
         if ($redirect = $this->redirectIfImplicitAdministration($request, 'entities.add-information')) {
             return $redirect;
@@ -96,7 +98,7 @@ class EntityController extends Controller
         $administration = Administration::with('manager.user')
             ->forUser(auth()->user())
             ->findOrFail($request->administration_id);
-        $request->session()->put('selected_administration', $administration);
+        $this->putSelectedAdministrationInSession($request, $administration);
 
         return redirect()->route('entities.add-information');
     }
@@ -175,7 +177,14 @@ class EntityController extends Controller
             ])->withInput();
         }
 
+        // Asegurar administración en sesión antes de guardar el borrador de entidad.
+        if (! $this->resolveWizardAdministration()) {
+            return redirect()->route('entities.create', ['reset' => 1])
+                ->with('error', 'Sesión expirada. Por favor, seleccione una administración.');
+        }
+
         $request->session()->put('entity_information', $validated);
+        $request->session()->save();
 
         return redirect()->route('entities.add-manager');
     }
@@ -188,9 +197,15 @@ class EntityController extends Controller
         $administration = $this->resolveWizardAdministration();
         $entityInformation = session('entity_information');
 
-        if (! $administration || ! $entityInformation) {
-            return redirect()->route('entities.create')
-                ->with('error', 'Sesión expirada. Por favor, vuelva a empezar.');
+        if (! $administration) {
+            return redirect()->route('entities.create', ['reset' => 1])
+                ->with('error', 'Sesión expirada. Por favor, seleccione una administración.');
+        }
+
+        // Si faltan datos de entidad, volver al paso 2 SIN pasar por create() (que antes borraba el borrador).
+        if (! is_array($entityInformation) || $entityInformation === []) {
+            return redirect()->route('entities.add-information')
+                ->with('error', 'No se encontraron los datos de la entidad. Vuelva a completarlos.');
         }
 
         // Inicializar datos del gestor en sesión si no existen (persistencia como en administrations)
@@ -349,7 +364,7 @@ class EntityController extends Controller
             \Log::warning('Fallo enviando invitación al gestor responsable (alta entidad): '.$e->getMessage());
         }
 
-        $request->session()->forget(['selected_administration', 'entity_information', 'entity_manager']);
+        $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
 
         return redirect()->route('entities.index')
             ->with(
@@ -526,7 +541,7 @@ class EntityController extends Controller
 
         // Si venimos del wizard de creación, limpiar sesión al completar la invitación.
         if ($isCreationFlow) {
-            $request->session()->forget(['selected_administration', 'entity_information', 'entity_manager']);
+            $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
         }
 
         return redirect()->route('entities.show', $entity->id)
@@ -736,7 +751,7 @@ class EntityController extends Controller
             \Log::warning('Fallo enviando invitación pre-registro (alta entidad): '.$e->getMessage());
         }
 
-        $request->session()->forget(['selected_administration', 'entity_information', 'entity_manager']);
+        $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
 
         return redirect()->route('entities.index')
             ->with(
@@ -1991,18 +2006,26 @@ class EntityController extends Controller
         }
 
         $session = session('selected_administration');
+        $id = null;
         if ($session) {
             $id = is_object($session) ? ($session->id ?? null) : ($session['id'] ?? null);
-            if ($id) {
-                $administration = Administration::with('manager.user')
-                    ->forUser($user)
-                    ->find($id);
+        }
+        if (! $id) {
+            $id = session('selected_administration_id');
+        }
 
-                if ($administration && $user->canAccessAdministration((int) $administration->id)) {
-                    session(['selected_administration' => $administration]);
+        if ($id) {
+            $administration = Administration::with('manager.user')
+                ->forUser($user)
+                ->find($id);
 
-                    return $administration;
-                }
+            if ($administration && $user->canAccessAdministration((int) $administration->id)) {
+                session([
+                    'selected_administration_id' => (int) $administration->id,
+                    'selected_administration' => $administration,
+                ]);
+
+                return $administration;
             }
         }
 
@@ -2012,7 +2035,10 @@ class EntityController extends Controller
         }
 
         $administration->loadMissing('manager.user');
-        session(['selected_administration' => $administration]);
+        session([
+            'selected_administration_id' => (int) $administration->id,
+            'selected_administration' => $administration,
+        ]);
 
         return $administration;
     }

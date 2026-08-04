@@ -40,7 +40,7 @@
                             </div>
 
                             @if($canAddEntity ?? true)
-                            <a href="{{url('entities/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                            <a href="{{ url('entities/add?reset=1') }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
                             @endif
 
                         </h4>
@@ -133,7 +133,7 @@
                                 <br>
 
                                 @if($canAddEntity ?? true)
-                                <a href="{{url('entities/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                <a href="{{ url('entities/add?reset=1') }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
                                 @endif
                             </div>
 

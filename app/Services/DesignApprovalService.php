@@ -363,6 +363,40 @@ class DesignApprovalService
         return $this->userCanSubmitDesignForApproval($user, $design);
     }
 
+    /**
+     * Reenviar el email de aprobación mientras el diseño sigue pendiente
+     * (mismo enlace de revisión; útil si no lo recibieron o lo borraron).
+     */
+    public function canResendApprovalNotification(User $user, DesignFormat $design): bool
+    {
+        if (! $this->requiresEntityApproval($design)) {
+            return false;
+        }
+
+        if ($this->normalizedApprovalStatus($design->approval_status) !== self::STATUS_PENDING) {
+            return false;
+        }
+
+        if ($this->isPrintShopDesign($design)) {
+            return $this->userCanSubmitDesignForApproval($user, $design);
+        }
+
+        if (! $user->canAccessEntity((int) $design->entity_id)) {
+            return false;
+        }
+
+        return $this->userCanSubmitDesignForApproval($user, $design);
+    }
+
+    public function resendApprovalNotification(DesignFormat $design, User $user): void
+    {
+        if (! $this->canResendApprovalNotification($user, $design)) {
+            abort(403, 'No puedes reenviar la notificación de aprobación de este diseño.');
+        }
+
+        $this->notifyEntityDesignApprovalRequired($design->refresh());
+    }
+
     public function userCanSubmitDesignForApproval(User $user, DesignFormat $design): bool
     {
         if ($user->isEntityPanelAccount()) {
@@ -593,6 +627,11 @@ class DesignApprovalService
             abort(403, 'No puedes rechazar este diseño.');
         }
 
+        $reason = is_string($reason) ? trim($reason) : '';
+        if ($reason === '') {
+            abort(422, 'Debe indicar el motivo del rechazo.');
+        }
+
         $design->forceFill([
             'approval_status' => self::STATUS_REJECTED,
             'approval_decided_at' => now(),
@@ -801,11 +840,13 @@ class DesignApprovalService
             'status' => $design->approval_status,
             'status_label' => $this->statusLabel($design->approval_status),
             'can_submit' => $this->canSubmitForApproval($user, $design),
+            'can_resend_approval' => $this->canResendApprovalNotification($user, $design),
             'can_review' => $this->canReviewApproval($user, $design),
             'submitted_at' => $design->submitted_for_approval_at,
             'decided_at' => $design->approval_decided_at,
             'rejection_reason' => $design->approval_rejection_reason,
             'blocks_export' => $this->blocksQrExport($design),
+            'review_url' => route('design.approval.review', $design->id),
         ];
     }
 }

@@ -146,6 +146,10 @@
 	                    			</h4>
 	                    			<small><i>Todos los campos son obligatorios</i></small>
 
+	                    			@if (session('error'))
+	                    				<div class="alert alert-warning mt-3">{{ session('error') }}</div>
+	                    			@endif
+
 	                    			@if ($errors->any())
 	                    				<div class="alert alert-danger mt-3">
 	                    					<ul class="mb-0">
@@ -503,11 +507,16 @@
                 provinceTs.on('change', function(value) {
                     fillCities(value || '');
                 });
-                if (!provinceSelect.value) {
-                    provinceTs.clear(true);
+                // Restaurar valores (old/session) tras inicializar TomSelect
+                if (provinceSelect.getAttribute('data-selected') || provinceSelect.value) {
+                    var provVal = provinceSelect.value || provinceSelect.getAttribute('data-selected');
+                    if (provVal) {
+                        provinceTs.setValue(provVal, true);
+                        fillCities(provVal);
+                    }
                 }
-                if (!citySelect.value) {
-                    cityTs.clear(true);
+                if (selectedCity) {
+                    cityTs.setValue(selectedCity, true);
                 }
             } else {
                 provinceSelect.addEventListener('change', function() {
@@ -585,24 +594,36 @@
 	            field.addEventListener('change', function () { clearFieldError(field); });
 	        });
 
-	        entityForm.addEventListener('submit', function (event) {
-	            let firstInvalid = null;
-	            Object.keys(fieldRules).forEach(function (name) {
-	                const field = entityForm.querySelector('[name="' + name + '"]');
-	                if (!field) return;
-	                clearFieldError(field);
-	                const rule = fieldRules[name];
-	                if (!rule.test(field.value || '')) {
-	                    if (!firstInvalid) firstInvalid = field;
-	                    showFieldError(field, 'Revise el campo ' + rule.label + '.');
-	                }
-	            });
-	            if (firstInvalid) {
-	                event.preventDefault();
-	                firstInvalid.focus();
-	                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-	            }
-	        });
+        entityForm.addEventListener('submit', function (event) {
+            // TomSelect a veces no sincroniza el <select> nativo hasta el submit.
+            try {
+                if (provinceTs) {
+                    var pv = provinceTs.getValue();
+                    provinceSelect.value = Array.isArray(pv) ? (pv[0] || '') : (pv || '');
+                }
+                if (cityTs) {
+                    var cv = cityTs.getValue();
+                    citySelect.value = Array.isArray(cv) ? (cv[0] || '') : (cv || '');
+                }
+            } catch (e) {}
+
+            let firstInvalid = null;
+            Object.keys(fieldRules).forEach(function (name) {
+                const field = entityForm.querySelector('[name="' + name + '"]');
+                if (!field) return;
+                clearFieldError(field);
+                const rule = fieldRules[name];
+                if (!rule.test(field.value || '')) {
+                    if (!firstInvalid) firstInvalid = field;
+                    showFieldError(field, 'Revise el campo ' + rule.label + '.');
+                }
+            });
+            if (firstInvalid) {
+                event.preventDefault();
+                firstInvalid.focus();
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
 	    }
 	});
 

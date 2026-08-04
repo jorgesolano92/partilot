@@ -567,6 +567,7 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::get('/{id}/preview', [\App\Http\Controllers\DesignController::class, 'participationPreview'])->name('design.participationPreview');
     Route::get('/{id}/approval', [\App\Http\Controllers\DesignController::class, 'approvalReview'])->name('design.approval.review');
     Route::post('/{id}/submit-for-approval', [\App\Http\Controllers\DesignController::class, 'submitForApproval'])->name('design.submitForApproval');
+    Route::post('/{id}/resend-approval', [\App\Http\Controllers\DesignController::class, 'resendApprovalNotification'])->name('design.resendApproval');
     Route::post('/{id}/approve', [\App\Http\Controllers\DesignController::class, 'approveDesign'])->name('design.approve');
     Route::post('/{id}/reject', [\App\Http\Controllers\DesignController::class, 'rejectDesign'])->name('design.reject');
     // Route::post('design/format', [App\Http\Controllers\DesignController::class, 'storeFormat'])->name('design.storeFormat');

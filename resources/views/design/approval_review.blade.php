@@ -103,8 +103,11 @@
                                 <form action="{{ route('design.reject', $design->id) }}" method="POST" onsubmit="return confirm('¿Rechazar este diseño?');">
                                     @csrf
                                     <div class="mb-2">
-                                        <label class="form-label small">Motivo del rechazo (opcional)</label>
-                                        <textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="{{ app(\App\Services\DesignApprovalService::class)->isPrintShopDesign($design) ? 'Indique qué debe corregir la imprenta' : 'Indique qué debe corregir la administración' }}"></textarea>
+                                        <label class="form-label small">Motivo del rechazo (obligatorio)</label>
+                                        <textarea name="reason" class="form-control form-control-sm" rows="3" required minlength="5" placeholder="{{ app(\App\Services\DesignApprovalService::class)->isPrintShopDesign($design) ? 'Indique qué debe corregir la imprenta' : 'Indique qué debe corregir la administración' }}">{{ old('reason') }}</textarea>
+                                        @error('reason')
+                                            <div class="text-danger small mt-1">{{ $message }}</div>
+                                        @enderror
                                     </div>
                                     <button type="submit" class="btn btn-outline-danger w-100">
                                         <i class="ri-close-line me-1"></i> Rechazar
