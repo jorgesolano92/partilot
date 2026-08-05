@@ -17,7 +17,9 @@ return [
     'queue' => env('PDF_QUEUE', 'default'),
 
     'memory_limit' => env('PDF_MEMORY_LIMIT', '2048M'),
-    'max_execution_time' => 300,
+    // Límite orientativo del path síncrono antiguo; la generación diferida usa set_time_limit(0).
+    // En producción el proxy (nginx/Apache) o PHP-FPM request_terminate_timeout pueden cortar antes.
+    'max_execution_time' => (int) env('PDF_MAX_EXECUTION_TIME', 300),
     'job_timeout' => 0,
     'job_timeout_per_chunk' => 120,
     'job_timeout_min' => 900,

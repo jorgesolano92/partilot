@@ -6602,7 +6602,7 @@ class DesignController extends Controller
     }
 
     /**
-     * Método alternativo para PDFs muy grandes usando colas
+     * PDF de participaciones: responde al instante y genera tras la respuesta HTTP.
      */
     public function exportParticipationPdfAsync(Request $request, $id)
     {
@@ -6619,15 +6619,26 @@ class DesignController extends Controller
         }
 
         $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
+        $requestedName = $request->query('download_name', $request->input('download_name'));
+        if (! is_string($requestedName) || trim($requestedName) === '') {
+            $requestedName = $request->query('download_filename', $request->input('download_filename'));
+        }
+        $requestedName = is_string($requestedName) ? $requestedName : null;
+        $notifyEmail = auth()->user()?->email;
+        $designId = (int) $id;
 
         $job_id = 'pdf_part_'.$id.'_'.$from.'_'.$to.'_'.time();
-        \App\Support\PdfJobStatus::markProcessing($job_id);
-        \App\Support\PdfJobStatus::touchPresence($job_id);
 
-        try {
-            ini_set('max_execution_time', '300');
-            ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
-
+        return $this->beginDeferredPdfExport($job_id, function () use (
+            $design,
+            $from,
+            $to,
+            $job_id,
+            $docsOpts,
+            $requestedName,
+            $notifyEmail,
+            $designId
+        ) {
             $artifact = $this->writeParticipationExportArtifact(
                 $design,
                 $from,
@@ -6636,11 +6647,11 @@ class DesignController extends Controller
                 $docsOpts['documents_mode'],
                 $docsOpts['pages_per_document']
             );
-            $artifact['download_name'] = $this->resolveExportDownloadName(
-                $request,
+            $artifact['download_name'] = $this->buildExportDownloadName(
                 $design,
                 'participaciones',
-                (bool) ($artifact['is_zip'] ?? false)
+                (bool) ($artifact['is_zip'] ?? false),
+                $requestedName
             );
 
             clearstatcache(true, $artifact['path']);
@@ -6651,55 +6662,18 @@ class DesignController extends Controller
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
                 $artifact['download_name'],
-                (int) $id
+                $designId
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
             app(DesignApprovalService::class)->markParticipationExportLock($design);
 
-            $notifyEmail = auth()->user()?->email;
-            if (
-                config('pdf_optimization.send_email', false)
-                && is_string($notifyEmail)
-                && $notifyEmail !== ''
-            ) {
-                try {
-                    \Illuminate\Support\Facades\Mail::to($notifyEmail)->send(new \App\Mail\DesignPdfReadyMail(
-                        route('design.downloadPdf', $job_id),
-                        $artifact['is_zip'] ? 'Participaciones ZIP' : 'Participaciones PDF',
-                        (int) $id
-                    ));
-                    \App\Support\PdfJobStatus::markEmailSent($job_id);
-                } catch (\Throwable $mailEx) {
-                    Log::warning('exportParticipationPdfAsync email failed', [
-                        'job_id' => $job_id,
-                        'message' => $mailEx->getMessage(),
-                    ]);
-                }
-            }
-
-            return response()->json([
-                'status' => 'completed',
-                'job_id' => $job_id,
-                'download_url' => route('design.downloadPdf', $job_id),
-                'message' => $artifact['is_zip']
-                    ? 'ZIP generado. La descarga debería iniciar automáticamente.'
-                    : 'PDF generado. La descarga debería iniciar automáticamente.',
-                'check_url' => route('design.checkPdfStatus', $job_id),
-            ]);
-        } catch (\Throwable $e) {
-            \App\Support\PdfJobStatus::markFailed($job_id, $e->getMessage());
-            Log::error('exportParticipationPdfAsync failed', [
-                'job_id' => $job_id,
-                'design_id' => $id,
-                'message' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'status' => 'failed',
-                'job_id' => $job_id,
-                'message' => 'No se pudo generar el PDF: '.$e->getMessage(),
-            ], 500);
-        }
+            $this->maybeSendDesignPdfReadyEmail(
+                $job_id,
+                ($artifact['is_zip'] ?? false) ? 'Participaciones ZIP' : 'Participaciones PDF',
+                $designId,
+                is_string($notifyEmail) ? $notifyEmail : null
+            );
+        });
     }
 
     /**
@@ -6753,6 +6727,20 @@ class DesignController extends Controller
             $requested = $request->query('download_filename', $request->input('download_filename'));
         }
 
+        return $this->buildExportDownloadName(
+            $design,
+            $kindSuffix,
+            $isZip,
+            is_string($requested) ? $requested : null
+        );
+    }
+
+    private function buildExportDownloadName(
+        DesignFormat $design,
+        string $kindSuffix,
+        bool $isZip = false,
+        ?string $requested = null
+    ): string {
         $base = is_string($requested) ? trim($requested) : '';
         if ($base === '') {
             $designLabel = trim((string) ($design->design_name ?? ''));
@@ -7264,14 +7252,11 @@ class DesignController extends Controller
             ], 404);
         }
 
+        $notifyEmail = auth()->user()?->email;
+        $designId = (int) $id;
         $job_id = 'pdf_cover_back_'.$id.'_'.time();
-        \App\Support\PdfJobStatus::markProcessing($job_id);
-        \App\Support\PdfJobStatus::touchPresence($job_id);
 
-        try {
-            ini_set('max_execution_time', '300');
-            ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
-
+        return $this->beginDeferredPdfExport($job_id, function () use ($design, $job_id, $notifyEmail, $designId) {
             $final_path = storage_path('app/generated_pdfs/'.$job_id.'.pdf');
             $dir = dirname($final_path);
             if (! is_dir($dir)) {
@@ -7281,38 +7266,18 @@ class DesignController extends Controller
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
-                'portada-trasera-diseno-'.$id.'.pdf',
-                (int) $id
+                'portada-trasera-diseno-'.$designId.'.pdf',
+                $designId
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
 
             $this->maybeSendDesignPdfReadyEmail(
                 $job_id,
                 'Portada y trasera PDF',
-                (int) $id
+                $designId,
+                is_string($notifyEmail) ? $notifyEmail : null
             );
-
-            return response()->json([
-                'status' => 'completed',
-                'job_id' => $job_id,
-                'download_url' => route('design.downloadPdf', $job_id),
-                'message' => 'PDF generado. La descarga debería iniciar automáticamente.',
-                'check_url' => route('design.checkPdfStatus', $job_id),
-            ]);
-        } catch (\Throwable $e) {
-            \App\Support\PdfJobStatus::markFailed($job_id, $e->getMessage());
-            Log::error('exportCoverBackPdfAsync failed', [
-                'job_id' => $job_id,
-                'design_id' => $id,
-                'message' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'status' => 'failed',
-                'job_id' => $job_id,
-                'message' => 'No se pudo generar el PDF: '.$e->getMessage(),
-            ], 500);
-        }
+        });
     }
 
     /**
@@ -7648,62 +7613,50 @@ class DesignController extends Controller
         }
 
         $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
-
+        $requestedName = $request->query('download_name', $request->input('download_name'));
+        if (! is_string($requestedName) || trim($requestedName) === '') {
+            $requestedName = $request->query('download_filename', $request->input('download_filename'));
+        }
+        $requestedName = is_string($requestedName) ? $requestedName : null;
+        $notifyEmail = auth()->user()?->email;
+        $designId = (int) $id;
         $job_id = 'pdf_cover_grid_'.$id.'_'.time();
-        \App\Support\PdfJobStatus::markProcessing($job_id);
-        \App\Support\PdfJobStatus::touchPresence($job_id);
 
-        try {
-            ini_set('max_execution_time', '300');
-            ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
-
+        return $this->beginDeferredPdfExport($job_id, function () use (
+            $design,
+            $job_id,
+            $docsOpts,
+            $requestedName,
+            $notifyEmail,
+            $designId
+        ) {
             $artifact = $this->writeCoverExportArtifact(
                 $design,
                 $job_id,
                 $docsOpts['documents_mode'],
                 $docsOpts['pages_per_document']
             );
-            $artifact['download_name'] = $this->resolveExportDownloadName(
-                $request,
+            $artifact['download_name'] = $this->buildExportDownloadName(
                 $design,
                 'portadas',
-                (bool) ($artifact['is_zip'] ?? false)
+                (bool) ($artifact['is_zip'] ?? false),
+                $requestedName
             );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
                 $artifact['download_name'],
-                (int) $id
+                $designId
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
 
             $this->maybeSendDesignPdfReadyEmail(
                 $job_id,
                 'Portadas PDF',
-                (int) $id
+                $designId,
+                is_string($notifyEmail) ? $notifyEmail : null
             );
-
-            return response()->json([
-                'status' => 'completed',
-                'job_id' => $job_id,
-                'download_url' => route('design.downloadPdf', $job_id),
-                'message' => 'PDF generado. La descarga debería iniciar automáticamente.',
-                'check_url' => route('design.checkPdfStatus', $job_id),
-            ]);
-        } catch (\Throwable $e) {
-            \App\Support\PdfJobStatus::markFailed($job_id, $e->getMessage());
-            Log::error('exportCoverPdfAsync failed', [
-                'job_id' => $job_id,
-                'design_id' => $id,
-                'message' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'status' => 'failed',
-                'job_id' => $job_id,
-                'message' => 'No se pudo generar el PDF: '.$e->getMessage(),
-            ], 500);
-        }
+        });
     }
 
     public function exportBackPdfAsync(Request $request, $id)
@@ -7720,16 +7673,25 @@ class DesignController extends Controller
         $copies = $this->normalizeBackPdfCopies($request->query('copies', 'all'));
         $exactCount = $this->parseBackPdfExactCount($request);
         $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
-
+        $requestedName = $request->query('download_name', $request->input('download_name'));
+        if (! is_string($requestedName) || trim($requestedName) === '') {
+            $requestedName = $request->query('download_filename', $request->input('download_filename'));
+        }
+        $requestedName = is_string($requestedName) ? $requestedName : null;
+        $notifyEmail = auth()->user()?->email;
+        $designId = (int) $id;
         $job_id = 'pdf_back_'.$id.'_'.time();
 
-        \App\Support\PdfJobStatus::markProcessing($job_id);
-        \App\Support\PdfJobStatus::touchPresence($job_id);
-
-        try {
-            ini_set('max_execution_time', '300');
-            ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
-
+        return $this->beginDeferredPdfExport($job_id, function () use (
+            $design,
+            $job_id,
+            $copies,
+            $exactCount,
+            $docsOpts,
+            $requestedName,
+            $notifyEmail,
+            $designId
+        ) {
             $artifact = $this->writeBackExportArtifact(
                 $design,
                 $job_id,
@@ -7738,55 +7700,35 @@ class DesignController extends Controller
                 $docsOpts['documents_mode'],
                 $docsOpts['pages_per_document']
             );
-            $artifact['download_name'] = $this->resolveExportDownloadName(
-                $request,
+            $artifact['download_name'] = $this->buildExportDownloadName(
                 $design,
                 'traseras',
-                (bool) ($artifact['is_zip'] ?? false)
+                (bool) ($artifact['is_zip'] ?? false),
+                $requestedName
             );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
                 $job_id,
                 $artifact['download_name'],
-                (int) $id
+                $designId
             );
             \App\Support\PdfJobStatus::markCompleted($job_id);
 
             $this->maybeSendDesignPdfReadyEmail(
                 $job_id,
                 'Traseras PDF',
-                (int) $id
+                $designId,
+                is_string($notifyEmail) ? $notifyEmail : null
             );
-
-            return response()->json([
-                'status' => 'completed',
-                'job_id' => $job_id,
-                'download_url' => route('design.downloadPdf', $job_id),
-                'message' => 'PDF generado. La descarga debería iniciar automáticamente.',
-                'check_url' => route('design.checkPdfStatus', $job_id),
-            ]);
-        } catch (\Throwable $e) {
-            \App\Support\PdfJobStatus::markFailed($job_id, $e->getMessage());
-            Log::error('exportBackPdfAsync failed', [
-                'job_id' => $job_id,
-                'design_id' => $id,
-                'message' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'status' => 'failed',
-                'job_id' => $job_id,
-                'message' => 'No se pudo generar el PDF: '.$e->getMessage(),
-            ], 500);
-        }
+        });
     }
 
     /**
      * Email opcional al terminar un PDF (PDF_SEND_EMAIL).
      */
-    private function maybeSendDesignPdfReadyEmail(string $jobId, string $title, int $designId): void
+    private function maybeSendDesignPdfReadyEmail(string $jobId, string $title, int $designId, ?string $notifyEmail = null): void
     {
-        $notifyEmail = auth()->user()?->email;
+        $notifyEmail = $notifyEmail ?? auth()->user()?->email;
         if (
             ! config('pdf_optimization.send_email', false)
             || ! is_string($notifyEmail)
@@ -7808,6 +7750,118 @@ class DesignController extends Controller
                 'message' => $mailEx->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Evita solapar varias generaciones PDF del mismo usuario (satura Apache/PHP).
+     * TTL 15 min; si el job anterior ya terminó o falló, se libera.
+     */
+    private function claimPdfGenerationSlot(string $jobId): ?\Illuminate\Http\JsonResponse
+    {
+        $userId = (int) (auth()->id() ?? 0);
+        $busyKey = 'pdf_gen_busy:'.$userId;
+        $existing = Cache::get($busyKey);
+        if (is_array($existing)) {
+            $otherJob = (string) ($existing['job_id'] ?? '');
+            $started = (int) ($existing['started'] ?? 0);
+            $age = $started > 0 ? (time() - $started) : 9999;
+            $st = $otherJob !== ''
+                ? (\App\Support\PdfJobStatus::get($otherJob)['status'] ?? null)
+                : null;
+            if ($age < 900 && $st === 'processing') {
+                return response()->json([
+                    'status' => 'failed',
+                    'message' => 'Ya hay un PDF generándose. Espere a que termine antes de lanzar otro (suele bastar con esperar o salir y volver en 1–2 minutos).',
+                ], 429);
+            }
+        }
+
+        Cache::put($busyKey, [
+            'job_id' => $jobId,
+            'started' => time(),
+        ], 900);
+
+        return null;
+    }
+
+    private function releasePdfGenerationSlot(string $jobId): void
+    {
+        $userId = (int) (auth()->id() ?? 0);
+        // Tras afterResponse auth puede seguir disponible; también probar claves recientes.
+        foreach (array_unique([$userId, 0]) as $uid) {
+            $busyKey = 'pdf_gen_busy:'.$uid;
+            $cur = Cache::get($busyKey);
+            if (is_array($cur) && ($cur['job_id'] ?? null) === $jobId) {
+                Cache::forget($busyKey);
+            }
+        }
+    }
+
+    /**
+     * Responde al instante (processing) y genera el PDF tras enviar la respuesta HTTP.
+     * Evita timeouts de Apache/jQuery a 300s y libera la UI para navegar/poll.
+     *
+     * Nota: con `php artisan serve` (un solo hilo) otras peticiones quedan pending
+     * hasta que termine la generación; en producción use PHP-FPM + varios workers.
+     * Si el proxy corta a 60s, conviene cola real (`queue:work`) o subir timeouts.
+     *
+     * @param  callable():void  $work
+     */
+    private function beginDeferredPdfExport(string $jobId, callable $work): \Illuminate\Http\JsonResponse
+    {
+        if ($busy = $this->claimPdfGenerationSlot($jobId)) {
+            return $busy;
+        }
+
+        \App\Support\PdfJobStatus::markProcessing($jobId);
+        \App\Support\PdfJobStatus::touchPresence($jobId);
+
+        try {
+            session()->save();
+        } catch (\Throwable $e) {
+            // no bloquear por sesión
+        }
+
+        // Cerrar sesión nativa cuanto antes (evita que polls/background-tasks esperen el lock).
+        if (function_exists('session_write_close')) {
+            @session_write_close();
+        }
+
+        $ownerUserId = (int) (auth()->id() ?? 0);
+
+        dispatch(function () use ($jobId, $work, $ownerUserId) {
+            ignore_user_abort(true);
+            // 0 = sin límite PHP; en FPM aún puede cortar request_terminate_timeout del pool.
+            @set_time_limit(0);
+            @ini_set('max_execution_time', '0');
+            @ini_set('memory_limit', (string) config('pdf_optimization.memory_limit', '2048M'));
+            if (function_exists('session_write_close')) {
+                @session_write_close();
+            }
+            try {
+                $work();
+            } catch (\Throwable $e) {
+                \App\Support\PdfJobStatus::markFailed($jobId, $e->getMessage());
+                Log::error('Deferred PDF export failed', [
+                    'job_id' => $jobId,
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            } finally {
+                $busyKey = 'pdf_gen_busy:'.$ownerUserId;
+                $cur = Cache::get($busyKey);
+                if (is_array($cur) && ($cur['job_id'] ?? null) === $jobId) {
+                    Cache::forget($busyKey);
+                }
+            }
+        })->afterResponse();
+
+        return response()->json([
+            'status' => 'processing',
+            'job_id' => $jobId,
+            'message' => 'El PDF se está generando en segundo plano. Puede seguir usando el panel; avisaremos cuando esté listo.',
+            'check_url' => route('design.checkPdfStatus', $jobId),
+        ]);
     }
 
     /**

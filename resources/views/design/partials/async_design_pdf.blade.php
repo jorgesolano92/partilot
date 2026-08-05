@@ -325,8 +325,12 @@
   function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl) {
     if (attemptsLeft <= 0) {
       if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si el PDF era grande, vuelva a intentarlo; si el problema continúa, revise el log del servidor.');
+      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si el PDF era grande, vuelva a intentarlo en unos minutos; si el problema continúa, revise el log del servidor.');
       return;
+    }
+    // Aviso periódico para que no parezca colgado
+    if (attemptsLeft % 15 === 0) {
+      partilotNotifyPdf('info', notifyTitle || 'PDF', 'Sigue generándose el PDF… Espere, por favor.', true);
     }
     $.getJSON(checkUrl)
       .done(function (st) {
@@ -345,6 +349,13 @@
         }, 2000);
       })
       .fail(function () {
+        // Fallo puntual de red: reintentar un poco antes de abortar
+        if (attemptsLeft > 3) {
+          setTimeout(function () {
+            partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl);
+          }, 3000);
+          return;
+        }
         if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
         partilotNotifyPdf('error', notifyTitle || 'PDF', 'No se pudo consultar el estado del PDF.');
       });
@@ -453,7 +464,9 @@
 
   function partilotStartDesignPdfAjax(url, title, $btn) {
     $btn.prop('disabled', true);
-    partilotNotifyPdf('info', title, 'Generando PDF…', true);
+    partilotNotifyPdf('info', title, 'Generando PDF en segundo plano… Puede seguir usando el panel.', true);
+    // Si el servidor no libera la conexión hasta terminar (buffer / artisan serve),
+    // este timeout actúa de red de seguridad; si responde "processing" al instante, pasa a poll.
     $.ajax({ url: url, method: 'GET', dataType: 'json', timeout: 300000 })
       .done(function (data) {
         if (data && data.status === 'completed' && data.download_url) {
@@ -467,6 +480,7 @@
           return;
         }
         if (data && data.status === 'processing' && data.check_url) {
+          // ~60 min de sondeo (1800 × 2s) para tiradas grandes
           partilotPollPdfStatus(data.check_url, title, 1800, true, $btn);
           return;
         }
@@ -475,11 +489,17 @@
       })
       .fail(function (xhr) {
         $btn.prop('disabled', false);
-        var msg = 'No se pudo generar el PDF.';
+        var msg = 'No se pudo iniciar la generación del PDF.';
+        if (xhr && xhr.status === 429) {
+          msg = 'Ya hay un PDF generándose. Espere a que termine antes de lanzar otro.';
+        }
         try {
           var j = xhr.responseJSON;
           if (j && j.message) msg = j.message;
         } catch (err) {}
+        if (xhr && (xhr.statusText === 'timeout' || xhr.status === 0)) {
+          msg = 'Tiempo de espera agotado al generar el PDF (posible timeout del servidor). Espere 1–2 minutos y reintente; si se repite en producción, hay que subir el timeout del proxy/PHP o usar cola (queue:work).';
+        }
         partilotNotifyPdf('error', title, msg, false);
       });
   }
