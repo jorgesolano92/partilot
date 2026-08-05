@@ -112,9 +112,11 @@
                                 $awaitingEntityFee = !empty($approvalCtx['awaiting_entity_fee']);
                                 $blocksExport = !empty($approvalCtx['blocks_export']);
                                 $exportBlockTitle = $approvalCtx['block_message'] ?? 'Acción no disponible';
+                                // Siempre al resumen: desde ahí se edita, se ven observaciones de rechazo, pagos, etc.
                                 $rowHref = route('design.summary', $design->id);
-                                if ($canOpenEditor && ! $awaitingEntityFee && ! ($entityViewer && ! empty($approvalCtx['entity_fee_due']))) {
-                                    $rowHref = route('design.editFormat', $design->id);
+                                $statusHref = $rowHref;
+                                if (($approvalCtx['status'] ?? null) === 'rejected') {
+                                    $statusHref = $rowHref.'#approval';
                                 }
                                 $showOperationalLock = $isLocked && ! $canOpenEditor && empty($printLockCtx['locked']);
                             @endphp
@@ -138,40 +140,41 @@
                                     @php
                                         $approvalStatus = $approvalCtx['status'] ?? null;
                                     @endphp
+                                    <a href="{{ $statusHref }}" class="text-decoration-none d-inline-block" title="Ver resumen del diseño">
                                     @if(!empty($approvalCtx['awaiting_entity_fee']))
-                                        <label class="badge bg-danger rounded-pill">Cuota gestión impagada</label>
+                                        <label class="badge bg-danger rounded-pill" style="cursor: pointer;">Cuota gestión impagada</label>
                                     @elseif(!empty($approvalCtx['entity_fee_due']))
-                                        <label class="badge bg-warning text-dark rounded-pill">
+                                        <label class="badge bg-warning text-dark rounded-pill" style="cursor: pointer;">
                                             {{ $entityViewer ? 'Cuota gestión pendiente' : 'Pendiente pago entidad' }}
                                         </label>
                                         @if(!empty($printLockCtx['completed']))
                                             <div class="small mt-1"><span class="badge bg-success rounded-pill">Impresión enviada</span></div>
                                         @endif
                                     @elseif(!empty($approvalCtx['management_fee_pending']))
-                                        <label class="badge bg-warning text-dark rounded-pill">Cuota gestión pendiente</label>
+                                        <label class="badge bg-warning text-dark rounded-pill" style="cursor: pointer;">Cuota gestión pendiente</label>
                                     @elseif(!empty($printLockCtx['completed']))
-                                        <label class="badge bg-success rounded-pill">Impresión enviada</label>
+                                        <label class="badge bg-success rounded-pill" style="cursor: pointer;">Impresión enviada</label>
                                     @elseif(!empty($printLockCtx['locked']))
-                                        <label class="badge bg-info text-dark rounded-pill">En imprenta</label>
+                                        <label class="badge bg-info text-dark rounded-pill" style="cursor: pointer;">En imprenta</label>
                                     @elseif(!empty($approvalCtx['requires_approval']) && $approvalStatus === 'approved')
-                                        <label class="badge bg-info text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
+                                        <label class="badge bg-info text-dark rounded-pill" style="cursor: pointer;">{{ $approvalCtx['label'] }}</label>
                                     @elseif(!empty($approvalCtx['requires_approval']) && in_array($approvalStatus, ['pending_approval', 'rejected', 'draft'], true))
-                                        <label class="badge bg-warning text-dark rounded-pill">{{ $approvalCtx['label'] }}</label>
+                                        <label class="badge bg-warning text-dark rounded-pill" style="cursor: pointer;">{{ $approvalCtx['label'] }}</label>
                                     @elseif(!empty($approvalCtx['export_locked']))
-                                        <label class="badge bg-secondary rounded-pill">PDF descargado</label>
+                                        <label class="badge bg-secondary rounded-pill" style="cursor: pointer;">PDF descargado</label>
                                     @elseif($showOperationalLock)
-                                        <label class="badge bg-secondary rounded-pill">Bloqueado</label>
+                                        <label class="badge bg-secondary rounded-pill" style="cursor: pointer;">Bloqueado</label>
                                     @elseif($entityViewer && empty($approvalCtx['can_edit']))
-                                        <label class="badge bg-secondary rounded-pill">Solo consulta</label>
+                                        <label class="badge bg-secondary rounded-pill" style="cursor: pointer;">Solo consulta</label>
                                     @elseif(!empty($approvalCtx['can_open_editor']))
-                                        <label class="badge bg-success rounded-pill">Editable</label>
+                                        <label class="badge bg-success rounded-pill" style="cursor: pointer;">Editable</label>
                                     @else
-                                        <label class="badge bg-secondary rounded-pill">Solo consulta</label>
+                                        <label class="badge bg-secondary rounded-pill" style="cursor: pointer;">Solo consulta</label>
                                     @endif
+                                    </a>
                                 </td>
                                 <td class="no-click" style="cursor: default;">
                                     @if($awaitingEntityFee || (!empty($approvalCtx['entity_fee_due']) && $entityViewer))
-                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="Ver estado — cuota de gestión pendiente"><i class="ri-eye-line"></i></a>
                                         <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-sm btn-success" title="Pagar cuota de gestión"><i class="ri-bank-card-line"></i></a>
                                     @else
                                     @if(!empty($approvalCtx['can_submit']))
@@ -186,13 +189,8 @@
                                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Reenviar correo de aprobación"><i class="ri-mail-send-line"></i></button>
                                         </form>
                                     @endif
-                                    @if($canOpenEditor)
-                                        <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light" title="Editar diseño"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
-                                    @else
-                                        <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="{{ !empty($approvalCtx['export_locked']) ? 'Diseño bloqueado tras PDF — ver resumen' : 'Ver resumen y descargas' }}"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
-                                        @if(!empty($approvalCtx['can_review']))
-                                            <a href="{{ route('design.approval.review', $design->id) }}" class="btn btn-sm btn-primary" title="Revisar y aprobar"><i class="ri-checkbox-circle-line"></i></a>
-                                        @endif
+                                    @if(! $canOpenEditor && !empty($approvalCtx['can_review']))
+                                        <a href="{{ route('design.approval.review', $design->id) }}" class="btn btn-sm btn-primary" title="Revisar y aprobar"><i class="ri-checkbox-circle-line"></i></a>
                                     @endif
                                     @if(!empty($design->participation_html))
                                         <a href="{{ route('design.participationPreview', $design->id) }}" class="btn btn-sm btn-light" title="Ver diseño"><i class="ri-image-line"></i></a>

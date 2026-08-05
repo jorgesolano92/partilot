@@ -69,10 +69,10 @@
                     @endif
 
                     @if(
-                        $adminUser
+                        empty($entityMustPayNow)
                         && empty($awaitingEntityFeeBeforeDesign)
                         && !empty($hasDesignContent)
-                        && $approvalService->canEntityEditDesign(auth()->user(), $design)
+                        && (!empty($canOpenEditor) || !empty($canPreviewDesign))
                     )
                         <div class="text-center mb-4">
                             @if(!empty($canOpenEditor))
