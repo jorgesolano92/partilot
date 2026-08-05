@@ -14,6 +14,7 @@ use App\Http\Controllers\ReserveController;
 use App\Http\Controllers\SetController;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\PanelMagicLinkController;
 use App\Http\Controllers\ApiController;
@@ -97,6 +98,17 @@ Route::get('/', function () {
 Route::get('login', [AuthController::class, 'showLoginForm'])->name('login')->middleware('guest');
 Route::post('login', [AuthController::class, 'login']);
 Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+
+Route::middleware('guest')->group(function () {
+    Route::get('password/forgot', [PasswordResetController::class, 'showForgotForm'])->name('password.request');
+    Route::post('password/forgot', [PasswordResetController::class, 'sendResetLink'])
+        ->middleware('throttle:6,1')
+        ->name('password.email');
+    Route::get('password/reset/{token}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
+    Route::post('password/reset', [PasswordResetController::class, 'resetPassword'])
+        ->middleware('throttle:6,1')
+        ->name('password.update');
+});
 
 Route::get('panel/acceso/{token}', [PanelMagicLinkController::class, 'show'])->name('panel.access');
 Route::post('panel/acceso/{token}', [PanelMagicLinkController::class, 'update'])->name('panel.access.submit');

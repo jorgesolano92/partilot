@@ -87,7 +87,7 @@
 
                     <div class="mb-3">
                         <div class="d-flex justify-content-end mb-1">
-                            <a href="javascript:void(0);" class="text-muted"><small>¿Olvidaste tu contraseña?</small></a>
+                            <a href="{{ route('password.request') }}" class="text-muted"><small>¿Olvidaste tu contraseña?</small></a>
                         </div>
                         <label for="password-mobile" class="form-label visually-hidden">Contraseña</label>
                         <div class="input-group input-group-merge group-login group-login-mobile">
@@ -174,7 +174,7 @@
                             </div>
 
                             <div class="mb-3">
-                                <a href="javascript:void(0);" class="text-muted float-end mb-1"><small>¿Olvidaste tu contraseña?</small></a>
+                                <a href="{{ route('password.request') }}" class="text-muted float-end mb-1"><small>¿Olvidaste tu contraseña?</small></a>
 
                                 <div class="input-group input-group-merge group-login">
                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">

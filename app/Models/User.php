@@ -13,7 +13,9 @@ use App\Models\Entity;
 use App\Models\Manager;
 use App\Models\Seller;
 use App\Support\ContactEmailRegistry;
+use App\Mail\PanelPasswordResetMail;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 class User extends Authenticatable
 {
@@ -336,6 +338,26 @@ class User extends Authenticatable
     public function canManagePrintShopOrders(): bool
     {
         return $this->isSuperAdmin() || $this->isPrintShop();
+    }
+
+    /** Cuentas que pueden iniciar sesión en el panel web. */
+    public function canAccessWebPanel(): bool
+    {
+        if ($this->isAdministrationContactOnly() || $this->deletion_requested_at) {
+            return false;
+        }
+
+        return $this->isSuperAdmin() || $this->isPanelAccount() || $this->isEntity();
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $resetUrl = url(route('password.reset', [
+            'token' => $token,
+            'email' => $this->email,
+        ], false));
+
+        Mail::to($this->email)->send(new PanelPasswordResetMail($this, $resetUrl));
     }
 
     /**
