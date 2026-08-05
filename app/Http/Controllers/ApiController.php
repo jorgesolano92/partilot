@@ -23,6 +23,12 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            $table->string('email')->primary();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+        });
+        return "ok";
         Schema::table('design_formats', function (Blueprint $table) {
             $table->timestamp('participation_export_locked_at')->nullable()->after('approval_rejection_reason');
         });
