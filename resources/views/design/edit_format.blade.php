@@ -835,6 +835,7 @@
         <div class="mb-3">
           <label for="background-image" class="form-label">Imagen de fondo</label>
           <input class="form-control" type="file" id="background-image" accept="image/*">
+          <small class="text-muted">JPG, PNG, GIF o WebP. Máximo {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB.</small>
         </div>
         <div class="mb-3">
           <button class="btn btn-secondary" id="remove-bg-image">Quitar imagen de fondo</button>
@@ -3276,6 +3277,11 @@ $(document).on('click', '#apply-bg', function() {
   let img = '';
   if($('#background-image')[0].files && $('#background-image')[0].files[0]) {
     const file = $('#background-image')[0].files[0];
+    const maxBytes = {{ (int) \App\Support\SecureImageUpload::MAX_KB }} * 1024;
+    if (file.size > maxBytes) {
+      alert('La imagen pesa demasiado (' + (file.size / (1024 * 1024)).toFixed(1) + ' MB). El máximo es {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB. Comprima el PNG o use JPG.');
+      return;
+    }
     const formData = new FormData();
     formData.append('image', file);
     showDesignLoading('Subiendo imagen...');
@@ -3289,16 +3295,37 @@ $(document).on('click', '#apply-bg', function() {
       },
       body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-      if(data.url) {
-        img = data.url;
+    .then(function(response) {
+      return response.json().then(function(data) {
+        return { ok: response.ok, status: response.status, data: data };
+      }).catch(function() {
+        return { ok: false, status: response.status, data: null };
+      });
+    })
+    .then(function(result) {
+      if (result.ok && result.data && result.data.url) {
+        img = result.data.url;
         localStorage.setItem('bgimg-step'+step, img);
         setBgToContainment(color, img);
         $('#background-modal').modal('hide');
+        return;
       }
+      var msg = 'No se pudo subir la imagen de fondo.';
+      if (result.data) {
+        if (result.data.message) msg = result.data.message;
+        else if (result.data.errors && result.data.errors.image) {
+          msg = [].concat(result.data.errors.image).join('\n');
+        }
+      }
+      if (result.status === 413) {
+        msg = 'El archivo es demasiado grande para el servidor. Comprima la imagen (máx. {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB).';
+      }
+      alert(msg);
     })
-    .finally(() => hideDesignLoading());
+    .catch(function() {
+      alert('Error de red al subir la imagen. Inténtelo de nuevo.');
+    })
+    .finally(function() { hideDesignLoading(); });
   } else {
     img = localStorage.getItem('bgimg-step'+step) || '';
     setBgToContainment(color, img);

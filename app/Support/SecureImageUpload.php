@@ -7,7 +7,7 @@ use InvalidArgumentException;
 
 final class SecureImageUpload
 {
-    public const MAX_KB = 2048;
+    public const MAX_KB = 10240; // 10 MB: fondos PNG de imprenta suelen superar 2 MB
 
   /** @var list<string> */
     public const ALLOWED_MIMES = [
