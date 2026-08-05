@@ -714,7 +714,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 
                                               
 
-                                             <div class="elements element-critical number text ui-draggable" style="padding: 10px; width: 274px; height: 94px; resize: both; overflow: hidden; position: relative; left: 452px; top: 25.875px;">
+                                             <div class="elements number text ui-draggable" style="padding: 10px; width: 274px; height: 94px; resize: both; overflow: hidden; position: absolute; left: 452px; top: 25.875px;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><h1><span style="color:hsl(0,0%,0%);font-size:{{ getNumberFontSize($reservation_numbers) }};" class="ui-draggable-handle"><strong>{{ is_array($reservation_numbers) ? implode(' - ', $reservation_numbers) : $reservation_numbers }}</strong></span></h1></span>
                                             </div>
@@ -735,7 +735,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 82px; height: 44px; resize: both; overflow: hidden; position: absolute; top: 144px; left: 42px;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0, 0%, 0%);" class="ui-draggable-handle"><strong>25/07/25</strong></span></p></span>
-                                            </div><div class="elements element-critical text number mini ui-draggable" style="padding: 10px; width: 74px; height: 43px; resize: both; overflow: hidden; position: absolute; top: 180.797px; left: 51.7969px; z-index: 1001;">
+                                            </div><div class="elements text number mini ui-draggable" style="padding: 10px; width: 74px; height: 43px; resize: both; overflow: hidden; position: absolute; top: 180.797px; left: 51.7969px; z-index: 1001;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-family:Arial, Helvetica, sans-serif;font-size:14px;" class="ui-draggable-handle"><strong>{{ formatMini($reservation_numbers) }}</strong></span></p></span>
                                             </div>
@@ -2937,7 +2937,9 @@ $('#format').change(function (e) {
 
   function markCriticalDesignElements($root) {
     var $scope = $root && $root.length ? $root : $('#containment-wrapper' + step);
-    $scope.find('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini')
+    // Obligatorios: nº participación (x2), referencia y QR. El nº de lotería (number/mini) es opcional.
+    $scope.find('.elements.number, .elements.mini').removeClass('element-critical');
+    $scope.find('.elements.participation, .elements.reference, .elements.qr')
       .addClass('element-critical');
     if (step === 3 || ($scope.attr('id') === 'containment-wrapper3')) {
       markCoverCriticalElements($scope);
@@ -2961,7 +2963,7 @@ $('#format').change(function (e) {
 
       if (!confirm(
         'Se eliminarán ' + count + ' campo(s) de ejemplo de este paso.\n\n' +
-        'Se conservan los obligatorios (número, participación, referencia, QR, taco/participaciones en portada, etc.).\n' +
+        'Se conservan los obligatorios (nº participación, referencia, QR; en portada taco/participaciones).\n' +
         'Puedes deshacer con el botón Deshacer.\n\n¿Continuar?'
       )) {
         return;

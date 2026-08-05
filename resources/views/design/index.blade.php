@@ -177,6 +177,9 @@
                                     @if($awaitingEntityFee || (!empty($approvalCtx['entity_fee_due']) && $entityViewer))
                                         <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-sm btn-success" title="Pagar cuota de gestión"><i class="ri-bank-card-line"></i></a>
                                     @else
+                                    @if($canOpenEditor)
+                                        <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light" title="Editar diseño" onclick="event.stopPropagation();"><img src="{{ url('assets/form-groups/edit.svg') }}" alt="" width="12"></a>
+                                    @endif
                                     @if(!empty($approvalCtx['can_submit']))
                                         <form action="{{ route('design.submitForApproval', $design->id) }}" method="POST" class="d-inline" onclick="event.stopPropagation();" onsubmit="return confirm('¿Enviar este diseño a la entidad para su aprobación?');">
                                             @csrf

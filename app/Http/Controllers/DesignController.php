@@ -1674,6 +1674,8 @@ class DesignController extends Controller
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
         $html = $this->scaleFontSizesForDomPdf($html);
+        $html = $this->syncHeadingLineMetricsForDomPdf($html);
+        $html = $this->convertBreaksToBlockSpansForDomPdf($html);
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
@@ -2199,6 +2201,124 @@ class DesignController extends Controller
                 $scaled = round(((float) $m[1]) * $factor, 2);
 
                 return 'font-size:'.$scaled.$m[2];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    /**
+     * DomPDF calcula el interlineado de h1–h6/p con el font-size del bloque
+     * (p. ej. 16px heredado), aunque el texto visible esté en spans a 10px
+     * separados por <br> → más line-height que en el editor.
+     * Copia el font-size dominante de los hijos al heading y fija line-height.
+     */
+    public function syncHeadingLineMetricsForDomPdf(string $html): string
+    {
+        if ($html === '' || ! preg_match('/<(h[1-6]|p)\b/i', $html)) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/<(h[1-6]|p)(\s[^>]*)?>(.*?)<\/\1>/is',
+            function (array $m): string {
+                $tag = $m[1];
+                $attrs = $m[2] ?? '';
+                $inner = $m[3];
+                $fontSize = null;
+
+                if (preg_match_all('/font-size\s*:\s*([\d.]+)\s*(px|pt)\b/i', $inner, $fm)) {
+                    $counts = [];
+                    foreach ($fm[1] as $i => $value) {
+                        $key = $value.$fm[2][$i];
+                        $counts[$key] = ($counts[$key] ?? 0) + 1;
+                    }
+                    arsort($counts);
+                    $fontSize = array_key_first($counts) ?: null;
+                }
+
+                $styleExtra = 'line-height:1 !important;';
+                if ($fontSize !== null) {
+                    $styleExtra = 'font-size:'.$fontSize.' !important;'.$styleExtra;
+                }
+
+                if (preg_match('/\sstyle\s*=\s*("|\')(.*?)\1/is', $attrs, $sm)) {
+                    $quote = $sm[1];
+                    $style = $sm[2];
+                    $style = preg_replace('/\bfont-size\s*:[^;]+;?/i', '', $style) ?? $style;
+                    $style = preg_replace('/\bline-height\s*:[^;]+;?/i', '', $style) ?? $style;
+                    $style = trim($style, "; \t\n\r").';'.$styleExtra;
+                    $attrs = preg_replace(
+                        '/\sstyle\s*=\s*("|\')(.*?)\1/is',
+                        ' style='.$quote.$style.$quote,
+                        $attrs,
+                        1
+                    ) ?? $attrs;
+                } else {
+                    $attrs .= ' style="'.$styleExtra.'"';
+                }
+
+                return '<'.$tag.$attrs.'>'.$inner.'</'.$tag.'>';
+            },
+            $html
+        ) ?? $html;
+    }
+
+    /**
+     * DomPDF interlinea en exceso con <br> dentro de h1–h6/p.
+     * Sustituye saltos por spans en bloque con line-height:1 (como el editor).
+     */
+    public function convertBreaksToBlockSpansForDomPdf(string $html): string
+    {
+        if ($html === '' || stripos($html, '<br') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/<(h[1-6]|p)(\s[^>]*)?>(.*?)<\/\1>/is',
+            function (array $m): string {
+                $tag = $m[1];
+                $attrs = $m[2] ?? '';
+                $inner = $m[3];
+                if (stripos($inner, '<br') === false) {
+                    return $m[0];
+                }
+
+                $parts = preg_split('/<br\s*\/?>/i', $inner) ?: [];
+                if (count($parts) < 2) {
+                    return $m[0];
+                }
+
+                $out = '';
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if ($part === '') {
+                        continue;
+                    }
+                    if (preg_match('/^<span(\s[^>]*)?>([\s\S]*)<\/span>$/i', $part, $sm)) {
+                        $spanAttrs = $sm[1] ?? '';
+                        $spanInner = $sm[2];
+                        if (preg_match('/\sstyle\s*=\s*("|\')(.*?)\1/is', $spanAttrs, $st)) {
+                            $quote = $st[1];
+                            $style = $st[2];
+                            $style = preg_replace('/\bdisplay\s*:[^;]+;?/i', '', $style) ?? $style;
+                            $style = preg_replace('/\bline-height\s*:[^;]+;?/i', '', $style) ?? $style;
+                            $style = trim($style, "; \t\n\r").';display:block;line-height:1;';
+                            $spanAttrs = preg_replace(
+                                '/\sstyle\s*=\s*("|\')(.*?)\1/is',
+                                ' style='.$quote.$style.$quote,
+                                $spanAttrs,
+                                1
+                            ) ?? $spanAttrs;
+                        } else {
+                            $spanAttrs .= ' style="display:block;line-height:1;"';
+                        }
+                        $out .= '<span'.$spanAttrs.'>'.$spanInner.'</span>';
+                    } else {
+                        $out .= '<span style="display:block;line-height:1;">'.$part.'</span>';
+                    }
+                }
+
+                return '<'.$tag.$attrs.'>'.$out.'</'.$tag.'>';
             },
             $html
         ) ?? $html;
@@ -3045,6 +3165,12 @@ class DesignController extends Controller
             'https://localhost:8000',
             'https://127.0.0.1',
             'https://localhost',
+            'https://panel.partilot.es',
+            'http://panel.partilot.es',
+            'https://www.panel.partilot.es',
+            'http://www.panel.partilot.es',
+            'https://partilot.es',
+            'http://partilot.es',
         ]);
 
         $appUrl = (string) config('app.url');
@@ -3084,7 +3210,16 @@ class DesignController extends Controller
      */
     private function pdfTrustedHostsForAssetPaths(): array
     {
-        $hosts = ['127.0.0.1', 'localhost', '[::1]'];
+        $hosts = [
+            '127.0.0.1',
+            'localhost',
+            '[::1]',
+            // Producción / staging: el HTML guardado suele apuntar aquí aunque se genere el PDF en local.
+            'panel.partilot.es',
+            'www.panel.partilot.es',
+            'partilot.es',
+            'www.partilot.es',
+        ];
         foreach ([config('app.url'), url('/'), config('asset.url')] as $u) {
             $h = parse_url((string) $u, PHP_URL_HOST);
             if (is_string($h) && $h !== '') {
@@ -3165,7 +3300,25 @@ class DesignController extends Controller
             $html = $fixed2 ?? $html;
         }
 
-        return $html;
+        // Cualquier host: si la ruta existe en public/, usar fichero local (DomPDF no depende de red).
+        $fixedAny = preg_replace_callback(
+            '#https?://[^/\s\'"\>\<]+(?::\d+)?(/[^\s\'"\)\>\#]+)#i',
+            static function (array $m) use ($fsBase): string {
+                $path = explode('?', rawurldecode($m[1]), 2)[0];
+                if ($path === '' || str_contains($path, '..')) {
+                    return $m[0];
+                }
+                $candidate = $fsBase.str_replace('\\', '/', $path);
+                if (is_file($candidate)) {
+                    return $candidate;
+                }
+
+                return $m[0];
+            },
+            $html
+        );
+
+        return $fixedAny ?? $html;
     }
 
     /**
@@ -3732,6 +3885,8 @@ class DesignController extends Controller
         $html = $this->enforceQrMinPrintSizeInHtml($html);
         $html = $this->adjustElementBoxModelForDomPdf($html);
         $html = $this->scaleFontSizesForDomPdf($html);
+        $html = $this->syncHeadingLineMetricsForDomPdf($html);
+        $html = $this->convertBreaksToBlockSpansForDomPdf($html);
         $publicPath = public_path();
         $html = $this->replaceApplicationWebRootsWithPublicPath($html, $publicPath);
         $html = $this->ensureLocalPathsForPdf($html, $publicPath);
@@ -4201,6 +4356,11 @@ class DesignController extends Controller
         // Mantener DPI 96: px del diseño están calibrados al ticket en mm.
         // Subir DPI encoge los elementos en px respecto al format-box y destroza el layout.
         $options->set('dpi', (int) config('pdf_optimization.dpi', 96));
+        // Por defecto DomPDF usa ~1.1 y el interlineado queda más alto que en el editor.
+        $options->set(
+            'fontHeightRatio',
+            (float) config('pdf_optimization.font_height_ratio', 1.0)
+        );
 
         $fontDir = $this->ensureDompdfFontDir();
 

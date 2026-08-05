@@ -39,17 +39,18 @@
     padding: 0 !important;
     border: 0 !important;
     background: transparent !important;
-    font-size: inherit !important;
+    /* En PDF no usar !important: syncHeadingLineMetricsForDomPdf pone el font-size de los spans */
+    font-size: inherit{{ !empty($designPdfFonts) ? '' : ' !important' }};
     font-weight: inherit !important;
-    line-height: 1.15 !important;
+    line-height: {{ !empty($designPdfFonts) ? '1' : '1.15' }} !important;
     /* No forzar color: inherit !important — anula color:#fff inline en DomPDF. */
 }
 
 .format-box p {
     margin: 0 !important;
     padding: 0 !important;
-    font-size: inherit !important;
-    line-height: 1.15 !important;
+    font-size: inherit{{ !empty($designPdfFonts) ? '' : ' !important' }};
+    line-height: {{ !empty($designPdfFonts) ? '1' : '1.15' }} !important;
 }
 
 .format-box strong,
@@ -133,6 +134,43 @@
 .format-box .elements.number * {
     line-height: 1.15 !important;
 }
+
+@if(!empty($designPdfFonts))
+{{-- DomPDF: métricas más altas que el navegador; acercar al editor.
+     Base 13.6px = 16 * 0.85 (scaleFontSizesForDomPdf).
+     NO forzar font-size:1px en h/p: oculta texto sin font-size en los spans (p.ej. fecha). --}}
+.format-box {
+    font-size: 13.6px;
+    line-height: 1;
+}
+.format-box h1,
+.format-box h2,
+.format-box h3,
+.format-box h4,
+.format-box h5,
+.format-box h6,
+.format-box .h1,
+.format-box .h2,
+.format-box .h3,
+.format-box .h4,
+.format-box .h5,
+.format-box .h6,
+.format-box p {
+    line-height: 1 !important;
+}
+.format-box .elements.text,
+.format-box .elements.reference,
+.format-box .elements.participation,
+.format-box .elements.number {
+    line-height: 1;
+}
+.format-box .elements.text *,
+.format-box .elements.reference *,
+.format-box .elements.participation *,
+.format-box .elements.number * {
+    line-height: 1 !important;
+}
+@endif
 
 .format-box .elements.qr {
     padding: 0 !important;

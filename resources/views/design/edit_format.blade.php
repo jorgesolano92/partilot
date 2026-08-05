@@ -2652,8 +2652,9 @@ $(document).ready(function() {
         e.preventDefault();
         var $wrap = $('#containment-wrapper' + step);
         if (!$wrap.length) return;
-        $wrap.find('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini')
+        $wrap.find('.elements.participation, .elements.reference, .elements.qr')
           .addClass('element-critical');
+        $wrap.find('.elements.number, .elements.mini').removeClass('element-critical');
         markCriticalDesignElements($wrap);
         var $removable = $wrap.find('.elements').not('.element-critical');
         var count = $removable.length;
@@ -2663,7 +2664,7 @@ $(document).ready(function() {
         }
         if (!confirm(
           'Se eliminarán ' + count + ' campo(s) de ejemplo de este paso.\n\n' +
-          'Se conservan los obligatorios (número, participación, referencia, QR, taco/participaciones en portada, etc.).\n' +
+          'Se conservan los obligatorios (nº participación, referencia, QR; en portada taco/participaciones).\n' +
           'Puedes deshacer con el botón Deshacer.\n\n¿Continuar?'
         )) return;
         $removable.remove();
@@ -3072,7 +3073,9 @@ function markCoverCriticalElements($root) {
 
 function markCriticalDesignElements($root) {
     var $scope = $root && $root.length ? $root : $('#containment-wrapper' + step);
-    $scope.find('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini')
+    // Obligatorios: nº participación (x2), referencia y QR. El nº de lotería (number/mini) es opcional.
+    $scope.find('.elements.number, .elements.mini').removeClass('element-critical');
+    $scope.find('.elements.participation, .elements.reference, .elements.qr')
         .addClass('element-critical');
     if (step === 3 || ($scope.attr('id') === 'containment-wrapper3')) {
         markCoverCriticalElements($scope);
@@ -3203,7 +3206,8 @@ function reapplyElementEvents() {
         updateUndoRedoButtons();
       }
     });
-    $('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini').addClass('element-critical');
+    $('.elements.participation, .elements.reference, .elements.qr').addClass('element-critical');
+    $('.elements.number, .elements.mini').removeClass('element-critical');
     markCriticalDesignElements($('#containment-wrapper' + step));
     
     // Vincular eventos de los botones edit-btn (con prevención de propagación)

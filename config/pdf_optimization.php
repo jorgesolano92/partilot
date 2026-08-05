@@ -40,6 +40,9 @@ return [
     // DPI DomPDF: debe ser 96 (px del diseño ↔ ticket en mm).
     'dpi' => 96,
 
+    // Ratio de altura de fuente DomPDF (default librería ~1.1 → más line-height que el editor).
+    'font_height_ratio' => (float) env('PDF_FONT_HEIGHT_RATIO', 1.0),
+
     // Subsetting reduce mucho el peso cuando hay muchas páginas.
     'font_subsetting' => env('PDF_FONT_SUBSETTING', true),
 
