@@ -105,6 +105,9 @@
     .elements.element-critical.qr {
         z-index: 10001 !important;
     }
+    .elements.element-critical.context.cover-taco-label {
+        z-index: 10001 !important;
+    }
     .qr span {
         width: 100%;
         height: 100%;
@@ -1578,6 +1581,9 @@ function showStep(newStep) {
     if (newStep === 2 && typeof applyDigitalFormatBoxStep2 === 'function') {
         applyDigitalFormatBoxStep2();
     }
+    if (newStep === 3 && typeof ensurePortadaQrPlaceholder === 'function') {
+        ensurePortadaQrPlaceholder();
+    }
     // Tarea 8: aplicar reescalado pendiente al entrar en paso 2 (participación)
     if (newStep === 2 && pendingRescale && $('#step-2 .format-box .elements').length > 0) {
         var $box = $('#step-2 .format-box');
@@ -1731,6 +1737,10 @@ $('#bar-modal-bg, #bar-modal-border-width, #bar-modal-border-color').on('input c
 });
 $('#bar-modal-delete').off('click').on('click', function() {
   if (!barModalElement || !barModalElement.length) return;
+  if (barModalElement.hasClass('element-critical') || elementHasCoverMandatoryToken(barModalElement)) {
+    alert('Este elemento es obligatorio y no se puede eliminar.');
+    return;
+  }
   if (!confirm('¿Eliminar esta barra?')) return;
   barModalElement.remove();
   barModalElement = null;
@@ -2644,6 +2654,7 @@ $(document).ready(function() {
         if (!$wrap.length) return;
         $wrap.find('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini')
           .addClass('element-critical');
+        markCriticalDesignElements($wrap);
         var $removable = $wrap.find('.elements').not('.element-critical');
         var count = $removable.length;
         if (count === 0) {
@@ -2652,7 +2663,7 @@ $(document).ready(function() {
         }
         if (!confirm(
           'Se eliminarán ' + count + ' campo(s) de ejemplo de este paso.\n\n' +
-          'Se conservan los obligatorios (número, participación, referencia, QR, etc.).\n' +
+          'Se conservan los obligatorios (número, participación, referencia, QR, taco/participaciones en portada, etc.).\n' +
           'Puedes deshacer con el botón Deshacer.\n\n¿Continuar?'
         )) return;
         $removable.remove();
@@ -2724,7 +2735,8 @@ $(document).ready(function() {
     });
     $('.add-bottom').off('click').on('click', function (e) {
         e.preventDefault();
-        $('#containment-wrapper'+step).append(`<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">@{{taco_label}}</span></div>`);
+        var criticalClass = (step === 3) ? ' element-critical cover-taco-label' : '';
+        $('#containment-wrapper'+step).append(`<div class="elements context${criticalClass}" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">@{{taco_label}}</span></div>`);
         reapplyElementEvents();
         saveHistoryState();
         updateUndoRedoButtons();
@@ -3031,6 +3043,93 @@ $(document).ready(function() {
     });
 });
 
+function coverMandatoryTokens() {
+    return ['taco_label', 'taco_number', 'taco_total', 'participation_from', 'participation_to', '__TACO_LABEL__', '%%TACO_LABEL%%'];
+}
+
+function elementHasCoverMandatoryToken($el) {
+    if (!$el || !$el.length) return false;
+    if ($el.hasClass('cover-taco-qr') || $el.hasClass('cover-taco-label') || $el.hasClass('qr')) return true;
+    var haystack = ($el.html() || '') + ' ' + ($el.text() || '');
+    var tokens = coverMandatoryTokens();
+    for (var i = 0; i < tokens.length; i++) {
+        if (haystack.indexOf(tokens[i]) !== -1) return true;
+    }
+    return /\{\{\s*taco[_\-\s]*(label|number|total)\s*\}\}/i.test(haystack)
+        || /\{\{\s*participation_(from|to)\s*\}\}/i.test(haystack);
+}
+
+function markCoverCriticalElements($root) {
+    var $scope = ($root && $root.length) ? $root : $('#containment-wrapper3');
+    if (!$scope.length) return;
+    $scope.find('.elements.qr, .elements.cover-taco-qr, .elements.cover-taco-label').addClass('element-critical');
+    $scope.find('.elements').each(function() {
+        if (elementHasCoverMandatoryToken($(this))) {
+            $(this).addClass('element-critical');
+        }
+    });
+}
+
+function markCriticalDesignElements($root) {
+    var $scope = $root && $root.length ? $root : $('#containment-wrapper' + step);
+    $scope.find('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini')
+        .addClass('element-critical');
+    if (step === 3 || ($scope.attr('id') === 'containment-wrapper3')) {
+        markCoverCriticalElements($scope);
+    }
+}
+
+function ensurePortadaQrPlaceholder() {
+    var $wrap = $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    if ($wrap.find('.elements.qr').length === 0) {
+        var qrMinPx = Math.ceil(9 * 96 / 25.4);
+        var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:'+qrMinPx+'px;height:'+qrMinPx+'px;min-width:'+qrMinPx+'px;min-height:'+qrMinPx+'px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
+        $wrap.append(qrHtml);
+    }
+
+    ensurePortadaTacoLabelBar($wrap);
+}
+
+function ensurePortadaTacoLabelBar($wrap) {
+    $wrap = $wrap && $wrap.length ? $wrap : $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    var labelToken = '{' + '{taco_label}' + '}';
+    var $ctx = $wrap.find('.elements.context');
+    var $withLabel = $ctx.filter(function() {
+        var html = ($(this).html() || '');
+        return html.indexOf(labelToken) !== -1 || html.indexOf('__TACO_LABEL__') !== -1;
+    });
+    if ($withLabel.length) {
+        $withLabel.addClass('element-critical cover-taco-label');
+        markCoverCriticalElements($wrap);
+        return;
+    }
+
+    var $emptyBottom = $ctx.filter(function() {
+        var text = $.trim($(this).find('span').first().text());
+        var style = ($(this).attr('style') || '');
+        return text === '' && (/bottom\s*:/i.test(style) || /inset\s*:/i.test(style));
+    }).first();
+
+    if ($emptyBottom.length) {
+        $emptyBottom.addClass('element-critical cover-taco-label');
+        $emptyBottom.find('span').first()
+            .attr('style', 'padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;')
+            .text(labelToken);
+        markCoverCriticalElements($wrap);
+        return;
+    }
+
+    $wrap.append(
+        '<div class="elements element-critical context cover-taco-label" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;">'
+        + '<span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">' + labelToken + '</span></div>'
+    );
+    markCoverCriticalElements($wrap);
+}
+
 function clearStaleTextPlaceholders($root) {
     var $scope = $root && $root.length ? $root : $(document);
     $scope.find('.elements.text.text-placeholder-new').each(function() {
@@ -3105,6 +3204,7 @@ function reapplyElementEvents() {
       }
     });
     $('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini').addClass('element-critical');
+    markCriticalDesignElements($('#containment-wrapper' + step));
     
     // Vincular eventos de los botones edit-btn (con prevención de propagación)
     $('.elements.text .edit-btn').off('click', editelements).on('click', function(e) {

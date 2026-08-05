@@ -217,6 +217,9 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
     .elements.element-critical.qr {
         z-index: 10001 !important;
     }
+    .elements.element-critical.context.cover-taco-label {
+        z-index: 10001 !important;
+    }
     /* Área de arrastre: span del QR y primer span de texto ocupan el elemento para handle: 'span' */
     .elements.qr > span {
         display: block;
@@ -849,7 +852,7 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             <div class="elements text ui-draggable" style="padding: 10px; width: 351px; height: 93px; resize: both; overflow: hidden; position: absolute; top: 59.8295px; left: 378.71px;">
                                                 <span class="ui-draggable-handle"><h4><span style="color:hsl(0,0%,0%);" class="ui-draggable-handle"><u>&nbsp; Nombre: &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</u></span></h4></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-                                            </div><div class="elements context ui-draggable" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; inset: 294.67px 0px 20px 2.83209px; margin: auto; background-color: rgb(223, 223, 223); border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;" class="ui-draggable-handle">@{{taco_label}}</span></div><div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 49.7045px; left: 25.7074px; width: 90px; height: 36px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 280px; height: 87px; resize: both; overflow: hidden; position: absolute; top: 29.4034px; left: 106.426px;">
+                                            </div><div class="elements element-critical context cover-taco-label ui-draggable" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; inset: 294.67px 0px 20px 2.83209px; margin: auto; background-color: rgb(223, 223, 223); border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;" class="ui-draggable-handle">@{{taco_label}}</span></div><div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 49.7045px; left: 25.7074px; width: 90px; height: 36px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 280px; height: 87px; resize: both; overflow: hidden; position: absolute; top: 29.4034px; left: 106.426px;">
                                                 <span class="ui-draggable-handle"><h1><span style="font-size:38px;" class="ui-draggable-handle"><strong>PARTI</strong></span><span style="color:hsl(36,100%,48%);font-size:38px;" class="ui-draggable-handle"><strong>LOT</strong></span></h1></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 257px; height: 165px; resize: both; overflow: hidden; position: absolute; top: 107.724px; left: 24.7074px;">
@@ -2905,10 +2908,40 @@ $('#format').change(function (e) {
       updateUndoRedoButtons();
   });
 
+  function coverMandatoryTokens() {
+    return ['taco_label', 'taco_number', 'taco_total', 'participation_from', 'participation_to', '__TACO_LABEL__', '%%TACO_LABEL%%'];
+  }
+
+  function elementHasCoverMandatoryToken($el) {
+    if (!$el || !$el.length) return false;
+    if ($el.hasClass('cover-taco-qr') || $el.hasClass('cover-taco-label') || $el.hasClass('qr')) return true;
+    var haystack = ($el.html() || '') + ' ' + ($el.text() || '');
+    var tokens = coverMandatoryTokens();
+    for (var i = 0; i < tokens.length; i++) {
+      if (haystack.indexOf(tokens[i]) !== -1) return true;
+    }
+    return /\{\{\s*taco[_\-\s]*(label|number|total)\s*\}\}/i.test(haystack)
+      || /\{\{\s*participation_(from|to)\s*\}\}/i.test(haystack);
+  }
+
+  function markCoverCriticalElements($root) {
+    var $scope = ($root && $root.length) ? $root : $('#containment-wrapper3');
+    if (!$scope.length) return;
+    $scope.find('.elements.qr, .elements.cover-taco-qr, .elements.cover-taco-label').addClass('element-critical');
+    $scope.find('.elements').each(function() {
+      if (elementHasCoverMandatoryToken($(this))) {
+        $(this).addClass('element-critical');
+      }
+    });
+  }
+
   function markCriticalDesignElements($root) {
     var $scope = $root && $root.length ? $root : $('#containment-wrapper' + step);
     $scope.find('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini')
       .addClass('element-critical');
+    if (step === 3 || ($scope.attr('id') === 'containment-wrapper3')) {
+      markCoverCriticalElements($scope);
+    }
   }
 
   $(document).off('click.resetMandatory', '.reset-mandatory-canvas').on('click.resetMandatory', '.reset-mandatory-canvas', function (e) {
@@ -2928,7 +2961,7 @@ $('#format').change(function (e) {
 
       if (!confirm(
         'Se eliminarán ' + count + ' campo(s) de ejemplo de este paso.\n\n' +
-        'Se conservan los obligatorios (número, participación, referencia, QR, etc.).\n' +
+        'Se conservan los obligatorios (número, participación, referencia, QR, taco/participaciones en portada, etc.).\n' +
         'Puedes deshacer con el botón Deshacer.\n\n¿Continuar?'
       )) {
         return;
@@ -3062,7 +3095,8 @@ $('#format').change(function (e) {
   $('.add-bottom').click(function (e) {
       e.preventDefault();
 
-      $('#containment-wrapper'+step).append(`<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">@{{taco_label}}</span></div>`);
+      var criticalClass = (step === 3) ? ' element-critical cover-taco-label' : '';
+      $('#containment-wrapper'+step).append(`<div class="elements context${criticalClass}" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">@{{taco_label}}</span></div>`);
 
       addEventsElement();
 
@@ -3133,6 +3167,10 @@ $('#format').change(function (e) {
   });
   $('#bar-modal-delete').off('click').on('click', function() {
     if (!barModalElement || !barModalElement.length) return;
+    if (barModalElement.hasClass('element-critical') || elementHasCoverMandatoryToken(barModalElement)) {
+      alert('Este elemento es obligatorio y no se puede eliminar.');
+      return;
+    }
     if (!confirm('¿Eliminar esta barra?')) return;
     barModalElement.remove();
     barModalElement = null;
@@ -4098,7 +4136,11 @@ $('#format').change(function (e) {
       var html = ($(this).html() || '');
       return html.indexOf(labelToken) !== -1 || html.indexOf('__TACO_LABEL__') !== -1;
     });
-    if ($withLabel.length) return;
+    if ($withLabel.length) {
+      $withLabel.addClass('element-critical cover-taco-label');
+      markCoverCriticalElements($wrap);
+      return;
+    }
 
     var $emptyBottom = $ctx.filter(function() {
       var text = $.trim($(this).find('span').first().text());
@@ -4107,16 +4149,19 @@ $('#format').change(function (e) {
     }).first();
 
     if ($emptyBottom.length) {
+      $emptyBottom.addClass('element-critical cover-taco-label');
       $emptyBottom.find('span').first()
         .attr('style', 'padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;')
         .text(labelToken);
+      markCoverCriticalElements($wrap);
       return;
     }
 
     $wrap.append(
-      '<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;">'
+      '<div class="elements element-critical context cover-taco-label" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;">'
       + '<span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">' + labelToken + '</span></div>'
     );
+    markCoverCriticalElements($wrap);
   }
 
   function bindDesignToolbarActions() {
