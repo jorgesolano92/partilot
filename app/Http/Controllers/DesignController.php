@@ -3604,6 +3604,15 @@ class DesignController extends Controller
         );
         if (count($docRanges) > 1 || config('pdf_optimization.use_stamp_template', false)) {
             $jobId = 'pdf_sync_part_'.$id.'_'.$from.'_'.$to.'_'.uniqid('', true);
+            $requestedName = $request->query('download_name', $request->input('download_name'));
+            if (! is_string($requestedName) || trim($requestedName) === '') {
+                $requestedName = $request->query('download_filename', $request->input('download_filename'));
+            }
+            $fileBaseName = $this->exportDownloadBasename(
+                $design,
+                'participaciones',
+                is_string($requestedName) ? $requestedName : null
+            );
             try {
                 $artifact = $this->writeParticipationExportArtifact(
                     $design,
@@ -3611,7 +3620,8 @@ class DesignController extends Controller
                     $to,
                     $jobId,
                     $docsOpts['documents_mode'],
-                    $docsOpts['pages_per_document']
+                    $docsOpts['pages_per_document'],
+                    $fileBaseName
                 );
                 $this->cleanupTempQrCodes();
                 app(DesignApprovalService::class)->markParticipationExportLock($design);
@@ -6639,19 +6649,15 @@ class DesignController extends Controller
             $notifyEmail,
             $designId
         ) {
+            $fileBaseName = $this->exportDownloadBasename($design, 'participaciones', $requestedName);
             $artifact = $this->writeParticipationExportArtifact(
                 $design,
                 $from,
                 $to,
                 $job_id,
                 $docsOpts['documents_mode'],
-                $docsOpts['pages_per_document']
-            );
-            $artifact['download_name'] = $this->buildExportDownloadName(
-                $design,
-                'participaciones',
-                (bool) ($artifact['is_zip'] ?? false),
-                $requestedName
+                $docsOpts['pages_per_document'],
+                $fileBaseName
             );
 
             clearstatcache(true, $artifact['path']);
@@ -6741,6 +6747,19 @@ class DesignController extends Controller
         bool $isZip = false,
         ?string $requested = null
     ): string {
+        $base = $this->exportDownloadBasename($design, $kindSuffix, $requested);
+
+        return $base.($isZip ? '.zip' : '.pdf');
+    }
+
+    /**
+     * Base del nombre de descarga (sin extensión), usado también para los PDF dentro del ZIP.
+     */
+    private function exportDownloadBasename(
+        DesignFormat $design,
+        string $kindSuffix,
+        ?string $requested = null
+    ): string {
         $base = is_string($requested) ? trim($requested) : '';
         if ($base === '') {
             $designLabel = trim((string) ($design->design_name ?? ''));
@@ -6756,7 +6775,19 @@ class DesignController extends Controller
             $base = 'diseno-'.$design->id.'-'.$kindSuffix;
         }
 
-        return $base.($isZip ? '.zip' : '.pdf');
+        return $base;
+    }
+
+    /** Nombre de cada PDF dentro del ZIP: "{base} 1.pdf", "{base} 2.pdf", … */
+    private function exportZipPartFileName(string $baseName, int $partIndex): string
+    {
+        $base = preg_replace('/\.(pdf|zip)$/i', '', $baseName) ?? $baseName;
+        $base = $this->sanitizeExportDownloadBasename($base);
+        if ($base === '') {
+            $base = 'documento';
+        }
+
+        return $base.' '.$partIndex.'.pdf';
     }
 
     private function sanitizeExportDownloadBasename(string $name): string
@@ -6848,7 +6879,8 @@ class DesignController extends Controller
         int $to,
         string $jobId,
         ?string $documentsMode = null,
-        ?int $pagesPerDocument = null
+        ?int $pagesPerDocument = null,
+        ?string $fileBaseName = null
     ): array {
         $ranges = $this->participationPdfDocumentRanges(
             $design,
@@ -6867,6 +6899,14 @@ class DesignController extends Controller
         }
 
         $designId = (int) $design->id;
+        $baseName = $fileBaseName !== null && trim($fileBaseName) !== ''
+            ? $this->sanitizeExportDownloadBasename(
+                preg_replace('/\.(pdf|zip)$/i', '', trim($fileBaseName)) ?? trim($fileBaseName)
+            )
+            : $this->exportDownloadBasename($design, 'participaciones');
+        if ($baseName === '') {
+            $baseName = 'participacion-diseno-'.$designId;
+        }
 
         if (count($ranges) === 1) {
             $path = $dir.DIRECTORY_SEPARATOR.$jobId.'.pdf';
@@ -6874,7 +6914,7 @@ class DesignController extends Controller
 
             return [
                 'path' => $path,
-                'download_name' => 'participacion-diseno-'.$designId.'.pdf',
+                'download_name' => $baseName.'.pdf',
                 'is_zip' => false,
             ];
         }
@@ -6886,28 +6926,14 @@ class DesignController extends Controller
         try {
             foreach ($ranges as $i => [$rangeFrom, $rangeTo]) {
                 $partIndex = $i + 1;
-                $partName = sprintf('participacion-diseno-%d-parte-%02d.pdf', $designId, $partIndex);
+                $partName = $this->exportZipPartFileName($baseName, $partIndex);
                 $partPath = $dir.DIRECTORY_SEPARATOR.$jobId.'_part_'.$partIndex.'.pdf';
                 $this->writeParticipationPdfToFile($design, $rangeFrom, $rangeTo, $partPath);
                 $tempParts[] = $partPath;
                 $zipEntries[$partName] = $partPath;
             }
 
-            if (class_exists(\ZipArchive::class)) {
-                $zip = new \ZipArchive();
-                if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-                    throw new \RuntimeException('No se pudo crear el archivo ZIP.');
-                }
-                foreach ($zipEntries as $partName => $partPath) {
-                    if (! $zip->addFile($partPath, $partName)) {
-                        $zip->close();
-                        throw new \RuntimeException('No se pudo añadir '.$partName.' al ZIP.');
-                    }
-                }
-                $zip->close();
-            } else {
-                \App\Support\SimpleZipStore::create($zipPath, $zipEntries);
-            }
+            $this->storePdfPartsZip($zipPath, $zipEntries);
         } catch (\Throwable $e) {
             foreach ($tempParts as $partPath) {
                 @unlink($partPath);
@@ -6922,7 +6948,7 @@ class DesignController extends Controller
 
         return [
             'path' => $zipPath,
-            'download_name' => 'participacion-diseno-'.$designId.'.zip',
+            'download_name' => $baseName.'.zip',
             'is_zip' => true,
         ];
     }
@@ -6934,7 +6960,8 @@ class DesignController extends Controller
         DesignFormat $design,
         string $jobId,
         string $documentsMode = '1',
-        int $pagesPerDocument = 150
+        int $pagesPerDocument = 150,
+        ?string $fileBaseName = null
     ): array {
         $designId = (int) $design->id;
         $rows = max(1, (int) ($design->rows ?? 1));
@@ -6950,13 +6977,22 @@ class DesignController extends Controller
             mkdir($dir, 0755, true);
         }
 
+        $baseName = $fileBaseName !== null && trim($fileBaseName) !== ''
+            ? $this->sanitizeExportDownloadBasename(
+                preg_replace('/\.(pdf|zip)$/i', '', trim($fileBaseName)) ?? trim($fileBaseName)
+            )
+            : $this->exportDownloadBasename($design, 'portadas');
+        if ($baseName === '') {
+            $baseName = 'portadas-diseno-'.$designId;
+        }
+
         if ($documentsMode !== '2' || $totalItems <= $itemsPerDoc) {
             $path = $dir.DIRECTORY_SEPARATOR.$jobId.'.pdf';
             $this->writeCoverPdfToFile($design, $path);
 
             return [
                 'path' => $path,
-                'download_name' => 'portadas-diseno-'.$designId.'.pdf',
+                'download_name' => $baseName.'.pdf',
                 'is_zip' => false,
             ];
         }
@@ -6970,7 +7006,7 @@ class DesignController extends Controller
             for ($start = 1; $start <= $totalItems; $start += $itemsPerDoc) {
                 $partIndex++;
                 $end = min($totalItems, $start + $itemsPerDoc - 1);
-                $partName = sprintf('portadas-diseno-%d-parte-%02d.pdf', $designId, $partIndex);
+                $partName = $this->exportZipPartFileName($baseName, $partIndex);
                 $partPath = $dir.DIRECTORY_SEPARATOR.$jobId.'_part_'.$partIndex.'.pdf';
                 $this->writeCoverPdfToFile($design, $partPath, $start, $end);
                 $tempParts[] = $partPath;
@@ -6991,7 +7027,7 @@ class DesignController extends Controller
 
         return [
             'path' => $zipPath,
-            'download_name' => 'portadas-diseno-'.$designId.'.zip',
+            'download_name' => $baseName.'.zip',
             'is_zip' => true,
         ];
     }
@@ -7005,7 +7041,8 @@ class DesignController extends Controller
         string $copies = 'all',
         ?int $exactCount = null,
         string $documentsMode = '1',
-        int $pagesPerDocument = 150
+        int $pagesPerDocument = 150,
+        ?string $fileBaseName = null
     ): array {
         $designId = (int) $design->id;
         $rows = max(1, (int) ($design->rows ?? 1));
@@ -7034,13 +7071,22 @@ class DesignController extends Controller
             mkdir($dir, 0755, true);
         }
 
+        $baseName = $fileBaseName !== null && trim($fileBaseName) !== ''
+            ? $this->sanitizeExportDownloadBasename(
+                preg_replace('/\.(pdf|zip)$/i', '', trim($fileBaseName)) ?? trim($fileBaseName)
+            )
+            : $this->exportDownloadBasename($design, 'traseras');
+        if ($baseName === '') {
+            $baseName = 'traseras-diseno-'.$designId;
+        }
+
         if ($documentsMode !== '2' || $total <= $itemsPerDoc) {
             $path = $dir.DIRECTORY_SEPARATOR.$jobId.'.pdf';
             $this->writeBackPdfToFile($design, $path, $copies, $total);
 
             return [
                 'path' => $path,
-                'download_name' => 'traseras-diseno-'.$designId.'.pdf',
+                'download_name' => $baseName.'.pdf',
                 'is_zip' => false,
             ];
         }
@@ -7054,7 +7100,7 @@ class DesignController extends Controller
             for ($start = 0; $start < $total; $start += $itemsPerDoc) {
                 $partIndex++;
                 $chunk = min($itemsPerDoc, $total - $start);
-                $partName = sprintf('traseras-diseno-%d-parte-%02d.pdf', $designId, $partIndex);
+                $partName = $this->exportZipPartFileName($baseName, $partIndex);
                 $partPath = $dir.DIRECTORY_SEPARATOR.$jobId.'_part_'.$partIndex.'.pdf';
                 $this->writeBackPdfToFile($design, $partPath, 'all', $chunk);
                 $tempParts[] = $partPath;
@@ -7075,7 +7121,7 @@ class DesignController extends Controller
 
         return [
             'path' => $zipPath,
-            'download_name' => 'traseras-diseno-'.$designId.'.zip',
+            'download_name' => $baseName.'.zip',
             'is_zip' => true,
         ];
     }
@@ -7630,17 +7676,13 @@ class DesignController extends Controller
             $notifyEmail,
             $designId
         ) {
+            $fileBaseName = $this->exportDownloadBasename($design, 'portadas', $requestedName);
             $artifact = $this->writeCoverExportArtifact(
                 $design,
                 $job_id,
                 $docsOpts['documents_mode'],
-                $docsOpts['pages_per_document']
-            );
-            $artifact['download_name'] = $this->buildExportDownloadName(
-                $design,
-                'portadas',
-                (bool) ($artifact['is_zip'] ?? false),
-                $requestedName
+                $docsOpts['pages_per_document'],
+                $fileBaseName
             );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
@@ -7692,19 +7734,15 @@ class DesignController extends Controller
             $notifyEmail,
             $designId
         ) {
+            $fileBaseName = $this->exportDownloadBasename($design, 'traseras', $requestedName);
             $artifact = $this->writeBackExportArtifact(
                 $design,
                 $job_id,
                 $copies,
                 $exactCount,
                 $docsOpts['documents_mode'],
-                $docsOpts['pages_per_document']
-            );
-            $artifact['download_name'] = $this->buildExportDownloadName(
-                $design,
-                'traseras',
-                (bool) ($artifact['is_zip'] ?? false),
-                $requestedName
+                $docsOpts['pages_per_document'],
+                $fileBaseName
             );
 
             \App\Support\GeneratedPdfCatalog::writeMeta(
