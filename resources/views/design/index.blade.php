@@ -156,12 +156,12 @@
                                         <label class="badge bg-success rounded-pill" style="cursor: pointer;">Impresión enviada</label>
                                     @elseif(!empty($printLockCtx['locked']))
                                         <label class="badge bg-info text-dark rounded-pill" style="cursor: pointer;">En imprenta</label>
+                                    @elseif(!empty($approvalCtx['export_locked']))
+                                        <label class="badge bg-secondary rounded-pill" style="cursor: pointer;">PDF descargado</label>
                                     @elseif(!empty($approvalCtx['requires_approval']) && $approvalStatus === 'approved')
                                         <label class="badge bg-info text-dark rounded-pill" style="cursor: pointer;">{{ $approvalCtx['label'] }}</label>
                                     @elseif(!empty($approvalCtx['requires_approval']) && in_array($approvalStatus, ['pending_approval', 'rejected', 'draft'], true))
                                         <label class="badge bg-warning text-dark rounded-pill" style="cursor: pointer;">{{ $approvalCtx['label'] }}</label>
-                                    @elseif(!empty($approvalCtx['export_locked']))
-                                        <label class="badge bg-secondary rounded-pill" style="cursor: pointer;">PDF descargado</label>
                                     @elseif($showOperationalLock)
                                         <label class="badge bg-secondary rounded-pill" style="cursor: pointer;">Bloqueado</label>
                                     @elseif($entityViewer && empty($approvalCtx['can_edit']))
