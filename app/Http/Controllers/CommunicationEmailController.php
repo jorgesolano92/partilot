@@ -23,6 +23,12 @@ class CommunicationEmailController extends Controller
             $accessibleEntityIds = auth()->user()->accessibleEntityIds();
 
             $logs = $logs->filter(function (EmailCommunicationLog $log) use ($accessibleEntityIds) {
+                // Las entidades no deben ver comunicaciones enviadas por superadmin.
+                // (Ej. "gestor responsable confirmado", que llega como gestor-entidad.)
+                if (auth()->user()?->isEntity() && !auth()->user()?->isAdministration() && (string) $log->sender_type === 'superadmin') {
+                    return false;
+                }
+
                 return $this->userCanAccessLog($log, $accessibleEntityIds);
             })->values();
         }

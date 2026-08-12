@@ -68,7 +68,7 @@
                                                 <span class="visually-hidden">{{ $log->messageTypeKey() }}</span>
                                             @endif
                                         </td>
-                                        <td>{{ $log->sender_type }}</td>
+                                        <td>{{ $log->senderTypeLabel() }}</td>
                                         <td>
                                             @if($log->mail_class)
                                                 <a href="#" class="view-email-log text-dark text-decoration-underline" data-log-id="{{ $log->id }}">{{ $log->recipient_email }}</a>
@@ -76,7 +76,7 @@
                                                 {{ $log->recipient_email }}
                                             @endif
                                         </td>
-                                        <td>{{ $log->recipient_role ?? '-' }}</td>
+                                        <td>{{ $log->recipientRoleLabel() }}</td>
                                         <td><span class="badge {{ $log->displayStatusBadgeClass() }}">{{ $log->displayStatus() }}</span></td>
                                         <td>{{ $dateText }}</td>
                                         <td class="no-click" style="cursor: default; white-space: nowrap;">

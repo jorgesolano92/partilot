@@ -83,6 +83,44 @@ class EmailCommunicationLog extends Model
         return CommunicationEmailTypeLabel::label($this->message_type, $this->template_key);
     }
 
+    public function senderTypeLabel(): string
+    {
+        $value = trim((string) ($this->sender_type ?? ''));
+        if ($value === '') {
+            return '—';
+        }
+
+        return match ($value) {
+            'superadmin' => 'Superadmin',
+            'administration' => 'Administración',
+            'administracion' => 'Administración',
+            'entity' => 'Entidad',
+            'entidad' => 'Entidad',
+            default => ucfirst(str_replace('_', ' ', $value)),
+        };
+    }
+
+    public function recipientRoleLabel(): string
+    {
+        $value = trim((string) ($this->recipient_role ?? ''));
+        if ($value === '') {
+            return '—';
+        }
+
+        return match ($value) {
+            'gestor_entidad' => 'Gestor Entidad',
+            'gestor_administracion' => 'Gestor Administración',
+            'entity' => 'Entidad',
+            'entidad' => 'Entidad',
+            'manager' => 'Gestor',
+            'usuario' => 'Usuario',
+            'vendedor' => 'Vendedor',
+            'diseñador_externo' => 'Diseñador Externo',
+            'diseñador_externo ' => 'Diseñador Externo',
+            default => ucfirst(str_replace('_', ' ', $value)),
+        };
+    }
+
     public function messageTypeKey(): ?string
     {
         $key = trim((string) ($this->message_type ?: $this->template_key));
