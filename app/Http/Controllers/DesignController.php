@@ -8704,35 +8704,38 @@ class DesignController extends Controller
         $order->loadMissing(['set.entity', 'design']);
         $design ??= $order->design;
         $set = $order->set;
-        if (! $set) {
-            return false;
+
+        if ($set) {
+            $feeService = app(ManagementFeeService::class);
+            if ($design) {
+                $feeService->ensureSnapshot($set, $design);
+                $set->refresh();
+            }
+
+            if ($feeService->blocksPrintShopUntilEntityPaysManagementFee($set)) {
+                $designForNotify = $design ?? DesignFormat::query()
+                    ->where('set_id', $set->id)
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($designForNotify) {
+                    $this->notifyEntityManagementFeePaymentRequired($designForNotify);
+                }
+
+                $this->insertPrintOrderAuditRow(
+                    printOrder: $order,
+                    action: 'held_for_entity_management_fee',
+                    message: 'Orden retenida: la imprenta no la verá hasta que la entidad pague la cuota de gestión PARTILOT.',
+                    userId: auth()->id()
+                );
+            }
         }
 
-        $feeService = app(ManagementFeeService::class);
-        if ($design) {
-            $feeService->ensureSnapshot($set, $design);
-            $set->refresh();
+        try {
+            app(CommunicationEmailService::class)->sendPrintOrderCreatedToPrintShop($order->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo avisar a la imprenta del pedido '.$order->id.': '.$e->getMessage());
         }
-
-        if (! $feeService->blocksPrintShopUntilEntityPaysManagementFee($set)) {
-            return false;
-        }
-
-        $designForNotify = $design ?? DesignFormat::query()
-            ->where('set_id', $set->id)
-            ->orderByDesc('id')
-            ->first();
-
-        if ($designForNotify) {
-            $this->notifyEntityManagementFeePaymentRequired($designForNotify);
-        }
-
-        $this->insertPrintOrderAuditRow(
-            printOrder: $order,
-            action: 'held_for_entity_management_fee',
-            message: 'Orden retenida: la imprenta no la verá hasta que la entidad pague la cuota de gestión PARTILOT.',
-            userId: auth()->id()
-        );
 
         return true;
     }

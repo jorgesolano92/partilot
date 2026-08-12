@@ -6,7 +6,6 @@ use App\Models\Administration;
 use App\Models\PrintConfiguration;
 use App\Models\User;
 use App\Support\PanelPassword;
-use Illuminate\Support\Facades\Hash;
 
 class PrintShopPanelUserService
 {
@@ -26,8 +25,10 @@ class PrintShopPanelUserService
 
     /**
      * Crea o actualiza la cuenta panel de la imprenta (solo debe existir una).
+     *
+     * @return array{user: User, plain_password: ?string}
      */
-    public function upsertPanelUser(PrintConfiguration $config, array $input): User
+    public function upsertPanelUser(PrintConfiguration $config, array $input): array
     {
         $email = trim((string) ($input['panel_email'] ?? $config->email ?? ''));
         if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -45,6 +46,8 @@ class PrintShopPanelUserService
             $existing?->id
         );
 
+        $plainPassword = null;
+
         if ($existing) {
             $existing->fill([
                 'name' => $displayName,
@@ -56,26 +59,35 @@ class PrintShopPanelUserService
                 'status' => true,
             ]);
             if (! empty($input['panel_password'])) {
-                $existing->password = (string) $input['panel_password'];
+                $plainPassword = (string) $input['panel_password'];
+                $existing->password = $plainPassword;
             }
             $existing->save();
 
-            return $existing->fresh();
+            return [
+                'user' => $existing->fresh(),
+                'plain_password' => $plainPassword,
+            ];
         }
 
-        $password = ! empty($input['panel_password'])
+        $plainPassword = ! empty($input['panel_password'])
             ? (string) $input['panel_password']
             : PanelPassword::generate();
 
-        return User::create([
+        $user = User::create([
             'name' => $displayName,
             'email' => $email,
-            'password' => Hash::make($password),
+            'password' => $plainPassword,
             'role' => User::ROLE_PRINT_SHOP,
             'panel_account_type' => User::PANEL_ACCOUNT_PRINT_SHOP,
             'panel_account_id' => $config->id,
             'panel_login_username' => $username,
             'status' => true,
         ]);
+
+        return [
+            'user' => $user,
+            'plain_password' => $plainPassword,
+        ];
     }
 }

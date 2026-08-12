@@ -899,7 +899,9 @@ class ConfigurationController extends Controller
         unset($data['print_configuration_id']);
 
         try {
-            $user = app(\App\Services\PrintShopPanelUserService::class)->upsertPanelUser($config, $data);
+            $result = app(\App\Services\PrintShopPanelUserService::class)->upsertPanelUser($config, $data);
+            $user = $result['user'];
+            $plainPassword = $result['plain_password'] ?? null;
         } catch (\InvalidArgumentException $e) {
             return redirect()->route('configuration.index', [
                 'section' => 'imprenta',
@@ -907,10 +909,23 @@ class ConfigurationController extends Controller
             ])->with('error', $e->getMessage());
         }
 
+        try {
+            app(\App\Services\CommunicationEmailService::class)->sendPrintShopWelcome(
+                $config,
+                $user,
+                $plainPassword,
+            );
+        } catch (\Throwable $e) {
+            return redirect()->route('configuration.index', [
+                'section' => 'imprenta',
+                'print_config_id' => $config->id,
+            ])->with('warning', 'Acceso guardado, pero no se pudo enviar el correo de bienvenida: '.$e->getMessage());
+        }
+
         return redirect()->route('configuration.index', [
             'section' => 'imprenta',
             'print_config_id' => $config->id,
-        ])->with('success', 'Acceso al panel de imprenta actualizado. Usuario: '.($user->panel_login_username ?? '—'));
+        ])->with('success', 'Acceso al panel de imprenta actualizado y correo enviado a '.$user->email.'. Usuario: '.($user->panel_login_username ?? '—'));
     }
 
     public function updatePrintOrderStatus(Request $request, PrintOrder $printOrder)

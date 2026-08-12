@@ -466,7 +466,9 @@
         </div>
     </form>
     @if(!($printShopPanelUser ?? null))
-        <p class="form-text small mb-0 mt-2">Si no indicas contraseña, se generará una contraseña aleatoria segura (comunícala a la imprenta por un canal privado).</p>
+        <p class="form-text small mb-0 mt-2">Si no indicas contraseña, se generará una aleatoria y se enviará por correo a la imprenta junto con el enlace de acceso.</p>
+    @else
+        <p class="form-text small mb-0 mt-2">Al guardar se enviará un correo a la imprenta con el enlace de acceso. Si indicas una nueva contraseña, también se incluirá en el correo.</p>
     @endif
 </div>
 @endif

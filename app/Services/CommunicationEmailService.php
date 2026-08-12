@@ -482,6 +482,38 @@ class CommunicationEmailService
             return new \App\Mail\DesignApprovalPendingMail($design);
         }
 
+        if ($mailClass === \App\Mail\PrintShopWelcomeMail::class) {
+            $configId = (int) ($mailPayload['print_configuration_id'] ?? 0);
+            $userId = (int) ($mailPayload['user_id'] ?? 0);
+            $config = \App\Models\PrintConfiguration::findOrFail($configId);
+            $user = User::findOrFail($userId);
+            $plainPassword = (string) ($storedSecrets['plain_password'] ?? $mailPayload['plain_password'] ?? '');
+            $shouldRegeneratePassword = array_key_exists('plain_password', $mailPayload) || $storedSecrets !== [];
+            if ($plainPassword === '' && ! $forPreview && $shouldRegeneratePassword) {
+                $plainPassword = app(ProvisionalPasswordService::class)->assignToUser($user);
+            }
+            if ($plainPassword === '' && $forPreview && $shouldRegeneratePassword) {
+                $plainPassword = '[contraseña no disponible en el historial]';
+            }
+            $loginUrl = route('login', absolute: true);
+
+            return new \App\Mail\PrintShopWelcomeMail($config, $user, $plainPassword, $loginUrl);
+        }
+
+        if ($mailClass === \App\Mail\PrintOrderCreatedToPrintShopMail::class) {
+            $orderId = (int) ($mailPayload['print_order_id'] ?? 0);
+            $order = \App\Models\PrintOrder::with([
+                'entity',
+                'set',
+                'lottery',
+                'printConfiguration',
+            ])->findOrFail($orderId);
+            $heldForManagementFee = (bool) ($mailPayload['held_for_management_fee'] ?? false);
+            $panelUrl = route('print-shop.orders.show', $order, absolute: true);
+
+            return new \App\Mail\PrintOrderCreatedToPrintShopMail($order, $heldForManagementFee, $panelUrl);
+        }
+
         throw new \RuntimeException("mail_class no soportado para reenviar: {$mailClass}");
     }
 
@@ -513,6 +545,10 @@ class CommunicationEmailService
 
         if ($mailable instanceof \App\Mail\AdministrationWelcomeMail && $mailable->magicLinkUrl !== '') {
             $secrets['magic_link_url'] = $mailable->magicLinkUrl;
+        }
+
+        if ($mailable instanceof \App\Mail\PrintShopWelcomeMail && $mailable->plainPassword !== '') {
+            $secrets['plain_password'] = $mailable->plainPassword;
         }
 
         return $secrets;
@@ -633,6 +669,68 @@ class CommunicationEmailService
                 'entity_id' => $set->entity_id,
                 'reserve_id' => $set->reserve_id,
                 'lottery_id' => $set->reserve?->lottery_id,
+            ],
+        );
+    }
+
+    public function sendPrintShopWelcome(
+        \App\Models\PrintConfiguration $config,
+        User $panelUser,
+        ?string $plainPassword = null,
+    ): void {
+        $email = trim((string) ($panelUser->email ?? ''));
+        if ($email === '') {
+            return;
+        }
+
+        $mailPayload = [
+            'print_configuration_id' => $config->id,
+            'user_id' => $panelUser->id,
+        ];
+        if ($plainPassword !== null && $plainPassword !== '') {
+            $mailPayload['plain_password'] = $plainPassword;
+        }
+
+        $this->sendAndLog(
+            recipientEmail: $email,
+            recipientRole: 'imprenta',
+            recipientUser: $panelUser,
+            messageType: 'print_shop_welcome',
+            templateKey: null,
+            mailClass: \App\Mail\PrintShopWelcomeMail::class,
+            mailPayload: $mailPayload,
+            context: ['print_configuration_id' => $config->id],
+        );
+    }
+
+    public function sendPrintOrderCreatedToPrintShop(\App\Models\PrintOrder $order): void
+    {
+        $order->loadMissing(['printConfiguration', 'entity', 'set', 'lottery']);
+        $panelUser = app(\App\Services\PrintShopPanelUserService::class)->panelUser($order->printConfiguration);
+        if (! $panelUser) {
+            return;
+        }
+
+        $email = trim((string) ($panelUser->email ?? ''));
+        if ($email === '') {
+            return;
+        }
+
+        $this->sendAndLog(
+            recipientEmail: $email,
+            recipientRole: 'imprenta',
+            recipientUser: $panelUser,
+            messageType: 'print_order_created',
+            templateKey: null,
+            mailClass: \App\Mail\PrintOrderCreatedToPrintShopMail::class,
+            mailPayload: [
+                'print_order_id' => $order->id,
+                'held_for_management_fee' => ! $order->isVisibleToPrintShop(),
+            ],
+            context: [
+                'print_order_id' => $order->id,
+                'print_configuration_id' => $order->print_configuration_id,
+                'entity_id' => $order->entity_id,
             ],
         );
     }

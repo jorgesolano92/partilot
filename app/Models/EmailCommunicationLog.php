@@ -117,6 +117,8 @@ class EmailCommunicationLog extends Model
             'vendedor' => 'Vendedor',
             'diseñador_externo' => 'Diseñador Externo',
             'diseñador_externo ' => 'Diseñador Externo',
+            'imprenta' => 'Imprenta',
+            'print_shop' => 'Imprenta',
             default => ucfirst(str_replace('_', ' ', $value)),
         };
     }
