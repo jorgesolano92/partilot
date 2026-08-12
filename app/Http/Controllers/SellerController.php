@@ -78,7 +78,7 @@ class SellerController extends Controller
         $user = auth()->user();
         $hideEntityColumn = $user && $user->isEntity() && ! $user->isSuperAdmin() && ! $user->isAdministration();
         $hideSellerListPersonalData = $user && $user->isAdministration() && ! $user->isSuperAdmin();
-        // Alta/gestión: superadmin o gestor de entidad con permission_sellers (no cuenta panel ni administración).
+        // Alta: superadmin o gestor de entidad con permission_sellers (no cuenta panel ni administración).
         $canManageSellers = $user && (
             $user->isSuperAdmin()
             || (
@@ -87,8 +87,16 @@ class SellerController extends Controller
                 && $user->hasEntityManagerPermission('sellers')
             )
         );
+        // Editar ficha completa / eliminar: solo superadmin (ver edit/update/destroy).
+        $canEditOrDeleteSellers = $user && $user->isSuperAdmin();
 
-        return view('sellers.index', compact('sellers', 'hideEntityColumn', 'hideSellerListPersonalData', 'canManageSellers'));
+        return view('sellers.index', compact(
+            'sellers',
+            'hideEntityColumn',
+            'hideSellerListPersonalData',
+            'canManageSellers',
+            'canEditOrDeleteSellers'
+        ));
     }
 
     /**

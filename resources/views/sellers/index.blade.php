@@ -129,7 +129,7 @@
                                     </td>
                                     <td class="no-click" style="cursor: default;">
                                         <a href="{{ route('sellers.show', $seller->id) }}" class="btn btn-sm btn-light" title="Ver ficha"><i class="ri-external-link-line"></i></a>
-                                        @if($canManageSellers ?? true)
+                                        @if($canEditOrDeleteSellers ?? false)
                                         <a href="{{ route('sellers.edit', $seller->id) }}" class="btn btn-sm btn-light" title="Editar"><i class="ri-pencil-line"></i></a>
                                         <form action="{{ route('sellers.destroy', $seller->id) }}" method="POST" style="display: inline;">
                                             @csrf

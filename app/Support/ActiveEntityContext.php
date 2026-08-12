@@ -194,14 +194,11 @@ class ActiveEntityContext
 
         if (self::usesActiveEntityScope($user)) {
             $entity = self::activeEntity($user);
-            $manager = self::activeManager($user);
             if (! $entity) {
                 return null;
             }
 
-            $role = $manager?->is_primary ? 'Gestor responsable' : 'Gestor';
-
-            return trim($entity->name).' · '.$role;
+            return trim($entity->name);
         }
 
         return null;
