@@ -1357,8 +1357,12 @@
                                                 $topbarRole = 'SUPER ADMINISTRADOR';
                                             } elseif (Auth::user()->isAdministration()) {
                                                 $topbarRole = 'ADMINISTRADOR';
-                                            } elseif (Auth::user()->isEntity()) {
+                                            } elseif (Auth::user()->isEntityPanelAccount()) {
                                                 $topbarRole = 'ENTIDAD';
+                                            } elseif (Auth::user()->isEntity()) {
+                                                $topbarRole = Auth::user()->isPrimaryManagerOfActiveEntity()
+                                                    ? 'GESTOR RESPONSABLE'
+                                                    : 'GESTOR';
                                             }
                                         }
                                     @endphp
