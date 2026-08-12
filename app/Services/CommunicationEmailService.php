@@ -12,6 +12,7 @@ use App\Models\Administration;
 use App\Models\ParticipationGift;
 use App\Models\ParticipationCollection;
 use App\Models\ParticipationDonation;
+use App\Models\DesignFormat;
 use App\Models\User;
 use App\Models\PendingEntityManagerInvitation;
 use Illuminate\Mail\Mailable;
@@ -245,11 +246,59 @@ class CommunicationEmailService
             return new \App\Mail\ReserveSavedToEntityManagerMail($reserve);
         }
 
+        if ($mailClass === \App\Mail\ReserveDeletedToEntityManagerMail::class) {
+            $reserveId = (int) ($mailPayload['reserve_id'] ?? 0);
+            $reserve = Reserve::with([
+                'entity.administration',
+                'entity.manager.user',
+                'lottery.lotteryType',
+            ])->findOrFail($reserveId);
+
+            return new \App\Mail\ReserveDeletedToEntityManagerMail($reserve);
+        }
+
         if ($mailClass === \App\Mail\SetCreatedToEntityManagerMail::class) {
             $setId = (int) ($mailPayload['set_id'] ?? 0);
             $set = Set::with(['entity.manager.user', 'reserve.lottery.lotteryType', 'reserve.lottery'])->findOrFail($setId);
 
             return new \App\Mail\SetCreatedToEntityManagerMail($set);
+        }
+
+        if ($mailClass === \App\Mail\SetDeletedToEntityManagerMail::class) {
+            $setId = (int) ($mailPayload['set_id'] ?? 0);
+            $set = Set::with([
+                'entity.manager.user',
+                'reserve.lottery.lotteryType',
+                'reserve.lottery',
+            ])->findOrFail($setId);
+
+            return new \App\Mail\SetDeletedToEntityManagerMail($set);
+        }
+
+        if ($mailClass === \App\Mail\DesignApprovalApprovedToEntityManagerMail::class) {
+            $designId = (int) ($mailPayload['design_format_id'] ?? 0);
+            $design = DesignFormat::with([
+                'entity',
+                'entity.manager.user',
+                'lottery',
+                'set',
+                'set.reserve.lottery',
+            ])->findOrFail($designId);
+
+            return new \App\Mail\DesignApprovalApprovedToEntityManagerMail($design);
+        }
+
+        if ($mailClass === \App\Mail\DesignApprovalRejectedToEntityManagerMail::class) {
+            $designId = (int) ($mailPayload['design_format_id'] ?? 0);
+            $design = DesignFormat::with([
+                'entity',
+                'entity.manager.user',
+                'lottery',
+                'set',
+                'set.reserve.lottery',
+            ])->findOrFail($designId);
+
+            return new \App\Mail\DesignApprovalRejectedToEntityManagerMail($design);
         }
 
         if ($mailClass === \App\Mail\DevolutionReturnedToAdministrationMail::class) {

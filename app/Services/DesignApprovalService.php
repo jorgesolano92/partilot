@@ -8,6 +8,8 @@ use App\Models\Manager;
 use App\Models\PrintOrder;
 use App\Models\User;
 use App\Mail\DesignApprovalPendingMail;
+use App\Mail\DesignApprovalApprovedToEntityManagerMail;
+use App\Mail\DesignApprovalRejectedToEntityManagerMail;
 
 class DesignApprovalService
 {
@@ -618,7 +620,14 @@ class DesignApprovalService
             app(ManagementFeeService::class)->ensureSnapshot($design->set, $design);
         }
 
-        return $design->refresh();
+        $design = $design->refresh();
+        $this->notifyEntityDesignApprovalFinalized(
+            $design,
+            mailClass: DesignApprovalApprovedToEntityManagerMail::class,
+            messageType: 'design_approved'
+        );
+
+        return $design;
     }
 
     public function reject(DesignFormat $design, User $user, ?string $reason = null): DesignFormat
@@ -641,7 +650,50 @@ class DesignApprovalService
 
         $this->reopenPrintOrdersAfterDesignRejection($design->refresh());
 
+        $design = $design->refresh();
+        $this->notifyEntityDesignApprovalFinalized(
+            $design,
+            mailClass: DesignApprovalRejectedToEntityManagerMail::class,
+            messageType: 'design_rejected'
+        );
+
         return $design;
+    }
+
+    private function notifyEntityDesignApprovalFinalized(
+        DesignFormat $design,
+        string $mailClass,
+        string $messageType
+    ): void {
+        if (! $this->requiresEntityApproval($design)) {
+            return;
+        }
+
+        $entity = $design->entity;
+        if (! $entity) {
+            return;
+        }
+
+        $managerUser = $entity->manager?->user;
+        $managerEmail = trim((string) ($managerUser?->email ?? ''));
+        if ($managerEmail === '') {
+            return;
+        }
+
+        app(CommunicationEmailService::class)->sendAndLog(
+            recipientEmail: $managerEmail,
+            recipientRole: 'entity',
+            recipientUser: $managerUser,
+            messageType: $messageType,
+            templateKey: null,
+            mailClass: $mailClass,
+            mailPayload: ['design_format_id' => $design->id],
+            context: [
+                'set_id' => $design->set_id,
+                'entity_id' => $design->entity_id,
+                'design_format_id' => $design->id,
+            ]
+        );
     }
 
     public function reopenPrintOrdersAfterDesignRejection(DesignFormat $design): void

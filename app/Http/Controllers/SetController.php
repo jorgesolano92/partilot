@@ -9,6 +9,7 @@ use App\Models\Reserve;
 use App\Models\Participation;
 use App\Services\CommunicationEmailService;
 use App\Mail\SetCreatedToEntityManagerMail;
+use App\Mail\SetDeletedToEntityManagerMail;
 use App\Support\SafeXml;
 use App\Rules\ValidCalendarDate;
 use Illuminate\Http\Request;
@@ -629,6 +630,40 @@ class SetController extends Controller
 
         $set->purgeEmptyDesignFormats();
         Participation::where('set_id', $set->id)->delete();
+
+        try {
+            $set->loadMissing([
+                'entity',
+                'entity.manager.user',
+                'reserve',
+                'reserve.lottery',
+                'reserve.lottery.lotteryType',
+            ]);
+
+            $entityManagerUser = $set->entity?->manager?->user;
+            $managerEmail = trim((string) ($entityManagerUser?->email ?? ''));
+
+            if ($managerEmail !== '') {
+                app(CommunicationEmailService::class)->sendAndLog(
+                    recipientEmail: $managerEmail,
+                    recipientRole: 'entity',
+                    recipientUser: $entityManagerUser,
+                    messageType: 'set_deleted',
+                    templateKey: null,
+                    mailClass: SetDeletedToEntityManagerMail::class,
+                    mailPayload: ['set_id' => $set->id],
+                    context: [
+                        'set_id' => $set->id,
+                        'entity_id' => $set->entity_id,
+                        'reserve_id' => $set->reserve_id,
+                        'lottery_id' => $set->reserve?->lottery_id,
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Fallo enviando email set eliminado: ' . $e->getMessage());
+        }
+
         $set->delete();
 
         return redirect()->route('sets.index')
