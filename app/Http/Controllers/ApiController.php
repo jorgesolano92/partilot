@@ -17,6 +17,7 @@ use App\Support\ParticipationTicketReference;
 use App\Support\PanelPassword;
 use App\Models\Set;
 use App\Services\ParticipationPublicCheckService;
+use App\Services\CommunicationEmailService;
 
 class ApiController extends Controller
 {
@@ -2386,8 +2387,12 @@ class ApiController extends Controller
         return response()->json(['can_delete' => $canDelete, 'message' => $message]);
     }
 
-    public function deleteItem($type, $id)
+    public function deleteItem(Request $request, $type, $id)
     {
+        $deletionReason = app(CommunicationEmailService::class)->normalizeDeletionReason(
+            $request->input('deletion_reason')
+        );
+
         switch ($type) {
             case 'set': {
                 $set = \App\Models\Set::find($id);
@@ -2412,12 +2417,37 @@ class ApiController extends Controller
                 // Placeholders vacíos del editor no deben impedir el borrado.
                 $set->purgeEmptyDesignFormats();
                 \App\Models\Participation::where('set_id', $set->id)->delete();
+
+                try {
+                    app(CommunicationEmailService::class)->sendSetDeletedToEntityManager($set, $deletionReason);
+                } catch (\Throwable $e) {
+                    \Log::warning('Fallo enviando email set eliminado: ' . $e->getMessage());
+                }
+
                 $set->delete();
                 break;
             }
-            case 'reserve':
-                \App\Models\Reserve::find($id)->delete();
+            case 'reserve': {
+                $reserve = \App\Models\Reserve::find($id);
+                if (! $reserve) {
+                    return response()->json(['success' => false, 'message' => 'Reserva no encontrada.'], 404);
+                }
+                if ($reserve->sets()->count() > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La reserva no se puede borrar porque tiene sets asociados.',
+                    ], 422);
+                }
+
+                try {
+                    app(CommunicationEmailService::class)->sendReserveDeletedToEntityManager($reserve, $deletionReason);
+                } catch (\Throwable $e) {
+                    \Log::warning('Fallo enviando email reserva eliminada: ' . $e->getMessage());
+                }
+
+                $reserve->delete();
                 break;
+            }
             case 'lottery': {
                 $lottery = \App\Models\Lottery::find($id);
                 if (!$lottery) {

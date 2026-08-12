@@ -15,7 +15,9 @@ class SetDeletedToEntityManagerMail extends Mailable
 
     public Set $set;
 
-    public function __construct(Set $set)
+    public ?string $deletionReason;
+
+    public function __construct(Set $set, ?string $deletionReason = null)
     {
         $this->set = $set->loadMissing([
             'entity',
@@ -24,6 +26,18 @@ class SetDeletedToEntityManagerMail extends Mailable
             'reserve.lottery',
             'reserve.lottery.lotteryType',
         ]);
+        $this->deletionReason = self::normalizeReason($deletionReason);
+    }
+
+    private static function normalizeReason(?string $reason): ?string
+    {
+        if (! is_string($reason)) {
+            return null;
+        }
+
+        $reason = trim($reason);
+
+        return $reason !== '' ? $reason : null;
     }
 
     public function envelope(): Envelope

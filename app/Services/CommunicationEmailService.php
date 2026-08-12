@@ -253,8 +253,11 @@ class CommunicationEmailService
                 'entity.manager.user',
                 'lottery.lotteryType',
             ])->findOrFail($reserveId);
+            $deletionReason = isset($mailPayload['deletion_reason'])
+                ? (string) $mailPayload['deletion_reason']
+                : null;
 
-            return new \App\Mail\ReserveDeletedToEntityManagerMail($reserve);
+            return new \App\Mail\ReserveDeletedToEntityManagerMail($reserve, $deletionReason);
         }
 
         if ($mailClass === \App\Mail\SetCreatedToEntityManagerMail::class) {
@@ -271,8 +274,11 @@ class CommunicationEmailService
                 'reserve.lottery.lotteryType',
                 'reserve.lottery',
             ])->findOrFail($setId);
+            $deletionReason = isset($mailPayload['deletion_reason'])
+                ? (string) $mailPayload['deletion_reason']
+                : null;
 
-            return new \App\Mail\SetDeletedToEntityManagerMail($set);
+            return new \App\Mail\SetDeletedToEntityManagerMail($set, $deletionReason);
         }
 
         if ($mailClass === \App\Mail\DesignApprovalApprovedToEntityManagerMail::class) {
@@ -533,6 +539,102 @@ class CommunicationEmailService
         unset($mailPayload['plain_password']);
 
         return $mailPayload;
+    }
+
+    public function normalizeDeletionReason(mixed $reason): ?string
+    {
+        if (! is_string($reason)) {
+            return null;
+        }
+
+        $reason = trim($reason);
+        if ($reason === '') {
+            return null;
+        }
+
+        if (function_exists('mb_substr')) {
+            $reason = mb_substr($reason, 0, 2000, 'UTF-8');
+        } else {
+            $reason = substr($reason, 0, 2000);
+        }
+
+        return trim($reason) !== '' ? $reason : null;
+    }
+
+    public function sendReserveDeletedToEntityManager(Reserve $reserve, ?string $deletionReason = null): void
+    {
+        $reserve->loadMissing([
+            'entity',
+            'entity.manager.user',
+            'lottery',
+            'lottery.lotteryType',
+        ]);
+
+        $entityManagerUser = $reserve->entity?->manager?->user;
+        $managerEmail = trim((string) ($entityManagerUser?->email ?? ''));
+        if ($managerEmail === '') {
+            return;
+        }
+
+        $reason = $this->normalizeDeletionReason($deletionReason);
+        $mailPayload = ['reserve_id' => $reserve->id];
+        if ($reason !== null) {
+            $mailPayload['deletion_reason'] = $reason;
+        }
+
+        $this->sendAndLog(
+            recipientEmail: $managerEmail,
+            recipientRole: 'gestor_entidad',
+            recipientUser: $entityManagerUser,
+            messageType: 'reservation_deleted',
+            templateKey: null,
+            mailClass: \App\Mail\ReserveDeletedToEntityManagerMail::class,
+            mailPayload: $mailPayload,
+            context: [
+                'reserve_id' => $reserve->id,
+                'entity_id' => $reserve->entity_id,
+                'lottery_id' => $reserve->lottery_id,
+            ],
+        );
+    }
+
+    public function sendSetDeletedToEntityManager(Set $set, ?string $deletionReason = null): void
+    {
+        $set->loadMissing([
+            'entity',
+            'entity.manager.user',
+            'reserve',
+            'reserve.lottery',
+            'reserve.lottery.lotteryType',
+        ]);
+
+        $entityManagerUser = $set->entity?->manager?->user;
+        $managerEmail = trim((string) ($entityManagerUser?->email ?? ''));
+        if ($managerEmail === '') {
+            return;
+        }
+
+        $reason = $this->normalizeDeletionReason($deletionReason);
+        $mailPayload = ['set_id' => $set->id];
+        if ($reason !== null) {
+            $mailPayload['deletion_reason'] = $reason;
+        }
+
+        $this->sendAndLog(
+            recipientEmail: $managerEmail,
+            recipientRole: 'gestor_entidad',
+            recipientUser: $entityManagerUser,
+            messageType: 'set_deleted',
+            templateKey: null,
+            mailClass: \App\Mail\SetDeletedToEntityManagerMail::class,
+            mailPayload: $mailPayload,
+            context: [
+                'set_id' => $set->id,
+                'entity_id' => $set->entity_id,
+                'reserve_id' => $set->reserve_id,
+                'lottery_id' => $set->reserve?->lottery_id,
+            ],
+        );
     }
 }
 

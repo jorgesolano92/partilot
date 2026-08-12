@@ -327,6 +327,8 @@
     e.stopPropagation();
     var id = $(this).data('id');
     var name = $(this).data('name');
+    $('#delete-reason').val('');
+    $('#delete-warning').addClass('d-none');
     $('#delete-modal').modal('show');
     $('#delete-item-name').text(name);
     $('#confirm-delete').data('id', id).data('type', 'set');
@@ -344,6 +346,11 @@
       </div>
       <div class="modal-body">
         <p>¿Estás seguro de que quieres eliminar <strong id="delete-item-name"></strong>?</p>
+        <div class="mb-3">
+          <label for="delete-reason" class="form-label">Motivo</label>
+          <textarea id="delete-reason" class="form-control" rows="3" maxlength="2000" placeholder="Ej.: Cambio de número por orden de la entidad"></textarea>
+          <small class="text-muted">Este motivo se incluirá en el email al gestor de la entidad. No se guarda en el sistema.</small>
+        </div>
         <div id="delete-warning" class="alert alert-warning d-none" role="alert">
           <strong>Advertencia:</strong> <span id="delete-message"></span>
         </div>
@@ -388,6 +395,9 @@ function deleteItem(type, id) {
   $.ajax({
     url: '/api/delete/' + type + '/' + id,
     method: 'DELETE',
+    data: {
+      deletion_reason: $('#delete-reason').val()
+    },
     headers: {
       'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
     },

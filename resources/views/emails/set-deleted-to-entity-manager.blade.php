@@ -32,6 +32,12 @@
 
     <p>Te informamos de que se ha <strong>eliminado</strong> un <strong>set</strong> en la entidad <strong>{{ $set->entity?->name ?? '-' }}</strong>.</p>
 
+    @if(!empty($deletionReason))
+        <div class="box">
+            <p><strong>Motivo:</strong> {{ $deletionReason }}</p>
+        </div>
+    @endif
+
     <div class="box">
         <div class="grid">
             <div class="col">

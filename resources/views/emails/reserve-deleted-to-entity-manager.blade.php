@@ -39,6 +39,12 @@
 
     <p>Te informamos de que se ha <strong>eliminado</strong> una <strong>reserva</strong> para la entidad <strong>{{ $reserve->entity?->name ?? '-' }}</strong>.</p>
 
+    @if(!empty($deletionReason))
+        <div class="box">
+            <p><strong>Motivo:</strong> {{ $deletionReason }}</p>
+        </div>
+    @endif
+
     <div class="box">
         <p><strong>Sorteo:</strong> {{ $lottery?->name ?? 'N/A' }} @if($lottery?->draw_date) ({{ \Carbon\Carbon::parse($lottery->draw_date)->format('d/m/Y') }}) @endif</p>
         <p><strong>Total reservado:</strong> {{ number_format((float)($reserve->total_amount ?? 0), 2, ',', '.') }} €</p>

@@ -8,7 +8,6 @@ use App\Models\Entity;
 use App\Models\Lottery;
 use App\Services\CommunicationEmailService;
 use App\Mail\ReserveSavedToEntityManagerMail;
-use App\Mail\ReserveDeletedToEntityManagerMail;
 use App\Rules\ValidCalendarDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -434,7 +433,7 @@ class ReserveController extends Controller
     /**
      * Eliminar reserva
      */
-    public function destroy(Reserve $reserve)
+    public function destroy(Request $request, Reserve $reserve)
     {
         if (!auth()->user()->canAccessEntity($reserve->entity_id)) {
             abort(403, 'No tienes permisos para eliminar esta reserva.');
@@ -450,32 +449,10 @@ class ReserveController extends Controller
         }
 
         try {
-            $reserve->loadMissing([
-                'entity',
-                'entity.manager.user',
-                'lottery',
-                'lottery.lotteryType',
-            ]);
-
-            $entityManagerUser = $reserve->entity?->manager?->user;
-            $managerEmail = trim((string) ($entityManagerUser?->email ?? ''));
-
-            if ($managerEmail !== '') {
-                app(CommunicationEmailService::class)->sendAndLog(
-                    recipientEmail: $managerEmail,
-                    recipientRole: 'entity',
-                    recipientUser: $entityManagerUser,
-                    messageType: 'reservation_deleted',
-                    templateKey: null,
-                    mailClass: ReserveDeletedToEntityManagerMail::class,
-                    mailPayload: ['reserve_id' => $reserve->id],
-                    context: [
-                        'reserve_id' => $reserve->id,
-                        'entity_id' => $reserve->entity_id,
-                        'lottery_id' => $reserve->lottery_id,
-                    ]
-                );
-            }
+            app(CommunicationEmailService::class)->sendReserveDeletedToEntityManager(
+                $reserve,
+                $request->input('deletion_reason')
+            );
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando email reserva eliminada: ' . $e->getMessage());
         }

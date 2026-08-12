@@ -15,7 +15,9 @@ class ReserveDeletedToEntityManagerMail extends Mailable
 
     public Reserve $reserve;
 
-    public function __construct(Reserve $reserve)
+    public ?string $deletionReason;
+
+    public function __construct(Reserve $reserve, ?string $deletionReason = null)
     {
         $this->reserve = $reserve->loadMissing([
             'entity',
@@ -24,6 +26,18 @@ class ReserveDeletedToEntityManagerMail extends Mailable
             'lottery',
             'lottery.lotteryType',
         ]);
+        $this->deletionReason = self::normalizeReason($deletionReason);
+    }
+
+    private static function normalizeReason(?string $reason): ?string
+    {
+        if (! is_string($reason)) {
+            return null;
+        }
+
+        $reason = trim($reason);
+
+        return $reason !== '' ? $reason : null;
     }
 
     public function envelope(): Envelope
