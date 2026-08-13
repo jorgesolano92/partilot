@@ -3,7 +3,38 @@
 > **No duplicar tareas en otros `.md`.**  
 > Completadas → `../TAREAS_REALIZADAS.md` · Visión global → `../AUDITORIA_DESARROLLO_SIPART.md`
 
-Última revisión: 15/05/2026
+Última revisión: 12/08/2026
+
+---
+
+## Accesos panel/app y roles — audios 12-08 (cliente)
+
+> Origen: `audios/` + detalle en `audios/tareas-cliente-audios.md`.  
+> **Dos superficies:** (1) panel de administración Laravel; (2) **web app** tipo Ionic para usuario / vendedor / gestor.  
+> El escáner es comportamiento de la app/web app, no del panel admin.
+
+### Decisión / producto
+- [x] **Web app:** SPA Vue 3 en `H:\Users\Jorge\proyectos\partilot-webapp` (API `/api/auth/login-usuario`). Scaffold + login + modos usuario/vendedor/gestor + selector entidad MVP.
+- [x] **Panel administración:** gestores no responsables bloqueados en login web (mensaje hacia app/web app).
+- [ ] **Alcance gestor responsable en panel admin:** todo lo actual vs solo acciones de responsable (p. ej. devolución a administración); resto por web app.
+- [ ] **Venta por gestor responsable:** confirmar que solo vende si también es vendedor.
+
+### Panel de administración (Laravel)
+- [x] **Bloquear acceso al panel admin** a gestores no responsables.
+- [ ] **Selector de entidad activa** en cabecera (logo/nombre + desplegable); persistir y aplicar a devoluciones, altas, asignaciones. *(Parcial: `ActiveEntityContext`; revisar UX y cobertura.)*
+- [ ] **Devolución multi-entidad:** no liquidar sin entidad activa clara.
+
+### Web app / app Ionic
+- [x] **Cambio a modo gestor (web app):** si multi-entidad, preguntar de cuál; al volver a “gestor”, repreguntar.
+- [ ] **Vendedor multi-entidad:** al vender, preguntar entidad (verificar estado actual).
+- [ ] **Escáner por rol** (cámara en web pendiente; MVP por referencia):
+  - [x] Usuario: consulta por referencia.
+  - [x] Vendedor: venta por referencia/QR.
+  - [x] Gestor: sin escáner genérico; home de acciones.
+
+### Ya tocado en esta línea (no reabrir sin necesidad)
+- [-] Topbar panel admin: un solo rol (`ENTIDAD` / `GESTOR RESPONSABLE` / `GESTOR`).
+- [-] Listado vendedores: botón **Añadir** para gestor con `permission_sellers`; editar/eliminar ficha solo superadmin.
 
 ---
 

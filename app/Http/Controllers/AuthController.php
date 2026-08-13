@@ -144,14 +144,31 @@ class AuthController extends Controller
                 }
         }
 
-        // Superadmin, cuentas panel (administración/entidad) y gestores de entidad (tienen entity_id)
-        // acceden al panel web.
-        if (! $user->isSuperAdmin() && ! $user->isPanelAccount() && ! $user->isEntity()) {
-            Auth::logout();
+        // Superadmin, cuentas panel (administración/entidad) y gestor responsable acceden al panel web.
+        // Gestores no responsables (solo secundarios) usan la web app / app Ionic.
+        if (! $user->isSuperAdmin() && ! $user->isPanelAccount() && ! $user->isAdministration()) {
+            if ($user->isEntity()) {
+                $isResponsibleManager = $user->managers()
+                    ->whereNotNull('entity_id')
+                    ->where('is_primary', true)
+                    ->where('status', 1)
+                    ->whereHas('entity', fn ($q) => $q->where('status', 1))
+                    ->exists();
 
-            return back()->withErrors([
-                'email' => 'Tu cuenta no tiene acceso al panel. Use el usuario o email y contraseña de su administración o entidad.',
-            ])->withInput($request->only('email'));
+                if (! $isResponsibleManager) {
+                    Auth::logout();
+
+                    return back()->withErrors([
+                        'email' => 'Los gestores que no son responsables deben acceder a través de la aplicación / web app Partilot, no del panel de administración.',
+                    ])->withInput($request->only('email'));
+                }
+            } else {
+                Auth::logout();
+
+                return back()->withErrors([
+                    'email' => 'Tu cuenta no tiene acceso al panel. Use el usuario o email y contraseña de su administración o entidad.',
+                ])->withInput($request->only('email'));
+            }
         }
 
         if ($user->mustChangeEntityManagerLegacyPassword()) {
@@ -439,10 +456,9 @@ class AuthController extends Controller
             $response['seller'] = $seller->load('entities');
         }
 
-        // Capacidades por tablas: presencia en managers → puede actuar como gestor
-        $manager = Manager::where('user_id', $user->id)->first();
-        if ($manager) {
-            $response['manager'] = $manager;
+        $managerPayload = $this->managerPayloadForUser($user);
+        if ($managerPayload) {
+            $response['manager'] = $managerPayload;
         }
 
         app(ParticipationGiftService::class)->attachPendingGiftsToUser($user);
@@ -619,11 +635,47 @@ class AuthController extends Controller
             $response['seller'] = $seller;
         }
 
-        $manager = Manager::where('user_id', $user->id)->first();
-        if ($manager) {
-            $response['manager'] = $manager;
+        $managerPayload = $this->managerPayloadForUser($user);
+        if ($managerPayload) {
+            $response['manager'] = $managerPayload;
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * Payload de gestor para app/web app: incluye todas las entidades activas del usuario.
+     *
+     * @return array{id: int, entity_id: int|null, is_primary: bool, entities: list<array{id: int, name: string, is_primary: bool, manager_id: int}>}|null
+     */
+    private function managerPayloadForUser(User $user): ?array
+    {
+        $managers = Manager::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('entity_id')
+            ->where('status', 1)
+            ->whereHas('entity', fn ($q) => $q->where('status', 1))
+            ->with('entity:id,name')
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->get();
+
+        if ($managers->isEmpty()) {
+            return null;
+        }
+
+        $primary = $managers->firstWhere('is_primary', true) ?? $managers->first();
+
+        return [
+            'id' => (int) $primary->id,
+            'entity_id' => $primary->entity_id ? (int) $primary->entity_id : null,
+            'is_primary' => (bool) $primary->is_primary,
+            'entities' => $managers->map(fn (Manager $m) => [
+                'id' => (int) $m->entity_id,
+                'name' => trim((string) ($m->entity?->name ?? 'Entidad')),
+                'is_primary' => (bool) $m->is_primary,
+                'manager_id' => (int) $m->id,
+            ])->values()->all(),
+        ];
     }
 } 
