@@ -3659,13 +3659,19 @@ class DesignController extends Controller
         return $pdf->download('participacion.pdf');
     }
 
-    public function exportCoverPdf($id)
+    public function exportCoverPdf(Request $request, $id)
     {
         ini_set('max_execution_time', 300);
         ini_set('memory_limit', '1024M');
 
         $design = DesignFormat::findOrFail($id);
         $this->authorizeDesignPdfExport($design);
+
+        try {
+            $this->resolveCoverTacoOptions($request, $design);
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
 
         try {
             if ($this->designPdfHtmlPreviewEnabled()) {
@@ -6831,6 +6837,67 @@ class DesignController extends Controller
     }
 
     /**
+     * Tamaño de taco para exportación de portadas. Prioridad: query/body; si no, output del diseño.
+     * Al enviar el param desde el modal, persiste participations_per_book + taco_qrs y recalcula book_number.
+     *
+     * @return array{participations_per_book: int}
+     */
+    private function resolveCoverTacoOptions(Request $request, DesignFormat $design): array
+    {
+        $output = is_array($design->output) ? $design->output : [];
+        $hasExplicit = $request->query('participations_per_book') !== null
+            || $request->input('participations_per_book') !== null;
+
+        $raw = $request->query(
+            'participations_per_book',
+            $request->input('participations_per_book', $output['participations_per_book'] ?? 50)
+        );
+        $perBook = DesignFormat::normalizeCoverParticipationsPerBook($raw);
+
+        if ($hasExplicit) {
+            $current = DesignFormat::normalizeCoverParticipationsPerBook(
+                $output['participations_per_book'] ?? 50
+            );
+            $needsSync = $perBook !== $current
+                || empty($output['taco_qrs'])
+                || ! is_array($output['taco_qrs']);
+
+            if ($needsSync) {
+                if ($perBook !== $current) {
+                    $this->assertCanChangeCoverTacoSize($design);
+                }
+                $design->syncCoverTacoConfig($perBook);
+                $design->refresh();
+            }
+        }
+
+        return ['participations_per_book' => $perBook];
+    }
+
+    private function assertCanChangeCoverTacoSize(DesignFormat $design): void
+    {
+        $blocked = Participation::query()
+            ->where('design_format_id', $design->id)
+            ->where(function ($query) {
+                $query->whereIn('status', [
+                    'asignada',
+                    'vendida',
+                    'pagada',
+                    'reservada',
+                    'reserva_venta_digital',
+                    'perdida',
+                ])->orWhereNotNull('seller_id');
+            })
+            ->exists();
+
+        if ($blocked) {
+            throw new \InvalidArgumentException(
+                'No se puede cambiar el tamaño del taco: hay participaciones asignadas, vendidas o reservadas.'
+            );
+        }
+    }
+
+    /**
      * Rangos [from,to] según documents_mode y páginas por documento.
      *
      * @return list<array{0: int, 1: int}>
@@ -7658,6 +7725,15 @@ class DesignController extends Controller
             ], 404);
         }
 
+        try {
+            $this->resolveCoverTacoOptions($request, $design);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
         $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
         $requestedName = $request->query('download_name', $request->input('download_name'));
         if (! is_string($requestedName) || trim($requestedName) === '') {
@@ -7669,13 +7745,13 @@ class DesignController extends Controller
         $job_id = 'pdf_cover_grid_'.$id.'_'.time();
 
         return $this->beginDeferredPdfExport($job_id, function () use (
-            $design,
             $job_id,
             $docsOpts,
             $requestedName,
             $notifyEmail,
             $designId
         ) {
+            $design = DesignFormat::findOrFail($designId);
             $fileBaseName = $this->exportDownloadBasename($design, 'portadas', $requestedName);
             $artifact = $this->writeCoverExportArtifact(
                 $design,

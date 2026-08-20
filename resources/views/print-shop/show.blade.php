@@ -217,7 +217,11 @@
                                 <div class="d-flex flex-wrap gap-2">
                                     @php
                                         $pdfOut = is_array($design->output) ? $design->output : [];
-                                        $pdfCoverCount = is_array($pdfOut['taco_qrs'] ?? null) ? count($pdfOut['taco_qrs']) : 0;
+                                        $pdfPerBook = (int) ($pdfOut['participations_per_book'] ?? 50);
+                                        $pdfTotalParts = $printOrder->set ? (int) $printOrder->set->total_participations : 0;
+                                        $pdfCoverCount = is_array($pdfOut['taco_qrs'] ?? null) && count($pdfOut['taco_qrs']) > 0
+                                            ? count($pdfOut['taco_qrs'])
+                                            : ($pdfTotalParts > 0 && $pdfPerBook > 0 ? (int) ceil($pdfTotalParts / $pdfPerBook) : 0);
                                     @endphp
                                     <button type="button"
                                         class="btn btn-primary btn-sm js-design-pdf-async"
@@ -240,6 +244,8 @@
                                         data-rows="{{ (int) ($design->rows ?? 1) }}"
                                         data-cols="{{ (int) ($design->cols ?? 1) }}"
                                         data-cover-count="{{ $pdfCoverCount }}"
+                                        data-participations-per-book="{{ $pdfPerBook }}"
+                                        data-total-participations="{{ $pdfTotalParts }}"
                                         data-documents-mode="{{ $pdfOut['documents_mode'] ?? '1' }}"
                                         data-pages-per-document="{{ $pdfOut['pages_per_document'] ?? 150 }}"
                                         data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"

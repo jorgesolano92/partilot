@@ -588,4 +588,68 @@ class DesignFormat extends Model
             'book_number' => $bookNumber,
         ];
     }
+
+    /** Normaliza participaciones por talonario (1–1000, como en el editor de formato). */
+    public static function normalizeCoverParticipationsPerBook(mixed $raw): int
+    {
+        $value = (int) $raw;
+
+        return max(1, min(1000, $value > 0 ? $value : 50));
+    }
+
+    /**
+     * Recalcula book_number sin borrar/recrear participaciones (saveQuietly en output).
+     */
+    public function reassignBookNumbers(int $perBook): int
+    {
+        $perBook = max(1, $perBook);
+        $set = $this->set;
+        if (! $set) {
+            return 0;
+        }
+
+        $range = $set->getParticipationNumberRange();
+        $globalStart = (int) ($range['start'] ?? 1);
+
+        $participations = Participation::query()
+            ->where('design_format_id', $this->id)
+            ->where('status', '!=', 'anulada')
+            ->orderBy('participation_number')
+            ->get(['id', 'participation_number', 'book_number']);
+
+        if ($participations->isEmpty()) {
+            return 0;
+        }
+
+        $updated = 0;
+        foreach ($participations as $participation) {
+            $localIndex = (int) $participation->participation_number - $globalStart + 1;
+            $bookNumber = (int) ceil($localIndex / $perBook);
+            if ((int) $participation->book_number !== $bookNumber) {
+                Participation::whereKey($participation->id)->update(['book_number' => $bookNumber]);
+                $updated++;
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Persiste participations_per_book, regenera taco_qrs y actualiza book_number en bloque.
+     */
+    public function syncCoverTacoConfig(int $perBook): void
+    {
+        $perBook = self::normalizeCoverParticipationsPerBook($perBook);
+        $output = is_array($this->output) ? $this->output : [];
+        $output['participations_per_book'] = $perBook;
+
+        if ($this->set_id) {
+            $output = self::mergeTacoQrsIntoOutput((int) $this->set_id, $output);
+        }
+
+        $this->output = $output;
+        // saveQuietly: no dispara updateParticipations al cambiar output.
+        $this->saveQuietly();
+        $this->reassignBookNumbers($perBook);
+    }
 }
