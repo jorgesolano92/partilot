@@ -1767,6 +1767,8 @@ class ParticipationController extends Controller
             'entity_id' => $entity ? (int) $entity->id : null,
             'administration_id' => $administration ? (int) $administration->id : null,
             'can_generate_recharge_code' => $prepagoService->canGenerateCodes($administration),
+            'can_donate' => (bool) ($entity?->is_non_profit ?? false),
+            'can_issue_donation_certificate' => (bool) ($entity?->is_non_profit ?? false),
             'sorteo' => $this->lotteryHistorialLabel($lottery),
             'numero' => $participation->participation_number,
             'numeroReservado' => $numeroReservado,
@@ -2290,6 +2292,20 @@ class ParticipationController extends Controller
         $importeDonacion = round((float) $request->importe_donacion, 2);
         $importeCodigo = round((float) $request->importe_codigo, 2);
         $importeTotal = $importeDonacion + $importeCodigo;
+
+        if ($importeDonacion > 0 && ! ($entity?->is_non_profit ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta entidad no puede emitir certificado de donación.',
+            ], 422);
+        }
+
+        if ($request->boolean('certificado_fiscal') && ! ($entity?->is_non_profit ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta entidad no puede emitir certificado de donación.',
+            ], 422);
+        }
 
         if ($message = $walletGuard->assertPositiveAmount($importeTotal)) {
             return response()->json(['success' => false, 'message' => $message], 422);

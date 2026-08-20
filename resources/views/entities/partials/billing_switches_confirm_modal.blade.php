@@ -9,6 +9,10 @@
                 <p class="mb-3">Se guardará la entidad con la siguiente configuración de pagos:</p>
                 <ul class="list-unstyled mb-3">
                     <li class="mb-2">
+                        <strong>Certificado de donación:</strong>
+                        <span id="billing-modal-donation-cert">—</span>
+                    </li>
+                    <li class="mb-2">
                         <strong>Cuota de gestión PARTILOT:</strong>
                         <span id="billing-modal-management-payer">—</span>
                     </li>
@@ -17,12 +21,16 @@
                         <span id="billing-modal-print-payer">—</span>
                     </li>
                 </ul>
+                @if(empty($onboardingMode))
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="billing-modal-hide-again">
                     <label class="form-check-label" for="billing-modal-hide-again">
                         No volver a mostrar este mensaje
                     </label>
                 </div>
+                @else
+                <p class="small text-muted mb-0">Revise estos ajustes antes de continuar con el gestor de la entidad.</p>
+                @endif
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>

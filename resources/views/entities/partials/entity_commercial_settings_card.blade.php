@@ -22,19 +22,19 @@
                name="is_non_profit"
                value="1"
                data-hint-target="is_non_profit_hint"
-               data-hint-on="ON — Entidad <strong>sin ánimo de lucro</strong>."
-               data-hint-off="OFF — Entidad <strong>con ánimo de lucro</strong>."
+               data-hint-on="ON — La entidad <strong>puede emitir certificado de donación</strong>."
+               data-hint-off="OFF — La entidad <strong>no puede emitir certificado de donación</strong>."
                @checked($isNonProfit)
                @if($readonly) disabled @endif
                @if($formId) form="{{ $formId }}" @endif>
         <label class="form-check-label" for="is_non_profit">
-            <b>Entidad sin fin lucrativo</b>
+            <b>Puede emitir certificado de donación</b>
             <br>
             <small class="text-muted" id="is_non_profit_hint">
                 @if($isNonProfit)
-                    ON — Entidad <strong>sin ánimo de lucro</strong>.
+                    ON — La entidad <strong>puede emitir certificado de donación</strong>.
                 @else
-                    OFF — Entidad <strong>con ánimo de lucro</strong>.
+                    OFF — La entidad <strong>no puede emitir certificado de donación</strong>.
                 @endif
             </small>
         </label>

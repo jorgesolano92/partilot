@@ -18,6 +18,8 @@
     "participation_assignment": "Asignación de participación",
     "print_shop_welcome": "Bienvenida de imprenta (acceso al panel)",
     "print_order_created": "Nuevo pedido de impresión (aviso a imprenta)",
+    "print_order_payment_request": "Solicitud de pago de impresión (pedido aceptado)",
+    "print_order_rejected": "Pedido de impresión rechazado por imprenta",
     "design_approval_pending": "Diseño de participaciones pendiente de aprobación (aviso al gestor)",
     "design_approved": "Diseño aprobado (aviso al gestor)",
     "design_rejected": "Diseño rechazado (aviso al gestor)",

@@ -48,9 +48,10 @@
                             || ! empty($entityFeeDue)
                             || (! empty($managementFeeData['payment_before_admin_design']) && $adminUser)
                             || (! empty($managementFeeData['payment_before_editor']) && $entityViewer);
-                        $showExportActions = ! $entityMustPayNow && empty($blocksQrExport);
+                        $showExportActions = ! $entityMustPayNow && empty($blocksQrExport) && ! empty($canExportDesignPdf);
                         $qrBlockTitle = $summaryBlockMessage ?? $approvalService->blockMessage($design);
                         $canDownloadPendingSample = ! empty($canDownloadPendingSample);
+                        $canExportDesignPdfFlag = ! empty($canExportDesignPdf);
                     @endphp
 
                     @if($entityMustPayNow && !empty($managementFeeData['can_pay_stripe']))
@@ -122,6 +123,8 @@
                             como enviada.
                             @if($entityViewer && !empty($entityFeeDue))
                                 Debe abonar la cuota de gestión PARTILOT para activar las participaciones y descargar los archivos.
+                            @elseif(! $canExportDesignPdfFlag)
+                                {{ $pdfExportBlockReason ?? 'La descarga de PDF no está disponible para su perfil en este diseño.' }}
                             @elseif(!empty($blocksQrExport))
                                 Revise los pasos pendientes (cuota de gestión o aprobación) para habilitar descargas.
                             @else
@@ -346,6 +349,16 @@
                                 <span>Importe</span>
                                 <strong>{{ number_format((float) $latestPrintOrder->quoted_amount, 2, ',', '.') }}€</strong>
                             </div>
+                            @if($latestPrintOrder->isAwaitingClientPayment() && !empty($printPayment['user_may_submit']))
+                                <a href="{{ route('design.payPrintOrder', $latestPrintOrder->id) }}" class="btn btn-warning text-dark w-100 mt-3 fw-semibold">
+                                    <i class="ri-bank-card-line me-1"></i> Pagar pedido aceptado
+                                </a>
+                            @elseif($latestPrintOrder->isAwaitingPrintShopReview())
+                                <p class="small text-muted mb-0 mt-2">Pendiente de revisión por la imprenta.</p>
+                            @endif
+                            @if(!empty($latestPrintOrder->rejection_reason))
+                                <p class="small text-danger mb-0 mt-2"><strong>Motivo rechazo:</strong> {{ $latestPrintOrder->rejection_reason }}</p>
+                            @endif
                         </div>
                     @endif
                     </div>{{-- /.design-summary-cards --}}
@@ -465,6 +478,14 @@
                         <p class="small text-muted partilot-page-panel__narrow mx-auto mb-4">
                             <i class="ri-information-line me-1"></i>
                             No hay un medio de pago disponible para su perfil. Revise la configuración de facturación de la administración.
+                        </p>
+                    @elseif(! $showExportActions && ! $entityMustPayNow && empty($blocksQrExport) && ! $canExportDesignPdfFlag && !empty($hasDesignContent))
+                        <p class="small text-muted partilot-page-panel__narrow mx-auto mb-4">
+                            <i class="ri-information-line me-1"></i>
+                            {{ $pdfExportBlockReason ?? 'La descarga de PDF no está disponible para su perfil en este diseño.' }}
+                            @if(!empty($canPreviewDesign))
+                                <a href="{{ route('design.participationPreview', $design->id) }}" class="ms-1">Ver diseño</a>
+                            @endif
                         </p>
                     @elseif(! $showExportActions && ! $entityMustPayNow && ! empty($blocksQrExport))
                         @if(!empty($entityFeeBlocksEditing))

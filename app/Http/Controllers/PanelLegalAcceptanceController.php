@@ -20,7 +20,7 @@ class PanelLegalAcceptanceController extends Controller
         }
 
         if (! $this->panelLegalAcceptance->userMustAcceptBeforeAccess($user)) {
-            return redirect()->route('dashboard');
+            return redirect($this->homeRouteForUser($user));
         }
 
         $request->validate([
@@ -31,6 +31,16 @@ class PanelLegalAcceptanceController extends Controller
 
         $this->panelLegalAcceptance->recordAcceptance($user, $request);
 
-        return redirect()->back()->with('success', 'Condiciones legales aceptadas correctamente.');
+        return redirect($this->homeRouteForUser($user))
+            ->with('success', 'Condiciones legales aceptadas correctamente.');
+    }
+
+    private function homeRouteForUser($user): string
+    {
+        if ($user->isPrintShop()) {
+            return route('print-shop.index');
+        }
+
+        return route('dashboard');
     }
 }

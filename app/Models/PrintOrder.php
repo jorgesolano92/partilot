@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PrintOrder extends Model
 {
     public const STATUS_PENDING_REVIEW = 'pendiente_revision';
+    public const STATUS_ACCEPTED = 'aceptada';
     public const STATUS_IN_PRODUCTION = 'en_produccion';
     public const STATUS_SENT = 'enviada';
     public const STATUS_REJECTED = 'rechazada';
@@ -45,7 +46,9 @@ class PrintOrder extends Model
         'quoted_amount',
         'quote_breakdown',
         'notes',
+        'rejection_reason',
         'sent_at',
+        'accepted_at',
         'paid_at',
         'billing_charge_id',
     ];
@@ -54,6 +57,7 @@ class PrintOrder extends Model
         'quoted_amount' => 'decimal:2',
         'quote_breakdown' => 'array',
         'sent_at' => 'datetime',
+        'accepted_at' => 'datetime',
         'paid_at' => 'datetime',
     ];
 
@@ -91,6 +95,7 @@ class PrintOrder extends Model
     {
         return match ($status) {
             self::STATUS_PENDING_REVIEW => 'Pendiente revisión',
+            self::STATUS_ACCEPTED => 'Aceptada (pendiente de pago)',
             self::STATUS_IN_PRODUCTION => 'En producción',
             self::STATUS_SENT => 'Enviada',
             self::STATUS_REJECTED => 'Rechazada',
@@ -102,6 +107,7 @@ class PrintOrder extends Model
     {
         return match ($status) {
             self::STATUS_PENDING_REVIEW => 'bg-warning text-dark',
+            self::STATUS_ACCEPTED => 'bg-primary',
             self::STATUS_IN_PRODUCTION => 'bg-info text-dark',
             self::STATUS_SENT => 'bg-success',
             self::STATUS_REJECTED => 'bg-danger',
@@ -122,7 +128,11 @@ class PrintOrder extends Model
                 default => 'Cobrado',
             },
             self::PAYMENT_STATUS_NOT_REQUIRED => 'Sin cobro online',
-            self::PAYMENT_STATUS_PENDING => $paymentProvider ? 'Pago pendiente / revisar' : 'Pendiente',
+            self::PAYMENT_STATUS_PENDING => match ($paymentProvider) {
+                self::PAYMENT_PROVIDER_STRIPE => 'Pendiente de pago (tarjeta)',
+                self::PAYMENT_PROVIDER_REMITTANCE => 'Pendiente de confirmar en remesa',
+                default => 'Pendiente de pago',
+            },
             self::PAYMENT_STATUS_FAILED => 'Pago fallido',
             default => $s !== '' ? ucfirst(str_replace('_', ' ', $s)) : '—',
         };
@@ -165,6 +175,18 @@ class PrintOrder extends Model
             && trim((string) ($this->payment_intent_id ?? '')) !== '';
     }
 
+    public function isAwaitingPrintShopReview(): bool
+    {
+        return (string) $this->status === self::STATUS_PENDING_REVIEW
+            && (string) ($this->payment_status ?? '') === self::PAYMENT_STATUS_PENDING;
+    }
+
+    public function isAwaitingClientPayment(): bool
+    {
+        return (string) $this->status === self::STATUS_ACCEPTED
+            && (string) ($this->payment_status ?? '') === self::PAYMENT_STATUS_PENDING;
+    }
+
     public function canTransitionTo(string $targetStatus): bool
     {
         if ((string) $this->status === self::STATUS_SENT
@@ -173,7 +195,8 @@ class PrintOrder extends Model
         }
 
         $transitions = [
-            self::STATUS_PENDING_REVIEW => [self::STATUS_IN_PRODUCTION, self::STATUS_REJECTED],
+            self::STATUS_PENDING_REVIEW => [self::STATUS_ACCEPTED, self::STATUS_REJECTED],
+            self::STATUS_ACCEPTED => [self::STATUS_IN_PRODUCTION],
             self::STATUS_IN_PRODUCTION => [self::STATUS_SENT, self::STATUS_REJECTED],
             self::STATUS_REJECTED => [self::STATUS_PENDING_REVIEW],
             self::STATUS_SENT => [],

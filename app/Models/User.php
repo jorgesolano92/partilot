@@ -361,11 +361,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Descarga de PDF de diseño: entidad con acceso, super admin o imprenta con orden vinculada.
+     * PDF completo con QR real: tras aprobación (si aplica), solo el lado que diseña.
+     * Antes de aprobar un diseño de administración, esta regla no bloquea al diseñador
+     * (blocksQrExport + muestra/preview cubren ese periodo). Superadmin e imprenta con orden siempre.
      */
     public function canExportDesignPdf(DesignFormat $design): bool
     {
-        if ($this->isSuperAdmin() || $this->canAccessEntity((int) $design->entity_id)) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
 
@@ -381,7 +383,30 @@ class User extends Authenticatable
                 ->exists();
         }
 
-        return false;
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+
+        if (! $approvalService->appliesDesignerSidePdfExportRestriction($design)) {
+            if ($approvalService->userActsAsAdministration($this)) {
+                return $this->canAccessEntity((int) $design->entity_id);
+            }
+
+            return false;
+        }
+
+        if ($approvalService->designUsesEntityDesigner($design)) {
+            if ($approvalService->userActsAsAdministration($this)) {
+                return false;
+            }
+
+            return $this->canAccessEntity((int) $design->entity_id);
+        }
+
+        if ($this->isEntity() && ! $approvalService->userActsAsAdministration($this)) {
+            return false;
+        }
+
+        return $approvalService->userActsAsAdministration($this)
+            && $this->canAccessEntity((int) $design->entity_id);
     }
 
     /** Panel: ver código de vinculación de ventas digitales pendientes (no vendedor ni gestor). */

@@ -38,7 +38,11 @@ class EnsurePrintShopPanelScope
             }
         }
 
-        if ($request->routeIs('logout') || $path === 'logout') {
+        if ($request->routeIs('logout', 'panel-legal.submit') || $path === 'logout') {
+            return $next($request);
+        }
+
+        if ($path === 'panel/aceptacion-legal') {
             return $next($request);
         }
 

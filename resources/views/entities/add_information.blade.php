@@ -392,6 +392,8 @@
 
 </div> <!-- container -->
 
+@include('entities.partials.billing_switches_confirm_modal', ['onboardingMode' => true])
+
 @endsection
 
 @section('scripts')
@@ -595,6 +597,20 @@
 	        });
 
         entityForm.addEventListener('submit', function (event) {
+            if (entityForm.dataset.billingConfirmed === '1') {
+                // continuar con validación normal
+            } else {
+                event.preventDefault();
+                const canDonate = document.getElementById('is_non_profit')?.checked ?? false;
+                const paysManagement = document.getElementById('entity_pays_management_fee')?.checked ?? false;
+                const paysPrint = document.getElementById('entity_pays_print_fee')?.checked ?? false;
+                document.getElementById('billing-modal-donation-cert').textContent = canDonate ? 'Sí' : 'No';
+                document.getElementById('billing-modal-management-payer').textContent = paysManagement ? 'Entidad' : 'Administración';
+                document.getElementById('billing-modal-print-payer').textContent = paysPrint ? 'Entidad' : 'Administración';
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('entityBillingSwitchesModal')).show();
+                return;
+            }
+
             // TomSelect a veces no sincroniza el <select> nativo hasta el submit.
             try {
                 if (provinceTs) {
@@ -627,6 +643,14 @@
 	    }
 	});
 
+
+    document.getElementById('billing-modal-confirm-btn')?.addEventListener('click', function () {
+        const entityForm = document.getElementById('entity-information-form');
+        if (!entityForm) return;
+        entityForm.dataset.billingConfirmed = '1';
+        bootstrap.Modal.getInstance(document.getElementById('entityBillingSwitchesModal'))?.hide();
+        entityForm.requestSubmit();
+    });
 </script>
 
 @endsection
