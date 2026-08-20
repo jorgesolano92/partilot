@@ -156,7 +156,20 @@
 	                    			@endphp
 	                    			@if(! $entityContractSigned)
 	                    				<p class="small text-warning mb-0 mt-2">
-	                    					<i class="ri-file-warning-line"></i> Contrato marco pendiente de firma.
+	                    					<i class="ri-file-warning-line"></i> Contrato marco pendiente de firma del representante autorizado.
+	                    				</p>
+	                    				@if($canEditEntityData ?? false)
+	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2">
+	                    					@csrf
+	                    					<button type="submit" class="btn btn-sm btn-outline-warning" style="border-radius: 20px;">Reenviar email de firma</button>
+	                    				</form>
+	                    				@endif
+	                    			@else
+	                    				<p class="small text-success mb-0 mt-2">
+	                    					<i class="ri-checkbox-circle-line"></i> Contrato marco firmado
+	                    					@if($entity->contract_signer_name)
+	                    						por {{ $entity->contract_signer_name }}
+	                    					@endif
 	                    				</p>
 	                    			@endif
                     			</div>
@@ -335,6 +348,49 @@
 			                    					</div>
 
 			                    				</div>
+			                    			</div>
+
+			                    			<h4 class="mb-0 mt-3">Tipo de cliente y firmante</h4>
+			                    			<small><i>Datos del representante autorizado para el contrato marco (sin cuenta de usuario).</i></small>
+			                    			<div class="row mt-2">
+			                    				<div class="col-6">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Tipo de cliente</label>
+			                    						<input class="form-control" readonly value="{{ $entity->clientTypeLabel() }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-6">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">¿Firmante = gestor responsable?</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_is_primary_manager ? 'Sí' : 'No' }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Nombre firmante</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_name ?? '' }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Apellidos</label>
+			                    						<input class="form-control" readonly value="{{ trim(($entity->signer_last_name ?? '').' '.($entity->signer_last_name2 ?? '')) }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">DNI/NIE</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_nif ?? '' }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				@if($entity->contract_status)
+			                    				<div class="col-6">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Estado contrato</label>
+			                    						<input class="form-control" readonly value="{{ $entity->contractStatusLabel() }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				@endif
 			                    			</div>
 
 

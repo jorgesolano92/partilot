@@ -158,6 +158,8 @@ Route::get('/contrato-administracion/firmar/{token}', [AdministrationContractCon
 Route::post('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'store'])->name('administration-contract.sign.submit');
 Route::get('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'acceptPrimaryManager'])->name('entity-contract.accept-primary');
 Route::post('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'storePrimaryManagerAcceptance'])->name('entity-contract.accept-primary.store');
+Route::get('/contrato-entidad/firmar/{token}', [EntityContractController::class, 'sign'])->name('entity-contract.sign');
+Route::post('/contrato-entidad/firmar/{token}', [EntityContractController::class, 'storeSign'])->name('entity-contract.sign.store');
 
 // Registro web comprador (venta digital pendiente)
 Route::get('/registro-comprador/{token}', [\App\Http\Controllers\DigitalBuyerRegistrationController::class, 'show'])->name('digital-buyer.register');
@@ -344,6 +346,7 @@ Route::group(['prefix' => 'entities'], function() {
     Route::post('/set-primary-manager', [EntityController::class, 'set_primary_manager'])->name('entities.set-primary-manager');
     Route::post('/toggle-manager-status', [EntityController::class, 'toggle_manager_status'])->name('entities.toggle-manager-status');
     Route::post('/resend-manager-invitation', [EntityController::class, 'resend_manager_invitation'])->name('entities.resend-manager-invitation');
+    Route::post('/{entity}/resend-contract', [EntityController::class, 'resendContract'])->name('entities.resend-contract');
     Route::delete('/destroy/manager/{entity_id}/{manager_id}', [EntityController::class, 'destroy_manager'])->name('entities.destroy-manager');
     
 });
@@ -566,6 +569,10 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
         ->middleware('throttle:15,1')
         ->name('design.createPrintOrderPaymentIntent');
     Route::post('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'submitPrintOrder'])->name('design.submitPrintOrder');
+    Route::get('/print-orders/{printOrder}/pay', [\App\Http\Controllers\DesignController::class, 'payPrintOrder'])->name('design.payPrintOrder');
+    Route::post('/print-orders/{printOrder}/pay/payment-intent', [\App\Http\Controllers\DesignController::class, 'createAcceptedPrintOrderPaymentIntent'])
+        ->name('design.payPrintOrder.paymentIntent');
+    Route::post('/print-orders/{printOrder}/pay', [\App\Http\Controllers\DesignController::class, 'submitPrintOrderPayment'])->name('design.submitPrintOrderPayment');
     Route::post('/sets/{set}/mark-management-fee-paid', [\App\Http\Controllers\DesignController::class, 'markManagementFeePaid'])->name('design.markManagementFeePaid');
     Route::get('/management-fee/pay/{set}', [\App\Http\Controllers\DesignController::class, 'payManagementFee'])->name('design.managementFee.pay');
     Route::get('/sets/{set}/start', [\App\Http\Controllers\DesignController::class, 'openChooseType'])->name('design.openChooseType');

@@ -141,7 +141,39 @@
                     		<div class="form-card bs" style="min-height: 658px;">
                     			<form action="{{url('entities/store-information')}}" method="POST" enctype="multipart/form-data" id="entity-information-form">
                     				@csrf()
-	                    			<h4 class="mb-0 mt-1">
+	                    			@php
+	                    				$clientType = old('client_type', session('entity_information.client_type', 'legal_entity'));
+	                    				$signerIsManager = old('signer_is_primary_manager', session('entity_information.signer_is_primary_manager', true));
+	                    				$signerIsManager = filter_var($signerIsManager, FILTER_VALIDATE_BOOLEAN);
+	                    			@endphp
+
+	                    			<h4 class="mb-0 mt-1">Tipo de cliente</h4>
+	                    			<small><i>Determina el formulario y si el firmante puede ser distinto del gestor responsable.</i></small>
+	                    			<div class="row mt-2 mb-3">
+	                    				<div class="col-md-6">
+	                    					<label class="form-check border rounded-pill px-3 py-2 d-flex align-items-center gap-2">
+	                    						<input class="form-check-input" type="radio" name="client_type" id="client_type_legal" value="legal_entity" {{ $clientType === 'legal_entity' ? 'checked' : '' }}>
+	                    						<span>
+	                    							<strong>Entidad con personalidad jurídica</strong><br>
+	                    							<small class="text-muted">Asociación, ONG, club, etc.</small>
+	                    						</span>
+	                    					</label>
+	                    				</div>
+	                    				<div class="col-md-6">
+	                    					<label class="form-check border rounded-pill px-3 py-2 d-flex align-items-center gap-2">
+	                    						<input class="form-check-input" type="radio" name="client_type" id="client_type_natural" value="natural_organizer" {{ $clientType === 'natural_organizer' ? 'checked' : '' }}>
+	                    						<span>
+	                    							<strong>Organizador / persona física</strong><br>
+	                    							<small class="text-muted">Peña, viaje de estudios, grupo informal…</small>
+	                    						</span>
+	                    					</label>
+	                    				</div>
+	                    				@error('client_type')
+	                    					<div class="col-12"><div class="text-danger small mt-1">{{ $message }}</div></div>
+	                    				@enderror
+	                    			</div>
+
+	                    			<h4 class="mb-0 mt-1" id="entity-data-title">
 	                    				Datos legales de la entidad
 	                    			</h4>
 	                    			<small><i>Todos los campos son obligatorios</i></small>
@@ -192,7 +224,7 @@
 	                    					
 	                    					<div class="col-6">
 	                    						<div class="form-group mt-2 mb-3">
-	                    							<label class="label-control">Nombre comercial</label>
+	                    							<label class="label-control" id="entity-name-label">Nombre comercial</label>
 
 					                    			<div class="input-group input-group-merge group-form">
 
@@ -200,7 +232,7 @@
 					                                        <img src="{{url('assets/form-groups/admin/1.svg')}}" alt="">
 					                                    </div>
 
-					                                    <input class="form-control" type="text" name="name" placeholder="Nombre Entidad" value="{{ old('name', session('entity_information.name')) }}" required style="border-radius: 0 30px 30px 0;">
+					                                    <input class="form-control" type="text" name="name" id="entity-name-input" placeholder="Nombre Entidad" value="{{ old('name', session('entity_information.name')) }}" required style="border-radius: 0 30px 30px 0;">
 					                                    @error('name')
 					                                        <div class="text-danger small mt-1">{{ $message }}</div>
 					                                    @enderror
@@ -287,7 +319,7 @@
 				                    			</div>
 	                    					</div>
 
-	                    					<div class="col-3">
+	                    					<div class="col-3" id="entity-nif-cif-wrap">
 	                    						<div class="form-group mt-2 mb-3">
 	                    							<label class="label-control">NIF/CIF</label>
 
@@ -297,7 +329,7 @@
 					                                        <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
 					                                    </div>
 
-					                                    <input class="form-control" type="text" name="nif_cif" id="entity-nif-cif" placeholder="B26262626" value="{{ old('nif_cif', session('entity_information.nif_cif')) }}" required style="border-radius: 0 30px 30px 0;">
+					                                    <input class="form-control" type="text" name="nif_cif" id="entity-nif-cif" placeholder="B26262626" value="{{ old('nif_cif', session('entity_information.nif_cif')) }}" style="border-radius: 0 30px 30px 0;">
 					                                    @error('nif_cif')
 					                                        <div class="text-danger small mt-1">{{ $message }}</div>
 					                                    @enderror
@@ -342,6 +374,56 @@
 				                    			</div>
 	                    					</div>
 
+	                    				</div>
+	                    			</div>
+
+	                    			<h4 class="mb-0 mt-3" id="signer-block-title">Firmante autorizado</h4>
+	                    			<small id="signer-block-help"><i>Persona con capacidad legal para firmar el contrato marco. No se crea cuenta de usuario.</i></small>
+	                    			<div class="row mt-2" id="signer-fields">
+	                    				<div class="col-4">
+	                    					<div class="form-group mt-2 mb-3">
+	                    						<label class="label-control">Nombre</label>
+	                    						<input class="form-control" type="text" name="signer_name" value="{{ old('signer_name', session('entity_information.signer_name')) }}" required style="border-radius: 30px;">
+	                    						@error('signer_name')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                    					</div>
+	                    				</div>
+	                    				<div class="col-4">
+	                    					<div class="form-group mt-2 mb-3">
+	                    						<label class="label-control">Primer apellido</label>
+	                    						<input class="form-control" type="text" name="signer_last_name" value="{{ old('signer_last_name', session('entity_information.signer_last_name')) }}" required style="border-radius: 30px;">
+	                    						@error('signer_last_name')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                    					</div>
+	                    				</div>
+	                    				<div class="col-4">
+	                    					<div class="form-group mt-2 mb-3">
+	                    						<label class="label-control">Segundo apellido</label>
+	                    						<input class="form-control" type="text" name="signer_last_name2" value="{{ old('signer_last_name2', session('entity_information.signer_last_name2')) }}" style="border-radius: 30px;">
+	                    						@error('signer_last_name2')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                    					</div>
+	                    				</div>
+	                    				<div class="col-4">
+	                    					<div class="form-group mt-2 mb-3">
+	                    						<label class="label-control">DNI / NIE</label>
+	                    						<input class="form-control" type="text" name="signer_nif" value="{{ old('signer_nif', session('entity_information.signer_nif')) }}" required style="border-radius: 30px;">
+	                    						@error('signer_nif')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                    					</div>
+	                    				</div>
+	                    				<div class="col-4">
+	                    					<div class="form-group mt-2 mb-3">
+	                    						<label class="label-control">Fecha de nacimiento</label>
+	                    						<input class="form-control" type="date" name="signer_birthday" value="{{ old('signer_birthday', session('entity_information.signer_birthday')) }}" style="border-radius: 30px;">
+	                    						@error('signer_birthday')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                    					</div>
+	                    				</div>
+	                    				<div class="col-12" id="signer-same-manager-wrap">
+	                    					<div class="form-check mt-1 mb-3">
+	                    						<input type="hidden" name="signer_is_primary_manager" value="0">
+	                    						<input class="form-check-input" type="checkbox" name="signer_is_primary_manager" id="signer_is_primary_manager" value="1" {{ $signerIsManager ? 'checked' : '' }}>
+	                    						<label class="form-check-label" for="signer_is_primary_manager">
+	                    							El gestor responsable es el mismo que el firmante autorizado
+	                    						</label>
+	                    					</div>
+	                    					<small class="text-muted d-block mb-2">Si está marcado, en el siguiente paso se autocompletarán los datos del gestor. El email de acceso del gestor debe ser distinto al email del panel de la entidad.</small>
 	                    				</div>
 	                    			</div>
 
@@ -391,6 +473,8 @@
     <!-- end row-->
 
 </div> <!-- container -->
+
+@include('entities.partials.billing_switches_confirm_modal', ['onboardingMode' => true])
 
 @endsection
 
@@ -525,6 +609,59 @@
             }
         }
 
+	    const syncClientTypeUi = function () {
+	        const isNatural = document.getElementById('client_type_natural')?.checked;
+	        const nifWrap = document.getElementById('entity-nif-cif-wrap');
+	        const nifInput = document.getElementById('entity-nif-cif');
+	        const sameWrap = document.getElementById('signer-same-manager-wrap');
+	        const sameCheck = document.getElementById('signer_is_primary_manager');
+	        const title = document.getElementById('entity-data-title');
+	        const nameLabel = document.getElementById('entity-name-label');
+	        const nameInput = document.getElementById('entity-name-input');
+	        const signerTitle = document.getElementById('signer-block-title');
+	        const signerHelp = document.getElementById('signer-block-help');
+
+	        if (title) {
+	            title.textContent = isNatural ? 'Datos del organizador / grupo' : 'Datos legales de la entidad';
+	        }
+	        if (nameLabel) {
+	            nameLabel.textContent = isNatural ? 'Nombre del grupo / organizador' : 'Nombre comercial';
+	        }
+	        if (nameInput) {
+	            nameInput.placeholder = isNatural ? 'Ej. Viaje de Estudios Matute' : 'Nombre Entidad';
+	        }
+	        if (signerTitle) {
+	            signerTitle.textContent = isNatural ? 'Persona organizadora (firmante y gestor)' : 'Firmante autorizado';
+	        }
+	        if (signerHelp) {
+	            signerHelp.innerHTML = isNatural
+	                ? '<i>En este caso el organizador firma el contrato y es necesariamente el gestor responsable.</i>'
+	                : '<i>Persona con capacidad legal para firmar el contrato marco. No se crea cuenta de usuario.</i>';
+	        }
+	        if (nifWrap) {
+	            nifWrap.style.display = isNatural ? 'none' : '';
+	        }
+	        if (nifInput) {
+	            if (isNatural) {
+	                nifInput.removeAttribute('required');
+	                nifInput.value = '';
+	            } else {
+	                nifInput.setAttribute('required', 'required');
+	            }
+	        }
+	        if (sameWrap) {
+	            sameWrap.style.display = isNatural ? 'none' : '';
+	        }
+	        if (sameCheck && isNatural) {
+	            sameCheck.checked = true;
+	        }
+	    };
+
+	    document.querySelectorAll('input[name="client_type"]').forEach(function (radio) {
+	        radio.addEventListener('change', syncClientTypeUi);
+	    });
+	    syncClientTypeUi();
+
 	    // Al cargar sin imagen en sesión, no mostrar imagen previa de otros flujos
 	    localStorage.removeItem('image_entity_create');
 
@@ -548,14 +685,17 @@
 	    const entityForm = document.getElementById('entity-information-form');
 	    if (entityForm) {
 	        const fieldRules = {
-	            name: { label: 'Nombre comercial', test: (v) => v.trim() !== '' },
+	            name: { label: 'Nombre', test: (v) => v.trim() !== '' },
 	            province: { label: 'Provincia', test: (v) => v.trim() !== '' },
 	            city: { label: 'Localidad', test: (v) => v.trim() !== '' },
 	            postal_code: { label: 'Código postal', test: (v) => v.trim() !== '' },
 	            address: { label: 'Dirección', test: (v) => v.trim() !== '' },
-	            nif_cif: { label: 'NIF/CIF', test: (v) => v.trim() !== '' },
+	            nif_cif: { label: 'NIF/CIF', test: (v) => v.trim() !== '', skipIfNatural: true },
 	            phone: { label: 'Teléfono', test: (v) => v.trim() !== '' },
 	            email: { label: 'Email acceso panel', test: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) },
+	            signer_name: { label: 'Nombre del firmante', test: (v) => v.trim() !== '' },
+	            signer_last_name: { label: 'Apellido del firmante', test: (v) => v.trim() !== '' },
+	            signer_nif: { label: 'DNI/NIE del firmante', test: (v) => v.trim() !== '' },
 	        };
 
 	        const clearFieldError = function (field) {
@@ -595,6 +735,20 @@
 	        });
 
         entityForm.addEventListener('submit', function (event) {
+            if (entityForm.dataset.billingConfirmed === '1') {
+                // continuar con validación normal
+            } else {
+                event.preventDefault();
+                const canDonate = document.getElementById('is_non_profit')?.checked ?? false;
+                const paysManagement = document.getElementById('entity_pays_management_fee')?.checked ?? false;
+                const paysPrint = document.getElementById('entity_pays_print_fee')?.checked ?? false;
+                document.getElementById('billing-modal-donation-cert').textContent = canDonate ? 'Sí' : 'No';
+                document.getElementById('billing-modal-management-payer').textContent = paysManagement ? 'Entidad' : 'Administración';
+                document.getElementById('billing-modal-print-payer').textContent = paysPrint ? 'Entidad' : 'Administración';
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('entityBillingSwitchesModal')).show();
+                return;
+            }
+
             // TomSelect a veces no sincroniza el <select> nativo hasta el submit.
             try {
                 if (provinceTs) {
@@ -607,12 +761,14 @@
                 }
             } catch (e) {}
 
+            const isNatural = document.getElementById('client_type_natural')?.checked;
             let firstInvalid = null;
             Object.keys(fieldRules).forEach(function (name) {
+                const rule = fieldRules[name];
+                if (rule.skipIfNatural && isNatural) return;
                 const field = entityForm.querySelector('[name="' + name + '"]');
                 if (!field) return;
                 clearFieldError(field);
-                const rule = fieldRules[name];
                 if (!rule.test(field.value || '')) {
                     if (!firstInvalid) firstInvalid = field;
                     showFieldError(field, 'Revise el campo ' + rule.label + '.');
@@ -627,6 +783,13 @@
 	    }
 	});
 
+    document.getElementById('billing-modal-confirm-btn')?.addEventListener('click', function () {
+        const entityForm = document.getElementById('entity-information-form');
+        if (!entityForm) return;
+        entityForm.dataset.billingConfirmed = '1';
+        bootstrap.Modal.getInstance(document.getElementById('entityBillingSwitchesModal'))?.hide();
+        entityForm.requestSubmit();
+    });
 </script>
 
 @endsection

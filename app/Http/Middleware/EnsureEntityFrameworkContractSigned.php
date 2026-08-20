@@ -25,6 +25,8 @@ class EnsureEntityFrameworkContractSigned
             'entity-contract.pending',
             'entity-contract.accept-primary',
             'entity-contract.accept-primary.store',
+            'entity-contract.sign',
+            'entity-contract.sign.store',
             'entity-managers.confirm-accept',
             'entity-managers.confirm-respond',
             'entity-managers.confirm-reject',

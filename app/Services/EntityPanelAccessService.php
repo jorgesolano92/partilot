@@ -30,7 +30,15 @@ class EntityPanelAccessService
             'administration_id' => is_object($administration) ? $administration->id : ($administration['id'] ?? null),
             'status' => 0,
         ]);
-        unset($entityData['panel_password']);
+        unset($entityData['panel_password'], $entityData['remove_image']);
+
+        $allowed = (new Entity)->getFillable();
+        $entityData = array_intersect_key($entityData, array_flip($allowed));
+
+        if (($entityData['client_type'] ?? null) === Entity::CLIENT_TYPE_NATURAL_ORGANIZER) {
+            $entityData['nif_cif'] = null;
+            $entityData['signer_is_primary_manager'] = true;
+        }
 
         $entity = Entity::create($entityData);
         $this->provisionPanelAccess($entity, $entityInformation);

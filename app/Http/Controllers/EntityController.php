@@ -125,13 +125,16 @@ class EntityController extends Controller
      */
     public function store_information(Request $request)
     {
-        $validated = $request->validate([
+        $clientType = $request->input('client_type', \App\Models\Entity::CLIENT_TYPE_LEGAL_ENTITY);
+        $isNatural = $clientType === \App\Models\Entity::CLIENT_TYPE_NATURAL_ORGANIZER;
+
+        $rules = [
+            'client_type' => 'required|in:legal_entity,natural_organizer',
             'name' => 'required|string|max:255',
             'province' => 'required|string|max:255',
             'city' => 'required|string|max:255',
             'postal_code' => 'required|string|max:10',
             'address' => 'required|string|max:500',
-            'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\EntityDocument],
             'phone' => 'required|string|max:20',
             'email' => 'required|email|max:255',
             'comments' => 'nullable|string|max:1000',
@@ -140,8 +143,25 @@ class EntityController extends Controller
             'entity_pays_print_fee' => 'nullable|boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'remove_image' => 'nullable|in:0,1',
-        ], [
-            'name.required' => 'Indique el nombre comercial de la entidad.',
+            'signer_name' => 'required|string|max:255',
+            'signer_last_name' => 'required|string|max:255',
+            'signer_last_name2' => 'nullable|string|max:255',
+            'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            'signer_birthday' => ValidCalendarDate::birthday(false),
+            'signer_is_primary_manager' => 'nullable|boolean',
+        ];
+
+        if ($isNatural) {
+            $rules['nif_cif'] = 'nullable|string|max:20';
+        } else {
+            $rules['nif_cif'] = ['required', 'string', 'max:20', new \App\Rules\EntityDocument];
+        }
+
+        $validated = $request->validate($rules, [
+            'client_type.required' => 'Seleccione el tipo de cliente.',
+            'name.required' => $isNatural
+                ? 'Indique el nombre del grupo u organizador.'
+                : 'Indique el nombre comercial de la entidad.',
             'province.required' => 'Seleccione una provincia.',
             'city.required' => 'Seleccione una localidad.',
             'postal_code.required' => 'Indique el código postal.',
@@ -150,12 +170,21 @@ class EntityController extends Controller
             'phone.required' => 'Indique un teléfono de contacto.',
             'email.required' => 'Indique el email de acceso al panel.',
             'email.email' => 'El email de acceso al panel no es válido.',
+            'signer_name.required' => 'Indique el nombre del firmante autorizado.',
+            'signer_last_name.required' => 'Indique el primer apellido del firmante autorizado.',
+            'signer_nif.required' => 'Indique el DNI/NIE del firmante autorizado.',
         ]);
 
         $validated['comments'] = \App\Support\HtmlText::sanitizePlainText($validated['comments'] ?? null);
         $validated['is_non_profit'] = $request->boolean('is_non_profit');
         $validated['entity_pays_management_fee'] = $request->boolean('entity_pays_management_fee');
         $validated['entity_pays_print_fee'] = $request->boolean('entity_pays_print_fee');
+        $validated['signer_is_primary_manager'] = $isNatural ? true : $request->boolean('signer_is_primary_manager');
+        $validated['signer_birthday'] = $validated['signer_birthday'] ?? null;
+
+        if ($isNatural) {
+            $validated['nif_cif'] = null;
+        }
 
         // Manejo de imagen: nueva subida o marcar para quitar
         if ($request->boolean('remove_image')) {
@@ -208,8 +237,21 @@ class EntityController extends Controller
                 ->with('error', 'No se encontraron los datos de la entidad. Vuelva a completarlos.');
         }
 
-        // Inicializar datos del gestor en sesión si no existen (persistencia como en administrations)
-        if (!session()->has('entity_manager')) {
+        $shouldPrefillFromSigner = (bool) ($entityInformation['signer_is_primary_manager'] ?? false)
+            || (($entityInformation['client_type'] ?? '') === Entity::CLIENT_TYPE_NATURAL_ORGANIZER);
+
+        if ($shouldPrefillFromSigner) {
+            session()->put('entity_manager', [
+                'manager_name' => (string) ($entityInformation['signer_name'] ?? ''),
+                'manager_last_name' => (string) ($entityInformation['signer_last_name'] ?? ''),
+                'manager_last_name2' => (string) ($entityInformation['signer_last_name2'] ?? ''),
+                'manager_nif_cif' => (string) ($entityInformation['signer_nif'] ?? ''),
+                'manager_birthday' => (string) ($entityInformation['signer_birthday'] ?? ''),
+                'manager_email' => session('entity_manager.manager_email', ''),
+                'manager_phone' => session('entity_manager.manager_phone', (string) ($entityInformation['phone'] ?? '')),
+                'prefilled_from_signer' => true,
+            ]);
+        } elseif (! session()->has('entity_manager')) {
             session()->put('entity_manager', [
                 'manager_name' => '',
                 'manager_last_name' => '',
@@ -218,6 +260,7 @@ class EntityController extends Controller
                 'manager_birthday' => '',
                 'manager_email' => '',
                 'manager_phone' => '',
+                'prefilled_from_signer' => false,
             ]);
         }
 
@@ -322,7 +365,7 @@ class EntityController extends Controller
             return redirect()->route('entities.add-information')->with('error', $e->getMessage());
         }
 
-        // Gestor responsable: pendiente de aceptación por email (mismo flujo que invitar gestor).
+        // Gestor responsable: pendiente. La invitación se envía tras la firma del firmante autorizado.
         $primaryManager = Manager::create([
             'user_id' => $managerUser->id,
             'entity_id' => $entity->id,
@@ -332,7 +375,7 @@ class EntityController extends Controller
             'permission_statistics' => true,
             'permission_payments' => true,
             'confirmation_token' => Str::random(64),
-            'confirmation_sent_at' => now(),
+            'confirmation_sent_at' => null,
             'requires_password_setup' => false,
             'user_created_for_invitation' => $managerUserWasNew,
             'status' => null,
@@ -342,34 +385,12 @@ class EntityController extends Controller
             $managerUser->update(['role' => User::ROLE_ENTITY]);
         }
 
-        try {
-            if (! empty($managerUser->email)) {
-                app(CommunicationEmailService::class)->sendAndLog(
-                    recipientEmail: (string) $managerUser->email,
-                    recipientRole: 'gestor_entidad',
-                    recipientUser: $managerUser,
-                    messageType: 'entity_manager_invitation',
-                    templateKey: null,
-                    mailClass: EntityManagerInvitationMail::class,
-                    mailPayload: array_filter([
-                        'entity_id' => $entity->id,
-                        'user_id' => $managerUser->id,
-                        'manager_id' => $primaryManager->id,
-                        'plain_password' => $managerPlainPassword,
-                    ]),
-                    context: ['entity_id' => $entity->id],
-                );
-            }
-        } catch (\Throwable $e) {
-            \Log::warning('Fallo enviando invitación al gestor responsable (alta entidad): '.$e->getMessage());
-        }
-
         $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
 
         return redirect()->route('entities.index')
             ->with(
                 'success',
-                'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. También se ha enviado un correo al gestor responsable con sus datos de acceso y la invitación.'
+                'Entidad creada. Se ha enviado el contrato marco al email de la entidad para firma del representante autorizado. Cuando firme, se notificará al gestor responsable para aceptar el cargo.'
             );
     }
 
@@ -510,7 +531,7 @@ class EntityController extends Controller
             'permission_statistics' => $request->boolean('permission_statistics'),
             'permission_payments' => $request->boolean('permission_payments'),
             'confirmation_token' => Str::random(64),
-            'confirmation_sent_at' => now(),
+            'confirmation_sent_at' => $isCreationFlow ? null : now(),
             'requires_password_setup' => false,
             'user_created_for_invitation' => false,
             'status' => null, // Pendiente por defecto
@@ -521,22 +542,24 @@ class EntityController extends Controller
             $user->update(['role' => User::ROLE_ENTITY]);
         }
 
-        // Cadena de alta entidad/gestor: email al gestor invitado
-        try {
-            if ($user && !empty($user->email)) {
-                app(CommunicationEmailService::class)->sendAndLog(
-                    recipientEmail: (string) $user->email,
-                    recipientRole: 'gestor_entidad',
-                    recipientUser: $user,
-                    messageType: 'entity_manager_invitation',
-                    templateKey: null,
-                    mailClass: EntityManagerInvitationMail::class,
-                    mailPayload: ['entity_id' => $entity->id, 'user_id' => $user->id, 'manager_id' => $manager->id],
-                    context: ['entity_id' => $entity->id],
-                );
+        // En alta inicial, la invitación se envía tras la firma del contrato. En gestores secundarios, se envía ya.
+        if (! $isCreationFlow) {
+            try {
+                if ($user && ! empty($user->email)) {
+                    app(CommunicationEmailService::class)->sendAndLog(
+                        recipientEmail: (string) $user->email,
+                        recipientRole: 'gestor_entidad',
+                        recipientUser: $user,
+                        messageType: 'entity_manager_invitation',
+                        templateKey: null,
+                        mailClass: EntityManagerInvitationMail::class,
+                        mailPayload: ['entity_id' => $entity->id, 'user_id' => $user->id, 'manager_id' => $manager->id],
+                        context: ['entity_id' => $entity->id],
+                    );
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Fallo enviando invitación a gestor existente: '.$e->getMessage());
             }
-        } catch (\Throwable $e) {
-            \Log::warning('Fallo enviando invitación a gestor existente: '.$e->getMessage());
         }
 
         // Si venimos del wizard de creación, limpiar sesión al completar la invitación.
@@ -546,7 +569,7 @@ class EntityController extends Controller
 
         return redirect()->route('entities.show', $entity->id)
             ->with('success', $isCreationFlow
-                ? 'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. Gestor invitado exitosamente.'
+                ? 'Entidad creada. Se ha enviado el contrato marco al email de la entidad. El gestor designado será notificado cuando el firmante autorice el contrato.'
                 : 'Gestor invitado exitosamente.');
     }
 
@@ -732,31 +755,14 @@ class EntityController extends Controller
             'permission_statistics' => true,
             'permission_payments' => true,
         ]);
-
-        try {
-            app(CommunicationEmailService::class)->sendAndLog(
-                recipientEmail: $inviteEmail,
-                recipientRole: 'gestor_entidad',
-                recipientUser: null,
-                messageType: 'entity_manager_preregister_invitation',
-                templateKey: null,
-                mailClass: EntityManagerPreregisterInviteMail::class,
-                mailPayload: [
-                    'entity_id' => $entity->id,
-                    'pending_invitation_id' => $pending->id,
-                ],
-                context: ['entity_id' => $entity->id],
-            );
-        } catch (\Throwable $e) {
-            \Log::warning('Fallo enviando invitación pre-registro (alta entidad): '.$e->getMessage());
-        }
+        $pending->update(['confirmation_sent_at' => null]);
 
         $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
 
         return redirect()->route('entities.index')
             ->with(
                 'success',
-                'Entidad creada. Se ha enviado un correo al email de la entidad con la contraseña provisional del panel. El futuro gestor recibirá un correo para aceptar o rechazar y completar su registro.'
+                'Entidad creada. Se ha enviado el contrato marco al email de la entidad. Cuando el firmante lo autorice, el futuro gestor recibirá el correo para aceptar el cargo y completar su registro.'
             );
     }
 
@@ -1472,7 +1478,11 @@ class EntityController extends Controller
         if (($manager->is_primary || $manager->pending_primary)
             && $manager->entity
             && $manager->entity->contract_status === \App\Models\Entity::CONTRACT_PENDING) {
-            return redirect()->route('entity-contract.accept-primary', ['token' => $token]);
+            return view('contracts.administration-result', [
+                'success' => false,
+                'title' => 'Contrato pendiente de firma',
+                'message' => 'El representante autorizado debe firmar primero el contrato marco. Cuando esté firmado, podrá aceptar el cargo desde este mismo enlace o desde el correo de invitación.',
+            ]);
         }
 
         $invitation = $roleService->buildWebManagerPayload($manager);
@@ -1525,7 +1535,11 @@ class EntityController extends Controller
         if (($manager->is_primary || $manager->pending_primary)
             && $manager->entity
             && $manager->entity->contract_status === Entity::CONTRACT_PENDING) {
-            return redirect()->route('entity-contract.accept-primary', ['token' => $token]);
+            return view('contracts.administration-result', [
+                'success' => false,
+                'title' => 'Contrato pendiente de firma',
+                'message' => 'El representante autorizado debe firmar primero el contrato marco. Cuando esté firmado, podrá aceptar el cargo.',
+            ]);
         }
 
         $request->validate([
@@ -1605,7 +1619,11 @@ class EntityController extends Controller
         if (($manager->is_primary || $manager->pending_primary)
             && $manager->entity
             && $manager->entity->contract_status === Entity::CONTRACT_PENDING) {
-            return redirect()->route('entity-contract.accept-primary', ['token' => $token]);
+            return view('contracts.administration-result', [
+                'success' => false,
+                'title' => 'Contrato pendiente de firma',
+                'message' => 'El representante autorizado debe firmar primero el contrato marco. Cuando esté firmado, podrá aceptar el cargo.',
+            ]);
         }
 
         $result = $roleService->finalizeManagerActivation($manager, $request, $manager->user);
@@ -1829,6 +1847,30 @@ class EntityController extends Controller
     }
 
     /**
+     * Reenviar email de firma del contrato marco al email de la entidad.
+     */
+    public function resendContract(Entity $entity)
+    {
+        $entity = Entity::forUser(auth()->user())->findOrFail($entity->id);
+        $this->assertCanEditEntityData();
+
+        if ($entity->contract_status === Entity::CONTRACT_SIGNED) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'El contrato marco ya está firmado.');
+        }
+
+        try {
+            app(EntityContractService::class)->sendSigningInvitation($entity);
+        } catch (\Throwable $e) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('entities.show', $entity->id)
+            ->with('success', 'Se ha reenviado el email de firma del contrato marco al correo de la entidad.');
+    }
+
+    /**
      * Reenviar invitación a gestor (Manager pendiente) o invitación pre-registro (email sin cuenta).
      */
     public function resend_manager_invitation(Request $request)
@@ -1865,6 +1907,12 @@ class EntityController extends Controller
         if (! $manager->isPendingActivation()) {
             return redirect()->route('entities.show', $entity->id)
                 ->with('error', 'Este gestor ya no está pendiente de aceptación; no hay invitación que reenviar.');
+        }
+
+        if (($manager->is_primary || $manager->pending_primary)
+            && $entity->contract_status === Entity::CONTRACT_PENDING) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'No se puede reenviar la invitación del gestor responsable hasta que el representante autorizado firme el contrato marco.');
         }
 
         $user = $manager->user;

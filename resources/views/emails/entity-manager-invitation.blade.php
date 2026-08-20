@@ -4,15 +4,16 @@
     $roleType = $manager->pending_primary || $manager->is_primary ? 'gestor_responsable' : 'gestor';
     $role = config("legal_roles.{$roleType}", []);
     $adminName = $entity->administration->name ?? 'Tu administración';
+    $isResponsible = $manager->pending_primary || $manager->is_primary;
 @endphp
 @php($title = 'Invitación - Partilot')
-@php($heading = $manager->pending_primary ? 'Designación como Gestor Responsable' : 'Invitación como Gestor')
+@php($heading = $isResponsible ? 'Designación como Gestor Responsable' : 'Invitación como Gestor')
 
 @section('content')
 <p>Hola {{ $managerUser->name ?? 'Gestor' }},</p>
-@if($manager->pending_primary)
+@if($isResponsible)
 <p><strong>{{ $adminName }}</strong> te ha designado <strong>Gestor Responsable</strong> de la entidad <strong>{{ $entity->name }}</strong> en PARTILOT.</p>
-<p>Para aceptar el cargo deberás leer y firmar el <strong>Contrato Marco de Uso de la Plataforma</strong> en nombre de la entidad.</p>
+<p>El contrato marco ya ha sido firmado por el representante autorizado. Para activar la entidad debes <strong>aceptar el cargo de Gestor Responsable</strong>.</p>
 @else
 <p>Te han invitado a colaborar como <strong>Gestor</strong> en la entidad <strong>{{ $entity->name }}</strong> en PARTILOT.</p>
 @endif

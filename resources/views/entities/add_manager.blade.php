@@ -126,7 +126,13 @@
                     				Email de invitación
                     			</h4>
                     			<small><i>Asegúrese de que el email sea el correcto</i></small>
-                    			<p class="text-muted small mt-2 mb-0">El <strong>gestor responsable</strong> recibirá un correo para <strong>aceptar o rechazar</strong> el cargo. Si es usuario nuevo (registrar gestor), el correo incluirá también email y contraseña provisional. La cuenta de panel de la entidad recibe su contraseña provisional por correo por separado.</p>
+                    			@if(session('entity_manager.prefilled_from_signer'))
+                    				<div class="alert alert-info mt-2 mb-2 py-2">
+                    					Datos del gestor precargados desde el firmante autorizado. Indique un <strong>email de acceso distinto</strong> al del panel de la entidad. La invitación al gestor se enviará cuando el firmante firme el contrato marco.
+                    				</div>
+                    			@else
+                    				<p class="text-muted small mt-2 mb-0">El <strong>gestor responsable</strong> quedará designado ahora; recibirá el correo para <strong>aceptar o rechazar</strong> el cargo cuando el firmante autorizado firme el contrato marco. Si es usuario nuevo (registrar gestor), ese correo incluirá también email y contraseña provisional. La cuenta de panel de la entidad recibe su contraseña provisional por correo por separado.</p>
+                    			@endif
 
                     			<div class="form-group mt-2 mb-3 admin-box">
 

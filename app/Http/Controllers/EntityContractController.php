@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entity;
-use App\Models\Manager;
 use App\Services\EntityContractService;
 use App\Services\RoleLegalAcceptanceService;
 use Illuminate\Http\Request;
@@ -60,6 +59,69 @@ class EntityContractController extends Controller
         );
     }
 
+    public function sign(string $token)
+    {
+        $entity = $this->contractService->findPendingByToken($token);
+
+        if (! $entity) {
+            return view('contracts.administration-result', [
+                'success' => false,
+                'title' => 'Enlace no válido',
+                'message' => 'El enlace de firma no es válido o el contrato ya fue firmado.',
+            ]);
+        }
+
+        $viewData = $this->contractService->buildViewData($entity);
+
+        return view('contracts.entity-authorized-signer-accept', [
+            'token' => $token,
+            'entity' => $entity,
+            'viewData' => $viewData,
+        ]);
+    }
+
+    public function storeSign(Request $request, string $token)
+    {
+        $entity = $this->contractService->findPendingByToken($token);
+
+        if (! $entity) {
+            return view('contracts.administration-result', [
+                'success' => false,
+                'title' => 'Enlace no válido',
+                'message' => 'El enlace de firma no es válido o el contrato ya fue firmado.',
+            ]);
+        }
+
+        $data = $request->validate([
+            'signer_name' => 'required|string|max:255',
+            'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            'accept_contract' => 'accepted',
+        ], [
+            'accept_contract.accepted' => 'Debe aceptar el contrato marco para continuar.',
+        ]);
+
+        try {
+            $this->contractService->signContractByAuthorizedSigner(
+                $entity,
+                $data['signer_name'],
+                $data['signer_nif'],
+                $request
+            );
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['signer_name' => $e->getMessage()])->withInput();
+        }
+
+        return view('contracts.administration-result', [
+            'success' => true,
+            'title' => 'Contrato firmado',
+            'message' => 'El contrato marco ha sido firmado correctamente. Se ha notificado al gestor responsable para que acepte su cargo. Hemos enviado una copia en PDF al correo de la entidad.',
+        ]);
+    }
+
+    /**
+     * Compatibilidad: el enlace antiguo del gestor ya no firma el contrato.
+     * Si el contrato está pendiente, informa; si está firmado, redirige a aceptar el rol.
+     */
     public function acceptPrimaryManager(Request $request, string $token)
     {
         $manager = $this->roleLegalAcceptance->findManagerByToken($token);
@@ -81,15 +143,10 @@ class EntityContractController extends Controller
             return redirect()->route('entity-managers.confirm-accept', ['token' => $token]);
         }
 
-        $invitation = $this->roleLegalAcceptance->buildWebManagerPayload($manager);
-        $viewData = $this->contractService->buildViewData($entity, $manager);
-
-        return view('contracts.entity-responsible-accept', [
-            'token' => $token,
-            'manager' => $manager,
-            'entity' => $entity,
-            'invitation' => $invitation,
-            'viewData' => $viewData,
+        return view('contracts.administration-result', [
+            'success' => false,
+            'title' => 'Contrato pendiente de firma',
+            'message' => 'El contrato marco debe firmarlo primero el representante autorizado de la entidad. Cuando esté firmado, podrá aceptar el cargo de gestor responsable desde el correo de invitación.',
         ]);
     }
 
@@ -115,32 +172,19 @@ class EntityContractController extends Controller
             ]);
         }
 
-        $data = $request->validate([
-            'signer_name' => 'required|string|max:255',
-            'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
-            'accept_contract' => 'accepted',
-            'role_terms' => 'accepted',
-        ], [
-            'accept_contract.accepted' => 'Debe aceptar el contrato marco en nombre de la entidad.',
-            'role_terms.accepted' => 'Debe aceptar las responsabilidades del cargo para continuar.',
-        ]);
-
-        try {
-            $this->contractService->signContractForPrimaryManager(
-                $manager->entity,
-                $manager,
-                $manager->user,
-                $data['signer_name'],
-                $data['signer_nif'],
-                $request
-            );
-        } catch (\InvalidArgumentException $e) {
+        if ($manager->entity->contract_status === Entity::CONTRACT_PENDING) {
             return view('contracts.administration-result', [
                 'success' => false,
-                'title' => 'No se pudo completar',
-                'message' => $e->getMessage(),
+                'title' => 'Contrato pendiente de firma',
+                'message' => 'El representante autorizado aún no ha firmado el contrato marco. No es posible aceptar el cargo todavía.',
             ]);
         }
+
+        $request->validate([
+            'role_terms' => 'accepted',
+        ], [
+            'role_terms.accepted' => 'Debe aceptar las responsabilidades del cargo para continuar.',
+        ]);
 
         $result = $this->roleLegalAcceptance->finalizeManagerActivation($manager, $request, $manager->user);
         if (! $result['success']) {
@@ -154,7 +198,7 @@ class EntityContractController extends Controller
         $manager->refresh()->load('entity');
 
         return view('entities.manager-confirmation-success', [
-            'message' => '¡Cargo aceptado y contrato marco firmado! Hemos enviado una copia en PDF a su correo. Ya puede iniciar sesión en PARTILOT.',
+            'message' => '¡Cargo aceptado! Ya puede iniciar sesión en PARTILOT.',
             'type' => 'accept',
             'manager' => $manager,
         ]);

@@ -197,7 +197,7 @@ class RoleLegalAcceptanceService
                 && $manager->entity->contract_status === Entity::CONTRACT_PENDING) {
                 return [
                     'success' => false,
-                    'message' => 'Debe firmar el contrato marco de la entidad en la web antes de aceptar el cargo.',
+                    'message' => 'El representante autorizado debe firmar primero el contrato marco de la entidad antes de poder aceptar el cargo.',
                     'requires_entity_contract' => true,
                 ];
             }

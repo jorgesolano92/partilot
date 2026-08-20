@@ -21,19 +21,19 @@
         <h1>Contrato marco de entidad pendiente</h1>
 
         @if ($waitingForManager)
-            <p>La entidad <strong>{{ $entity->name }}</strong> no puede operar en PARTILOT hasta que el Gestor Responsable designado firme el contrato marco y acepte el cargo.</p>
+            <p>La entidad <strong>{{ $entity->name }}</strong> no puede operar en PARTILOT hasta que el <strong>representante autorizado</strong> firme el contrato marco y, a continuación, el Gestor Responsable acepte el cargo.</p>
             <div class="alert">
-                Está pendiente la firma del Gestor Responsable. Si usted es el gestor designado, utilice el enlace recibido por correo electrónico.
+                Está pendiente la firma del representante autorizado (enlace enviado al email de la entidad). Cuando firme, el gestor responsable recibirá la invitación para aceptar el cargo.
             </div>
-        @elseif ($manager && $manager->confirmation_token)
-            <p>Para utilizar PARTILOT como Gestor Responsable de <strong>{{ $entity->name }}</strong>, debe leer y firmar el contrato marco en nombre de la entidad y aceptar el cargo.</p>
+        @elseif ($manager && $manager->confirmation_token && $entity->contract_status === \App\Models\Entity::CONTRACT_SIGNED)
+            <p>El contrato marco de <strong>{{ $entity->name }}</strong> ya está firmado. Para activar la entidad debe aceptar el cargo de Gestor Responsable.</p>
             <div class="actions">
-                <a class="btn primary" href="{{ route('entity-contract.accept-primary', ['token' => $manager->confirmation_token]) }}">
-                    Revisar contrato y aceptar cargo
+                <a class="btn primary" href="{{ route('entity-managers.confirm-accept', ['token' => $manager->confirmation_token]) }}">
+                    Aceptar cargo
                 </a>
             </div>
         @else
-            <p>La entidad <strong>{{ $entity->name }}</strong> tiene pendiente la firma del contrato marco de uso de la plataforma.</p>
+            <p>La entidad <strong>{{ $entity->name }}</strong> tiene pendiente la firma del contrato marco por el representante autorizado.</p>
         @endif
 
         <div class="actions">

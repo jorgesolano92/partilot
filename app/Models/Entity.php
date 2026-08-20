@@ -15,6 +15,10 @@ class Entity extends Model
 
     public const CONTRACT_SIGNED = 'signed';
 
+    public const CLIENT_TYPE_LEGAL_ENTITY = 'legal_entity';
+
+    public const CLIENT_TYPE_NATURAL_ORGANIZER = 'natural_organizer';
+
     protected $fillable = [
         'administration_id',
         'image',
@@ -27,6 +31,13 @@ class Entity extends Model
         'phone',
         'email',
         'comments',
+        'client_type',
+        'signer_name',
+        'signer_last_name',
+        'signer_last_name2',
+        'signer_nif',
+        'signer_birthday',
+        'signer_is_primary_manager',
         'is_non_profit',
         'status',
         'billing_iban',
@@ -50,13 +61,47 @@ class Entity extends Model
         'is_non_profit' => 'boolean',
         'entity_pays_management_fee' => 'boolean',
         'entity_pays_print_fee' => 'boolean',
+        'signer_is_primary_manager' => 'boolean',
+        'signer_birthday' => 'date',
         'contract_sent_at' => 'datetime',
         'contract_signed_at' => 'datetime',
     ];
 
+    public function isNaturalOrganizer(): bool
+    {
+        return $this->client_type === self::CLIENT_TYPE_NATURAL_ORGANIZER;
+    }
+
+    public function isLegalEntityClient(): bool
+    {
+        return ($this->client_type ?: self::CLIENT_TYPE_LEGAL_ENTITY) === self::CLIENT_TYPE_LEGAL_ENTITY;
+    }
+
+    public function hasPendingFrameworkContract(): bool
+    {
+        return $this->contract_status === self::CONTRACT_PENDING;
+    }
+
     public function hasSignedFrameworkContract(): bool
     {
         return $this->contract_status === self::CONTRACT_SIGNED;
+    }
+
+    public function signerFullName(): string
+    {
+        return trim(implode(' ', array_filter([
+            (string) ($this->signer_name ?? ''),
+            (string) ($this->signer_last_name ?? ''),
+            (string) ($this->signer_last_name2 ?? ''),
+        ])));
+    }
+
+    public function clientTypeLabel(): string
+    {
+        return match ($this->client_type) {
+            self::CLIENT_TYPE_NATURAL_ORGANIZER => 'Organizador / persona física',
+            default => 'Entidad con personalidad jurídica',
+        };
     }
 
     public function contractStatusLabel(): string
