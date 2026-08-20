@@ -566,6 +566,10 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
         ->middleware('throttle:15,1')
         ->name('design.createPrintOrderPaymentIntent');
     Route::post('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'submitPrintOrder'])->name('design.submitPrintOrder');
+    Route::get('/print-orders/{printOrder}/pay', [\App\Http\Controllers\DesignController::class, 'payPrintOrder'])->name('design.payPrintOrder');
+    Route::post('/print-orders/{printOrder}/pay/payment-intent', [\App\Http\Controllers\DesignController::class, 'createAcceptedPrintOrderPaymentIntent'])
+        ->name('design.payPrintOrder.paymentIntent');
+    Route::post('/print-orders/{printOrder}/pay', [\App\Http\Controllers\DesignController::class, 'submitPrintOrderPayment'])->name('design.submitPrintOrderPayment');
     Route::post('/sets/{set}/mark-management-fee-paid', [\App\Http\Controllers\DesignController::class, 'markManagementFeePaid'])->name('design.markManagementFeePaid');
     Route::get('/management-fee/pay/{set}', [\App\Http\Controllers\DesignController::class, 'payManagementFee'])->name('design.managementFee.pay');
     Route::get('/sets/{set}/start', [\App\Http\Controllers\DesignController::class, 'openChooseType'])->name('design.openChooseType');

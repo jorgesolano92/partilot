@@ -545,7 +545,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const paysManagement = document.getElementById('entity_pays_management_fee')?.checked ?? false;
         const paysPrint = document.getElementById('entity_pays_print_fee')?.checked ?? false;
+        const canDonate = document.getElementById('is_non_profit')?.checked ?? false;
 
+        document.getElementById('billing-modal-donation-cert').textContent = canDonate ? 'Sí' : 'No';
         document.getElementById('billing-modal-management-payer').textContent =
             paysManagement ? 'Entidad' : 'Administración';
         document.getElementById('billing-modal-print-payer').textContent =

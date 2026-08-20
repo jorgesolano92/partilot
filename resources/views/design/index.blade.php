@@ -111,7 +111,9 @@
                                 $feePending = !empty($approvalCtx['management_fee_pending']);
                                 $awaitingEntityFee = !empty($approvalCtx['awaiting_entity_fee']);
                                 $blocksExport = !empty($approvalCtx['blocks_export']);
+                                $canExportPdf = !empty($approvalCtx['can_export_design_pdf']);
                                 $exportBlockTitle = $approvalCtx['block_message'] ?? 'Acción no disponible';
+                                $pdfSideBlockTitle = $approvalCtx['pdf_export_block_reason'] ?? 'La descarga de PDF no está disponible para su perfil en este diseño.';
                                 // Siempre al resumen: desde ahí se edita, se ven observaciones de rechazo, pagos, etc.
                                 $rowHref = route('design.summary', $design->id);
                                 $statusHref = $rowHref;
@@ -211,10 +213,14 @@
                                     @if(! $blocksExport && !empty($design->participation_html))
                                     <a href="{{ route('design.marketingParticipationImage', $design->id) }}" class="btn btn-sm btn-light" title="Imagen para redes (sin QR)" target="_blank"><i class="ri-share-line"></i></a>
                                     @endif
-                                    @if(! $blocksExport && $hasCover)
+                                    @if(! $blocksExport && $canExportPdf && $hasCover)
                                     @php
                                         $pdfOut = is_array($design->output) ? $design->output : [];
-                                        $pdfCoverCount = is_array($pdfOut['taco_qrs'] ?? null) ? count($pdfOut['taco_qrs']) : 0;
+                                        $pdfPerBook = (int) ($pdfOut['participations_per_book'] ?? 50);
+                                        $pdfTotalParts = $design->set ? (int) $design->set->total_participations : 0;
+                                        $pdfCoverCount = is_array($pdfOut['taco_qrs'] ?? null) && count($pdfOut['taco_qrs']) > 0
+                                            ? count($pdfOut['taco_qrs'])
+                                            : ($pdfTotalParts > 0 && $pdfPerBook > 0 ? (int) ceil($pdfTotalParts / $pdfPerBook) : 0);
                                     @endphp
                                     <button type="button"
                                         class="btn btn-sm btn-light js-design-pdf-async"
@@ -224,12 +230,14 @@
                                         data-rows="{{ (int) ($design->rows ?? 1) }}"
                                         data-cols="{{ (int) ($design->cols ?? 1) }}"
                                         data-cover-count="{{ $pdfCoverCount }}"
+                                        data-participations-per-book="{{ $pdfPerBook }}"
+                                        data-total-participations="{{ $pdfTotalParts }}"
                                         data-documents-mode="{{ $pdfOut['documents_mode'] ?? '1' }}"
                                         data-pages-per-document="{{ $pdfOut['pages_per_document'] ?? 150 }}"
                                         data-design-name="{{ $design->design_name ?: ('Diseño ' . $design->id) }}"
                                         data-title="Portadas"><i class="ri-book-2-line"></i></button>
                                     @endif
-                                    @if(! $blocksExport && $hasBack)
+                                    @if(! $blocksExport && $canExportPdf && $hasBack)
                                     @php
                                         $pdfOutBack = is_array($design->output) ? $design->output : [];
                                     @endphp
@@ -247,8 +255,8 @@
                                         data-title="Traseras"><i class="ri-stack-line"></i></button>
                                     @endif
                                     @if($isDigital)
-                                        @if($blocksExport)
-                                            <button type="button" class="btn btn-sm btn-light" disabled title="{{ $exportBlockTitle }}"><i class="ri-image-line"></i></button>
+                                        @if($blocksExport || ! $canExportPdf)
+                                            <button type="button" class="btn btn-sm btn-light" disabled title="{{ $blocksExport ? $exportBlockTitle : $pdfSideBlockTitle }}"><i class="ri-image-line"></i></button>
                                         @else
                                             <a target="_blank" href="{{ route('design.digitalParticipationImage', $design->id) }}" class="btn btn-sm btn-light" title="Descargar imagen (PNG) de participación digital">
                                                 <i class="ri-image-line"></i>
@@ -264,6 +272,8 @@
                                             @else
                                                 <button type="button" class="btn btn-sm btn-light" disabled title="{{ $exportBlockTitle }}"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
                                             @endif
+                                        @elseif(! $canExportPdf)
+                                            <button type="button" class="btn btn-sm btn-light" disabled title="{{ $pdfSideBlockTitle }}"><img src="{{url('printer.svg')}}" alt="" width="12"></button>
                                         @else
                                         @php
                                             $pdfOutPart = is_array($design->output) ? $design->output : [];

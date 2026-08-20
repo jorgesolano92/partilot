@@ -112,6 +112,13 @@
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-3">Se generarán las portadas de todos los tacos del diseño.</p>
+
+                <h6 class="mb-2">Participaciones por talonario</h6>
+                <p class="small text-muted mb-2"><i>Elige la cantidad de participaciones por talonario</i></p>
+                <label for="designPdfCoverPerBook" class="form-label">Cantidad de participaciones:</label>
+                <input type="number" class="form-control" id="designPdfCoverPerBook" min="1" max="1000" value="50" style="max-width: 140px; border-radius: 30px;">
+                <p class="small text-muted mt-1 mb-3" id="designPdfCoverTacoHint"></p>
+
                 <h6 class="mb-2">Empaquetado de documentos</h6>
                 <p class="small text-muted mb-2">Esto solo afecta a cómo se genera el archivo (un PDF o un ZIP). No modifica el diseño ni requiere aprobación.</p>
                 <div class="form-group mb-2">
@@ -435,6 +442,43 @@
     return q;
   }
 
+  function partilotNormalizeCoverPerBook(value) {
+    var n = partilotParsePositiveInt(value, 50);
+    if (n < 1) return 1;
+    if (n > 1000) return 1000;
+    return n;
+  }
+
+  function partilotCoverTacoCount(total, perBook) {
+    total = parseInt(total, 10) || 0;
+    perBook = partilotNormalizeCoverPerBook(perBook);
+    if (total <= 0 || perBook <= 0) return 0;
+    return Math.max(1, Math.ceil(total / perBook));
+  }
+
+  function partilotUpdateCoverTacoHint(total, perBook, coverCountOverride) {
+    perBook = partilotNormalizeCoverPerBook(perBook);
+    var count = coverCountOverride != null
+      ? partilotParsePositiveInt(coverCountOverride, partilotCoverTacoCount(total, perBook))
+      : partilotCoverTacoCount(total, perBook);
+    var msg = count + ' portadas (tacos de ' + perBook + ' participaciones).';
+    if (total > 0 && count > 0) {
+      var last = total - ((count - 1) * perBook);
+      if (last > 0 && last < perBook) {
+        msg += ' El último taco tendrá ' + last + ' participaciones.';
+      }
+    }
+    $('#designPdfCoverTacoHint').text(msg);
+    var $modal = $('#designPdfCoverModal');
+    $modal.data('pdf-item-count', count);
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    partilotUpdateDocsHint('designPdfCover', meta.rows, meta.cols, count);
+  }
+
+  function partilotReadCoverTacoQuery() {
+    return 'participations_per_book=' + encodeURIComponent($('#designPdfCoverPerBook').val() || '50');
+  }
+
   function partilotDefaultDownloadBase(designName, suffix) {
     var base = $.trim(designName || '');
     if (!base) base = 'Diseño';
@@ -532,6 +576,11 @@
     var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
     partilotUpdateDocsHint('designPdfCover', meta.rows, meta.cols, $modal.data('pdf-item-count') || 0);
   });
+  $(document).on('input change', '#designPdfCoverPerBook', function () {
+    var $modal = $('#designPdfCoverModal');
+    var total = parseInt($modal.data('pdf-total-participations'), 10) || 0;
+    partilotUpdateCoverTacoHint(total, $('#designPdfCoverPerBook').val());
+  });
 
   $(document).on('change', 'input[name="designPdfBackDocsMode"]', function () {
     $('#designPdfBackPagesWrap').toggle($(this).val() === '2');
@@ -576,10 +625,16 @@
 
     if (dialog === 'covers') {
       var $cModal = $('#designPdfCoverModal');
-      var coverCount = partilotParsePositiveInt($btn.data('cover-count'), total > 0 ? total : 0);
+      var perBook = partilotNormalizeCoverPerBook($btn.data('participations-per-book'));
+      var totalParts = parseInt($btn.data('total-participations'), 10);
+      if (isNaN(totalParts) || totalParts < 0) totalParts = 0;
+      var coverCount = partilotParsePositiveInt($btn.data('cover-count'), partilotCoverTacoCount(totalParts, perBook));
+      $('#designPdfCoverPerBook').val(String(perBook));
       $cModal.data('pdf-wait-url', baseUrl).data('pdf-wait-title', title).data('pdf-wait-btn', $btn)
-        .data('pdf-grid-meta', meta).data('pdf-item-count', coverCount);
+        .data('pdf-grid-meta', meta).data('pdf-item-count', coverCount)
+        .data('pdf-total-participations', totalParts);
       partilotFillDocsFields('designPdfCover', meta, coverCount);
+      partilotUpdateCoverTacoHint(totalParts, perBook, coverCount);
       partilotFillDownloadName('designPdfCoverDownloadName', $btn.attr('data-design-name'), 'portadas');
       partilotModalShow($cModal[0]);
       return;
@@ -637,7 +692,13 @@
       partilotNotifyPdf('error', title, 'Indique un nombre para el archivo.', false);
       return;
     }
-    var url = partilotAppendQuery(baseUrl, partilotReadDocsQuery('designPdfCover'));
+    var perBook = partilotNormalizeCoverPerBook($('#designPdfCoverPerBook').val());
+    if (perBook < 1 || perBook > 1000) {
+      partilotNotifyPdf('error', title, 'Indique una cantidad de participaciones por talonario entre 1 y 1000.', false);
+      return;
+    }
+    $('#designPdfCoverPerBook').val(String(perBook));
+    var url = partilotAppendQuery(baseUrl, partilotReadCoverTacoQuery() + '&' + partilotReadDocsQuery('designPdfCover'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfCover');
     partilotModalHide($modal[0]);
     if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);

@@ -56,6 +56,59 @@ class DesignApprovalService
         return ! $this->entityDesignEnabled($entity);
     }
 
+    /**
+     * Diseño creado por la entidad (switch de facturación o designer_type del formato).
+     */
+    public function designUsesEntityDesigner(DesignFormat $design): bool
+    {
+        $type = $design->designer_type ?? null;
+        if ($type === self::DESIGNER_ENTITY) {
+            return true;
+        }
+        if (in_array($type, [self::DESIGNER_ADMINISTRATION, self::DESIGNER_PRINT_SHOP, self::DESIGNER_SUPERADMIN], true)) {
+            return false;
+        }
+
+        $design->loadMissing('entity');
+
+        return $design->entity && $this->entityDesignEnabled($design->entity);
+    }
+
+    /**
+     * Restricción de PDF completo por lado diseñador (entidad vs administración).
+     * Diseño de administración: solo aplica tras aprobación de entidad; antes, blocksQrExport + muestra/preview.
+     * Diseño de entidad: aplica desde el inicio (no hay flujo de aprobación).
+     */
+    public function appliesDesignerSidePdfExportRestriction(DesignFormat $design): bool
+    {
+        if ($this->designUsesEntityDesigner($design)) {
+            return true;
+        }
+
+        if (! $this->requiresEntityApproval($design)) {
+            return true;
+        }
+
+        return $this->normalizedApprovalStatus($design->approval_status) === self::STATUS_APPROVED;
+    }
+
+    public function pdfExportBlockReasonForUser(?User $user, DesignFormat $design): ?string
+    {
+        if (! $user || $user->canExportDesignPdf($design)) {
+            return null;
+        }
+
+        if ($this->blocksQrExport($design)) {
+            return null;
+        }
+
+        if ($this->designUsesEntityDesigner($design)) {
+            return 'Este diseño lo creó la entidad. Solo la entidad puede descargar los PDF completos; use «Ver diseño» para previsualizarlo.';
+        }
+
+        return 'Este diseño lo creó la administración. Solo la administración puede descargar los PDF completos; use «Ver diseño» para previsualizarlo.';
+    }
+
     public function canEntityActAsDesigner(User $user, Entity $entity): bool
     {
         if (! $this->entityDesignEnabled($entity)) {
@@ -755,6 +808,7 @@ class DesignApprovalService
             ])
             ->whereIn('status', [
                 PrintOrder::STATUS_PENDING_REVIEW,
+                PrintOrder::STATUS_ACCEPTED,
                 PrintOrder::STATUS_IN_PRODUCTION,
                 PrintOrder::STATUS_SENT,
             ])

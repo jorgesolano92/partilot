@@ -514,6 +514,36 @@ class CommunicationEmailService
             return new \App\Mail\PrintOrderCreatedToPrintShopMail($order, $heldForManagementFee, $panelUrl);
         }
 
+        if ($mailClass === \App\Mail\PrintOrderPaymentRequestMail::class) {
+            $orderId = (int) ($mailPayload['print_order_id'] ?? 0);
+            $order = \App\Models\PrintOrder::with([
+                'entity',
+                'set',
+                'lottery',
+                'printConfiguration',
+                'design.set',
+            ])->findOrFail($orderId);
+            $payUrl = route('design.payPrintOrder', $order, absolute: true);
+
+            return new \App\Mail\PrintOrderPaymentRequestMail($order, $payUrl);
+        }
+
+        if ($mailClass === \App\Mail\PrintOrderRejectedByPrintShopMail::class) {
+            $orderId = (int) ($mailPayload['print_order_id'] ?? 0);
+            $order = \App\Models\PrintOrder::with([
+                'entity',
+                'set',
+                'lottery',
+                'printConfiguration',
+                'design',
+            ])->findOrFail($orderId);
+            $summaryUrl = $order->design_format_id
+                ? route('design.summary', $order->design_format_id, absolute: true)
+                : '';
+
+            return new \App\Mail\PrintOrderRejectedByPrintShopMail($order, $summaryUrl);
+        }
+
         throw new \RuntimeException("mail_class no soportado para reenviar: {$mailClass}");
     }
 
@@ -733,6 +763,111 @@ class CommunicationEmailService
                 'entity_id' => $order->entity_id,
             ],
         );
+    }
+
+    public function sendPrintOrderPaymentRequestToPayer(\App\Models\PrintOrder $order): void
+    {
+        if (! $order->isAwaitingClientPayment()) {
+            return;
+        }
+
+        foreach ($this->resolvePrintOrderClientRecipients($order) as $recipient) {
+            $this->sendAndLog(
+                recipientEmail: $recipient['email'],
+                recipientRole: $recipient['role'],
+                recipientUser: $recipient['user'],
+                messageType: 'print_order_payment_request',
+                templateKey: null,
+                mailClass: \App\Mail\PrintOrderPaymentRequestMail::class,
+                mailPayload: ['print_order_id' => $order->id],
+                context: [
+                    'print_order_id' => $order->id,
+                    'entity_id' => $order->entity_id,
+                    'design_format_id' => $order->design_format_id,
+                ],
+            );
+        }
+    }
+
+    public function sendPrintOrderRejectedToClient(\App\Models\PrintOrder $order): void
+    {
+        if ((string) $order->status !== \App\Models\PrintOrder::STATUS_REJECTED) {
+            return;
+        }
+
+        foreach ($this->resolvePrintOrderClientRecipients($order) as $recipient) {
+            $this->sendAndLog(
+                recipientEmail: $recipient['email'],
+                recipientRole: $recipient['role'],
+                recipientUser: $recipient['user'],
+                messageType: 'print_order_rejected',
+                templateKey: null,
+                mailClass: \App\Mail\PrintOrderRejectedByPrintShopMail::class,
+                mailPayload: ['print_order_id' => $order->id],
+                context: [
+                    'print_order_id' => $order->id,
+                    'entity_id' => $order->entity_id,
+                    'design_format_id' => $order->design_format_id,
+                ],
+            );
+        }
+    }
+
+    /**
+     * Destinatarios del cliente según quién diseña / paga la impresión (entidad o administración).
+     *
+     * @return list<array{email: string, role: string, user: ?User}>
+     */
+    private function resolvePrintOrderClientRecipients(\App\Models\PrintOrder $order): array
+    {
+        $order->loadMissing([
+            'entity.administration.manager.user',
+            'entity.manager.user',
+            'design',
+        ]);
+
+        $entity = $order->entity;
+        if (! $entity) {
+            return [];
+        }
+
+        $entityPays = (bool) $entity->entity_pays_print_fee;
+        $recipients = [];
+
+        if ($entityPays) {
+            $managerEmail = trim((string) ($entity->manager?->user?->email ?? ''));
+            if ($managerEmail !== '') {
+                $recipients[] = [
+                    'email' => $managerEmail,
+                    'role' => 'gestor_entidad',
+                    'user' => $entity->manager?->user,
+                ];
+            }
+
+            $panelUser = \App\Models\User::query()
+                ->where('panel_account_type', 'entity')
+                ->where('panel_account_id', $entity->id)
+                ->first();
+            $panelEmail = trim((string) ($panelUser?->email ?? ''));
+            if ($panelEmail !== '' && ! collect($recipients)->contains(fn ($r) => $r['email'] === $panelEmail)) {
+                $recipients[] = [
+                    'email' => $panelEmail,
+                    'role' => 'entidad',
+                    'user' => $panelUser,
+                ];
+            }
+        } else {
+            $adminManagerEmail = trim((string) ($entity->administration?->manager?->user?->email ?? ''));
+            if ($adminManagerEmail !== '') {
+                $recipients[] = [
+                    'email' => $adminManagerEmail,
+                    'role' => 'gestor_administracion',
+                    'user' => $entity->administration?->manager?->user,
+                ];
+            }
+        }
+
+        return $recipients;
     }
 }
 

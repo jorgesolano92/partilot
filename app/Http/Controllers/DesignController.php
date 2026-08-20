@@ -3659,13 +3659,19 @@ class DesignController extends Controller
         return $pdf->download('participacion.pdf');
     }
 
-    public function exportCoverPdf($id)
+    public function exportCoverPdf(Request $request, $id)
     {
         ini_set('max_execution_time', 300);
         ini_set('memory_limit', '1024M');
 
         $design = DesignFormat::findOrFail($id);
         $this->authorizeDesignPdfExport($design);
+
+        try {
+            $this->resolveCoverTacoOptions($request, $design);
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
 
         try {
             if ($this->designPdfHtmlPreviewEnabled()) {
@@ -5294,6 +5300,9 @@ class DesignController extends Controller
         $blocksQrExport = app(DesignApprovalService::class)->blocksQrExport($design);
         $canDownloadPendingSample = app(DesignApprovalService::class)
             ->canDownloadPendingParticipationSample(auth()->user(), $design);
+        $canExportDesignPdf = auth()->user()?->canExportDesignPdf($design) ?? false;
+        $pdfExportBlockReason = app(DesignApprovalService::class)
+            ->pdfExportBlockReasonForUser(auth()->user(), $design);
         $sendToPrintBlockReason = $this->printOrderSubmissionBlockMessage($design);
         $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
         $canSendToPrint = $sendToPrintBlockReason === null
@@ -5331,6 +5340,8 @@ class DesignController extends Controller
             'hasDesignContent',
             'blocksQrExport',
             'canDownloadPendingSample',
+            'canExportDesignPdf',
+            'pdfExportBlockReason',
             'canSendToPrint',
             'sendToPrintBlockReason',
             'canOpenEditor',
@@ -5858,38 +5869,15 @@ class DesignController extends Controller
         $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
         if (empty($printPayment['user_may_submit'])) {
             return redirect()->route('design.summary', $design->id)
-                ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago de impresión de este diseño.');
+                ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede enviar este diseño a imprenta.');
         }
 
-        $usesRemittance = ! empty($printPayment['can_queue_remittance']);
-
-        $data = $request->validate(array_merge($this->printOrderSubmissionRules($design), [
-            'payment_method' => 'nullable|in:stripe,remittance',
-            'stripe_payment_intent_id' => 'nullable|required_if:payment_method,stripe|string',
-        ]), [
-            'stripe_payment_intent_id.required_if' => 'No se encontró el pago de Stripe confirmado.',
-        ]);
+        $data = $request->validate($this->printOrderSubmissionRules($design));
         $data['notes'] = $this->sanitizePrintOrderNotes($data['notes'] ?? null);
         if (! $design->hasBackDesign()) {
             $data['back_mode'] = 'none';
         }
 
-        if ($usesRemittance) {
-            return $this->submitPrintOrderViaRemittance($request, $design, $data);
-        }
-
-        if (empty($printPayment['can_pay_stripe'])) {
-            return redirect()->route('design.sendToPrint', $design->id)
-                ->withInput()
-                ->with('error', $printPayment['user_submit_block_reason'] ?? 'No hay un medio de pago disponible para su perfil.');
-        }
-
-        if (empty($data['stripe_payment_intent_id'])) {
-            return redirect()->route('design.sendToPrint', $design->id)
-                ->withInput()
-                ->with('error', 'No se encontró el pago de Stripe confirmado.');
-        }
-
         $cfg = PrintConfiguration::resolveDefault();
         $data['print_configuration_id'] = $cfg->id;
         $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false, design: $design);
@@ -5900,128 +5888,14 @@ class DesignController extends Controller
                 ->with('error', 'El importe del pedido debe ser mayor que cero.');
         }
 
-        $paymentIntentId = (string) $data['stripe_payment_intent_id'];
-        $piPayload = $this->fetchStripePaymentIntent($paymentIntentId, $cfg);
-        if (! is_array($piPayload) || ($piPayload['status'] ?? '') !== 'succeeded') {
-            return redirect()->route('design.sendToPrint', $design->id)
-                ->withInput()
-                ->with('error', 'El pago no está confirmado en Stripe. Intenta de nuevo.');
-        }
+        $paymentProvider = ! empty($printPayment['can_queue_remittance'])
+            ? PrintOrder::PAYMENT_PROVIDER_REMITTANCE
+            : PrintOrder::PAYMENT_PROVIDER_STRIPE;
 
-        $piAmount = (int) ($piPayload['amount'] ?? 0);
-        if ($piAmount !== (int) round($expectedTotal * 100)) {
-            return redirect()->route('design.sendToPrint', $design->id)
-                ->withInput()
-                ->with('error', 'El importe pagado no coincide con el presupuesto actual. Vuelve a intentar el pago.');
-        }
-
-        $metadata = is_array($piPayload['metadata'] ?? null) ? $piPayload['metadata'] : [];
-        if ((string) ($metadata['design_format_id'] ?? '') !== (string) $design->id) {
-            return redirect()->route('design.sendToPrint', $design->id)
-                ->withInput()
-                ->with('error', 'El pago no corresponde a este diseño.');
-        }
-
-        $duplicateOrder = null;
         $createdOrder = null;
-        $lock = Cache::lock('print-order-stripe-pi:'.sha1($paymentIntentId), 25);
-        $lock->block(12);
-        try {
-            DB::transaction(function () use ($paymentIntentId, $design, $data, $quote, $cfg, &$duplicateOrder, &$createdOrder) {
-                $existing = PrintOrder::query()
-                    ->where('payment_intent_id', $paymentIntentId)
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($existing) {
-                    $duplicateOrder = $existing;
-                    $this->insertPrintOrderAuditRow(
-                        printOrder: $existing,
-                        action: 'duplicate_payment_intent_blocked',
-                        message: 'Intento de registrar otra orden con el mismo PaymentIntent Stripe ('.$paymentIntentId.').',
-                        userId: auth()->id()
-                    );
-
-                    return;
-                }
-
-                $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
-                $createdOrder = PrintOrder::create([
-                    'print_configuration_id' => $cfg->id,
-                    'order_code' => $orderCode,
-                    'design_format_id' => $design->id,
-                    'set_id' => $design->set_id,
-                    'entity_id' => $design->entity_id,
-                    'lottery_id' => $design->lottery_id,
-                    'created_by_user_id' => auth()->id(),
-                    'status' => PrintOrder::STATUS_PENDING_REVIEW,
-                    'payment_provider' => 'stripe',
-                    'payment_intent_id' => $paymentIntentId,
-                    'payment_status' => PrintOrder::PAYMENT_STATUS_PAID,
-                    'print_size' => $data['print_size'],
-                    'participations_per_book' => (int) $data['participations_per_book'],
-                    'back_mode' => $data['back_mode'],
-                    'quoted_amount' => $quote['total'],
-                    'quote_breakdown' => $quote,
-                    'notes' => $data['notes'] ?? null,
-                    'sent_at' => null,
-                    'paid_at' => now(),
-                ]);
-
-                $this->insertPrintOrderAuditRow(
-                    printOrder: $createdOrder,
-                    action: 'order_created_stripe',
-                    message: 'Orden creada con pago Stripe (diseño existente). PI: '.$paymentIntentId,
-                    userId: auth()->id()
-                );
-
-                $this->afterPrintOrderCreated($createdOrder, $design);
-            });
-        } finally {
-            $lock->release();
-        }
-
-        if ($duplicateOrder) {
-            return redirect()->route('design.summary', $design->id)
-                ->with('warning', 'Este pago ya tiene una orden de imprenta registrada ('.$duplicateOrder->order_code.').');
-        }
-
-        $successMessage = 'Pago confirmado y orden de imprenta enviada correctamente.';
-        if ($createdOrder && ! $createdOrder->fresh()->isVisibleToPrintShop()) {
-            $successMessage = 'Pago confirmado. La imprenta recibirá el pedido cuando la entidad abone la cuota de gestión PARTILOT.';
-        }
-
-        return redirect()->route('design.summary', $design->id)
-            ->with('success', $successMessage);
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    private function submitPrintOrderViaRemittance(Request $request, DesignFormat $design, array $data)
-    {
-        if (! app(AdministrationBillingService::class)->canSubmitPrintOrderViaRemittance(auth()->user(), $design)) {
-            abort(403, 'No puedes enviar este pedido a imprenta por remesa.');
-        }
-
-        $cfg = PrintConfiguration::resolveDefault();
-        $data['print_configuration_id'] = $cfg->id;
-        if (! $design->hasBackDesign()) {
-            $data['back_mode'] = 'none';
-        }
-        $quote = $this->calculatePrintOrderQuote($design->set, $data, chargeDesignFee: false, design: $design);
-        $expectedTotal = round((float) ($quote['total'] ?? 0), 2);
-        if ($expectedTotal <= 0) {
-            return redirect()->route('design.sendToPrint', $design->id)
-                ->withInput()
-                ->with('error', 'El importe del pedido debe ser mayor que cero.');
-        }
-
-        $order = null;
-        DB::transaction(function () use ($design, $data, $quote, $cfg, &$order) {
+        DB::transaction(function () use ($design, $data, $quote, $cfg, $paymentProvider, &$createdOrder) {
             $orderCode = 'OPI'.str_pad((string) (PrintOrder::max('id') + 1), 6, '0', STR_PAD_LEFT);
-            $order = PrintOrder::create([
+            $createdOrder = PrintOrder::create([
                 'print_configuration_id' => $cfg->id,
                 'order_code' => $orderCode,
                 'design_format_id' => $design->id,
@@ -6030,9 +5904,9 @@ class DesignController extends Controller
                 'lottery_id' => $design->lottery_id,
                 'created_by_user_id' => auth()->id(),
                 'status' => PrintOrder::STATUS_PENDING_REVIEW,
-                'payment_provider' => PrintOrder::PAYMENT_PROVIDER_REMITTANCE,
+                'payment_provider' => $paymentProvider,
                 'payment_intent_id' => null,
-                'payment_status' => PrintOrder::PAYMENT_STATUS_PAID,
+                'payment_status' => PrintOrder::PAYMENT_STATUS_PENDING,
                 'print_size' => $data['print_size'],
                 'participations_per_book' => (int) $data['participations_per_book'],
                 'back_mode' => $data['back_mode'],
@@ -6040,28 +5914,212 @@ class DesignController extends Controller
                 'quote_breakdown' => $quote,
                 'notes' => $data['notes'] ?? null,
                 'sent_at' => null,
-                'paid_at' => now(),
+                'paid_at' => null,
             ]);
 
-            app(AdministrationBillingService::class)->queuePrintFeeCharge($order, auth()->user());
-
             $this->insertPrintOrderAuditRow(
-                printOrder: $order,
-                action: 'order_created_remittance',
-                message: 'Orden creada con cargo en remesa periódica.',
+                printOrder: $createdOrder,
+                action: 'order_submitted_pending_review',
+                message: 'Pedido enviado a imprenta pendiente de revisión (sin cobro).',
                 userId: auth()->id()
             );
 
-            $this->afterPrintOrderCreated($order, $design);
+            $this->afterPrintOrderCreated($createdOrder, $design);
         });
 
-        $successMessage = 'Pedido enviado a imprenta. El importe quedará pendiente de adeudo en la próxima remesa.';
-        if ($order && ! $order->fresh()->isVisibleToPrintShop()) {
-            $successMessage = 'Pedido registrado. La imprenta lo recibirá cuando la entidad abone la cuota de gestión PARTILOT.';
+        $successMessage = 'Pedido enviado a imprenta. La imprenta lo revisará y, si lo acepta, podrá proceder al pago.';
+        if ($createdOrder && ! $createdOrder->fresh()->isVisibleToPrintShop()) {
+            $successMessage = 'Pedido registrado. La imprenta lo revisará cuando la entidad abone la cuota de gestión PARTILOT.';
         }
 
         return redirect()->route('design.summary', $design->id)
             ->with('success', $successMessage);
+    }
+
+    public function payPrintOrder(Request $request, PrintOrder $printOrder)
+    {
+        $printOrder->loadMissing(['design.set', 'design.entity', 'entity', 'printConfiguration']);
+        $design = $printOrder->design;
+        if (! $design || ! auth()->user()->canAccessEntity((int) $printOrder->entity_id)) {
+            abort(403, 'No tienes permisos para pagar este pedido.');
+        }
+        if (! $printOrder->isAwaitingClientPayment()) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('warning', 'Este pedido no está pendiente de pago.');
+        }
+
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        if (empty($printPayment['user_may_submit'])) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago de este pedido.');
+        }
+
+        $cfg = $printOrder->printConfiguration ?? PrintConfiguration::resolveDefault();
+        [$stripePublishableKey, $stripeSecretKey] = $this->resolveStripeKeys($cfg);
+        $stripePaymentEnabled = $cfg->hasStripeConfigured()
+            && ! empty($printPayment['can_pay_stripe'])
+            && $printOrder->payment_provider === PrintOrder::PAYMENT_PROVIDER_STRIPE;
+        $canPayViaRemittance = ! empty($printPayment['can_queue_remittance'])
+            && $printOrder->payment_provider === PrintOrder::PAYMENT_PROVIDER_REMITTANCE;
+
+        return view('design.pay_print_order', compact(
+            'printOrder',
+            'design',
+            'printPayment',
+            'stripePublishableKey',
+            'stripePaymentEnabled',
+            'canPayViaRemittance',
+            'cfg'
+        ));
+    }
+
+    public function createAcceptedPrintOrderPaymentIntent(Request $request, PrintOrder $printOrder)
+    {
+        $printOrder->loadMissing(['design', 'printConfiguration']);
+        $design = $printOrder->design;
+        if (! $design || ! auth()->user()->canAccessEntity((int) $printOrder->entity_id)) {
+            abort(403);
+        }
+        if (! $printOrder->isAwaitingClientPayment()) {
+            return response()->json(['ok' => false, 'message' => 'Este pedido no está pendiente de pago.'], 422);
+        }
+
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        if (empty($printPayment['can_pay_stripe']) || $printOrder->payment_provider !== PrintOrder::PAYMENT_PROVIDER_STRIPE) {
+            return response()->json(['ok' => false, 'message' => 'Este pedido no admite pago con tarjeta.'], 422);
+        }
+
+        $total = round((float) $printOrder->quoted_amount, 2);
+        if ($total <= 0) {
+            return response()->json(['ok' => false, 'message' => 'Importe de pedido no válido.'], 422);
+        }
+
+        $cfg = $printOrder->printConfiguration ?? PrintConfiguration::resolveDefault();
+        [$publishableKey, $secretKey] = $this->resolveStripeKeys($cfg);
+        if ($secretKey === '' || $publishableKey === '') {
+            return response()->json(['ok' => false, 'message' => 'Stripe no configurado para esta imprenta.'], 500);
+        }
+
+        try {
+            $client = new Client(['base_uri' => 'https://api.stripe.com/v1/']);
+            $response = $client->post('payment_intents', [
+                'auth' => [$secretKey, ''],
+                'form_params' => [
+                    'amount' => (int) round($total * 100),
+                    'currency' => 'eur',
+                    'description' => 'Imprenta — '.$printOrder->order_code,
+                    'metadata[print_order_id]' => (string) $printOrder->id,
+                    'metadata[design_format_id]' => (string) $design->id,
+                    'metadata[set_id]' => (string) $printOrder->set_id,
+                    'metadata[entity_id]' => (string) $printOrder->entity_id,
+                    'automatic_payment_methods[enabled]' => 'true',
+                ],
+            ]);
+
+            $payload = json_decode((string) $response->getBody(), true);
+            if (! is_array($payload) || empty($payload['client_secret'])) {
+                return response()->json(['ok' => false, 'message' => 'No se pudo crear el PaymentIntent.'], 500);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'client_secret' => (string) $payload['client_secret'],
+                'publishable_key' => $publishableKey,
+                'amount' => $total,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Stripe PaymentIntent (pay print order) error', ['error' => $e->getMessage(), 'order_id' => $printOrder->id]);
+
+            return response()->json(['ok' => false, 'message' => 'Error creando el pago con Stripe.'], 500);
+        }
+    }
+
+    public function submitPrintOrderPayment(Request $request, PrintOrder $printOrder)
+    {
+        $printOrder->loadMissing(['design.set', 'design.entity']);
+        $design = $printOrder->design;
+        if (! $design || ! auth()->user()->canAccessEntity((int) $printOrder->entity_id)) {
+            abort(403);
+        }
+        if (! $printOrder->isAwaitingClientPayment()) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('warning', 'Este pedido no está pendiente de pago.');
+        }
+
+        $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($design, auth()->user());
+        if (empty($printPayment['user_may_submit'])) {
+            return redirect()->route('design.summary', $design->id)
+                ->with('warning', $printPayment['user_submit_block_reason'] ?? 'No puede gestionar el pago.');
+        }
+
+        $usesRemittance = $printOrder->payment_provider === PrintOrder::PAYMENT_PROVIDER_REMITTANCE
+            && ! empty($printPayment['can_queue_remittance']);
+
+        if ($usesRemittance) {
+            DB::transaction(function () use ($printOrder, $design) {
+                $printOrder->update([
+                    'payment_status' => PrintOrder::PAYMENT_STATUS_PAID,
+                    'paid_at' => now(),
+                    'status' => PrintOrder::STATUS_IN_PRODUCTION,
+                ]);
+                app(AdministrationBillingService::class)->queuePrintFeeCharge($printOrder->fresh(), auth()->user());
+                $this->insertPrintOrderAuditRow(
+                    printOrder: $printOrder->fresh(),
+                    action: 'order_paid_remittance',
+                    message: 'Pedido aceptado pagado por remesa; pasado a producción.',
+                    userId: auth()->id()
+                );
+            });
+
+            return redirect()->route('design.summary', $design->id)
+                ->with('success', 'Pedido confirmado en remesa. La imprenta puede iniciar la producción.');
+        }
+
+        $data = $request->validate([
+            'stripe_payment_intent_id' => 'required|string',
+        ]);
+
+        $cfg = $printOrder->printConfiguration ?? PrintConfiguration::resolveDefault();
+        $expectedTotal = round((float) $printOrder->quoted_amount, 2);
+        $paymentIntentId = (string) $data['stripe_payment_intent_id'];
+        $piPayload = $this->fetchStripePaymentIntent($paymentIntentId, $cfg);
+        if (! is_array($piPayload) || ($piPayload['status'] ?? '') !== 'succeeded') {
+            return redirect()->route('design.payPrintOrder', $printOrder->id)
+                ->with('error', 'El pago no está confirmado en Stripe.');
+        }
+        if ((int) ($piPayload['amount'] ?? 0) !== (int) round($expectedTotal * 100)) {
+            return redirect()->route('design.payPrintOrder', $printOrder->id)
+                ->with('error', 'El importe pagado no coincide con el presupuesto.');
+        }
+        $metadata = is_array($piPayload['metadata'] ?? null) ? $piPayload['metadata'] : [];
+        if ((string) ($metadata['print_order_id'] ?? '') !== (string) $printOrder->id) {
+            return redirect()->route('design.payPrintOrder', $printOrder->id)
+                ->with('error', 'El pago no corresponde a este pedido.');
+        }
+
+        DB::transaction(function () use ($printOrder, $paymentIntentId) {
+            $printOrder->update([
+                'payment_intent_id' => $paymentIntentId,
+                'payment_status' => PrintOrder::PAYMENT_STATUS_PAID,
+                'paid_at' => now(),
+                'status' => PrintOrder::STATUS_IN_PRODUCTION,
+            ]);
+            $this->insertPrintOrderAuditRow(
+                printOrder: $printOrder->fresh(),
+                action: 'order_paid_stripe',
+                message: 'Pago Stripe confirmado tras aceptación imprenta. PI: '.$paymentIntentId,
+                userId: auth()->id()
+            );
+        });
+
+        try {
+            app(CommunicationEmailService::class)->sendPrintOrderCreatedToPrintShop($printOrder->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo re-avisar a imprenta tras pago: '.$e->getMessage());
+        }
+
+        return redirect()->route('design.summary', $design->id)
+            ->with('success', 'Pago confirmado. La imprenta puede iniciar la producción.');
     }
 
     /**
@@ -6828,6 +6886,67 @@ class DesignController extends Controller
         $design->output = $output;
         // saveQuietly: no dispara updateParticipations ni otros observers por un cambio de empaquetado.
         $design->saveQuietly();
+    }
+
+    /**
+     * Tamaño de taco para exportación de portadas. Prioridad: query/body; si no, output del diseño.
+     * Al enviar el param desde el modal, persiste participations_per_book + taco_qrs y recalcula book_number.
+     *
+     * @return array{participations_per_book: int}
+     */
+    private function resolveCoverTacoOptions(Request $request, DesignFormat $design): array
+    {
+        $output = is_array($design->output) ? $design->output : [];
+        $hasExplicit = $request->query('participations_per_book') !== null
+            || $request->input('participations_per_book') !== null;
+
+        $raw = $request->query(
+            'participations_per_book',
+            $request->input('participations_per_book', $output['participations_per_book'] ?? 50)
+        );
+        $perBook = DesignFormat::normalizeCoverParticipationsPerBook($raw);
+
+        if ($hasExplicit) {
+            $current = DesignFormat::normalizeCoverParticipationsPerBook(
+                $output['participations_per_book'] ?? 50
+            );
+            $needsSync = $perBook !== $current
+                || empty($output['taco_qrs'])
+                || ! is_array($output['taco_qrs']);
+
+            if ($needsSync) {
+                if ($perBook !== $current) {
+                    $this->assertCanChangeCoverTacoSize($design);
+                }
+                $design->syncCoverTacoConfig($perBook);
+                $design->refresh();
+            }
+        }
+
+        return ['participations_per_book' => $perBook];
+    }
+
+    private function assertCanChangeCoverTacoSize(DesignFormat $design): void
+    {
+        $blocked = Participation::query()
+            ->where('design_format_id', $design->id)
+            ->where(function ($query) {
+                $query->whereIn('status', [
+                    'asignada',
+                    'vendida',
+                    'pagada',
+                    'reservada',
+                    'reserva_venta_digital',
+                    'perdida',
+                ])->orWhereNotNull('seller_id');
+            })
+            ->exists();
+
+        if ($blocked) {
+            throw new \InvalidArgumentException(
+                'No se puede cambiar el tamaño del taco: hay participaciones asignadas, vendidas o reservadas.'
+            );
+        }
     }
 
     /**
@@ -7658,6 +7777,15 @@ class DesignController extends Controller
             ], 404);
         }
 
+        try {
+            $this->resolveCoverTacoOptions($request, $design);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
         $docsOpts = $this->resolvePrintDocumentsOptions($request, $design);
         $requestedName = $request->query('download_name', $request->input('download_name'));
         if (! is_string($requestedName) || trim($requestedName) === '') {
@@ -7669,13 +7797,13 @@ class DesignController extends Controller
         $job_id = 'pdf_cover_grid_'.$id.'_'.time();
 
         return $this->beginDeferredPdfExport($job_id, function () use (
-            $design,
             $job_id,
             $docsOpts,
             $requestedName,
             $notifyEmail,
             $designId
         ) {
+            $design = DesignFormat::findOrFail($designId);
             $fileBaseName = $this->exportDownloadBasename($design, 'portadas', $requestedName);
             $artifact = $this->writeCoverExportArtifact(
                 $design,
@@ -8210,6 +8338,8 @@ class DesignController extends Controller
                 'entity_fee_due' => $feeService->entityOwesManagementFee($d),
                 'acts_as_administration' => $approvalService->userActsAsAdministration($user),
                 'blocks_export' => $blocksExport,
+                'can_export_design_pdf' => $user->canExportDesignPdf($d),
+                'pdf_export_block_reason' => $approvalService->pdfExportBlockReasonForUser($user, $d),
                 'can_download_pending_sample' => $approvalService->canDownloadPendingParticipationSample($user, $d),
                 'block_message' => $approvalService->blockMessage($d),
                 'can_send_to_print' => ! $awaitingEntityFee

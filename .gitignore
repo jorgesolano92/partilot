@@ -25,3 +25,6 @@ yarn-error.log
 
 # PDFs de comparación / pruebas locales (no versionar)
 /pdf/
+
+# Audios y transcripciones locales del cliente
+/audios/
