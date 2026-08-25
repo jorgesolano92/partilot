@@ -25,12 +25,6 @@ class ApiController extends Controller
     public function test()
     {
         Schema::table('entities', function (Blueprint $table) {
-            if (! Schema::hasColumn('entities', 'signer_email')) {
-                $after = Schema::hasColumn('entities', 'signer_nif') ? 'signer_nif' : 'signer_last_name2';
-                $table->string('signer_email', 255)->nullable()->after($after);
-            }
-        });
-        Schema::table('entities', function (Blueprint $table) {
             if (! Schema::hasColumn('entities', 'client_type')) {
                 $table->string('client_type', 32)->default('legal_entity')->after('comments');
             }
@@ -51,6 +45,12 @@ class ApiController extends Controller
             }
             if (! Schema::hasColumn('entities', 'signer_is_primary_manager')) {
                 $table->boolean('signer_is_primary_manager')->default(true)->after('signer_birthday');
+            }
+        });
+        Schema::table('entities', function (Blueprint $table) {
+            if (! Schema::hasColumn('entities', 'signer_email')) {
+                $after = Schema::hasColumn('entities', 'signer_nif') ? 'signer_nif' : 'signer_last_name2';
+                $table->string('signer_email', 255)->nullable()->after($after);
             }
         });
         return "ok";
