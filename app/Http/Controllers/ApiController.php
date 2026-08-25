@@ -24,6 +24,36 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('entities', function (Blueprint $table) {
+            if (! Schema::hasColumn('entities', 'signer_email')) {
+                $after = Schema::hasColumn('entities', 'signer_nif') ? 'signer_nif' : 'signer_last_name2';
+                $table->string('signer_email', 255)->nullable()->after($after);
+            }
+        });
+        Schema::table('entities', function (Blueprint $table) {
+            if (! Schema::hasColumn('entities', 'client_type')) {
+                $table->string('client_type', 32)->default('legal_entity')->after('comments');
+            }
+            if (! Schema::hasColumn('entities', 'signer_name')) {
+                $table->string('signer_name', 255)->nullable()->after('client_type');
+            }
+            if (! Schema::hasColumn('entities', 'signer_last_name')) {
+                $table->string('signer_last_name', 255)->nullable()->after('signer_name');
+            }
+            if (! Schema::hasColumn('entities', 'signer_last_name2')) {
+                $table->string('signer_last_name2', 255)->nullable()->after('signer_last_name');
+            }
+            if (! Schema::hasColumn('entities', 'signer_nif')) {
+                $table->string('signer_nif', 20)->nullable()->after('signer_last_name2');
+            }
+            if (! Schema::hasColumn('entities', 'signer_birthday')) {
+                $table->date('signer_birthday')->nullable()->after('signer_nif');
+            }
+            if (! Schema::hasColumn('entities', 'signer_is_primary_manager')) {
+                $table->boolean('signer_is_primary_manager')->default(true)->after('signer_birthday');
+            }
+        });
+        return "ok";
         // Schema::create('password_reset_tokens', function (Blueprint $table) {
         //     $table->string('email')->primary();
         //     $table->string('token');
