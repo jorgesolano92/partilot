@@ -346,7 +346,8 @@
                     </div>
 
                     @php
-                        $canChangePrintOrderStatus = $printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_IN_PRODUCTION)
+                        $canChangePrintOrderStatus = $printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_ACCEPTED)
+                            || $printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_IN_PRODUCTION)
                             || $printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_SENT)
                             || $printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_REJECTED)
                             || $printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_PENDING_REVIEW);
@@ -356,6 +357,13 @@
                         <div class="">
                             <h5 class="mb-3">Cambiar estado</h5>
                             <div class="d-grid gap-2">
+                                @if($printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_ACCEPTED))
+                                    <form method="POST" action="{{ route('print-shop.orders.status', $printOrder->id) }}" onsubmit="return confirm('¿Aceptar este pedido? El cliente recibirá la solicitud de pago.');">
+                                        @csrf
+                                        <input type="hidden" name="target_status" value="{{ \App\Models\PrintOrder::STATUS_ACCEPTED }}">
+                                        <button type="submit" class="btn btn-primary w-100"><i class="ri-check-line me-1"></i> Aceptar pedido</button>
+                                    </form>
+                                @endif
                                 @if($printOrder->canTransitionTo(\App\Models\PrintOrder::STATUS_IN_PRODUCTION))
                                     @if($canSubmitToEntity ?? false)
                                         <form action="{{ route('print-shop.orders.submit-approval', $printOrder->id) }}" method="POST" onsubmit="return confirm('¿Enviar este diseño a la entidad para su aprobación?');">
@@ -385,6 +393,10 @@
                                     <form method="POST" action="{{ route('print-shop.orders.status', $printOrder->id) }}">
                                         @csrf
                                         <input type="hidden" name="target_status" value="{{ \App\Models\PrintOrder::STATUS_REJECTED }}">
+                                        <div class="mb-2">
+                                            <label class="form-label small mb-1">Motivo del rechazo</label>
+                                            <textarea name="rejection_reason" class="form-control form-control-sm" rows="3" required minlength="5" placeholder="Indique qué debe corregir el cliente"></textarea>
+                                        </div>
                                         <button type="submit" class="btn btn-danger w-100"><i class="ri-close-circle-line me-1"></i> Rechazar</button>
                                     </form>
                                 @endif

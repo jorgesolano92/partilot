@@ -37,6 +37,8 @@
                         No volver a mostrar este mensaje
                     </label>
                 </div>
+                @else
+                <p class="small text-muted mb-0">Revise estos ajustes antes de continuar con el gestor de la entidad.</p>
                 @endunless
             </div>
             <div class="modal-footer">

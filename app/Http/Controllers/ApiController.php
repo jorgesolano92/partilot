@@ -54,6 +54,11 @@ class ApiController extends Controller
             }
         });
         return "ok";
+        Schema::table('print_orders', function (Blueprint $table) {
+            $table->timestamp('accepted_at')->nullable()->after('sent_at');
+            $table->text('rejection_reason')->nullable()->after('notes');
+        });
+        return "ok";
         // Schema::create('password_reset_tokens', function (Blueprint $table) {
         //     $table->string('email')->primary();
         //     $table->string('token');

@@ -197,7 +197,11 @@ class PrintShopController extends Controller
         }
 
         $data = $request->validate([
-            'target_status' => 'required|string|in:pendiente_revision,en_produccion,enviada,rechazada',
+            'target_status' => 'required|string|in:pendiente_revision,aceptada,en_produccion,enviada,rechazada',
+            'rejection_reason' => 'nullable|required_if:target_status,rechazada|string|min:5|max:2000',
+        ], [
+            'rejection_reason.required_if' => 'Indique el motivo del rechazo.',
+            'rejection_reason.min' => 'El motivo debe tener al menos 5 caracteres.',
         ]);
 
         $target = $data['target_status'];
@@ -228,10 +232,39 @@ class PrintShopController extends Controller
 
         $from = (string) $printOrder->status;
         $printOrder->status = $target;
+        if ($target === PrintOrder::STATUS_ACCEPTED && ! $printOrder->accepted_at) {
+            $printOrder->accepted_at = now();
+            $printOrder->rejection_reason = null;
+        }
+        if ($target === PrintOrder::STATUS_REJECTED) {
+            $printOrder->rejection_reason = trim((string) ($data['rejection_reason'] ?? '')) ?: null;
+        }
         if ($target === PrintOrder::STATUS_SENT && ! $printOrder->sent_at) {
             $printOrder->sent_at = now();
         }
         $printOrder->save();
+
+        if ($target === PrintOrder::STATUS_ACCEPTED) {
+            try {
+                app(\App\Services\CommunicationEmailService::class)
+                    ->sendPrintOrderPaymentRequestToPayer($printOrder->fresh());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'No se pudo enviar solicitud de pago del pedido '.$printOrder->id.': '.$e->getMessage()
+                );
+            }
+        }
+
+        if ($target === PrintOrder::STATUS_REJECTED) {
+            try {
+                app(\App\Services\CommunicationEmailService::class)
+                    ->sendPrintOrderRejectedToClient($printOrder->fresh());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'No se pudo enviar aviso de rechazo del pedido '.$printOrder->id.': '.$e->getMessage()
+                );
+            }
+        }
 
         DB::table('print_order_status_audits')->insert([
             'print_order_id' => $printOrder->id,
