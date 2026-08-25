@@ -24,8 +24,11 @@ return new class extends Migration
             if (! Schema::hasColumn('entities', 'signer_nif')) {
                 $table->string('signer_nif', 20)->nullable()->after('signer_last_name2');
             }
+            if (! Schema::hasColumn('entities', 'signer_email')) {
+                $table->string('signer_email', 255)->nullable()->after('signer_nif');
+            }
             if (! Schema::hasColumn('entities', 'signer_birthday')) {
-                $table->date('signer_birthday')->nullable()->after('signer_nif');
+                $table->date('signer_birthday')->nullable()->after('signer_email');
             }
             if (! Schema::hasColumn('entities', 'signer_is_primary_manager')) {
                 $table->boolean('signer_is_primary_manager')->default(true)->after('signer_birthday');
@@ -42,6 +45,7 @@ return new class extends Migration
                 'signer_last_name',
                 'signer_last_name2',
                 'signer_nif',
+                'signer_email',
                 'signer_birthday',
                 'signer_is_primary_manager',
             ] as $column) {

@@ -147,6 +147,7 @@ class EntityController extends Controller
             'signer_last_name' => 'required|string|max:255',
             'signer_last_name2' => 'nullable|string|max:255',
             'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            'signer_email' => 'required|email|max:255',
             'signer_birthday' => ValidCalendarDate::birthday(false),
             'signer_is_primary_manager' => 'nullable|boolean',
         ];
@@ -173,6 +174,8 @@ class EntityController extends Controller
             'signer_name.required' => 'Indique el nombre del firmante autorizado.',
             'signer_last_name.required' => 'Indique el primer apellido del firmante autorizado.',
             'signer_nif.required' => 'Indique el DNI/NIE del firmante autorizado.',
+            'signer_email.required' => 'Indique el email del firmante autorizado para enviar el contrato.',
+            'signer_email.email' => 'El email del firmante autorizado no es válido.',
         ]);
 
         $validated['comments'] = \App\Support\HtmlText::sanitizePlainText($validated['comments'] ?? null);
@@ -241,13 +244,19 @@ class EntityController extends Controller
             || (($entityInformation['client_type'] ?? '') === Entity::CLIENT_TYPE_NATURAL_ORGANIZER);
 
         if ($shouldPrefillFromSigner) {
+            $signerEmail = trim((string) ($entityInformation['signer_email'] ?? ''));
+            $panelEmail = trim((string) ($entityInformation['email'] ?? ''));
+            $managerEmailPrefill = ($signerEmail !== '' && strcasecmp($signerEmail, $panelEmail) !== 0)
+                ? $signerEmail
+                : session('entity_manager.manager_email', '');
+
             session()->put('entity_manager', [
                 'manager_name' => (string) ($entityInformation['signer_name'] ?? ''),
                 'manager_last_name' => (string) ($entityInformation['signer_last_name'] ?? ''),
                 'manager_last_name2' => (string) ($entityInformation['signer_last_name2'] ?? ''),
                 'manager_nif_cif' => (string) ($entityInformation['signer_nif'] ?? ''),
                 'manager_birthday' => (string) ($entityInformation['signer_birthday'] ?? ''),
-                'manager_email' => session('entity_manager.manager_email', ''),
+                'manager_email' => $managerEmailPrefill,
                 'manager_phone' => session('entity_manager.manager_phone', (string) ($entityInformation['phone'] ?? '')),
                 'prefilled_from_signer' => true,
             ]);
@@ -387,10 +396,18 @@ class EntityController extends Controller
 
         $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
 
+        if (session('entity_contract_mail_sent') === false) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with(
+                    'error',
+                    'Entidad creada, pero no se pudo enviar el email de firma del contrato (fallo SMTP). Usa «Reenviar email de firma» en esta ficha. Con MAIL_DEBUG_MODE el correo debería llegar a '.config('mail.debug_to').'.'
+                );
+        }
+
         return redirect()->route('entities.index')
             ->with(
                 'success',
-                'Entidad creada. Se ha enviado el contrato marco al email de la entidad para firma del representante autorizado. Cuando firme, se notificará al gestor responsable para aceptar el cargo.'
+                'Entidad creada. Se ha enviado el contrato marco al email del firmante autorizado. Cuando firme, se notificará al gestor responsable para aceptar el cargo.'
             );
     }
 
@@ -562,14 +579,21 @@ class EntityController extends Controller
             }
         }
 
-        // Si venimos del wizard de creación, limpiar sesión al completar la invitación.
         if ($isCreationFlow) {
             $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
         }
 
+        if ($isCreationFlow && session('entity_contract_mail_sent') === false) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with(
+                    'error',
+                    'Entidad creada, pero no se pudo enviar el email de firma del contrato (fallo SMTP). Usa «Reenviar email de firma» en esta ficha.'
+                );
+        }
+
         return redirect()->route('entities.show', $entity->id)
             ->with('success', $isCreationFlow
-                ? 'Entidad creada. Se ha enviado el contrato marco al email de la entidad. El gestor designado será notificado cuando el firmante autorice el contrato.'
+                ? 'Entidad creada. Se ha enviado el contrato marco al email del firmante. El gestor designado será notificado cuando el firmante autorice el contrato.'
                 : 'Gestor invitado exitosamente.');
     }
 
@@ -759,10 +783,18 @@ class EntityController extends Controller
 
         $request->session()->forget(['selected_administration', 'selected_administration_id', 'entity_information', 'entity_manager']);
 
+        if (session('entity_contract_mail_sent') === false) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with(
+                    'error',
+                    'Entidad creada, pero no se pudo enviar el email de firma del contrato (fallo SMTP). Usa «Reenviar email de firma» en esta ficha.'
+                );
+        }
+
         return redirect()->route('entities.index')
             ->with(
                 'success',
-                'Entidad creada. Se ha enviado el contrato marco al email de la entidad. Cuando el firmante lo autorice, el futuro gestor recibirá el correo para aceptar el cargo y completar su registro.'
+                'Entidad creada. Se ha enviado el contrato marco al email del firmante. Cuando el firmante lo autorice, el futuro gestor recibirá el correo para aceptar el cargo y completar su registro.'
             );
     }
 

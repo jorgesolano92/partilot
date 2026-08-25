@@ -383,6 +383,12 @@
 			                    						<input class="form-control" readonly value="{{ $entity->signer_nif ?? '' }}" type="text" style="border-radius: 30px;">
 			                    					</div>
 			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Email firmante</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_email ?? '' }}" type="email" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
 			                    				@if($entity->contract_status)
 			                    				<div class="col-6">
 			                    					<div class="form-group mt-2 mb-3">

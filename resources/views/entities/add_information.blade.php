@@ -410,6 +410,14 @@
 	                    				</div>
 	                    				<div class="col-4">
 	                    					<div class="form-group mt-2 mb-3">
+	                    						<label class="label-control">Email del firmante</label>
+	                    						<input class="form-control" type="email" name="signer_email" value="{{ old('signer_email', session('entity_information.signer_email')) }}" required style="border-radius: 30px;" placeholder="ejemplo@cuentaemail.com">
+	                    						@error('signer_email')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                    						<small class="text-muted">Se enviará aquí el enlace para firmar el contrato marco.</small>
+	                    					</div>
+	                    				</div>
+	                    				<div class="col-4">
+	                    					<div class="form-group mt-2 mb-3">
 	                    						<label class="label-control">Fecha de nacimiento</label>
 	                    						<input class="form-control" type="date" name="signer_birthday" value="{{ old('signer_birthday', session('entity_information.signer_birthday')) }}" style="border-radius: 30px;">
 	                    						@error('signer_birthday')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
@@ -423,7 +431,7 @@
 	                    							El gestor responsable es el mismo que el firmante autorizado
 	                    						</label>
 	                    					</div>
-	                    					<small class="text-muted d-block mb-2">Si está marcado, en el siguiente paso se autocompletarán los datos del gestor. El email de acceso del gestor debe ser distinto al email del panel de la entidad.</small>
+	                    					<small class="text-muted d-block mb-2">Si está marcado, en el siguiente paso se autocompletarán los datos del gestor. El contrato se envía siempre al <strong>email del firmante</strong>. El email de acceso del gestor (login) debe ser distinto al email del panel de la entidad.</small>
 	                    				</div>
 	                    			</div>
 
@@ -696,6 +704,7 @@
 	            signer_name: { label: 'Nombre del firmante', test: (v) => v.trim() !== '' },
 	            signer_last_name: { label: 'Apellido del firmante', test: (v) => v.trim() !== '' },
 	            signer_nif: { label: 'DNI/NIE del firmante', test: (v) => v.trim() !== '' },
+	            signer_email: { label: 'Email del firmante', test: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) },
 	        };
 
 	        const clearFieldError = function (field) {
@@ -742,10 +751,16 @@
                 const canDonate = document.getElementById('is_non_profit')?.checked ?? false;
                 const paysManagement = document.getElementById('entity_pays_management_fee')?.checked ?? false;
                 const paysPrint = document.getElementById('entity_pays_print_fee')?.checked ?? false;
-                document.getElementById('billing-modal-donation-cert').textContent = canDonate ? 'Sí' : 'No';
-                document.getElementById('billing-modal-management-payer').textContent = paysManagement ? 'Entidad' : 'Administración';
-                document.getElementById('billing-modal-print-payer').textContent = paysPrint ? 'Entidad' : 'Administración';
-                bootstrap.Modal.getOrCreateInstance(document.getElementById('entityBillingSwitchesModal')).show();
+                const donationEl = document.getElementById('billing-modal-donation-cert');
+                const managementEl = document.getElementById('billing-modal-management-payer');
+                const printEl = document.getElementById('billing-modal-print-payer');
+                if (donationEl) donationEl.textContent = canDonate ? 'Sí' : 'No';
+                if (managementEl) managementEl.textContent = paysManagement ? 'Entidad' : 'Administración';
+                if (printEl) printEl.textContent = paysPrint ? 'Entidad' : 'Administración';
+                const modalEl = document.getElementById('entityBillingSwitchesModal');
+                if (modalEl) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                }
                 return;
             }
 

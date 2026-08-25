@@ -17,6 +17,13 @@
         </p>
     @endif
     <p>
+        Este correo se ha enviado a la dirección del representante autorizado
+        @if(!empty($entity->signer_email))
+            (<strong>{{ $entity->signer_email }}</strong>)
+        @endif
+        para que pueda firmar el contrato.
+    </p>
+    <p>
         Referencia del contrato: <strong>{{ $entity->contract_reference }}</strong>
     </p>
     <p>

@@ -352,6 +352,17 @@ class CommunicationEmailService
             return new \App\Mail\EntityWelcomeMail($entity, $user, $plainPassword, $loginUrl);
         }
 
+        if ($mailClass === \App\Mail\EntityContractSignRequestMail::class) {
+            $entityId = (int) ($mailPayload['entity_id'] ?? 0);
+            $entity = \App\Models\Entity::with('administration')->findOrFail($entityId);
+            $token = trim((string) ($mailPayload['contract_token'] ?? $entity->contract_token ?? ''));
+            if ($token === '') {
+                throw new \RuntimeException('No hay token de firma disponible para reenviar el contrato.');
+            }
+
+            return new \App\Mail\EntityContractSignRequestMail($entity, $token);
+        }
+
         if ($mailClass === \App\Mail\EntityManagerInvitationMail::class) {
             $entityId = (int) ($mailPayload['entity_id'] ?? 0);
             $userId = (int) ($mailPayload['user_id'] ?? 0);

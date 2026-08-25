@@ -86,7 +86,7 @@ class EntityPanelAccessService
     public function sendWelcomeEmail(Entity $entity, User $panelUser, string $plainPassword): void
     {
         try {
-            app(CommunicationEmailService::class)->sendAndLog(
+            $log = app(CommunicationEmailService::class)->sendAndLog(
                 recipientEmail: (string) $panelUser->email,
                 recipientRole: 'entidad',
                 recipientUser: $panelUser,
@@ -100,9 +100,14 @@ class EntityPanelAccessService
                 ],
                 context: ['entity_id' => $entity->id],
             );
+
+            if ($log->status !== \App\Models\EmailCommunicationLog::STATUS_SENT
+                && $log->status !== \App\Models\EmailCommunicationLog::STATUS_RE_SENT) {
+                throw new \RuntimeException($log->error_message ?: 'Fallo SMTP al enviar el acceso al panel.');
+            }
         } catch (\Throwable $e) {
             Log::warning('No se pudo enviar acceso panel entidad '.$entity->id.': '.$e->getMessage());
-            throw new \RuntimeException('No se pudo enviar el correo de acceso al panel de la entidad.');
+            throw new \RuntimeException('No se pudo enviar el correo de acceso al panel de la entidad: '.$e->getMessage());
         }
     }
 

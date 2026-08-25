@@ -36,6 +36,7 @@ class Entity extends Model
         'signer_last_name',
         'signer_last_name2',
         'signer_nif',
+        'signer_email',
         'signer_birthday',
         'signer_is_primary_manager',
         'is_non_profit',

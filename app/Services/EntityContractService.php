@@ -46,8 +46,11 @@ class EntityContractService
 
         try {
             $this->sendSigningInvitation($entity);
+            session()->flash('entity_contract_mail_sent', true);
         } catch (\Throwable $e) {
             \Log::warning('No se pudo enviar contrato marco al crear entidad '.$entity->id.': '.$e->getMessage());
+            session()->flash('entity_contract_mail_sent', false);
+            session()->flash('entity_contract_mail_error', $e->getMessage());
         }
 
         return $entity->fresh(['administration']);
@@ -59,9 +62,12 @@ class EntityContractService
             throw new \InvalidArgumentException('El contrato marco de la entidad ya está firmado.');
         }
 
-        $recipientEmail = trim((string) ($entity->email ?? ''));
+        $recipientEmail = trim((string) ($entity->signer_email ?? ''));
         if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-            throw new \InvalidArgumentException('La entidad no tiene un email de contacto válido para enviar el contrato.');
+            $recipientEmail = trim((string) ($entity->email ?? ''));
+        }
+        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('No hay un email válido del firmante autorizado ni de la entidad para enviar el contrato.');
         }
 
         if (! $entity->contract_reference) {
@@ -80,10 +86,27 @@ class EntityContractService
         $entity = $entity->fresh(['administration']);
 
         try {
-            Mail::to($recipientEmail)->send(new EntityContractSignRequestMail($entity, $token));
+            $log = app(CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: $recipientEmail,
+                recipientRole: 'firmante_autorizado',
+                recipientUser: null,
+                messageType: 'entity_contract_sign_request',
+                templateKey: null,
+                mailClass: EntityContractSignRequestMail::class,
+                mailPayload: [
+                    'entity_id' => $entity->id,
+                    'contract_token' => $token,
+                ],
+                context: ['entity_id' => $entity->id],
+            );
+
+            if ($log->status !== \App\Models\EmailCommunicationLog::STATUS_SENT
+                && $log->status !== \App\Models\EmailCommunicationLog::STATUS_RE_SENT) {
+                throw new \RuntimeException($log->error_message ?: 'No se pudo enviar el email del contrato marco.');
+            }
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando solicitud de firma contrato entidad: '.$e->getMessage());
-            throw new \RuntimeException('No se pudo enviar el email del contrato marco.');
+            throw new \RuntimeException('No se pudo enviar el email del contrato marco: '.$e->getMessage());
         }
 
         return $entity;
@@ -175,7 +198,10 @@ class EntityContractService
             ],
         );
 
-        $recipientEmail = trim((string) ($entity->email ?? ''));
+        $recipientEmail = trim((string) ($entity->signer_email ?? ''));
+        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            $recipientEmail = trim((string) ($entity->email ?? ''));
+        }
         if ($recipientEmail !== '') {
             try {
                 Mail::to($recipientEmail)->send(
@@ -322,7 +348,7 @@ class EntityContractService
             $signerNif = trim((string) ($manager->user->nif_cif ?? ''));
         }
 
-        $signerEmail = trim((string) ($entity->email ?? $manager?->user?->email ?? ''));
+        $signerEmail = trim((string) ($entity->signer_email ?? $entity->email ?? $manager?->user?->email ?? ''));
         $signedAt = $signature['signed_at'] ?? null;
         $isSigned = $signerName !== '' && $signedAt !== null;
         $pending = self::AUTO_PENDING_LABEL;
