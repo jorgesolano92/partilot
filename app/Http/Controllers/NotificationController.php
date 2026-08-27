@@ -67,6 +67,7 @@ class NotificationController extends Controller
             'push_scope',
             'push_recipient_mode',
             'push_manager_ids',
+            'push_admin_recipient_mode',
         ]);
     }
     /**
@@ -303,6 +304,7 @@ class NotificationController extends Controller
             'push_scope',
             'push_recipient_mode',
             'push_manager_ids',
+            'push_admin_recipient_mode',
         ]);
 
         return redirect()->route('notifications.select-administration-target');
@@ -330,6 +332,7 @@ class NotificationController extends Controller
     {
         $request->validate([
             'admin_target' => 'required|in:administration,entities',
+            'admin_recipient_mode' => 'required_if:admin_target,administration|nullable|in:panel,manager,both',
         ]);
 
         $administration = session('selected_administration');
@@ -339,7 +342,9 @@ class NotificationController extends Controller
         }
 
         if ($request->admin_target === 'administration') {
+            $mode = $request->input('admin_recipient_mode', 'panel');
             $request->session()->put('push_scope', 'administration');
+            $request->session()->put('push_admin_recipient_mode', $mode);
             $request->session()->forget([
                 'selected_entities',
                 'selected_entities_data',
@@ -352,6 +357,7 @@ class NotificationController extends Controller
         }
 
         $request->session()->put('push_scope', 'entities');
+        $request->session()->forget(['push_admin_recipient_mode']);
 
         return redirect()->route('notifications.select-administration-entities');
     }
@@ -518,6 +524,7 @@ class NotificationController extends Controller
         $pushScope = session('push_scope', 'entities');
         $administration = session('selected_administration');
         $recipientMode = session('push_recipient_mode');
+        $adminRecipientMode = session('push_admin_recipient_mode', 'panel');
         $selectedEntities = collect();
 
         if ($pushScope === 'administration') {
@@ -539,13 +546,20 @@ class NotificationController extends Controller
                 ->get();
         }
 
-        $recipientSummary = $this->describePushRecipients($pushScope, $recipientMode, $selectedEntities, $administration);
+        $recipientSummary = $this->describePushRecipients(
+            $pushScope,
+            $recipientMode,
+            $selectedEntities,
+            $administration,
+            $adminRecipientMode
+        );
 
         return view('notifications.message', compact(
             'selectedEntities',
             'administration',
             'pushScope',
             'recipientMode',
+            'adminRecipientMode',
             'recipientSummary'
         ));
     }
@@ -563,6 +577,7 @@ class NotificationController extends Controller
         $pushScope = session('push_scope', 'entities');
         $administration = session('selected_administration');
         $recipientMode = session('push_recipient_mode');
+        $adminRecipientMode = session('push_admin_recipient_mode', 'panel');
         $managerIds = collect(session('push_manager_ids', []))->map(fn ($id) => (int) $id)->all();
 
         $selectedEntities = collect();
@@ -602,7 +617,8 @@ class NotificationController extends Controller
                 $administration,
                 $selectedEntityIds,
                 $recipientMode,
-                $managerIds
+                $managerIds,
+                $adminRecipientMode
             )->values();
 
             $kind = $pushScope === 'administration' ? 'manual_administracion' : 'manual_entidad';
@@ -849,12 +865,17 @@ class NotificationController extends Controller
         string $pushScope,
         ?string $recipientMode,
         $selectedEntities,
-        $administration
+        $administration,
+        ?string $adminRecipientMode = 'panel'
     ): string {
         if ($pushScope === 'administration') {
             $name = $administration->name ?? 'Administración';
 
-            return "Cuenta panel de la administración «{$name}»";
+            return match ($adminRecipientMode) {
+                'manager' => "Gestor responsable de la administración «{$name}»",
+                'both' => "Cuenta panel y gestor responsable de «{$name}»",
+                default => "Cuenta panel de la administración «{$name}»",
+            };
         }
 
         return match ($recipientMode) {
@@ -877,7 +898,8 @@ class NotificationController extends Controller
         $administration,
         array $entityIds,
         ?string $recipientMode,
-        array $managerIds
+        array $managerIds,
+        ?string $adminRecipientMode = 'panel'
     ): \Illuminate\Support\Collection {
         $byId = [];
 
@@ -892,14 +914,55 @@ class NotificationController extends Controller
             }
         };
 
-        if ($pushScope === 'administration' && $administration) {
+        $addAdministrationPanel = function ($admin) use ($addUser): void {
+            if (! $admin) {
+                return;
+            }
             $panelUsers = User::query()
                 ->where('panel_account_type', 'administration')
-                ->where('panel_account_id', $administration->id)
+                ->where('panel_account_id', $admin->id ?? $admin)
                 ->with('fcmTokens')
                 ->get();
             foreach ($panelUsers as $u) {
                 $addUser($u, 'administration_panel');
+            }
+        };
+
+        $addAdministrationManager = function ($admin) use ($addUser): void {
+            if (! $admin) {
+                return;
+            }
+            $adminId = is_object($admin) ? (int) $admin->id : (int) $admin;
+            $managers = \App\Models\Manager::query()
+                ->where('administration_id', $adminId)
+                ->where(function ($q) {
+                    $q->whereNull('entity_id')->orWhere('entity_id', 0);
+                })
+                ->whereNotNull('user_id')
+                ->with('user.fcmTokens')
+                ->get();
+
+            if ($managers->isEmpty() && is_object($admin)) {
+                $admin->loadMissing('manager.user.fcmTokens');
+                if ($admin->manager?->user) {
+                    $addUser($admin->manager->user, 'administration_manager');
+                }
+
+                return;
+            }
+
+            foreach ($managers as $manager) {
+                $addUser($manager->user, $manager->is_primary ? 'administration_responsable' : 'administration_manager');
+            }
+        };
+
+        if ($pushScope === 'administration' && $administration) {
+            $mode = $adminRecipientMode ?: 'panel';
+            if (in_array($mode, ['panel', 'both'], true)) {
+                $addAdministrationPanel($administration);
+            }
+            if (in_array($mode, ['manager', 'both'], true)) {
+                $addAdministrationManager($administration);
             }
 
             return collect($byId)->sortBy('name')->values();
@@ -920,15 +983,9 @@ class NotificationController extends Controller
 
         if ($recipientMode === 'all_involved') {
             $adminIds = Entity::query()->whereIn('id', $entityIds)->pluck('administration_id')->filter()->unique()->all();
-            if ($adminIds !== []) {
-                $adminPanels = User::query()
-                    ->where('panel_account_type', 'administration')
-                    ->whereIn('panel_account_id', $adminIds)
-                    ->with('fcmTokens')
-                    ->get();
-                foreach ($adminPanels as $u) {
-                    $addUser($u, 'administration_panel');
-                }
+            foreach ($adminIds as $adminId) {
+                $addAdministrationPanel($adminId);
+                $addAdministrationManager($adminId);
             }
         }
 

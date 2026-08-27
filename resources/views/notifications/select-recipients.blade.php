@@ -4,6 +4,28 @@
 
 @section('content')
 
+<style>
+.notification-wizard-card {
+    min-height: 658px;
+    display: flex;
+    flex-direction: column;
+}
+.notification-wizard-card > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.notification-wizard-body {
+    flex: 1 1 auto;
+}
+.notification-wizard-actions {
+    margin-top: auto;
+    padding-top: 1.25rem;
+    text-align: right;
+}
+</style>
+
 <div class="container-fluid">
 
     <div class="row">
@@ -65,9 +87,10 @@
                                 <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                         </div>
                         <div class="col-md-9">
-                            <div class="form-card bs" style="min-height: 500px;">
+                            <div class="form-card bs notification-wizard-card">
                                 <form action="{{ route('notifications.store-recipients') }}" method="POST" id="recipients-form">
                                     @csrf
+                                    <div class="notification-wizard-body">
                                     <h4 class="mb-0 mt-1">Destinatarios del push</h4>
                                     <small><i>Elige a quién se envía dentro de la(s) entidad(es)</i></small>
 
@@ -99,7 +122,7 @@
                                         <div class="form-check mb-2">
                                             <input class="form-check-input recipient-mode" type="radio" name="recipient_mode" id="mode_all" value="all_involved" {{ old('recipient_mode') === 'all_involved' ? 'checked' : '' }}>
                                             <label class="form-check-label" for="mode_all">
-                                                <strong>Todos los involucrados</strong> — administración, entidad, gestores y responsables
+                                                <strong>Todos los involucrados</strong> — administración (panel y gestor), entidad, gestores y responsables
                                             </label>
                                         </div>
                                     </div>
@@ -126,14 +149,13 @@
                                             @endforeach
                                         @endif
                                     </div>
+                                    </div>
 
-                                    <div class="row">
-                                        <div class="col-12 text-end">
-                                            <button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2">
-                                                Continuar
-                                                <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i>
-                                            </button>
-                                        </div>
+                                    <div class="notification-wizard-actions">
+                                        <button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light">
+                                            Continuar
+                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i>
+                                        </button>
                                     </div>
                                 </form>
                             </div>

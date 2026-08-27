@@ -4,6 +4,28 @@
 
 @section('content')
 
+<style>
+.notification-wizard-card {
+    min-height: 658px;
+    display: flex;
+    flex-direction: column;
+}
+.notification-wizard-card > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.notification-wizard-body {
+    flex: 1 1 auto;
+}
+.notification-wizard-actions {
+    margin-top: auto;
+    padding-top: 1.25rem;
+    text-align: right;
+}
+</style>
+
 <div class="container-fluid">
 
     <div class="row">
@@ -58,34 +80,56 @@
                                 <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                         </div>
                         <div class="col-md-9">
-                            <div class="form-card bs" style="min-height: 400px;">
+                            <div class="form-card bs notification-wizard-card">
                                 <form action="{{ route('notifications.store-administration-target') }}" method="POST" id="admin-target-form">
                                     @csrf
-                                    <h4 class="mb-0 mt-1">Destino del push</h4>
-                                    <small><i>Administración: {{ $administration->name }}</i></small>
+                                    <div class="notification-wizard-body">
+                                        <h4 class="mb-0 mt-1">Destino del push</h4>
+                                        <small><i>Administración: {{ $administration->name }}</i></small>
 
-                                    <br><br>
+                                        <br><br>
 
-                                    <input type="hidden" name="admin_target" id="admin_target" value="">
+                                        <input type="hidden" name="admin_target" id="admin_target" value="">
 
-                                    <div class="d-flex flex-wrap gap-3 justify-content-center mt-4">
-                                        <button type="button" class="btn btn-light btn-xl text-center m-2 bs admin-target-btn" data-target="administration" style="border: 1px solid #f0f0f0; padding: 20px; width: 240px; border-radius: 16px;">
-                                            <h4 class="mb-1">La administración</h4>
-                                            <small class="text-muted">Cuenta panel de esta administración</small>
-                                        </button>
-                                        <button type="button" class="btn btn-light btn-xl text-center m-2 bs admin-target-btn" data-target="entities" style="border: 1px solid #f0f0f0; padding: 20px; width: 240px; border-radius: 16px;">
-                                            <h4 class="mb-1">Sus entidades</h4>
-                                            <small class="text-muted">Elegir entidades y destinatarios</small>
-                                        </button>
-                                    </div>
-
-                                    <div class="row mt-4">
-                                        <div class="col-12 text-end">
-                                            <button type="submit" id="submit-btn" disabled style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2">
-                                                Continuar
-                                                <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i>
+                                        <div class="d-flex flex-wrap gap-3 justify-content-center mt-3">
+                                            <button type="button" class="btn btn-light btn-xl text-center m-2 bs admin-target-btn" data-target="administration" style="border: 1px solid #f0f0f0; padding: 20px; width: 240px; border-radius: 16px;">
+                                                <h4 class="mb-1">La administración</h4>
+                                                <small class="text-muted">Panel y/o gestor de esta administración</small>
+                                            </button>
+                                            <button type="button" class="btn btn-light btn-xl text-center m-2 bs admin-target-btn" data-target="entities" style="border: 1px solid #f0f0f0; padding: 20px; width: 240px; border-radius: 16px;">
+                                                <h4 class="mb-1">Sus entidades</h4>
+                                                <small class="text-muted">Elegir entidades y destinatarios</small>
                                             </button>
                                         </div>
+
+                                        <div id="admin-recipient-box" class="border rounded p-3 mt-3 mx-auto" style="max-width: 520px; display: none;">
+                                            <h5 class="mb-3">¿A quién de la administración?</h5>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="radio" name="admin_recipient_mode" id="admin_mode_panel" value="panel" checked>
+                                                <label class="form-check-label" for="admin_mode_panel">
+                                                    <strong>Cuenta panel</strong> de la administración
+                                                </label>
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="radio" name="admin_recipient_mode" id="admin_mode_manager" value="manager">
+                                                <label class="form-check-label" for="admin_mode_manager">
+                                                    <strong>Gestor</strong> de la administración
+                                                </label>
+                                            </div>
+                                            <div class="form-check mb-0">
+                                                <input class="form-check-input" type="radio" name="admin_recipient_mode" id="admin_mode_both" value="both">
+                                                <label class="form-check-label" for="admin_mode_both">
+                                                    <strong>Ambos</strong> — panel y gestor
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="notification-wizard-actions">
+                                        <button type="submit" id="submit-btn" disabled style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light">
+                                            Continuar
+                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i>
+                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -104,17 +148,33 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
+    function syncAdminRecipientBox() {
+        var target = $('#admin_target').val();
+        if (target === 'administration') {
+            $('#admin-recipient-box').show();
+        } else {
+            $('#admin-recipient-box').hide();
+        }
+    }
+
     $('.admin-target-btn').on('click', function() {
         $('.admin-target-btn').removeClass('btn-primary').addClass('btn-light');
         $(this).removeClass('btn-light').addClass('btn-primary');
         $('#admin_target').val($(this).data('target'));
         $('#submit-btn').prop('disabled', false);
+        syncAdminRecipientBox();
     });
 
     $('#admin-target-form').on('submit', function(e) {
-        if (!$('#admin_target').val()) {
+        var target = $('#admin_target').val();
+        if (!target) {
             e.preventDefault();
             alert('Selecciona un destino');
+            return;
+        }
+        if (target === 'administration' && !$('input[name="admin_recipient_mode"]:checked').val()) {
+            e.preventDefault();
+            alert('Elige si envías a la cuenta panel, al gestor o a ambos');
         }
     });
 });
