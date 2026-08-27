@@ -81,7 +81,7 @@
                                             </thead>
                                             <tbody>
                                                 @foreach($entities as $entity)
-                                                <tr>
+                                                <tr class="entity-pick-row" style="cursor: pointer;">
                                                     <td>
                                                         <div class="form-check">
                                                             <input class="form-check-input entity-radio" type="radio" name="entity_id" value="{{$entity->id}}" id="entity_{{$entity->id}}" required>
@@ -133,6 +133,20 @@ function initDatatable() {
 
 $(document).ready(function() {
     initDatatable();
+
+    $(document).on('click', '#example2 tbody tr.entity-pick-row', function(e) {
+        if ($(e.target).is('input[type="radio"]') || $(e.target).closest('label').length) {
+            return;
+        }
+        $(this).find('.entity-radio').prop('checked', true).trigger('change');
+    });
+
+    $(document).on('change', '.entity-radio', function() {
+        $('#example2 tbody tr.entity-pick-row').css('background-color', '');
+        if ($(this).is(':checked')) {
+            $(this).closest('tr').css('background-color', '#e3f2fd');
+        }
+    });
 });
 </script>
 @endsection

@@ -91,7 +91,7 @@
                                             </thead>
                                             <tbody>
                                                 @foreach($entities as $entity)
-                                                <tr>
+                                                <tr class="entity-pick-row" style="cursor: pointer;">
                                                     <td>
                                                         <div class="form-check">
                                                             <input class="form-check-input entity-checkbox" type="checkbox" name="entity_ids[]" value="{{$entity->id}}" id="entity_{{$entity->id}}">
@@ -143,17 +143,39 @@ function initDatatable() {
 $(document).ready(function() {
     initDatatable();
 
+    function syncRowHighlight($row) {
+        var $cb = $row.find('.entity-checkbox');
+        if ($cb.is(':checked') && !$cb.is(':disabled')) {
+            $row.css('background-color', '#e3f2fd');
+        } else {
+            $row.css('background-color', '');
+        }
+    }
+
+    $(document).on('click', '#example2 tbody tr.entity-pick-row', function(e) {
+        if ($(e.target).is('input[type="checkbox"]') || $(e.target).closest('label').length) {
+            return;
+        }
+        var $cb = $(this).find('.entity-checkbox');
+        if ($cb.is(':disabled')) {
+            return;
+        }
+        $cb.prop('checked', !$cb.is(':checked')).trigger('change');
+    });
+
+    $(document).on('change', '.entity-checkbox', function() {
+        if ($(this).is(':checked')) {
+            $('#selectAllSwitch').prop('checked', false);
+        }
+        syncRowHighlight($(this).closest('tr'));
+    });
+
     $('#selectAllSwitch').change(function() {
         if ($(this).is(':checked')) {
             $('.entity-checkbox').prop('disabled', true).prop('checked', false);
+            $('#example2 tbody tr.entity-pick-row').css('background-color', '');
         } else {
             $('.entity-checkbox').prop('disabled', false);
-        }
-    });
-
-    $('.entity-checkbox').change(function() {
-        if ($(this).is(':checked')) {
-            $('#selectAllSwitch').prop('checked', false);
         }
     });
 
