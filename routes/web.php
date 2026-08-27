@@ -711,10 +711,16 @@ Route::group(['prefix' => 'notifications'], function() {
     // Rutas para selección de administración
     Route::get('/select-administration', [NotificationController::class, 'selectAdministration'])->name('notifications.select-administration');
     Route::post('/store-administration', [NotificationController::class, 'storeAdministration'])->name('notifications.store-administration');
+
+    Route::get('/select-administration-target', [NotificationController::class, 'selectAdministrationTarget'])->name('notifications.select-administration-target');
+    Route::post('/store-administration-target', [NotificationController::class, 'storeAdministrationTarget'])->name('notifications.store-administration-target');
     
     // Rutas para selección de entidades de administración
     Route::get('/select-administration-entities', [NotificationController::class, 'selectAdministrationEntities'])->name('notifications.select-administration-entities');
     Route::post('/store-administration-entities', [NotificationController::class, 'storeAdministrationEntities'])->name('notifications.store-administration-entities');
+
+    Route::get('/select-recipients', [NotificationController::class, 'selectRecipients'])->name('notifications.select-recipients');
+    Route::post('/store-recipients', [NotificationController::class, 'storeRecipients'])->name('notifications.store-recipients');
     
     // Ruta para formulario de mensaje
     Route::get('/message', [NotificationController::class, 'message'])->name('notifications.message');
@@ -731,9 +737,13 @@ Route::group(['prefix' => 'notifications'], function() {
 
     Route::post('/unregister-token', [NotificationController::class, 'unregisterToken'])->name('notifications.unregister-token');
 
-    // Ruta para enviar notificación de prueba
     Route::post('/send-test', [NotificationController::class, 'sendTest'])->name('notifications.send-test');
     
+    // Bandeja campana (cuentas panel administración / entidad)
+    Route::get('/panel-inbox', [NotificationController::class, 'panelInboxFeed'])->name('notifications.panel-inbox');
+    Route::post('/panel-inbox/{id}/read', [NotificationController::class, 'panelInboxMarkRead'])->name('notifications.panel-inbox-read');
+    Route::post('/panel-inbox/read-all', [NotificationController::class, 'panelInboxMarkAllRead'])->name('notifications.panel-inbox-read-all');
+
     // Ruta para eliminar notificación (al final para evitar conflictos)
     Route::delete('/delete/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 });

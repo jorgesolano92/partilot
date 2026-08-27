@@ -4,9 +4,8 @@
 
 @section('content')
 
-<!-- Start Content-->
 <div class="container-fluid">
-    
+
     <div class="row">
         <div class="col-12">
             <div class="page-title-box">
@@ -20,97 +19,53 @@
                 <h4 class="page-title">Notificaciones</h4>
             </div>
         </div>
-    </div>     
+    </div>
 
     <div class="row">
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
 
-                    <h4 class="header-title">
-                        Selección
-                    </h4>
-
+                    <h4 class="header-title">Selección</h4>
                     <br>
 
                     <div class="row">
                         <div class="col-md-3" style="position: relative;">
                             <div class="form-card bs mb-3">
-
                                 <div class="form-wizard-element">
-                                    
-                                    <span>
-                                        1
-                                    </span>
-
+                                    <span>1</span>
                                     <img src="{{url('assets/entidad.svg')}}" alt="">
-
-                                    <label>
-                                        Selección Tipo
-                                    </label>
-
+                                    <label>Selección Tipo</label>
                                 </div>
-
                                 <div class="form-wizard-element">
-                                    
-                                    <span>
-                                        2
-                                    </span>
-
+                                    <span>2</span>
                                     <img width="26px" src="{{url('icons_/selec_sorteo.svg')}}" alt="">
-
-                                    <label>
-                                        Selecc. Administración
-                                    </label>
-
+                                    <label>Selecc. Administración</label>
                                 </div>
-
-                                <div class="form-wizard-element active">
-                                    
-                                    <span>
-                                        3
-                                    </span>
-
-                                    <img src="{{url('assets/entidad.svg')}}" alt="">
-
-                                    <label>
-                                        Selección Entidad/es
-                                    </label>
-
-                                </div>
-
                                 <div class="form-wizard-element">
-                                    
-                                    <span>
-                                        4
-                                    </span>
-
+                                    <span>3</span>
                                     <img src="{{url('assets/entidad.svg')}}" alt="">
-
-                                    <label>
-                                        Mensaje
-                                    </label>
-
+                                    <label>Destino</label>
                                 </div>
-                                
+                                <div class="form-wizard-element active">
+                                    <span>4</span>
+                                    <img src="{{url('assets/entidad.svg')}}" alt="">
+                                    <label>Selección Entidad/es</label>
+                                </div>
                             </div>
 
-                            <a href="{{route('notifications.select-administration')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
+                            <a href="{{route('notifications.select-administration-target')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
                                 <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                         </div>
                         <div class="col-md-9">
                             <div class="form-card bs" style="min-height: 658px;">
                                 <form action="{{ route('notifications.store-administration-entities') }}" method="POST">
                                     @csrf
-                                    <h4 class="mb-0 mt-1">
-                                        Entidad
-                                    </h4>
-                                    <small><i>Selecciona la Entidad</i></small>
+                                    <h4 class="mb-0 mt-1">Entidades</h4>
+                                    <small><i>Administración: {{ $administration->name ?? '' }} — marca las entidades</i></small>
 
-                                    <br>
-                                    <br>
+                                    <br><br>
 
-                                    <!-- Switch para seleccionar todas -->
                                     <div class="row mb-3">
                                         <div class="col-12 text-end">
                                             <div class="form-check form-switch">
@@ -122,34 +77,31 @@
                                         </div>
                                     </div>
 
-                                    <div style="min-height: 656px;">
+                                    <div style="min-height: 500px;">
                                         <table id="example2" class="table table-striped nowrap w-100">
-                                            <thead class="">
+                                            <thead>
                                                 <tr>
+                                                    <th style="width: 48px;">Sel.</th>
                                                     <th>ID</th>
                                                     <th>Nombre Entidad</th>
                                                     <th>Provincia</th>
                                                     <th>Localidad</th>
                                                     <th>Estado</th>
-                                                    <th class="d-none">Seleccionar</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @foreach($entities as $entity)
-                                                <tr class="selectable-row" style="cursor: pointer;">
+                                                <tr>
+                                                    <td>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input entity-checkbox" type="checkbox" name="entity_ids[]" value="{{$entity->id}}" id="entity_{{$entity->id}}">
+                                                        </div>
+                                                    </td>
                                                     <td>#EN{{str_pad($entity->id, 4, '0', STR_PAD_LEFT)}}</td>
                                                     <td>{{$entity->name}}</td>
                                                     <td>{{$entity->province ?? 'Sin provincia'}}</td>
                                                     <td>{{$entity->city ?? 'Sin localidad'}}</td>
                                                     <td><label class="badge bg-success">Activo</label></td>
-                                                    <td class="d-none">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input entity-checkbox" type="checkbox" name="entity_ids[]" value="{{$entity->id}}" id="entity_{{$entity->id}}">
-                                                            <label class="form-check-label" for="entity_{{$entity->id}}">
-                                                                Seleccionar
-                                                            </label>
-                                                        </div>
-                                                    </td>
                                                 </tr>
                                                 @endforeach
                                             </tbody>
@@ -165,93 +117,46 @@
                                 </form>
                             </div>
                         </div>
-
                     </div>
 
-                    
-                </div> <!-- end card body-->
-            </div> <!-- end card -->
-        </div><!-- end col-->
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- end row-->
 
-</div> <!-- container -->
+</div>
 
 @endsection
 
 @section('scripts')
-
 <script>
-
-function initDatatable() 
-  {
+function initDatatable() {
     $("#example2").DataTable({
-
-      "select":{style:"single"},
-
       "ordering": false,
-      "sorting": false,
-
-      "scrollX": true, "scrollCollapse": true,
-        orderCellsTop: true,
-        fixedHeader: true
+      "scrollX": true,
+      "scrollCollapse": true,
+      orderCellsTop: true,
+      fixedHeader: true
   });
-  }
+}
 
-  $(document).ready(function() {
+$(document).ready(function() {
     initDatatable();
 
-    // Hacer las filas clickeables para seleccionar el checkbox
-    $(document).on('click', '#example2 tbody tr.selectable-row', function(e) {
-      // No activar si se hace clic directamente en el checkbox o su label
-      if ($(e.target).is('input[type="checkbox"]') || $(e.target).is('label') || $(e.target).closest('label').length) {
-        return;
-      }
-      
-      // Toggle del checkbox de la fila
-      var checkbox = $(this).find('input[type="checkbox"]');
-      checkbox.prop('checked', !checkbox.is(':checked')).trigger('change');
-    });
-    
-    // Agregar efecto hover visual
-    $(document).on('mouseenter', '#example2 tbody tr.selectable-row', function() {
-      $(this).css('background-color', '#f8f9fa');
-    }).on('mouseleave', '#example2 tbody tr.selectable-row', function() {
-      if (!$(this).find('input[type="checkbox"]').is(':checked')) {
-        $(this).css('background-color', '');
-      }
-    });
-    
-    // Mantener el color cuando está seleccionado
-    $(document).on('change', '#example2 tbody tr.selectable-row input[type="checkbox"]', function() {
-      if ($(this).is(':checked')) {
-        $(this).closest('tr').css('background-color', '#e3f2fd');
-      } else {
-        $(this).closest('tr').css('background-color', '');
-      }
-    });
-
-    // Manejar el switch de "Seleccionar todas"
     $('#selectAllSwitch').change(function() {
         if ($(this).is(':checked')) {
-            // Deshabilitar todos los checkboxes individuales
             $('.entity-checkbox').prop('disabled', true).prop('checked', false);
-            $('#example2 tbody tr.selectable-row').css('background-color', '');
         } else {
-            // Habilitar todos los checkboxes individuales
             $('.entity-checkbox').prop('disabled', false);
         }
     });
 
-    // Manejar cambios en checkboxes individuales
     $('.entity-checkbox').change(function() {
         if ($(this).is(':checked')) {
-            // Desmarcar el switch de "Seleccionar todas"
             $('#selectAllSwitch').prop('checked', false);
         }
     });
 
-    // Validar antes de enviar
     $('form').submit(function(e) {
         if (!$('#selectAllSwitch').is(':checked') && $('.entity-checkbox:checked').length === 0) {
             e.preventDefault();
@@ -259,7 +164,5 @@ function initDatatable()
         }
     });
 });
-
 </script>
-
 @endsection

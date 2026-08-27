@@ -80,7 +80,22 @@
                                 
                             </div>
 
-                            <!-- Mostrar entidades seleccionadas -->
+                            @if(!empty($recipientSummary))
+                            <div class="mt-3">
+                                <h6>Destinatarios:</h6>
+                                <small class="text-muted">{{ $recipientSummary }}</small>
+                            </div>
+                            @endif
+
+                            @if(($pushScope ?? '') === 'administration' && !empty($administration))
+                            <div class="mt-3">
+                                <h6>Administración:</h6>
+                                <div class="card mb-2" style="padding: 10px;">
+                                    <h6 class="mb-0">{{ $administration->name }}</h6>
+                                </div>
+                            </div>
+                            @endif
+
                             @if($selectedEntities && count($selectedEntities) > 0)
                             <div class="mt-3">
                                 <h6>Entidades seleccionadas:</h6>
