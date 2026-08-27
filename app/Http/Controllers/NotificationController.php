@@ -24,6 +24,50 @@ class NotificationController extends Controller
     {
         $this->firebaseService = $firebaseService;
         $this->firebaseServiceModern = $firebaseServiceModern;
+
+        $this->middleware(function ($request, $next) {
+            $action = $request->route()?->getActionMethod();
+            $tokenExcept = ['registerToken', 'unregisterToken', 'getFirebaseConfig'];
+            $panelInboxActions = ['panelInboxFeed', 'panelInboxMarkRead', 'panelInboxMarkAllRead'];
+
+            if (in_array($action, $tokenExcept, true)) {
+                return $next($request);
+            }
+
+            if (in_array($action, $panelInboxActions, true)) {
+                $user = auth()->user();
+                if (! $user || (! $user->isSuperAdmin() && ! $user->isAdministrationPanelAccount() && ! $user->isEntityPanelAccount())) {
+                    abort(403, 'No autorizado.');
+                }
+
+                return $next($request);
+            }
+
+            $this->ensureSuperAdmin();
+
+            return $next($request);
+        });
+    }
+
+    private function ensureSuperAdmin(): void
+    {
+        if (! auth()->user()?->isSuperAdmin()) {
+            abort(403, 'Solo el superadministrador puede gestionar notificaciones push del panel.');
+        }
+    }
+
+    private function forgetPushWizardSession(Request $request): void
+    {
+        $request->session()->forget([
+            'notification_type',
+            'selected_entity',
+            'selected_entities',
+            'selected_entities_data',
+            'selected_administration',
+            'push_scope',
+            'push_recipient_mode',
+            'push_manager_ids',
+        ]);
     }
     /**
      * Display a listing of notifications
@@ -188,8 +232,9 @@ class NotificationController extends Controller
         if ($entity = \App\Support\PanelSelectionResolver::resolveEntity($request->user())) {
             $request->session()->put('selected_entity', $entity);
             $request->session()->put('selected_entities', [$entity->id]);
+            $request->session()->put('push_scope', 'entities');
 
-            return redirect()->route('notifications.message');
+            return redirect()->route('notifications.select-recipients');
         }
 
         $entities = Entity::with(['administration'])
@@ -214,8 +259,10 @@ class NotificationController extends Controller
             ->findOrFail($request->entity_id);
         $request->session()->put('selected_entity', $entity);
         $request->session()->put('selected_entities', [$entity->id]);
+        $request->session()->put('push_scope', 'entities');
+        $request->session()->forget(['push_recipient_mode', 'push_manager_ids']);
 
-        return redirect()->route('notifications.message');
+        return redirect()->route('notifications.select-recipients');
     }
 
     /**
@@ -227,7 +274,7 @@ class NotificationController extends Controller
             return redirect()->route('notifications.create');
         }
 
-        if ($redirect = $this->redirectIfImplicitAdministration($request, 'notifications.select-administration-entities')) {
+        if ($redirect = $this->redirectIfImplicitAdministration($request, 'notifications.select-administration-target')) {
             return $redirect;
         }
 
@@ -249,6 +296,62 @@ class NotificationController extends Controller
 
         $administration = Administration::forUser(auth()->user())->findOrFail($request->administration_id);
         $request->session()->put('selected_administration', $administration);
+        $request->session()->forget([
+            'selected_entities',
+            'selected_entities_data',
+            'selected_entity',
+            'push_scope',
+            'push_recipient_mode',
+            'push_manager_ids',
+        ]);
+
+        return redirect()->route('notifications.select-administration-target');
+    }
+
+    /**
+     * Tras elegir administración: enviar a la administración o a sus entidades.
+     */
+    public function selectAdministrationTarget()
+    {
+        if (! session('selected_administration')) {
+            return redirect()->route('notifications.create');
+        }
+
+        $administration = session('selected_administration');
+        if (! $administration || ! auth()->user()->canAccessAdministration($administration->id)) {
+            return redirect()->route('notifications.create')
+                ->with('error', 'Permisos insuficientes para la administración seleccionada.');
+        }
+
+        return view('notifications.select-administration-target', compact('administration'));
+    }
+
+    public function storeAdministrationTarget(Request $request)
+    {
+        $request->validate([
+            'admin_target' => 'required|in:administration,entities',
+        ]);
+
+        $administration = session('selected_administration');
+        if (! $administration || ! auth()->user()->canAccessAdministration($administration->id)) {
+            return redirect()->route('notifications.create')
+                ->with('error', 'Permisos insuficientes para la administración seleccionada.');
+        }
+
+        if ($request->admin_target === 'administration') {
+            $request->session()->put('push_scope', 'administration');
+            $request->session()->forget([
+                'selected_entities',
+                'selected_entities_data',
+                'selected_entity',
+                'push_recipient_mode',
+                'push_manager_ids',
+            ]);
+
+            return redirect()->route('notifications.message');
+        }
+
+        $request->session()->put('push_scope', 'entities');
 
         return redirect()->route('notifications.select-administration-entities');
     }
@@ -283,12 +386,12 @@ class NotificationController extends Controller
     public function storeAdministrationEntities(Request $request)
     {
         $request->validate([
-            'entity_ids' => 'required|array|min:1',
+            'entity_ids' => 'required_without:send_to_all|array|min:1',
             'entity_ids.*' => 'exists:entities,id',
-            'send_to_all' => 'boolean'
+            'send_to_all' => 'nullable|boolean',
         ]);
 
-        if ($request->send_to_all) {
+        if ($request->boolean('send_to_all')) {
             $administration = session('selected_administration');
 
             if (!$administration || !auth()->user()->canAccessAdministration($administration->id)) {
@@ -317,6 +420,92 @@ class NotificationController extends Controller
             ->get();
         $request->session()->put('selected_entities', $entityIds);
         $request->session()->put('selected_entities_data', $entities);
+        $request->session()->put('push_scope', 'entities');
+        $request->session()->forget(['push_recipient_mode', 'push_manager_ids']);
+
+        return redirect()->route('notifications.select-recipients');
+    }
+
+    /**
+     * Destinatarios del push a entidad(es): cuenta panel, gestores o todos los involucrados.
+     */
+    public function selectRecipients()
+    {
+        if (session('push_scope') === 'administration') {
+            return redirect()->route('notifications.message');
+        }
+
+        $selectedEntityIds = collect(session('selected_entities', []))
+            ->filter(fn ($id) => auth()->user()->canAccessEntity((int) $id))
+            ->values()
+            ->all();
+
+        if ($selectedEntityIds === []) {
+            return redirect()->route('notifications.create');
+        }
+
+        $selectedEntities = Entity::with('administration')
+            ->forUser(auth()->user())
+            ->whereIn('id', $selectedEntityIds)
+            ->get();
+
+        $managers = \App\Models\Manager::query()
+            ->whereIn('entity_id', $selectedEntityIds)
+            ->whereNotNull('user_id')
+            ->with(['user', 'entity'])
+            ->get()
+            ->filter(fn ($m) => $m->user !== null)
+            ->values();
+
+        return view('notifications.select-recipients', compact('selectedEntities', 'managers'));
+    }
+
+    public function storeRecipients(Request $request)
+    {
+        $request->validate([
+            'recipient_mode' => 'required|in:entity,managers,all_involved',
+            'manager_ids' => 'nullable|array',
+            'manager_ids.*' => 'integer|exists:managers,id',
+        ]);
+
+        $selectedEntityIds = collect(session('selected_entities', []))
+            ->filter(fn ($id) => auth()->user()->canAccessEntity((int) $id))
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if ($selectedEntityIds === []) {
+            return redirect()->route('notifications.create')
+                ->with('error', 'No se han seleccionado entidades válidas.');
+        }
+
+        $mode = $request->recipient_mode;
+        $managerIds = [];
+
+        if ($mode === 'managers') {
+            $allowed = \App\Models\Manager::query()
+                ->whereIn('entity_id', $selectedEntityIds)
+                ->whereNotNull('user_id')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $managerIds = collect($request->input('manager_ids', []))
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => in_array($id, $allowed, true))
+                ->values()
+                ->all();
+
+            if ($managerIds === []) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['manager_ids' => 'Selecciona al menos un gestor o responsable.']);
+            }
+        }
+
+        $request->session()->put('push_scope', 'entities');
+        $request->session()->put('push_recipient_mode', $mode);
+        $request->session()->put('push_manager_ids', $managerIds);
 
         return redirect()->route('notifications.message');
     }
@@ -326,20 +515,39 @@ class NotificationController extends Controller
      */
     public function message()
     {
-        $selectedEntityIds = collect(session('selected_entities', []))
-            ->filter(fn ($id) => auth()->user()->canAccessEntity((int) $id))
-            ->values()
-            ->all();
+        $pushScope = session('push_scope', 'entities');
+        $administration = session('selected_administration');
+        $recipientMode = session('push_recipient_mode');
+        $selectedEntities = collect();
 
-        if (empty($selectedEntityIds)) {
-            return redirect()->route('notifications.create');
+        if ($pushScope === 'administration') {
+            if (! $administration || ! auth()->user()->canAccessAdministration($administration->id)) {
+                return redirect()->route('notifications.create');
+            }
+        } else {
+            $selectedEntityIds = collect(session('selected_entities', []))
+                ->filter(fn ($id) => auth()->user()->canAccessEntity((int) $id))
+                ->values()
+                ->all();
+
+            if ($selectedEntityIds === [] || ! $recipientMode) {
+                return redirect()->route('notifications.create');
+            }
+
+            $selectedEntities = Entity::forUser(auth()->user())
+                ->whereIn('id', $selectedEntityIds)
+                ->get();
         }
 
-        $selectedEntities = Entity::forUser(auth()->user())
-            ->whereIn('id', $selectedEntityIds)
-            ->get();
+        $recipientSummary = $this->describePushRecipients($pushScope, $recipientMode, $selectedEntities, $administration);
 
-        return view('notifications.message', compact('selectedEntities'));
+        return view('notifications.message', compact(
+            'selectedEntities',
+            'administration',
+            'pushScope',
+            'recipientMode',
+            'recipientSummary'
+        ));
     }
 
     /**
@@ -349,145 +557,151 @@ class NotificationController extends Controller
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'message' => 'required|string'
+            'message' => 'required|string',
         ]);
 
-        $selectedEntityIds = collect(session('selected_entities', []))
-            ->filter(fn ($id) => auth()->user()->canAccessEntity((int) $id))
-            ->values()
-            ->all();
+        $pushScope = session('push_scope', 'entities');
+        $administration = session('selected_administration');
+        $recipientMode = session('push_recipient_mode');
+        $managerIds = collect(session('push_manager_ids', []))->map(fn ($id) => (int) $id)->all();
 
-        if (empty($selectedEntityIds)) {
-            return redirect()->route('notifications.create')
-                ->with('error', 'No se han seleccionado entidades válidas para la notificación.');
+        $selectedEntities = collect();
+        $selectedEntityIds = [];
+
+        if ($pushScope === 'administration') {
+            if (! $administration || ! auth()->user()->canAccessAdministration($administration->id)) {
+                return redirect()->route('notifications.create')
+                    ->with('error', 'Administración no válida para la notificación.');
+            }
+        } else {
+            $selectedEntityIds = collect(session('selected_entities', []))
+                ->filter(fn ($id) => auth()->user()->canAccessEntity((int) $id))
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            if ($selectedEntityIds === [] || ! $recipientMode) {
+                return redirect()->route('notifications.create')
+                    ->with('error', 'No se han seleccionado entidades o destinatarios válidos.');
+            }
+
+            $selectedEntities = Entity::forUser(auth()->user())
+                ->whereIn('id', $selectedEntityIds)
+                ->get();
         }
 
-        $selectedEntities = Entity::forUser(auth()->user())
-            ->whereIn('id', $selectedEntityIds)
-            ->get();
-
         $notification = null;
-        /** @var array<int, Notification> */
-        $notificationsByEntityId = [];
         $successCount = 0;
         $firebaseSuccess = false;
         $firebaseTokensCount = 0;
 
         DB::beginTransaction();
         try {
-            // Crear notificaciones en la base de datos para cada entidad seleccionada
-            foreach ($selectedEntities as $entity) {
+            $relevantUsers = $this->resolvePushRecipients(
+                $pushScope,
+                $administration,
+                $selectedEntityIds,
+                $recipientMode,
+                $managerIds
+            )->values();
+
+            $kind = $pushScope === 'administration' ? 'manual_administracion' : 'manual_entidad';
+
+            \Log::info('=== ENVIANDO NOTIFICACIÓN FIREBASE (panel push) ===', [
+                'push_scope' => $pushScope,
+                'recipient_mode' => $recipientMode,
+                'users' => $relevantUsers->count(),
+            ]);
+
+            $firebaseSuccessCount = 0;
+            $firebaseFailCount = 0;
+
+            foreach ($relevantUsers as $user) {
+                $entityIdForPush = $selectedEntityIds !== []
+                    ? $this->primarySelectedEntityIdForUser($user, $selectedEntityIds)
+                    : null;
+                if ($entityIdForPush === null && $user->isEntityPanelAccount() && in_array((int) $user->panel_account_id, $selectedEntityIds, true)) {
+                    $entityIdForPush = (int) $user->panel_account_id;
+                }
+
+                $administrationIdForRow = null;
+                if ($pushScope === 'administration' && $administration) {
+                    $administrationIdForRow = (int) $administration->id;
+                } elseif ($entityIdForPush) {
+                    $administrationIdForRow = Entity::query()->where('id', $entityIdForPush)->value('administration_id');
+                } elseif ($user->isAdministrationPanelAccount()) {
+                    $administrationIdForRow = (int) $user->panel_account_id;
+                }
+
                 $notification = Notification::create([
                     'title' => $request->title,
                     'message' => $request->message,
                     'sender_id' => Auth::id(),
-                    'entity_id' => $entity->id,
-                    'administration_id' => $entity->administration_id,
-                    'kind' => 'manual_entidad',
+                    'recipient_user_id' => $user->id,
+                    'entity_id' => $entityIdForPush,
+                    'administration_id' => $administrationIdForRow,
+                    'kind' => $kind,
                     'status' => 'sent',
                     'sent_at' => now(),
                 ]);
-                $notificationsByEntityId[(int) $entity->id] = $notification;
                 $successCount++;
+
+                $user->loadMissing('fcmTokens');
+                foreach ($user->fcmTokens as $device) {
+                    $firebaseTokensCount++;
+                    try {
+                        $sent = $this->firebaseServiceModern->sendToDevice(
+                            $device->token,
+                            $request->title,
+                            $request->message,
+                            [
+                                'type' => 'inbox_notification',
+                                'notification_id' => (string) $notification->id,
+                                'kind' => $kind,
+                                'sender_name' => (string) Auth::user()->name,
+                                'sender_id' => (string) Auth::id(),
+                                'user_id' => (string) $user->id,
+                                'user_role' => (string) $user->role,
+                                'entity_id' => $entityIdForPush !== null ? (string) $entityIdForPush : '',
+                                'entity_ids' => implode(',', $selectedEntityIds),
+                                'platform' => (string) $device->platform,
+                            ]
+                        );
+                        if ($sent) {
+                            $firebaseSuccessCount++;
+                        } else {
+                            $firebaseFailCount++;
+                        }
+                    } catch (\Exception $e) {
+                        $firebaseFailCount++;
+                        \Log::error("Error enviando a usuario {$user->id}: ".$e->getMessage());
+                    }
+                }
             }
 
-            // Enviar notificación push solo a usuarios de las entidades seleccionadas
-            \Log::info('=== ENVIANDO NOTIFICACIÓN FIREBASE A USUARIOS DE ENTIDADES SELECCIONADAS ===');
-            
-            // Obtener IDs de entidades seleccionadas (orden determinista para resolver fila por usuario)
-            $selectedEntityIds = $selectedEntities->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
-            \Log::info('Entidades seleccionadas: ' . implode(', ', $selectedEntityIds));
-            
-            // Obtener usuarios que son managers o sellers de estas entidades
-            $relevantUsers = $this->getUsersFromEntities($selectedEntityIds);
-            $firebaseTokensCount = $relevantUsers->sum(fn ($u) => $u->fcmTokens->count());
+            $firebaseSuccess = $firebaseSuccessCount > 0;
+            \Log::info("Resultado FCM: {$firebaseSuccessCount} ok, {$firebaseFailCount} fallidas; bandeja: {$successCount}");
 
-            \Log::info('Usuarios con dispositivos: ' . $relevantUsers->count() . ', tokens totales: ' . $firebaseTokensCount);
-            
-            if ($firebaseTokensCount > 0) {
-                try {
-                    \Log::info('🚀 Enviando notificaciones individuales a cada usuario...');
-                    
-                    $firebaseSuccessCount = 0;
-                    $firebaseFailCount = 0;
-                    
-                    // Enviar a cada usuario individualmente
-                    foreach ($relevantUsers as $user) {
-                        $entityIdForPush = $this->primarySelectedEntityIdForUser($user, $selectedEntityIds);
-                        $notificationForDevice = ($entityIdForPush !== null && isset($notificationsByEntityId[$entityIdForPush]))
-                            ? $notificationsByEntityId[$entityIdForPush]
-                            : $notification;
+            if ($successCount === 0) {
+                DB::rollBack();
 
-                        foreach ($user->fcmTokens as $device) {
-                            try {
-                                \Log::info("  📤 Enviando a: {$user->name} (ID: {$user->id}, Rol: {$user->role}, {$device->platform})");
-
-                                $sent = $this->firebaseServiceModern->sendToDevice(
-                                    $device->token,
-                                    $request->title,
-                                    $request->message,
-                                    [
-                                        'type' => 'inbox_notification',
-                                        'notification_id' => (string) ($notificationForDevice ? $notificationForDevice->id : ''),
-                                        'kind' => 'manual_entidad',
-                                        'sender_name' => (string) Auth::user()->name,
-                                        'sender_id' => (string) Auth::id(),
-                                        'user_id' => (string) $user->id,
-                                        'user_role' => (string) $user->role,
-                                        'entity_id' => $entityIdForPush !== null ? (string) $entityIdForPush : '',
-                                        'entity_ids' => implode(',', $selectedEntityIds),
-                                        'platform' => (string) $device->platform,
-                                    ]
-                                );
-
-                                if ($sent) {
-                                    $firebaseSuccessCount++;
-                                    \Log::info("  ✅ Enviado exitosamente a {$user->name} ({$device->platform})");
-                                } else {
-                                    $firebaseFailCount++;
-                                    \Log::warning("  ⚠️ Falló el envío a {$user->name} ({$device->platform})");
-                                }
-                            } catch (\Exception $e) {
-                                $firebaseFailCount++;
-                                \Log::error("  ❌ Error enviando a usuario {$user->id}: " . $e->getMessage());
-                            }
-                        }
-                    }
-                    
-                    $firebaseSuccess = $firebaseSuccessCount > 0;
-                    
-                    \Log::info("✅ Resultado: {$firebaseSuccessCount} enviadas, {$firebaseFailCount} fallidas");
-                    
-                } catch (\Exception $e) {
-                    \Log::error('Excepción al enviar notificaciones Firebase: ' . $e->getMessage());
-                    \Log::error($e->getTraceAsString());
-                    $firebaseSuccess = false;
-                }
-            } else {
-                \Log::warning('No hay usuarios con tokens FCM en las entidades seleccionadas');
+                return back()->withErrors(['error' => 'No hay destinatarios para este envío.']);
             }
 
             DB::commit();
 
-            // Clear session data
-            $request->session()->forget([
-                'notification_type',
-                'selected_entity',
-                'selected_entities',
-                'selected_entities_data',
-                'selected_administration'
-            ]);
+            $this->forgetPushWizardSession($request);
 
             return redirect()->route('notifications.success')
                 ->with('success_count', $successCount)
                 ->with('notification', $notification)
                 ->with('firebase_success', $firebaseSuccess)
                 ->with('firebase_tokens_count', $firebaseTokensCount);
-
         } catch (\Exception $e) {
             DB::rollback();
-            \Log::error('Error al procesar notificación: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Error al enviar la notificación: ' . $e->getMessage()]);
+            \Log::error('Error al procesar notificación: '.$e->getMessage());
+
+            return back()->withErrors(['error' => 'Error al enviar la notificación: '.$e->getMessage()]);
         }
     }
 
@@ -626,6 +840,121 @@ class NotificationController extends Controller
             'recentNotifications',
             'config'
         ));
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Entity>  $selectedEntities
+     */
+    private function describePushRecipients(
+        string $pushScope,
+        ?string $recipientMode,
+        $selectedEntities,
+        $administration
+    ): string {
+        if ($pushScope === 'administration') {
+            $name = $administration->name ?? 'Administración';
+
+            return "Cuenta panel de la administración «{$name}»";
+        }
+
+        return match ($recipientMode) {
+            'entity' => 'Cuentas panel de la(s) entidad(es) seleccionada(s)',
+            'managers' => 'Gestores/responsables seleccionados',
+            'all_involved' => 'Administración, entidad y gestores/responsables involucrados',
+            default => 'Destinatarios del push',
+        };
+    }
+
+    /**
+     * Destinatarios del wizard (incluye cuentas panel cuando el modo lo pide; sin vendedores).
+     *
+     * @param  array<int>  $entityIds
+     * @param  array<int>  $managerIds
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    private function resolvePushRecipients(
+        string $pushScope,
+        $administration,
+        array $entityIds,
+        ?string $recipientMode,
+        array $managerIds
+    ): \Illuminate\Support\Collection {
+        $byId = [];
+
+        $addUser = function (?User $user, string $roleLabel) use (&$byId): void {
+            if (! $user || $user->isSuperAdmin()) {
+                return;
+            }
+            if (! isset($byId[$user->id])) {
+                $user->loadMissing('fcmTokens');
+                $user->role = $roleLabel;
+                $byId[$user->id] = $user;
+            }
+        };
+
+        if ($pushScope === 'administration' && $administration) {
+            $panelUsers = User::query()
+                ->where('panel_account_type', 'administration')
+                ->where('panel_account_id', $administration->id)
+                ->with('fcmTokens')
+                ->get();
+            foreach ($panelUsers as $u) {
+                $addUser($u, 'administration_panel');
+            }
+
+            return collect($byId)->sortBy('name')->values();
+        }
+
+        $entityIds = array_values(array_unique(array_filter(array_map('intval', $entityIds))));
+
+        if ($recipientMode === 'entity' || $recipientMode === 'all_involved') {
+            $panelUsers = User::query()
+                ->where('panel_account_type', 'entity')
+                ->whereIn('panel_account_id', $entityIds)
+                ->with('fcmTokens')
+                ->get();
+            foreach ($panelUsers as $u) {
+                $addUser($u, 'entity_panel');
+            }
+        }
+
+        if ($recipientMode === 'all_involved') {
+            $adminIds = Entity::query()->whereIn('id', $entityIds)->pluck('administration_id')->filter()->unique()->all();
+            if ($adminIds !== []) {
+                $adminPanels = User::query()
+                    ->where('panel_account_type', 'administration')
+                    ->whereIn('panel_account_id', $adminIds)
+                    ->with('fcmTokens')
+                    ->get();
+                foreach ($adminPanels as $u) {
+                    $addUser($u, 'administration_panel');
+                }
+            }
+        }
+
+        if ($recipientMode === 'managers') {
+            $managers = \App\Models\Manager::query()
+                ->whereIn('id', $managerIds)
+                ->whereIn('entity_id', $entityIds)
+                ->with('user.fcmTokens')
+                ->get();
+            foreach ($managers as $manager) {
+                $addUser($manager->user, $manager->is_primary ? 'responsable' : 'gestor');
+            }
+        }
+
+        if ($recipientMode === 'all_involved') {
+            $managers = \App\Models\Manager::query()
+                ->whereIn('entity_id', $entityIds)
+                ->whereNotNull('user_id')
+                ->with('user.fcmTokens')
+                ->get();
+            foreach ($managers as $manager) {
+                $addUser($manager->user, $manager->is_primary ? 'responsable' : 'gestor');
+            }
+        }
+
+        return collect($byId)->sortBy('name')->values();
     }
 
     /**
@@ -805,6 +1134,90 @@ class NotificationController extends Controller
                 'message' => 'Error: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Bandeja panel (campana administración / entidad)
+    // -------------------------------------------------------------------------
+
+    public function panelInboxFeed(Request $request)
+    {
+        $user = Auth::user();
+        $limit = min(20, max(1, (int) $request->input('limit', 10)));
+
+        $items = $this->panelInboxQuery($user)
+            ->with(['sender:id,name', 'entity:id,name'])
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get()
+            ->map(fn (Notification $n) => [
+                'id' => $n->id,
+                'title' => $n->title,
+                'message' => \Illuminate\Support\Str::limit((string) $n->message, 120),
+                'read' => $n->read_at !== null,
+                'created_at' => $n->created_at?->toIso8601String(),
+                'created_at_human' => $n->created_at?->diffForHumans(),
+                'sender' => $n->sender?->name,
+            ]);
+
+        $unread = $this->panelInboxQuery($user)->whereNull('read_at')->count();
+
+        return response()->json([
+            'success' => true,
+            'unread' => $unread,
+            'notifications' => $items,
+        ]);
+    }
+
+    public function panelInboxMarkRead(Request $request, int $id)
+    {
+        $user = Auth::user();
+        $n = $this->panelInboxQuery($user)->where('id', $id)->firstOrFail();
+        if ($n->read_at === null) {
+            $n->markAsRead();
+            if ($n->status !== 'read') {
+                $n->update(['status' => 'read']);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'unread' => $this->panelInboxQuery($user)->whereNull('read_at')->count(),
+        ]);
+    }
+
+    public function panelInboxMarkAllRead()
+    {
+        $user = Auth::user();
+        $this->panelInboxQuery($user)
+            ->whereNull('read_at')
+            ->update([
+                'read_at' => now(),
+                'status' => 'read',
+            ]);
+
+        return response()->json(['success' => true, 'unread' => 0]);
+    }
+
+    private function panelInboxQuery(User $user)
+    {
+        return Notification::query()->where(function ($q) use ($user) {
+            $q->where('recipient_user_id', $user->id);
+
+            if ($user->isEntityPanelAccount() && $user->panel_account_id) {
+                $q->orWhere(function ($inner) use ($user) {
+                    $inner->whereNull('recipient_user_id')
+                        ->where('entity_id', (int) $user->panel_account_id);
+                });
+            }
+
+            if ($user->isAdministrationPanelAccount() && $user->panel_account_id) {
+                $q->orWhere(function ($inner) use ($user) {
+                    $inner->whereNull('recipient_user_id')
+                        ->where('administration_id', (int) $user->panel_account_id);
+                });
+            }
+        });
     }
 
     // -------------------------------------------------------------------------

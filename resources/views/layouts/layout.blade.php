@@ -459,6 +459,58 @@
             .topbar-btn-notifications .nav-link {
                 position: relative;
             }
+            .topbar-btn-notifications .noti-dot {
+                position: absolute;
+                top: 8px;
+                right: 6px;
+                min-width: 16px;
+                height: 16px;
+                padding: 0 4px;
+                border-radius: 8px;
+                background: #e78307;
+                color: #fff;
+                font-size: 10px;
+                font-weight: 700;
+                line-height: 16px;
+                text-align: center;
+                display: none;
+            }
+            .topbar-btn-notifications .noti-dot.is-visible {
+                display: inline-block;
+            }
+            #panel-inbox-dropdown {
+                width: 320px;
+                max-width: 90vw;
+            }
+            #panel-inbox-dropdown .panel-inbox-list {
+                max-height: 320px;
+                overflow-y: auto;
+            }
+            #panel-inbox-dropdown .panel-inbox-item {
+                display: block;
+                padding: 10px 14px;
+                border-bottom: 1px solid #f0f0f0;
+                text-decoration: none;
+                color: inherit;
+                white-space: normal;
+            }
+            #panel-inbox-dropdown .panel-inbox-item.unread {
+                background: #fff8ef;
+            }
+            #panel-inbox-dropdown .panel-inbox-item .title {
+                font-weight: 700;
+                font-size: 13px;
+                margin-bottom: 2px;
+            }
+            #panel-inbox-dropdown .panel-inbox-item .msg {
+                font-size: 12px;
+                color: #6c757d;
+            }
+            #panel-inbox-dropdown .panel-inbox-item .meta {
+                font-size: 11px;
+                color: #99a;
+                margin-top: 4px;
+            }
 
             /* Badges de estado: Activo / Inactivo / Bloqueado */
             .badge.bg-success:not(.rounded-circle) {
@@ -1065,6 +1117,7 @@
                             </a>
                         </li>
 
+                        @if(auth()->user()?->isSuperAdmin())
                         <li class="menu-item @if (Request::is('notifications/*') || Request::is('notifications')) menuitem-active @php $selected = 1; @endphp @endif">
                             <a href="{{url('notifications')}}" class="menu-link">
                                 <span class="menu-icon">
@@ -1074,6 +1127,7 @@
                                 @php $selected = null; @endphp
                             </a>
                         </li>
+                        @endif
 
                         <li class="menu-item @if (Request::is('communications/*') || Request::is('communications')) menuitem-active @php $selected = 1; @endphp @endif">
                             <a href="{{url('communications')}}" class="menu-link">
@@ -1331,12 +1385,30 @@
                                 </div>
                             </li> --}}
 
-                            <!-- Notificaciones (enlace al módulo; contador en futuras iteraciones) -->
+                            <!-- Notificaciones -->
+                            @if(auth()->user()?->isSuperAdmin())
                             <li class="topbar-btn-notifications">
                                 <a class="nav-link waves-effect waves-light" href="{{ route('notifications.index') }}" title="Notificaciones">
                                     <i class="fe-bell font-22"></i>
                                 </a>
                             </li>
+                            @elseif(auth()->user()?->isAdministrationPanelAccount() || auth()->user()?->isEntityPanelAccount())
+                            <li class="dropdown notification-list topbar-btn-notifications">
+                                <a class="nav-link dropdown-toggle waves-effect waves-light arrow-none" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="Notificaciones" id="panel-inbox-bell">
+                                    <i class="fe-bell font-22"></i>
+                                    <span class="noti-dot" id="panel-inbox-badge">0</span>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end dropdown-menu-animated dropdown-lg p-0" id="panel-inbox-dropdown">
+                                    <div class="p-2 border-bottom d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold">Notificaciones</span>
+                                        <button type="button" class="btn btn-sm btn-link p-0" id="panel-inbox-mark-all">Marcar leídas</button>
+                                    </div>
+                                    <div class="panel-inbox-list" id="panel-inbox-list">
+                                        <div class="p-3 text-muted text-center small">Cargando…</div>
+                                    </div>
+                                </div>
+                            </li>
+                            @endif
 
                             <!-- Light/Dark Mode Toggle Button -->
                             {{-- <li class="d-none d-sm-inline-block">
@@ -2484,6 +2556,113 @@
             });
         </script>
         @endauth
+
+        @if(auth()->check() && (auth()->user()->isAdministrationPanelAccount() || auth()->user()->isEntityPanelAccount()))
+        <script>
+        (function () {
+            var listEl = document.getElementById('panel-inbox-list');
+            var badgeEl = document.getElementById('panel-inbox-badge');
+            var markAllBtn = document.getElementById('panel-inbox-mark-all');
+            if (!listEl || !badgeEl) return;
+
+            var csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                || document.querySelector('input[name="_token"]')?.value
+                || '';
+
+            function setBadge(count) {
+                badgeEl.textContent = count > 99 ? '99+' : String(count);
+                if (count > 0) {
+                    badgeEl.classList.add('is-visible');
+                } else {
+                    badgeEl.classList.remove('is-visible');
+                }
+            }
+
+            function escapeHtml(s) {
+                return String(s || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+
+            function render(items) {
+                if (!items.length) {
+                    listEl.innerHTML = '<div class="p-3 text-muted text-center small">No hay notificaciones</div>';
+                    return;
+                }
+                listEl.innerHTML = items.map(function (n) {
+                    return '<a href="javascript:void(0);" class="panel-inbox-item' + (n.read ? '' : ' unread') + '" data-id="' + n.id + '">'
+                        + '<div class="title">' + escapeHtml(n.title) + '</div>'
+                        + '<div class="msg">' + escapeHtml(n.message) + '</div>'
+                        + '<div class="meta">' + escapeHtml(n.created_at_human || '') + (n.sender ? ' · ' + escapeHtml(n.sender) : '') + '</div>'
+                        + '</a>';
+                }).join('');
+            }
+
+            function loadFeed() {
+                fetch(@json(route('notifications.panel-inbox')) + '?limit=10', {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.success) return;
+                        setBadge(data.unread || 0);
+                        render(data.notifications || []);
+                    })
+                    .catch(function () {
+                        listEl.innerHTML = '<div class="p-3 text-muted text-center small">No se pudieron cargar</div>';
+                    });
+            }
+
+            listEl.addEventListener('click', function (e) {
+                var item = e.target.closest('.panel-inbox-item');
+                if (!item) return;
+                var id = item.getAttribute('data-id');
+                if (!id || item.classList.contains('read-pending')) return;
+                item.classList.add('read-pending');
+                fetch(@json(url('notifications/panel-inbox')) + '/' + id + '/read', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrf
+                    },
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        item.classList.remove('unread', 'read-pending');
+                        if (data && typeof data.unread === 'number') setBadge(data.unread);
+                    })
+                    .catch(function () { item.classList.remove('read-pending'); });
+            });
+
+            if (markAllBtn) {
+                markAllBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fetch(@json(route('notifications.panel-inbox-read-all')), {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrf
+                        },
+                        credentials: 'same-origin'
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function () { loadFeed(); })
+                        .catch(function () {});
+                });
+            }
+
+            loadFeed();
+            setInterval(loadFeed, 60000);
+        })();
+        </script>
+        @endif
 
         @yield('scripts')
 

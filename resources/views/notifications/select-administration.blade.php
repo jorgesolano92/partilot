@@ -74,7 +74,7 @@
                                     <img src="{{url('assets/entidad.svg')}}" alt="">
 
                                     <label>
-                                        Selección Entidad/es
+                                        Destino
                                     </label>
 
                                 </div>
