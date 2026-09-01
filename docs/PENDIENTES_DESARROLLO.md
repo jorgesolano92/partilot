@@ -26,11 +26,20 @@
 
 ### Web app / app Ionic
 - [x] **Cambio a modo gestor (web app):** si multi-entidad, preguntar de cuál; al volver a “gestor”, repreguntar.
-- [ ] **Vendedor multi-entidad:** al vender, preguntar entidad (verificar estado actual).
+- [x] **Vendedor multi-entidad:** al vender, preguntar entidad (SPA Vue).
 - [ ] **Escáner por rol** (cámara en web pendiente; MVP por referencia):
   - [x] Usuario: consulta por referencia.
-  - [x] Vendedor: venta por referencia/QR.
-  - [x] Gestor: sin escáner genérico; home de acciones.
+  - [x] Vendedor: venta por referencia/QR (+ manual/digital en SPA).
+  - [x] Gestor: sin escáner genérico; home de acciones (+ devolución/pago en SPA).
+
+### SPA Vue (`partilot-webapp`) — estado 31/08/2026
+- [x] Usuario: cartera, digitalizar, código, regalo, cobro/donación, historial, notificaciones, perfil (lectura), registro.
+- [x] Vendedor: multi-entidad, venta referencia/manual/digital, participaciones, mis ventas.
+- [x] Gestor: selector entidad, participaciones, vendedores + invitar, devolución vendedor→entidad, pago presencial.
+- [ ] Cámara / escáner nativo en navegador (MVP por referencia OK).
+- [ ] Edición de perfil vía API `/profile` (backend aún sin métodos).
+- [ ] Devolución entidad→administración (sigue en panel Laravel para responsable).
+
 
 ### Ya tocado en esta línea (no reabrir sin necesidad)
 - [-] Topbar panel admin: un solo rol (`ENTIDAD` / `GESTOR RESPONSABLE` / `GESTOR`).

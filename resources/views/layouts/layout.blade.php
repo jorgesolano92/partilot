@@ -700,6 +700,25 @@
                 overflow: unset !important;
             }
 
+            /* Asistentes (selección entidad + Siguiente): la tabla no debe empujar el botón encima */
+            .content-page .form-card.wizard-entity-step {
+                display: flex;
+                flex-direction: column;
+            }
+            .content-page .form-card.wizard-entity-step .wizard-table-scroll {
+                flex: 1 1 auto;
+                min-height: 0;
+                margin-bottom: 1rem;
+            }
+            .content-page .form-card.wizard-entity-step .dataTables_wrapper.dt-bootstrap5 {
+                min-height: 0 !important;
+            }
+            .content-page .form-card.wizard-entity-step .wizard-form-actions {
+                flex-shrink: 0;
+                margin-top: auto;
+                padding-top: 0.75rem;
+            }
+
             .content-page .content .container-fluid > .row > [class*="col-"] > .card,
             .content-page .content .container-fluid form > .row > [class*="col-"] > .card {
                 margin-bottom: 0;
