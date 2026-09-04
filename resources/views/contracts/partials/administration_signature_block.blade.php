@@ -30,7 +30,7 @@
             @endif
         </td>
         <td>
-            <strong>Por la Administración de Lotería</strong><br><br>
+            <strong>Por el Punto de Venta Autorizado</strong><br><br>
             Nombre y apellidos:
             @if($isSigned)
                 {{ $signerName }}
