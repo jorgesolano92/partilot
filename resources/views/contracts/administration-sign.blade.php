@@ -23,9 +23,9 @@
 </head>
 <body>
     <div class="card">
-        <h1>Contrato SaaS de administración</h1>
+        <h1>Contrato SaaS — Punto de Venta Autorizado</h1>
         <p class="meta">
-            Administración: <strong>{{ $viewData['commercialName'] }}</strong> ·
+            Punto de Venta Autorizado: <strong>{{ $viewData['commercialName'] }}</strong> ·
             Referencia: <strong>{{ $viewData['contractReference'] }}</strong>
         </p>
 

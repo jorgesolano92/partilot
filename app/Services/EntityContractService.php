@@ -17,9 +17,9 @@ use Illuminate\Support\Str;
 
 class EntityContractService
 {
-    public const VERSION = 'marco_v1';
+    public const VERSION = 'marco_v4';
 
-    public const VERSION_LABEL = '1.0';
+    public const VERSION_LABEL = '4.0';
 
     private const AUTO_PENDING_LABEL = '[Generado automáticamente por el sistema]';
 
@@ -363,11 +363,46 @@ class EntityContractService
             $entityProvince,
         ])->filter()->implode(', ') ?: '—';
 
+        $isNaturalOrganizer = $entity->isNaturalOrganizer();
+        $contractModalityLabel = $isNaturalOrganizer
+            ? 'Caso B — Organizador (sin personalidad jurídica propia)'
+            : 'Caso A — Entidad con personalidad jurídica propia';
+
+        $managerUser = $manager?->user;
+        $managerName = '';
+        $managerNif = '';
+        $managerEmail = '';
+        if ($isNaturalOrganizer) {
+            $managerName = 'Mismo que el Firmante Autorizado / Organizador';
+            $managerNif = $signerNif !== '' ? $signerNif : '—';
+            $managerEmail = $signerEmail !== '' ? $signerEmail : '—';
+        } elseif ($managerUser) {
+            $managerName = trim((string) ($managerUser->full_name ?? $managerUser->name ?? '')) ?: '—';
+            $managerNif = trim((string) ($managerUser->nif_cif ?? '')) ?: '—';
+            $managerEmail = trim((string) ($managerUser->email ?? '')) ?: '—';
+        } elseif ($entity->signer_is_primary_manager) {
+            $managerName = 'Mismo que el Firmante Autorizado';
+            $managerNif = $signerNif !== '' ? $signerNif : '—';
+            $managerEmail = $signerEmail !== '' ? $signerEmail : '—';
+        } else {
+            $pendingInvite = PendingEntityManagerInvitation::query()
+                ->where('entity_id', $entity->id)
+                ->latest('id')
+                ->first();
+            $managerName = 'Pendiente de aceptación';
+            $managerNif = '—';
+            $managerEmail = $pendingInvite
+                ? (trim((string) ($pendingInvite->email ?? '')) ?: '—')
+                : '—';
+        }
+
         return [
             'entity' => $entity,
             'administration' => $administration,
             'contractReference' => $entity->contract_reference ?: $this->generateReference($entity),
             'contractVersion' => self::VERSION_LABEL,
+            'isNaturalOrganizer' => $isNaturalOrganizer,
+            'contractModalityLabel' => $contractModalityLabel,
             'entityName' => trim((string) ($entity->name ?? '')) ?: '—',
             'entityNif' => trim((string) ($entity->nif_cif ?? '')) ?: '—',
             'entityAddress' => $entityAddress !== '' ? $entityAddress : '—',
@@ -382,6 +417,12 @@ class EntityContractService
             'signerName' => $signerName !== '' ? $signerName : '—',
             'signerNif' => $signerNif !== '' ? $signerNif : '—',
             'signerEmail' => $signerEmail !== '' ? $signerEmail : '—',
+            'signerRoleLabel' => $isNaturalOrganizer
+                ? 'Organizador'
+                : (trim((string) ($entity->signer_role ?? '')) ?: 'Firmante Autorizado'),
+            'managerName' => $managerName,
+            'managerNif' => $managerNif,
+            'managerEmail' => $managerEmail,
             'isSigned' => $isSigned,
             'acceptanceDate' => $isSigned ? $signedAt->format('d/m/Y H:i') : $pending,
             'acceptanceTimestamp' => $isSigned ? $signedAt->format('d/m/Y H:i:s') : $pending,
@@ -391,8 +432,9 @@ class EntityContractService
             'partilotSignerName' => 'Administrador Único',
             'partilotSignerRole' => 'Administrador Único',
             'entityWebStatus' => 'No activado. Activable previa solicitud a PARTILOT.',
-            'managementFeePayer' => ($entity->entity_pays_management_fee ? 'Entidad' : 'Administración').' — configurable por set',
+            'managementFeePayer' => ($entity->entity_pays_management_fee ? 'Entidad' : 'Punto de Venta Autorizado').' — configurable por Set',
             'prizePaymentStatus' => 'No contratado. Requiere Acuerdo Específico de Mandato de Pago cuando el sorteo tenga premios.',
+            'mandateDelegation' => 'No',
             'activationDate' => ($signedAt ?? now())->format('d/m/Y'),
             'signedAt' => $signedAt,
             'forPdf' => true,

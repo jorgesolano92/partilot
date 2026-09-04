@@ -4,8 +4,8 @@ return [
     /*
     | Versión global del marco legal (A1). Incrementar al publicar cambios.
     */
-    'terms_version' => env('LEGAL_TERMS_VERSION', '10'),
-    'terms_text_hash' => env('LEGAL_TERMS_TEXT_HASH', 'marco_legal_v10'),
+    'terms_version' => env('LEGAL_TERMS_VERSION', '11.2'),
+    'terms_text_hash' => env('LEGAL_TERMS_TEXT_HASH', 'marco_legal_v11_2'),
 
     /*
     | Texto L1 mostrado en registro (app y API). Debe coincidir con legales2.
@@ -30,29 +30,29 @@ return [
         'marco_legal' => [
             'slug' => 'marco-legal',
             'title' => 'Marco Legal Integral',
-            'version' => env('LEGAL_MARCO_VERSION', '10'),
-            'hash' => env('LEGAL_MARCO_HASH', 'marco_legal_v10'),
+            'version' => env('LEGAL_MARCO_VERSION', '11.2'),
+            'hash' => env('LEGAL_MARCO_HASH', 'marco_legal_v11_2'),
             'route' => 'legal.terminos-y-condiciones',
         ],
         'terminos' => [
             'slug' => 'terminos-y-condiciones',
             'title' => 'Términos y Condiciones de Uso',
-            'version' => env('LEGAL_TERMINOS_VERSION', '10'),
-            'hash' => env('LEGAL_TERMINOS_HASH', 'terminos_v10'),
+            'version' => env('LEGAL_TERMINOS_VERSION', '11.2'),
+            'hash' => env('LEGAL_TERMINOS_HASH', 'terminos_v11_2'),
             'route' => 'legal.terminos-y-condiciones',
         ],
         'privacidad' => [
             'slug' => 'politica-de-privacidad',
             'title' => 'Política de Privacidad',
-            'version' => env('LEGAL_PRIVACIDAD_VERSION', '10'),
-            'hash' => env('LEGAL_PRIVACIDAD_HASH', 'privacidad_v10'),
+            'version' => env('LEGAL_PRIVACIDAD_VERSION', '11.2'),
+            'hash' => env('LEGAL_PRIVACIDAD_HASH', 'privacidad_v11_2'),
             'route' => 'legal.politica-de-privacidad',
         ],
         'cookies' => [
             'slug' => 'politica-de-cookies',
             'title' => 'Política de Cookies',
-            'version' => env('LEGAL_COOKIES_VERSION', '3'),
-            'hash' => env('LEGAL_COOKIES_HASH', 'cookies_v3'),
+            'version' => env('LEGAL_COOKIES_VERSION', '11.2'),
+            'hash' => env('LEGAL_COOKIES_HASH', 'cookies_v11_2'),
             'route' => 'legal.politica-de-cookies',
         ],
         'aviso_legal' => [

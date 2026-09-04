@@ -52,8 +52,21 @@
 
             <label class="checkbox">
                 <input type="checkbox" name="accept_contract" value="1" {{ old('accept_contract') ? 'checked' : '' }} required>
-                <span>Declaro tener capacidad para representar a la entidad/organizador y acepto el Contrato Marco de Uso de la Plataforma.</span>
+                <span>
+                    @if (!empty($viewData['isNaturalOrganizer']))
+                        Declaro actuar en nombre propio como Organizador y acepto el Contrato Marco de Prestación de Servicios.
+                    @else
+                        Declaro tener capacidad para representar a la entidad y acepto el Contrato Marco de Prestación de Servicios.
+                    @endif
+                </span>
             </label>
+
+            @if (!empty($viewData['isNaturalOrganizer']))
+                <label class="checkbox" style="background:#fff4e5;padding:12px;border-radius:10px;">
+                    <input type="checkbox" name="accept_organizer_declaration" value="1" {{ old('accept_organizer_declaration') ? 'checked' : '' }} required>
+                    <span><strong>Declaro que actúo en nombre propio y no en representación de ninguna entidad, y asumo personal e ilimitadamente las obligaciones derivadas de este contrato.</strong></span>
+                </label>
+            @endif
 
             <button type="submit">Firmar contrato</button>
         </form>

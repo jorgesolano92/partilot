@@ -8,11 +8,13 @@
     <tr><th>Domicilio fiscal</th><td>Calle Lope de Vega, 5, 1º B, 26007 Logroño (La Rioja)</td></tr>
     <tr><th>Registro Mercantil</th><td>Registro Mercantil de La Rioja, Hoja LO-21703, Inscripción 1</td></tr>
     <tr><th>Email legal</th><td>legal@partilot.es</td></tr>
+    <tr><th>Email de protección de datos</th><td>lopd@partilot.es</td></tr>
     <tr><th>Email de soporte</th><td>soporte@partilot.es</td></tr>
 </table>
 
-<p class="contract-section-title">Datos de la Administración de Lotería (Cliente)</p>
+<p class="contract-section-title">Datos del Punto de Venta Autorizado (Cliente)</p>
 <table class="contract-annex-table">
+    <tr><th>Modalidad</th><td>{{ $pvaModality ?? 'Administración de Lotería' }}</td></tr>
     <tr><th>Nombre comercial</th><td>{{ $commercialName }}</td></tr>
     @if(!empty($society) && $society !== $commercialName)
         <tr><th>Razón social</th><td>{{ $society }}</td></tr>
@@ -35,10 +37,10 @@
     <tr><th>Modalidad de cobro habilitada</th><td>{{ $paymentMode }}</td></tr>
     <tr><th>IBAN para domiciliación (si se activa)</th><td>{{ $iban }}</td></tr>
     <tr><th>Switch de facturación por defecto</th><td>{{ $billingSwitchDefault }}</td></tr>
-    <tr><th>Tarifa por set</th><td>Conforme a las tarifas vigentes publicadas en la Plataforma</td></tr>
+    <tr><th>Tarifa por Set</th><td>Conforme a las tarifas vigentes publicadas en la Plataforma</td></tr>
     <tr><th>Fecha de activación prevista</th><td>{{ $activationDate }}</td></tr>
 </table>
 
 <p>Ambas partes declaran que los datos anteriores son correctos y completos.</p>
 
-<p style="font-size:11px;color:#666;">© PARTILOT, S.L.U. — Contrato de Prestación de Servicios SaaS con Administración de Lotería — Versión {{ $contractVersion }}</p>
+<p style="font-size:11px;color:#666;">© PARTILOT, S.L.U. — Contrato de Prestación de Servicios SaaS con Punto de Venta Autorizado — Versión {{ $contractVersion }}</p>

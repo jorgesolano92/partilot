@@ -30,8 +30,8 @@
             @endif
         </td>
         <td>
-            <strong>Por la Entidad</strong><br>
-            <span style="font-size:10px;">(en nombre y representación del Gestor Responsable)</span><br><br>
+            <strong>Por el Firmante Autorizado / Organizador</strong><br>
+            <span style="font-size:10px;">(según modalidad del Anexo I)</span><br><br>
             Nombre y apellidos:
             @if($isSigned)
                 {{ $signerName }}

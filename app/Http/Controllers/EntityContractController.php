@@ -92,13 +92,21 @@ class EntityContractController extends Controller
             ]);
         }
 
-        $data = $request->validate([
+        $rules = [
             'signer_name' => 'required|string|max:255',
             'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
             'accept_contract' => 'accepted',
-        ], [
+        ];
+        $messages = [
             'accept_contract.accepted' => 'Debe aceptar el contrato marco para continuar.',
-        ]);
+        ];
+
+        if ($entity->isNaturalOrganizer()) {
+            $rules['accept_organizer_declaration'] = 'accepted';
+            $messages['accept_organizer_declaration.accepted'] = 'Debe confirmar la declaración de Organizador para continuar.';
+        }
+
+        $data = $request->validate($rules, $messages);
 
         try {
             $this->contractService->signContractByAuthorizedSigner(

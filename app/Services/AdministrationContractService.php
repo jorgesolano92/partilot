@@ -13,9 +13,9 @@ use Illuminate\Support\Str;
 
 class AdministrationContractService
 {
-    public const VERSION = 'saas_v1';
+    public const VERSION = 'saas_v3';
 
-    public const VERSION_LABEL = '1.0';
+    public const VERSION_LABEL = '3.0';
 
     public function __construct(
         private readonly ContractDocumentService $documents,
@@ -200,8 +200,9 @@ class AdministrationContractService
             'iban' => $account !== '' ? $account : '—',
             'representativeName' => $representativeName !== '' ? $representativeName : '—',
             'representativeNif' => $representativeNif !== '' ? $representativeNif : '—',
-            'paymentMode' => 'Pago puntual por TPV y domiciliación bancaria, configurable por la Administración',
-            'billingSwitchDefault' => 'Configurable por set (Administración / Entidad)',
+            'paymentMode' => 'Pago puntual por TPV y domiciliación bancaria, configurable',
+            'billingSwitchDefault' => 'Punto de Venta Autorizado / Entidad — configurable por Set',
+            'pvaModality' => 'Administración de Lotería',
             'activationDate' => ($signedAt ?? now())->format('d/m/Y'),
             'signedAt' => $signedAt,
             'signerName' => $signerName !== '' ? $signerName : '—',
