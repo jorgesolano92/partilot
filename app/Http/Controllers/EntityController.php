@@ -481,7 +481,7 @@ class EntityController extends Controller
             $entity = Entity::forUser(auth()->user())->findOrFail($request->entity_id);
             if (! $this->canManageSecondaryManagers($entity)) {
                 return redirect()->route('entities.show', $entity->id)
-                    ->with('error', 'Solo el gestor responsable aceptado puede invitar gestores secundarios.');
+                    ->with('error', 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.');
             }
         } else {
             $administration = $request->session()->get('selected_administration');
@@ -610,7 +610,7 @@ class EntityController extends Controller
         $entity = Entity::forUser($user)->findOrFail($id);
         if (! $this->canManageSecondaryManagers($entity)) {
             return redirect()->route('entities.show', $entity->id)
-                ->with('error', 'Solo el gestor responsable aceptado puede registrar gestores secundarios.');
+                ->with('error', 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.');
         }
 
         if (User::where('email', $request->manager_email)->whereNotNull('panel_account_type')->exists()) {
@@ -886,7 +886,8 @@ class EntityController extends Controller
         $canEditEntityData = $user && ($user->isSuperAdmin() || $user->isAdministration());
         $canEditManagerData = $canEditEntityData;
         $isEntityRole = $user && $user->isEntity() && ! $user->isSuperAdmin() && ! $user->isAdministration();
-        $hideGestoresTab = $user && $user->isAdministration() && ! $user->isSuperAdmin();
+        // Las administraciones (cuenta panel / gestores de administración) también ven Gestores.
+        $hideGestoresTab = false;
         $canSeeAdminComments = $user && ($user->isSuperAdmin() || $user->isAdministration());
         $hideRegisterManager = ! ($user && ($user->isSuperAdmin() || $user->isAdministration()));
         $managerTabLabel = $isEntityRole ? 'Gestor responsable' : 'Datos Gestor';
@@ -1284,7 +1285,7 @@ class EntityController extends Controller
             ->findOrFail($entity_id);
         if (! $this->canManageSecondaryManagers($entity)) {
             return redirect()->route('entities.show', $entity->id)
-                ->with('error', 'Solo el gestor responsable aceptado puede gestionar permisos de otros gestores.');
+                ->with('error', 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.');
         }
 
         $manager = Manager::with('user')
@@ -1304,7 +1305,7 @@ class EntityController extends Controller
         $entity = Entity::forUser(auth()->user())->findOrFail($entity_id);
         if (! $this->canManageSecondaryManagers($entity)) {
             return redirect()->route('entities.show', $entity->id)
-                ->with('error', 'Solo el gestor responsable aceptado puede gestionar permisos de otros gestores.');
+                ->with('error', 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.');
         }
 
         $manager = Manager::where('id', $manager_id)
@@ -1370,7 +1371,7 @@ class EntityController extends Controller
         $entity = Entity::forUser(auth()->user())->findOrFail($request->entity_id);
         if (! $this->canManageSecondaryManagers($entity)) {
             return redirect()->route('entities.show', $entity->id)
-                ->with('error', 'Solo el gestor responsable aceptado puede cambiar el gestor principal.');
+                ->with('error', 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.');
         }
 
         // Buscar gestor principal actual (puede no existir)
@@ -1469,7 +1470,7 @@ class EntityController extends Controller
             if (! $this->canManageSecondaryManagers($entity)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Solo el gestor responsable aceptado puede modificar otros gestores.',
+                    'message' => 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.',
                 ], 403);
             }
         } elseif ($manager->administration_id) {
@@ -1709,7 +1710,7 @@ class EntityController extends Controller
         $entity = Entity::forUser(auth()->user())->findOrFail($entity_id);
         if (! $this->canManageSecondaryManagers($entity)) {
             return redirect()->route('entities.show', $entity_id)
-                ->with('error', 'Solo el gestor responsable aceptado puede eliminar gestores secundarios.');
+                ->with('error', 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.');
         }
         
         $manager = Manager::where('id', $manager_id)
@@ -2048,6 +2049,10 @@ class EntityController extends Controller
         }
 
         if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($user->isAdministration() && $user->canAccessEntity((int) $entity->id)) {
             return true;
         }
 
