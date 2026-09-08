@@ -676,7 +676,7 @@
 				                    			</h4>
 				                    			<small><i>Todos los campos son obligatorios</i></small>
 				                    			@if(empty($canManageManagers))
-				                    			<small class="d-block text-muted mt-1"><i>Solo el gestor responsable aceptado puede crear y gestionar gestores secundarios.</i></small>
+				                    			<small class="d-block text-muted mt-1"><i>Solo la administración o el gestor responsable aceptado pueden crear y gestionar gestores secundarios.</i></small>
 				                    			@endif
 				                    			<div style="clear: both;"></div>
 
