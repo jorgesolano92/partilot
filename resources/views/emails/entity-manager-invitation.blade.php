@@ -38,5 +38,12 @@
     <a href="{{ $acceptUrl }}" style="display:inline-block;padding:10px 18px;background:#198754;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;margin-right:8px;">Ver detalles y aceptar</a>
     <a href="{{ $rejectUrl }}" style="display:inline-block;padding:10px 18px;background:#dc3545;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Rechazar</a>
 </p>
+@if($isResponsible)
+<p style="font-size: 13px; color:#555; background:#f8f9fa; padding:12px; border-radius:8px;">
+    <strong>Aviso:</strong> cuando aceptes el cargo, se enviará a la entidad el correo con el
+    <strong>acceso a la plataforma</strong> (usuario y contraseña del panel). Este correo de invitación
+    no es el acceso de la entidad.
+</p>
+@endif
 <p style="font-size: 13px; color:#666;">Si no reconoces esta invitación, puedes rechazarla o ignorar este correo.</p>
 @endsection

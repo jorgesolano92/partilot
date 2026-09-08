@@ -32,6 +32,15 @@
         </a>
     </p>
     <p style="font-size:12px;color:#666;">Si el botón no funciona, copia este enlace en tu navegador:<br>{{ $signUrl }}</p>
+
+    <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;">
+    <p style="font-size:13px;color:#555;">
+        <strong>Próximos pasos (importante):</strong><br>
+        Este correo es <strong>solo para firmar el contrato</strong>; no incluye aún el acceso a la plataforma.<br>
+        Cuando firme, el <strong>gestor responsable</strong> recibirá un correo para aceptar su cargo y condiciones.
+        Después de esa aceptación se enviará a la entidad el correo con el <strong>acceso al panel</strong>.
+    </p>
+
     <p>Gracias,<br>Equipo Partilot</p>
 </body>
 </html>

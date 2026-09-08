@@ -122,7 +122,7 @@ class EntityContractController extends Controller
         return view('contracts.administration-result', [
             'success' => true,
             'title' => 'Contrato firmado',
-            'message' => 'El contrato marco ha sido firmado correctamente. Se ha notificado al gestor responsable para que acepte su cargo. Hemos enviado una copia en PDF al correo de la entidad.',
+            'message' => 'El contrato marco ha sido firmado correctamente. A continuación se notificará al gestor responsable para que acepte su cargo. El acceso al panel de la entidad se enviará cuando el gestor responsable acepte. Hemos enviado una copia en PDF al correo indicado.',
         ]);
     }
 

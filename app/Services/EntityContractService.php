@@ -214,7 +214,47 @@ class EntityContractService
 
         $this->notifyPrimaryManagerInvitations($entity);
 
+        if (! $this->entityHasPendingPrimaryAcceptance($entity)) {
+            try {
+                app(EntityPanelAccessService::class)->sendPanelAccessEmail($entity);
+            } catch (\Throwable $e) {
+                \Log::warning('Fallo enviando acceso panel tras firma sin gestor pendiente (entidad '.$entity->id.'): '.$e->getMessage());
+            }
+        }
+
         return $entity;
+    }
+
+    /**
+     * ¿Queda pendiente la aceptación del gestor responsable / invitación primaria?
+     */
+    public function entityHasPendingPrimaryAcceptance(Entity $entity): bool
+    {
+        $pendingManager = Manager::query()
+            ->where('entity_id', $entity->id)
+            ->where(function ($q) {
+                $q->where('is_primary', true)->orWhere('pending_primary', true);
+            })
+            ->whereNotNull('confirmation_token')
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('pending_primary', true);
+            })
+            ->whereHas('user', function ($q) {
+                $q->where(function ($inner) {
+                    $inner->whereNull('panel_account_type')
+                        ->orWhere('panel_account_type', '');
+                });
+            })
+            ->exists();
+
+        if ($pendingManager) {
+            return true;
+        }
+
+        return PendingEntityManagerInvitation::query()
+            ->where('entity_id', $entity->id)
+            ->where('is_primary', true)
+            ->exists();
     }
 
     /**

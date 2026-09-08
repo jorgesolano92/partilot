@@ -120,6 +120,15 @@ class RoleLegalAcceptanceService
 
         if ($manager->is_primary && $manager->entity) {
             $manager->entity->update(['status' => 1]);
+
+            try {
+                app(EntityPanelAccessService::class)->sendPanelAccessEmail($manager->entity);
+            } catch (\Throwable $e) {
+                \Log::warning(
+                    'Fallo enviando acceso panel entidad tras aceptación gestor responsable (entidad '
+                    .$manager->entity_id.'): '.$e->getMessage()
+                );
+            }
         }
 
         $this->recordManagerAcceptance($manager, $user, $request);

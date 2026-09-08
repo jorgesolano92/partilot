@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\EntityWelcomeMail;
+use App\Models\EmailCommunicationLog;
 use App\Models\Entity;
 use App\Models\Manager;
 use App\Models\User;
@@ -41,7 +42,8 @@ class EntityPanelAccessService
         }
 
         $entity = Entity::create($entityData);
-        $this->provisionPanelAccess($entity, $entityInformation);
+        // La cuenta se crea ya, pero el correo de acceso se envía solo cuando el gestor responsable acepte.
+        $this->provisionPanelAccess($entity, $entityInformation, sendWelcome: false);
 
         return $entity;
     }
@@ -83,6 +85,53 @@ class EntityPanelAccessService
         return [$panelUser, $plainPassword];
     }
 
+    public function findPanelUser(Entity $entity): ?User
+    {
+        return User::query()
+            ->where('panel_account_type', 'entity')
+            ->where('panel_account_id', $entity->id)
+            ->first();
+    }
+
+    public function hasWelcomeBeenSent(Entity $entity): bool
+    {
+        return EmailCommunicationLog::query()
+            ->where('message_type', 'entity_welcome')
+            ->where(function ($q) use ($entity) {
+                $q->where('context->entity_id', $entity->id)
+                    ->orWhere('mail_payload->entity_id', $entity->id);
+            })
+            ->whereIn('status', [
+                EmailCommunicationLog::STATUS_SENT,
+                EmailCommunicationLog::STATUS_RE_SENT,
+            ])
+            ->exists();
+    }
+
+    /**
+     * Envía (o reenvía) el acceso al panel de la entidad regenerando contraseña provisional.
+     *
+     * @return bool true si se envió el correo
+     */
+    public function sendPanelAccessEmail(Entity $entity, bool $force = false): bool
+    {
+        $panelUser = $this->findPanelUser($entity);
+        if (! $panelUser) {
+            Log::warning('No hay cuenta panel para entidad '.$entity->id.'; no se envía EntityWelcomeMail.');
+
+            return false;
+        }
+
+        if (! $force && $this->hasWelcomeBeenSent($entity)) {
+            return false;
+        }
+
+        $plainPassword = $this->provisionalPasswords->assignToUser($panelUser);
+        $this->sendWelcomeEmail($entity, $panelUser, $plainPassword);
+
+        return true;
+    }
+
     public function sendWelcomeEmail(Entity $entity, User $panelUser, string $plainPassword): void
     {
         try {
@@ -101,8 +150,8 @@ class EntityPanelAccessService
                 context: ['entity_id' => $entity->id],
             );
 
-            if ($log->status !== \App\Models\EmailCommunicationLog::STATUS_SENT
-                && $log->status !== \App\Models\EmailCommunicationLog::STATUS_RE_SENT) {
+            if ($log->status !== EmailCommunicationLog::STATUS_SENT
+                && $log->status !== EmailCommunicationLog::STATUS_RE_SENT) {
                 throw new \RuntimeException($log->error_message ?: 'Fallo SMTP al enviar el acceso al panel.');
             }
         } catch (\Throwable $e) {
@@ -111,10 +160,12 @@ class EntityPanelAccessService
         }
     }
 
-    public function provisionPanelAccess(Entity $entity, array $entityInformation): User
+    public function provisionPanelAccess(Entity $entity, array $entityInformation, bool $sendWelcome = false): User
     {
         [$panelUser, $plainPassword] = $this->createPanelUser($entity, $entityInformation);
-        $this->sendWelcomeEmail($entity, $panelUser, $plainPassword);
+        if ($sendWelcome) {
+            $this->sendWelcomeEmail($entity, $panelUser, $plainPassword);
+        }
 
         return $panelUser;
     }
