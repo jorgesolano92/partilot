@@ -52,7 +52,7 @@
                                 <input type="text" class="form-control" placeholder="Status">
                             </div>
 
-                            <a href="{{url('reserves/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                            <a href="{{ route('reserves.create', array_filter(['entity_id' => $entityFilterId ?? null])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
 
                         </h4>
 
@@ -133,7 +133,7 @@
 
                                 <br>
 
-                                <a href="{{url('reserves/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                <a href="{{ route('reserves.create', array_filter(['entity_id' => $entityFilterId ?? null])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
                             </div>
 
                         </div>

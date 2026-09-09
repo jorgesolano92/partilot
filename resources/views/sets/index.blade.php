@@ -97,7 +97,10 @@
                                 @endif
                             </div>
 
-                            <a href="{{url('sets/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                            <a href="{{ route('sets.create', array_filter([
+                                'entity_id' => $entityFilterId ?? null,
+                                'reserve_id' => $reserveFilterId ?? null,
+                            ])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
 
                         </h4>
 
@@ -184,7 +187,10 @@
 
                                 <br>
 
-                                <a href="{{url('sets/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                <a href="{{ route('sets.create', array_filter([
+                                    'entity_id' => $entityFilterId ?? null,
+                                    'reserve_id' => $reserveFilterId ?? null,
+                                ])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
                             </div>
 
                         </div>

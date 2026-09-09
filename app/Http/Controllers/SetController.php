@@ -3,21 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\HandlesLotteryDrawDateGuard;
-use App\Models\Set;
-use App\Models\Entity;
-use App\Models\Reserve;
-use App\Models\Participation;
-use App\Services\CommunicationEmailService;
 use App\Mail\SetCreatedToEntityManagerMail;
-use App\Support\SafeXml;
+use App\Models\Entity;
+use App\Models\Participation;
+use App\Models\Reserve;
+use App\Models\Set;
 use App\Rules\ValidCalendarDate;
+use App\Services\CommunicationEmailService;
+use App\Support\SafeXml;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class SetController extends Controller
 {
-    use HandlesLotteryDrawDateGuard;
     use \App\Http\Controllers\Concerns\AutoSelectsPanelScope;
+    use HandlesLotteryDrawDateGuard;
 
     /**
      * Mostrar lista de sets
@@ -86,13 +85,91 @@ class SetController extends Controller
     public function create(Request $request)
     {
         if ($entity = \App\Support\PanelSelectionResolver::resolveEntity($request->user())) {
-            return $this->showReserveSelectionAfterEntity($request, $entity);
+            return $this->continueSetCreateFromEntity($request, $entity);
+        }
+
+        $entityFromQuery = $this->resolveEntityFromQuery($request);
+        if ($entityFromQuery) {
+            return $this->continueSetCreateFromEntity($request, $entityFromQuery);
         }
 
         $entities = Entity::with(['administration', 'manager'])
             ->forUser(auth()->user())
             ->get();
+
         return view('sets.add', compact('entities'));
+    }
+
+    /**
+     * Entidad explícita vía ?entity_id= (acceso directo / filtro del listado).
+     * Si también viene ?reserve_id=, se usa para saltar a datos del set.
+     */
+    private function resolveEntityFromQuery(Request $request): ?Entity
+    {
+        $entityIdRaw = $request->query('entity_id');
+        $reserveIdRaw = $request->query('reserve_id');
+
+        if (($entityIdRaw === null || $entityIdRaw === '') && ($reserveIdRaw === null || $reserveIdRaw === '')) {
+            return null;
+        }
+
+        if ($reserveIdRaw !== null && $reserveIdRaw !== '') {
+            $reserve = Reserve::with(['entity.administration', 'entity.manager', 'lottery'])
+                ->forUser($request->user())
+                ->find((int) $reserveIdRaw);
+
+            if ($reserve?->entity && (int) $reserve->entity->status === 1) {
+                $request->attributes->set('preselected_reserve_id', (int) $reserve->id);
+
+                return $reserve->entity->loadMissing(['administration', 'manager']);
+            }
+        }
+
+        if ($entityIdRaw === null || $entityIdRaw === '') {
+            return null;
+        }
+
+        $entity = Entity::with(['administration', 'manager'])
+            ->forUser($request->user())
+            ->find((int) $entityIdRaw);
+
+        if (! $entity || (int) $entity->status !== 1) {
+            return null;
+        }
+
+        return $entity;
+    }
+
+    private function continueSetCreateFromEntity(Request $request, Entity $entity)
+    {
+        $preselectedReserveId = (int) $request->attributes->get('preselected_reserve_id', 0);
+        if ($preselectedReserveId <= 0) {
+            $reserveIdRaw = $request->query('reserve_id');
+            if ($reserveIdRaw !== null && $reserveIdRaw !== '') {
+                $preselectedReserveId = (int) $reserveIdRaw;
+            }
+        }
+
+        if ($preselectedReserveId > 0) {
+            $reserve = Reserve::with(['lottery', 'entity'])
+                ->forUser($request->user())
+                ->where('entity_id', $entity->id)
+                ->find($preselectedReserveId);
+
+            if ($reserve && (int) $reserve->status === 1) {
+                if ($response = $this->redirectIfReserveLotteryBlocked($reserve, 'sets.create')) {
+                    return $response;
+                }
+
+                $this->putSelectedEntityInSession($request, $entity);
+                $request->session()->put('selected_reserve', $reserve);
+                $request->session()->put('selected_reserve_id', $reserve->id);
+
+                return redirect()->route('sets.add-information');
+            }
+        }
+
+        return $this->showReserveSelectionAfterEntity($request, $entity);
     }
 
     /**
@@ -101,7 +178,7 @@ class SetController extends Controller
     public function store_entity(Request $request)
     {
         $request->validate([
-            'entity_id' => 'required|integer|exists:entities,id'
+            'entity_id' => 'required|integer|exists:entities,id',
         ]);
 
         $entity = Entity::with(['administration', 'manager'])
@@ -155,7 +232,7 @@ class SetController extends Controller
     public function store_entity_ajax(Request $request)
     {
         $request->validate([
-            'entity_id' => 'required|integer|exists:entities,id'
+            'entity_id' => 'required|integer|exists:entities,id',
         ]);
 
         $entity = Entity::with(['administration', 'manager'])
@@ -180,7 +257,7 @@ class SetController extends Controller
     {
         $entityId = session('selected_entity_id');
 
-        if (!$entityId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return redirect()->route('sets.create')
                 ->with('error', 'Error: No se encontró la entidad seleccionada');
         }
@@ -196,7 +273,7 @@ class SetController extends Controller
             ->where('status', 1) // confirmed
             ->whereHas('lottery', fn ($q) => $q->openForOperations())
             ->with(['lottery'])
-            ->orderBy('lottery.draw_date','desc')
+            ->orderBy('lottery.draw_date', 'desc')
             ->get();
 
         // Total y disponible por reserva
@@ -221,11 +298,11 @@ class SetController extends Controller
     public function store_reserve(Request $request)
     {
         $request->validate([
-            'reserve_id' => 'required|integer|exists:reserves,id'
+            'reserve_id' => 'required|integer|exists:reserves,id',
         ]);
 
         $entityId = session('selected_entity_id');
-        if (!$entityId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return redirect()->route('sets.create')
                 ->with('error', 'Error: No se encontraron los datos de entidad o reserva');
         }
@@ -261,14 +338,14 @@ class SetController extends Controller
     public function store_reserve_ajax(Request $request)
     {
         $request->validate([
-            'reserve_id' => 'required|integer|exists:reserves,id'
+            'reserve_id' => 'required|integer|exists:reserves,id',
         ]);
 
         $entityId = session('selected_entity_id');
-        if (!$entityId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Debe seleccionar una entidad válida antes de elegir la reserva.'
+                'message' => 'Debe seleccionar una entidad válida antes de elegir la reserva.',
             ], 422);
         }
 
@@ -279,7 +356,7 @@ class SetController extends Controller
         if ($reserve->entity_id !== (int) $entityId) {
             return response()->json([
                 'success' => false,
-                'message' => 'La reserva seleccionada no pertenece a la entidad actual.'
+                'message' => 'La reserva seleccionada no pertenece a la entidad actual.',
             ], 422);
         }
 
@@ -306,7 +383,7 @@ class SetController extends Controller
         $entityId = session('selected_entity_id');
         $reserveId = session('selected_reserve_id');
 
-        if (!$entityId || !$reserveId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! $reserveId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return redirect()->route('sets.create')
                 ->with('error', 'Error: No se encontraron los datos de entidad o reserva. Por favor, selecciona una entidad y reserva.');
         }
@@ -345,10 +422,10 @@ class SetController extends Controller
         }
 
         // Cargar las relaciones necesarias si no están cargadas
-        if (!$reserve->relationLoaded('lottery')) {
+        if (! $reserve->relationLoaded('lottery')) {
             $reserve->load('lottery');
         }
-        if (!$entity->relationLoaded('administration')) {
+        if (! $entity->relationLoaded('administration')) {
             $entity->load('administration');
         }
 
@@ -364,7 +441,7 @@ class SetController extends Controller
         $entityId = $request->session()->get('selected_entity_id');
         $reserveId = $request->session()->get('selected_reserve_id');
 
-        if (!$entityId || !$reserveId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! $reserveId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return redirect()->route('sets.create')
                 ->with('error', 'Error: No se encontraron los datos de entidad o reserva');
         }
@@ -397,9 +474,8 @@ class SetController extends Controller
             'total_amount' => 'required|numeric|min:0',
             'physical_participations' => 'nullable|integer|min:0',
             'digital_participations' => 'nullable|integer|min:0',
-            'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($reserve->id)])
+            'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($reserve->id)]),
         ]);
-
 
         // Total reserva = importe por número × cantidad de números
         $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
@@ -413,7 +489,7 @@ class SetController extends Controller
             $availableAmount = 0;
         }
         if ($validated['total_amount'] > $availableAmount) {
-            return back()->withInput()->withErrors(['total_amount' => 'El importe del set supera el disponible para esta reserva (total reserva: ' . number_format($reserveTotalAmount, 2) . ' €, ya usado: ' . number_format($usedAmount, 2) . ' €, máximo para este set: ' . number_format($availableAmount, 2) . ' €)'])
+            return back()->withInput()->withErrors(['total_amount' => 'El importe del set supera el disponible para esta reserva (total reserva: '.number_format($reserveTotalAmount, 2).' €, ya usado: '.number_format($usedAmount, 2).' €, máximo para este set: '.number_format($availableAmount, 2).' €)'])
                 ->with(['availableAmount' => $availableAmount, 'entity' => $entity, 'reserve' => $reserve]);
         }
         $createdAt = now();
@@ -423,7 +499,7 @@ class SetController extends Controller
             'reserve_id' => $reserve->id,
             'status' => 1, // Activo por defecto
             'created_at' => $createdAt,
-            'tickets' => $tickets
+            'tickets' => $tickets,
         ]);
 
         $set = Set::create($setData);
@@ -432,7 +508,7 @@ class SetController extends Controller
         // con detalles del set al crearlo.
         try {
             $entityManagerUser = $entity->manager?->user;
-            if ($entityManagerUser && !empty($entityManagerUser->email)) {
+            if ($entityManagerUser && ! empty($entityManagerUser->email)) {
                 app(CommunicationEmailService::class)->sendAndLog(
                     recipientEmail: (string) $entityManagerUser->email,
                     recipientRole: 'gestor_entidad',
@@ -445,7 +521,7 @@ class SetController extends Controller
                 );
             }
         } catch (\Throwable $e) {
-            \Log::warning('Fallo enviando email set a gestor entidad: ' . $e->getMessage());
+            \Log::warning('Fallo enviando email set a gestor entidad: '.$e->getMessage());
         }
 
         // Limpiar sesión
@@ -460,7 +536,7 @@ class SetController extends Controller
      */
     public function show(Set $set)
     {
-        if (!auth()->user()->canAccessEntity($set->entity_id)) {
+        if (! auth()->user()->canAccessEntity($set->entity_id)) {
             abort(403, 'No tienes permisos para ver este set.');
         }
 
@@ -478,7 +554,7 @@ class SetController extends Controller
      */
     public function edit(Set $set)
     {
-        if (!auth()->user()->canAccessEntity($set->entity_id)) {
+        if (! auth()->user()->canAccessEntity($set->entity_id)) {
             abort(403, 'No tienes permisos para editar este set.');
         }
 
@@ -508,7 +584,7 @@ class SetController extends Controller
      */
     public function update(Request $request, Set $set)
     {
-        if (!auth()->user()->canAccessEntity($set->entity_id)) {
+        if (! auth()->user()->canAccessEntity($set->entity_id)) {
             abort(403, 'No tienes permisos para actualizar este set.');
         }
 
@@ -520,7 +596,7 @@ class SetController extends Controller
 
         if (! $canEditConfig) {
             $validated = $request->validate([
-                'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($set->reserve_id)])
+                'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($set->reserve_id)]),
             ]);
 
             $set->update(['deadline_date' => $validated['deadline_date']]);
@@ -538,7 +614,7 @@ class SetController extends Controller
             'total_amount' => 'required|numeric|min:0',
             'physical_participations' => 'nullable|integer|min:0',
             'digital_participations' => 'nullable|integer|min:0',
-            'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($set->reserve_id)])
+            'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($set->reserve_id)]),
         ]);
 
         $reserve = $set->reserve;
@@ -605,7 +681,7 @@ class SetController extends Controller
      */
     public function destroy(Request $request, Set $set)
     {
-        if (!auth()->user()->canAccessEntity($set->entity_id)) {
+        if (! auth()->user()->canAccessEntity($set->entity_id)) {
             abort(403, 'No tienes permisos para eliminar este set.');
         }
 
@@ -636,7 +712,7 @@ class SetController extends Controller
                 $request->input('deletion_reason')
             );
         } catch (\Throwable $e) {
-            \Log::warning('Fallo enviando email set eliminado: ' . $e->getMessage());
+            \Log::warning('Fallo enviando email set eliminado: '.$e->getMessage());
         }
 
         $set->delete();
@@ -650,10 +726,10 @@ class SetController extends Controller
      */
     public function changeStatus(Request $request, Set $set)
     {
-        if (!auth()->user()->canAccessEntity($set->entity_id)) {
+        if (! auth()->user()->canAccessEntity($set->entity_id)) {
             return response()->json([
                 'success' => false,
-                'message' => 'No tienes permisos para actualizar este set.'
+                'message' => 'No tienes permisos para actualizar este set.',
             ], 403);
         }
 
@@ -662,14 +738,14 @@ class SetController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|in:0,1,2'
+            'status' => 'required|in:0,1,2',
         ]);
 
-        $set->update(['status' => (int)$request->status]);
+        $set->update(['status' => (int) $request->status]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Estado del set actualizado exitosamente'
+            'message' => 'Estado del set actualizado exitosamente',
         ]);
     }
 
@@ -680,7 +756,7 @@ class SetController extends Controller
     {
         abort_unless(auth()->user()?->isSuperAdmin(), 403, 'Solo el superadministrador puede descargar el XML del set.');
 
-        if (!auth()->user()->canAccessEntity($set->entity_id)) {
+        if (! auth()->user()->canAccessEntity($set->entity_id)) {
             abort(403, 'No tienes permisos para exportar este set.');
         }
 
@@ -694,35 +770,35 @@ class SetController extends Controller
         $lottery = $reserve->lottery;
 
         // Crear el contenido XML
-        $xmlContent = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
-        $xmlContent .= '<set>' . "\n";
-        $xmlContent .= '  <titulo><![CDATA[' . $entity->name . ']]></titulo>' . "\n";
-        $xmlContent .= '  <precio>' . number_format($set->played_amount, 2) . '</precio>' . "\n";
-        $xmlContent .= '  <donativo>' . number_format($set->donation_amount, 2) . '</donativo>' . "\n";
-        $xmlContent .= '  <fechasorteo>' . $lottery->draw_date->format('d/m/Y') . '</fechasorteo>' . "\n";
+        $xmlContent = '<?xml version="1.0" encoding="utf-8"?>'."\n";
+        $xmlContent .= '<set>'."\n";
+        $xmlContent .= '  <titulo><![CDATA['.$entity->name.']]></titulo>'."\n";
+        $xmlContent .= '  <precio>'.number_format($set->played_amount, 2).'</precio>'."\n";
+        $xmlContent .= '  <donativo>'.number_format($set->donation_amount, 2).'</donativo>'."\n";
+        $xmlContent .= '  <fechasorteo>'.$lottery->draw_date->format('d/m/Y').'</fechasorteo>'."\n";
 
         // Agregar números de reserva con importe por número (Tarea 17)
         if ($reserve->reservation_numbers && count($reserve->reservation_numbers) > 0) {
             $xmlContent .= '  <numeros>';
             $numeroCount = count($reserve->reservation_numbers);
             $importePorNumero = $numeroCount > 0 ? round($set->played_amount / $numeroCount, 2) : 0;
-            
+
             foreach ($reserve->reservation_numbers as $number) {
                 // Formato: <numero importe="X.XX"><![CDATA[numero]]></numero>
                 // Compatible con importación existente (lee contenido) y nuevo formato (lee atributo importe)
-                $xmlContent .= '<numero importe="' . number_format($importePorNumero, 2) . '"><![CDATA[' . $number . ']]></numero>';
+                $xmlContent .= '<numero importe="'.number_format($importePorNumero, 2).'"><![CDATA['.$number.']]></numero>';
             }
-            $xmlContent .= '<importe>' . number_format($reserve->total_amount, 2) . '</importe></numeros>' . "\n";
+            $xmlContent .= '<importe>'.number_format($reserve->total_amount, 2).'</importe></numeros>'."\n";
         } else {
-            $xmlContent .= '  <numeros><importe>' . number_format($reserve->total_amount, 2) . '</importe></numeros>' . "\n";
+            $xmlContent .= '  <numeros><importe>'.number_format($reserve->total_amount, 2).'</importe></numeros>'."\n";
         }
 
         // Tarea 16: Usar valor por defecto si administration->web está vacío
-        $webUrl = !empty($administration->web) ? $administration->web : config('app.url', '');
-        $xmlContent .= '  <urlweb><![CDATA[' . $webUrl . ']]></urlweb>' . "\n";
-        $xmlContent .= '  <pagoweb>si</pagoweb>' . "\n";
-        $xmlContent .= '  <pagowebpage><![CDATA[loteria-empresas-parti.php?ref=]]></pagowebpage>' . "\n";
-        $xmlContent .= '  <participaciones>' . "\n";
+        $webUrl = ! empty($administration->web) ? $administration->web : config('app.url', '');
+        $xmlContent .= '  <urlweb><![CDATA['.$webUrl.']]></urlweb>'."\n";
+        $xmlContent .= '  <pagoweb>si</pagoweb>'."\n";
+        $xmlContent .= '  <pagowebpage><![CDATA[loteria-empresas-parti.php?ref=]]></pagowebpage>'."\n";
+        $xmlContent .= '  <participaciones>'."\n";
 
         // <r> debe ser la referencia del ticket (tickets.r), no el código 1/00001
         $tickets = is_array($set->tickets) ? $set->tickets : [];
@@ -734,16 +810,16 @@ class SetController extends Controller
                 if ($reference === '') {
                     continue;
                 }
-                $xmlContent .= '   <p><s>' . htmlspecialchars((string) $number, ENT_XML1, 'UTF-8') . '</s><r>' . htmlspecialchars($reference, ENT_XML1, 'UTF-8') . '</r></p>' . "\n";
+                $xmlContent .= '   <p><s>'.htmlspecialchars((string) $number, ENT_XML1, 'UTF-8').'</s><r>'.htmlspecialchars($reference, ENT_XML1, 'UTF-8').'</r></p>'."\n";
             }
         } else {
             // Sin tickets guardados: no inventar códigos de participación (1/00001)
             for ($i = 1; $i <= (int) $set->total_participations; $i++) {
-                $xmlContent .= '   <p><s>' . $i . '</s><r></r></p>' . "\n";
+                $xmlContent .= '   <p><s>'.$i.'</s><r></r></p>'."\n";
             }
         }
 
-        $xmlContent .= '  </participaciones>' . "\n";
+        $xmlContent .= '  </participaciones>'."\n";
         $xmlContent .= '</set>';
 
         // Generar nombre del archivo
@@ -751,13 +827,13 @@ class SetController extends Controller
         $setName = str_replace(' ', '_', $set->set_name);
         $lotteryName = str_replace(' ', '_', $lottery->name);
         $drawDate = str_replace('/', '-', $lottery->draw_date->format('d-m-Y'));
-        
-        $filename = $entityName . '_' . $setName . '_' . $lotteryName . '_' . $drawDate . '.xml';
+
+        $filename = $entityName.'_'.$setName.'_'.$lotteryName.'_'.$drawDate.'.xml';
 
         // Retornar respuesta de descarga
         return response($xmlContent, 200, [
             'Content-Type' => 'application/xml',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"'
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 
@@ -767,10 +843,10 @@ class SetController extends Controller
     public function getReservesByEntity(Request $request)
     {
         $request->validate([
-            'entity_id' => 'required|integer|exists:entities,id'
+            'entity_id' => 'required|integer|exists:entities,id',
         ]);
 
-        if (!auth()->user()->canAccessEntity((int) $request->entity_id)) {
+        if (! auth()->user()->canAccessEntity((int) $request->entity_id)) {
             return response()->json([], 403);
         }
 
@@ -812,7 +888,7 @@ class SetController extends Controller
         $numerosReservaXml = [];
         if (isset($xml->numeros->numero)) {
             foreach ($xml->numeros->numero as $numero) {
-                $numerosReservaXml[] = (string)$numero;
+                $numerosReservaXml[] = (string) $numero;
             }
         }
 
@@ -829,8 +905,8 @@ class SetController extends Controller
         if (isset($xml->participaciones)) {
             foreach ($xml->participaciones->p as $p) {
                 $participaciones[] = [
-                    'n' => (string)($p->s ?? ''),
-                    'r' => (string)($p->r ?? ''),
+                    'n' => (string) ($p->s ?? ''),
+                    'r' => (string) ($p->r ?? ''),
                 ];
             }
         }
@@ -853,23 +929,24 @@ class SetController extends Controller
     public function getPrice(Request $request)
     {
         $request->validate([
-            'set_id' => 'required|integer|exists:sets,id'
+            'set_id' => 'required|integer|exists:sets,id',
         ]);
 
         try {
             $set = Set::forUser(auth()->user())->findOrFail($request->set_id);
-            
+
             $totalParticipation = $set->total_participation_amount ?? (($set->played_amount ?? 0) + ($set->donation_amount ?? 0));
+
             return response()->json([
                 'success' => true,
                 'played_amount' => $set->played_amount ?? 0,
                 'total_participation_amount' => (float) $totalParticipation,
-                'set_name' => $set->set_name
+                'set_name' => $set->set_name,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener el precio del set: ' . $e->getMessage()
+                'message' => 'Error al obtener el precio del set: '.$e->getMessage(),
             ], 500);
         }
     }
