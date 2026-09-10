@@ -2021,7 +2021,107 @@ class DesignController extends Controller
             return null;
         }
 
-        $mime = $info['mime'] ?? '';
+        $jpegQuality = max(50, min(95, $jpegQuality));
+        $dir = storage_path('app/pdf_bg_cache');
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        // Versión "srgb": invalida caches antiguas generadas con GD sin gestión de color.
+        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg-srgb|'.$jpegQuality).'.jpg';
+        if (is_file($out) && filesize($out) > 0) {
+            return str_replace('\\', '/', $out);
+        }
+
+        if (class_exists(\Imagick::class)) {
+            $imagickOut = $this->renderCoverCropBitmapImagick($sourcePath, $targetW, $targetH, $jpegQuality, $out);
+            if ($imagickOut !== null) {
+                return $imagickOut;
+            }
+        }
+
+        return $this->renderCoverCropBitmapGd(
+            $sourcePath,
+            $srcW,
+            $srcH,
+            $targetW,
+            $targetH,
+            $jpegQuality,
+            $out,
+            (string) ($info['mime'] ?? '')
+        );
+    }
+
+    /**
+     * Recorte cover + conversión a sRGB (respeta ICC del JPG original).
+     */
+    private function renderCoverCropBitmapImagick(
+        string $sourcePath,
+        int $targetW,
+        int $targetH,
+        int $jpegQuality,
+        string $outPath
+    ): ?string {
+        try {
+            $img = new \Imagick();
+            $img->readImage($sourcePath);
+            if (method_exists($img, 'autoOrient')) {
+                $img->autoOrient();
+            }
+
+            if (method_exists($img, 'transformImageColorspace')) {
+                $img->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+            } elseif (method_exists($img, 'setImageColorspace')) {
+                $img->setImageColorspace(\Imagick::COLORSPACE_SRGB);
+            }
+
+            $srcW = (int) $img->getImageWidth();
+            $srcH = (int) $img->getImageHeight();
+            if ($srcW < 1 || $srcH < 1) {
+                $img->clear();
+                $img->destroy();
+
+                return null;
+            }
+
+            [$cropW, $cropH, $srcX, $srcY] = $this->coverCropGeometry($srcW, $srcH, $targetW, $targetH);
+            $img->cropImage($cropW, $cropH, $srcX, $srcY);
+            $img->setImagePage(0, 0, 0, 0);
+            $img->resizeImage($targetW, $targetH, \Imagick::FILTER_LANCZOS, 1, true);
+
+            $img->setImageFormat('jpeg');
+            $img->setImageCompression(\Imagick::COMPRESSION_JPEG);
+            $img->setImageCompressionQuality($jpegQuality);
+            $img->setImageBackgroundColor('white');
+            if (defined('Imagick::ALPHACHANNEL_REMOVE')) {
+                $img->setImageAlphaChannel(\Imagick::ALPHACHANNEL_REMOVE);
+            }
+            $img->stripImage();
+
+            $ok = $img->writeImage($outPath);
+            $img->clear();
+            $img->destroy();
+
+            return $ok && is_file($outPath) ? str_replace('\\', '/', $outPath) : null;
+        } catch (\Throwable $e) {
+            \Log::warning('Imagick cover-crop sRGB falló, se usará GD: '.$e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * Fallback GD (sin ICC): puede alterar colores en JPGs con perfil no-sRGB.
+     */
+    private function renderCoverCropBitmapGd(
+        string $sourcePath,
+        int $srcW,
+        int $srcH,
+        int $targetW,
+        int $targetH,
+        int $jpegQuality,
+        string $outPath,
+        string $mime
+    ): ?string {
         $src = match ($mime) {
             'image/jpeg', 'image/jpg' => @imagecreatefromjpeg($sourcePath),
             'image/png' => @imagecreatefrompng($sourcePath),
@@ -2033,6 +2133,32 @@ class DesignController extends Controller
             return null;
         }
 
+        [$cropW, $cropH, $srcX, $srcY] = $this->coverCropGeometry($srcW, $srcH, $targetW, $targetH);
+
+        $dst = imagecreatetruecolor($targetW, $targetH);
+        if ($dst === false) {
+            imagedestroy($src);
+
+            return null;
+        }
+        imagealphablending($dst, true);
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $targetW, $targetH, $white);
+
+        imagecopyresampled($dst, $src, 0, 0, $srcX, $srcY, $targetW, $targetH, $cropW, $cropH);
+        imagedestroy($src);
+
+        $ok = imagejpeg($dst, $outPath, $jpegQuality);
+        imagedestroy($dst);
+
+        return $ok ? str_replace('\\', '/', $outPath) : null;
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int,3:int} cropW, cropH, srcX, srcY
+     */
+    private function coverCropGeometry(int $srcW, int $srcH, int $targetW, int $targetH): array
+    {
         $srcRatio = $srcW / $srcH;
         $dstRatio = $targetW / $targetH;
         if ($srcRatio > $dstRatio) {
@@ -2046,33 +2172,13 @@ class DesignController extends Controller
             $srcX = 0;
             $srcY = (int) max(0, round(($srcH - $cropH) / 2));
         }
-        $cropW = max(1, min($srcW, $cropW));
-        $cropH = max(1, min($srcH, $cropH));
 
-        $dst = imagecreatetruecolor($targetW, $targetH);
-        if ($dst === false) {
-            imagedestroy($src);
-
-            return null;
-        }
-        // Opaco (sin alfa): DomPDF con PNG+alpha genera “puntitos”/dither en fotos.
-        imagealphablending($dst, true);
-        $white = imagecolorallocate($dst, 255, 255, 255);
-        imagefilledrectangle($dst, 0, 0, $targetW, $targetH, $white);
-
-        imagecopyresampled($dst, $src, 0, 0, $srcX, $srcY, $targetW, $targetH, $cropW, $cropH);
-        imagedestroy($src);
-
-        $dir = storage_path('app/pdf_bg_cache');
-        if (! is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        $jpegQuality = max(50, min(95, $jpegQuality));
-        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg'.$jpegQuality).'.jpg';
-        $ok = imagejpeg($dst, $out, $jpegQuality);
-        imagedestroy($dst);
-
-        return $ok ? str_replace('\\', '/', $out) : null;
+        return [
+            max(1, min($srcW, $cropW)),
+            max(1, min($srcH, $cropH)),
+            $srcX,
+            $srcY,
+        ];
     }
 
     /**
