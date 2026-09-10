@@ -2026,8 +2026,8 @@ class DesignController extends Controller
         if (! is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        // Versión "srgb": invalida caches antiguas generadas con GD sin gestión de color.
-        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg-srgb|'.$jpegQuality).'.jpg';
+        // Versión "srgb-icc": conversión real vía perfil ICC (no solo colorspace enum).
+        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg-srgb-icc|'.$jpegQuality).'.jpg';
         if (is_file($out) && filesize($out) > 0) {
             return str_replace('\\', '/', $out);
         }
@@ -2052,7 +2052,9 @@ class DesignController extends Controller
     }
 
     /**
-     * Recorte cover + conversión a sRGB (respeta ICC del JPG original).
+     * Recorte cover + conversión real a sRGB vía perfil ICC.
+     * transformImageColorspace() solo no basta si el JPG ya declara sRGB pero trae ICC distinto
+     * (Adobe RGB / Display P3 / Uncalibrated): el navegador aplica el ICC y DomPDF no.
      */
     private function renderCoverCropBitmapImagick(
         string $sourcePath,
@@ -2068,11 +2070,7 @@ class DesignController extends Controller
                 $img->autoOrient();
             }
 
-            if (method_exists($img, 'transformImageColorspace')) {
-                $img->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
-            } elseif (method_exists($img, 'setImageColorspace')) {
-                $img->setImageColorspace(\Imagick::COLORSPACE_SRGB);
-            }
+            $this->convertImagickImageToSrgb($img);
 
             $srcW = (int) $img->getImageWidth();
             $srcH = (int) $img->getImageHeight();
@@ -2095,6 +2093,8 @@ class DesignController extends Controller
             if (defined('Imagick::ALPHACHANNEL_REMOVE')) {
                 $img->setImageAlphaChannel(\Imagick::ALPHACHANNEL_REMOVE);
             }
+
+            // Dejar el JPEG en DeviceRGB sRGB (sin ICC) para DomPDF: los píxeles ya están convertidos.
             $img->stripImage();
 
             $ok = $img->writeImage($outPath);
@@ -2107,6 +2107,73 @@ class DesignController extends Controller
 
             return null;
         }
+    }
+
+    /**
+     * Aplica el ICC embebido → sRGB. Sin esto, navegador (con ICC) y PDF (DeviceRGB) divergen.
+     */
+    private function convertImagickImageToSrgb(\Imagick $img): void
+    {
+        $srgbProfile = $this->srgbIccProfileBytes();
+        $hasSourceIcc = false;
+        try {
+            $hasSourceIcc = $img->getImageProfile('icc') !== '';
+        } catch (\Throwable) {
+            $hasSourceIcc = false;
+        }
+
+        if ($srgbProfile !== null) {
+            try {
+                // Si hay ICC de origen, profileImage convierte al perfil sRGB destino.
+                $img->profileImage('icc', $srgbProfile);
+            } catch (\Throwable $e) {
+                \Log::warning('Imagick profileImage(sRGB) falló: '.$e->getMessage());
+                if (method_exists($img, 'transformImageColorspace')) {
+                    $img->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+                }
+            }
+
+            return;
+        }
+
+        if (method_exists($img, 'transformImageColorspace')) {
+            $img->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+        } elseif (method_exists($img, 'setImageColorspace')) {
+            $img->setImageColorspace(\Imagick::COLORSPACE_SRGB);
+        }
+
+        if (! $hasSourceIcc) {
+            \Log::debug('PDF cover: sin ICC de origen ni perfil sRGB del sistema; colores pueden diferir del preview.');
+        }
+    }
+
+    private function srgbIccProfileBytes(): ?string
+    {
+        static $cached = false;
+        static $bytes = null;
+        if ($cached) {
+            return $bytes;
+        }
+        $cached = true;
+
+        $candidates = [
+            base_path('resources/icc/sRGB_IEC61966-2-1.icc'),
+            '/usr/share/color/icc/ghostscript/srgb.icc',
+            '/usr/share/color/icc/ghostscript/esrgb.icc',
+            '/usr/share/color/icc/sRGB.icc',
+        ];
+        foreach ($candidates as $path) {
+            if (is_readable($path)) {
+                $data = @file_get_contents($path);
+                if (is_string($data) && $data !== '') {
+                    $bytes = $data;
+
+                    return $bytes;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
