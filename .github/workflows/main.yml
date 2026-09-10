@@ -33,10 +33,13 @@ jobs:
             php artisan config:clear
             php artisan route:clear
             php artisan view:clear
-            # Reiniciar workers para cargar código nuevo (PDF/Imagick, etc.)
-            pkill -f 'artisan queue:work' || true
+            # Reiniciar workers SIN pkill -f (mataba la sesión SSH del deploy: exit 143/SIGTERM)
+            QUEUE_USER="partilot.es_unprrxqizxs"
+            for pid in $(pgrep -u "$QUEUE_USER" -f 'php .*/artisan queue:work' || true); do
+              kill "$pid" 2>/dev/null || true
+            done
             sleep 1
-            sudo -u partilot.es_unprrxqizxs bash -lc 'cd /var/www/vhosts/partilot.es/panel.partilot.es && nohup php artisan queue:work --queue=pdf,default --timeout=0 --tries=1 >/dev/null 2>&1 & nohup php artisan queue:work --queue=pdf,default --timeout=0 --tries=1 >/dev/null 2>&1 &'
+            sudo -u "$QUEUE_USER" bash -lc 'cd /var/www/vhosts/partilot.es/panel.partilot.es && nohup php artisan queue:work --queue=pdf,default --timeout=0 --tries=1 >/dev/null 2>&1 & nohup php artisan queue:work --queue=pdf,default --timeout=0 --tries=1 >/dev/null 2>&1 &'
             # php artisan migrate
             # php artisan vendor:publish --provider="Tymon\JWTAuth\Providers\LaravelServiceProvider"
             # php artisan jwt:secret

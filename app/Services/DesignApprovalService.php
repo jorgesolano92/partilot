@@ -574,86 +574,29 @@ class DesignApprovalService
             return;
         }
 
-        $design->loadMissing(['entity', 'set']);
+        $design->loadMissing(['entity.manager.user', 'set']);
         $entity = $design->entity;
         if (! $entity) {
             return;
         }
 
-        $emailsSent = [];
-        $communicationEmailService = app(CommunicationEmailService::class);
-
-        $managers = Manager::query()
-            ->where('entity_id', $entity->id)
-            ->where('status', 1)
-            ->where(function ($query) {
-                $query->where('is_primary', true)
-                    ->orWhere('permission_design', true);
-            })
-            ->with('user')
-            ->get();
-
-        foreach ($managers as $manager) {
-            $email = trim((string) ($manager->user?->email ?? ''));
-            if ($email === '' || isset($emailsSent[$email])) {
-                continue;
-            }
-
-            $communicationEmailService->sendAndLog(
-                recipientEmail: $email,
-                recipientRole: 'entity',
-                recipientUser: $manager->user,
-                messageType: 'design_approval_pending',
-                templateKey: 'design_approval_pending',
-                mailClass: DesignApprovalPendingMail::class,
-                mailPayload: ['design_format_id' => $design->id],
-                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id, 'design_format_id' => $design->id],
-            );
-
-            $emailsSent[$email] = true;
+        // Solo gestor responsable (is_primary): no email de entidad ni otros gestores/panel.
+        $managerUser = $entity->manager?->user;
+        $email = trim((string) ($managerUser?->email ?? ''));
+        if ($email === '') {
+            return;
         }
 
-        $entityEmail = trim((string) ($entity->email ?? ''));
-        if ($entityEmail !== '' && ! isset($emailsSent[$entityEmail])) {
-            $communicationEmailService->sendAndLog(
-                recipientEmail: $entityEmail,
-                recipientRole: 'entity',
-                recipientUser: null,
-                messageType: 'design_approval_pending',
-                templateKey: 'design_approval_pending',
-                mailClass: DesignApprovalPendingMail::class,
-                mailPayload: ['design_format_id' => $design->id],
-                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id, 'design_format_id' => $design->id],
-            );
-
-            $emailsSent[$entityEmail] = true;
-        }
-
-        $panelUsers = User::query()
-            ->where('panel_account_type', 'entity')
-            ->where('panel_account_id', $entity->id)
-            ->where('status', true)
-            ->get();
-
-        foreach ($panelUsers as $panelUser) {
-            $email = trim((string) ($panelUser->email ?? ''));
-            if ($email === '' || isset($emailsSent[$email])) {
-                continue;
-            }
-
-            $communicationEmailService->sendAndLog(
-                recipientEmail: $email,
-                recipientRole: 'entity',
-                recipientUser: $panelUser,
-                messageType: 'design_approval_pending',
-                templateKey: 'design_approval_pending',
-                mailClass: DesignApprovalPendingMail::class,
-                mailPayload: ['design_format_id' => $design->id],
-                context: ['set_id' => $design->set_id, 'entity_id' => $entity->id, 'design_format_id' => $design->id],
-            );
-
-            $emailsSent[$email] = true;
-        }
+        app(CommunicationEmailService::class)->sendAndLog(
+            recipientEmail: $email,
+            recipientRole: 'entity',
+            recipientUser: $managerUser,
+            messageType: 'design_approval_pending',
+            templateKey: 'design_approval_pending',
+            mailClass: DesignApprovalPendingMail::class,
+            mailPayload: ['design_format_id' => $design->id],
+            context: ['set_id' => $design->set_id, 'entity_id' => $entity->id, 'design_format_id' => $design->id],
+        );
     }
 
     public function approve(DesignFormat $design, User $user): DesignFormat
