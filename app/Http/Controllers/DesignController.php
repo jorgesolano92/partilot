@@ -2026,8 +2026,8 @@ class DesignController extends Controller
         if (! is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        // Versión "srgb-icc2": Adobe RGB→sRGB vía Ghostscript ICC (evita ColorspaceColorProfileMismatch).
-        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg-srgb-icc2|'.$jpegQuality).'.jpg';
+        // Versión "srgb-icc3": CMYK/SWOP y Adobe RGB → sRGB (profileImage directo primero).
+        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg-srgb-icc3|'.$jpegQuality).'.jpg';
         if (is_file($out) && filesize($out) > 0) {
             return str_replace('\\', '/', $out);
         }
@@ -2110,11 +2110,14 @@ class DesignController extends Controller
     }
 
     /**
-     * Aplica el ICC embebido → sRGB. Sin esto, navegador (con ICC) y PDF (DeviceRGB) divergen.
+     * Convierte el bitmap a sRGB DeviceRGB usando el ICC embebido.
      *
-     * Caso típico: JPG Adobe RGB (1998) con EXIF ColorSpace=uncalibrated, pero Imagick
-     * reporta colorspace sRGB → profileImage directo lanza ColorspaceColorProfileMismatch.
-     * Secuencia: quitar ICC, forzar RGB, reaplicar ICC origen, convertir a sRGB destino.
+     * Casos reales en uploads/:
+     * - CMYK + "U.S. Web Coated (SWOP) v2": hace falta profileImage(sRGB) directo.
+     *   Si solo se hace transformImageColorspace(), los canales CMYK se interpretan mal
+     *   y el PDF sale neón (verdes/magentas/azules irreales).
+     * - Adobe RGB etiquetado como colorspace sRGB: profileImage directo puede lanzar
+     *   ColorspaceColorProfileMismatch → reaplicar ICC en RGB y luego sRGB.
      */
     private function convertImagickImageToSrgb(\Imagick $img): void
     {
@@ -2129,28 +2132,54 @@ class DesignController extends Controller
             $sourceIcc = null;
         }
 
+        $colorspace = method_exists($img, 'getImageColorspace') ? (int) $img->getImageColorspace() : 0;
+        $isCmyk = defined('Imagick::COLORSPACE_CMYK') && $colorspace === \Imagick::COLORSPACE_CMYK;
+
         if ($srgbProfile !== null && $sourceIcc !== null) {
+            // 1) Camino correcto para CMYK/SWOP y la mayoría de ICC: origen embebido → sRGB.
             try {
-                $img->profileImage('icc', null);
-                if (method_exists($img, 'setImageColorspace')) {
-                    // Adobe RGB / Display P3 vienen como perfiles RGB, no como el enum SRGB.
-                    $img->setImageColorspace(\Imagick::COLORSPACE_RGB);
-                }
-                $img->profileImage('icc', $sourceIcc);
                 $img->profileImage('icc', $srgbProfile);
-                if (method_exists($img, 'setImageColorspace')) {
+                if (method_exists($img, 'transformImageColorspace')) {
+                    $img->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+                } elseif (method_exists($img, 'setImageColorspace')) {
                     $img->setImageColorspace(\Imagick::COLORSPACE_SRGB);
                 }
 
                 return;
             } catch (\Throwable $e) {
-                \Log::warning('Imagick ICC→sRGB falló: '.$e->getMessage());
+                \Log::warning('Imagick ICC→sRGB directo falló: '.$e->getMessage());
+            }
+
+            // 2) Adobe RGB / Display P3 con enum sRGB: mismatch → reaplicar en RGB y convertir.
+            if (! $isCmyk) {
+                try {
+                    $img->profileImage('icc', null);
+                    if (method_exists($img, 'setImageColorspace')) {
+                        $img->setImageColorspace(\Imagick::COLORSPACE_RGB);
+                    }
+                    $img->profileImage('icc', $sourceIcc);
+                    $img->profileImage('icc', $srgbProfile);
+                    if (method_exists($img, 'setImageColorspace')) {
+                        $img->setImageColorspace(\Imagick::COLORSPACE_SRGB);
+                    }
+
+                    return;
+                } catch (\Throwable $e) {
+                    \Log::warning('Imagick ICC→sRGB (reapply RGB) falló: '.$e->getMessage());
+                }
             }
         }
 
         if ($srgbProfile !== null && $sourceIcc === null) {
             try {
-                // Sin ICC embebido: etiquetar como sRGB (no convierte píxeles).
+                if ($isCmyk) {
+                    // CMYK sin ICC usable: al menos pasar a sRGB (calidad inferior).
+                    if (method_exists($img, 'transformImageColorspace')) {
+                        $img->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+                    }
+
+                    return;
+                }
                 $img->profileImage('icc', $srgbProfile);
             } catch (\Throwable $e) {
                 \Log::warning('Imagick assign sRGB falló: '.$e->getMessage());
