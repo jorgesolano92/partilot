@@ -2026,8 +2026,8 @@ class DesignController extends Controller
         if (! is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        // Versión "srgb-icc": conversión real vía perfil ICC (no solo colorspace enum).
-        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg-srgb-icc|'.$jpegQuality).'.jpg';
+        // Versión "srgb-icc2": Adobe RGB→sRGB vía Ghostscript ICC (evita ColorspaceColorProfileMismatch).
+        $out = $dir.'/'.md5($sourcePath.'|'.$targetW.'x'.$targetH.'|cover-jpg-srgb-icc2|'.$jpegQuality).'.jpg';
         if (is_file($out) && filesize($out) > 0) {
             return str_replace('\\', '/', $out);
         }
@@ -2111,29 +2111,50 @@ class DesignController extends Controller
 
     /**
      * Aplica el ICC embebido → sRGB. Sin esto, navegador (con ICC) y PDF (DeviceRGB) divergen.
+     *
+     * Caso típico: JPG Adobe RGB (1998) con EXIF ColorSpace=uncalibrated, pero Imagick
+     * reporta colorspace sRGB → profileImage directo lanza ColorspaceColorProfileMismatch.
+     * Secuencia: quitar ICC, forzar RGB, reaplicar ICC origen, convertir a sRGB destino.
      */
     private function convertImagickImageToSrgb(\Imagick $img): void
     {
         $srgbProfile = $this->srgbIccProfileBytes();
-        $hasSourceIcc = false;
+        $sourceIcc = null;
         try {
-            $hasSourceIcc = $img->getImageProfile('icc') !== '';
+            $sourceIcc = $img->getImageProfile('icc');
+            if (! is_string($sourceIcc) || $sourceIcc === '') {
+                $sourceIcc = null;
+            }
         } catch (\Throwable) {
-            $hasSourceIcc = false;
+            $sourceIcc = null;
         }
 
-        if ($srgbProfile !== null) {
+        if ($srgbProfile !== null && $sourceIcc !== null) {
             try {
-                // Si hay ICC de origen, profileImage convierte al perfil sRGB destino.
+                $img->profileImage('icc', null);
+                if (method_exists($img, 'setImageColorspace')) {
+                    // Adobe RGB / Display P3 vienen como perfiles RGB, no como el enum SRGB.
+                    $img->setImageColorspace(\Imagick::COLORSPACE_RGB);
+                }
+                $img->profileImage('icc', $sourceIcc);
+                $img->profileImage('icc', $srgbProfile);
+                if (method_exists($img, 'setImageColorspace')) {
+                    $img->setImageColorspace(\Imagick::COLORSPACE_SRGB);
+                }
+
+                return;
+            } catch (\Throwable $e) {
+                \Log::warning('Imagick ICC→sRGB falló: '.$e->getMessage());
+            }
+        }
+
+        if ($srgbProfile !== null && $sourceIcc === null) {
+            try {
+                // Sin ICC embebido: etiquetar como sRGB (no convierte píxeles).
                 $img->profileImage('icc', $srgbProfile);
             } catch (\Throwable $e) {
-                \Log::warning('Imagick profileImage(sRGB) falló: '.$e->getMessage());
-                if (method_exists($img, 'transformImageColorspace')) {
-                    $img->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
-                }
+                \Log::warning('Imagick assign sRGB falló: '.$e->getMessage());
             }
-
-            return;
         }
 
         if (method_exists($img, 'transformImageColorspace')) {
@@ -2142,7 +2163,7 @@ class DesignController extends Controller
             $img->setImageColorspace(\Imagick::COLORSPACE_SRGB);
         }
 
-        if (! $hasSourceIcc) {
+        if ($sourceIcc === null && $srgbProfile === null) {
             \Log::debug('PDF cover: sin ICC de origen ni perfil sRGB del sistema; colores pueden diferir del preview.');
         }
     }
@@ -2156,9 +2177,12 @@ class DesignController extends Controller
         }
         $cached = true;
 
+        // Preferir Ghostscript srgb.icc: perfiles sRGB v4 "preference" provocan
+        // ColorspaceColorProfileMismatch con Imagick en JPGs Adobe RGB.
         $candidates = [
-            base_path('resources/icc/sRGB_IEC61966-2-1.icc'),
             '/usr/share/color/icc/ghostscript/srgb.icc',
+            base_path('resources/icc/srgb.icc'),
+            base_path('resources/icc/sRGB_IEC61966-2-1.icc'),
             '/usr/share/color/icc/ghostscript/esrgb.icc',
             '/usr/share/color/icc/sRGB.icc',
         ];
