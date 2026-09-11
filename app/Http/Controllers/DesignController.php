@@ -8515,13 +8515,6 @@ class DesignController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        if ($user->isEntityPanelAccount()) {
-            return view('design.approval_forbidden', [
-                'design' => null,
-                'managerEmail' => '',
-                'isEntityPanelAccount' => true,
-            ]);
-        }
 
         $entityFilterIdRaw = $request->query('entity_id');
         $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
@@ -8544,7 +8537,7 @@ class DesignController extends Controller
 
         $approvalService = app(DesignApprovalService::class);
         $pendingApprovalsCount = 0;
-        if ($user->isEntity() && ! $user->isAdministration()) {
+        if ($user->isEntity() && ! $user->isAdministration() && ! $user->isEntityPanelAccount()) {
             $designs = $designs
                 ->filter(fn (DesignFormat $design) => $approvalService->isVisibleToEntityViewer($design))
                 ->values();
@@ -8555,6 +8548,10 @@ class DesignController extends Controller
                 ->get()
                 ->filter(fn (DesignFormat $design) => $approvalService->canReviewApproval($user, $design))
                 ->count();
+        } elseif ($user->isEntity() && ! $user->isAdministration()) {
+            $designs = $designs
+                ->filter(fn (DesignFormat $design) => $approvalService->isVisibleToEntityViewer($design))
+                ->values();
         }
 
         $lockBySetId = $this->batchDesignLockContextsForSetIds(
