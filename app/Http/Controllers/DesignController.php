@@ -8517,7 +8517,7 @@ class DesignController extends Controller
         $user = auth()->user();
         if ($user->isEntityPanelAccount()) {
             return redirect('/')
-                ->with('warning', 'La cuenta de la entidad no gestiona diseño ni aprobaciones. Use la cuenta del gestor responsable.');
+                ->with('error', 'La cuenta de la entidad no gestiona diseño ni aprobaciones. Use la cuenta del gestor responsable.');
         }
 
         $entityFilterIdRaw = $request->query('entity_id');
