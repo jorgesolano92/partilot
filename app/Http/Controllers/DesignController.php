@@ -5584,13 +5584,22 @@ class DesignController extends Controller
 
     public function approvalsIndex()
     {
-        $entityIds = auth()->user()->accessibleEntityIds();
+        $user = auth()->user();
+        if ($user->isEntityPanelAccount()) {
+            return view('design.approval_forbidden', [
+                'design' => null,
+                'managerEmail' => '',
+                'isEntityPanelAccount' => true,
+            ]);
+        }
+
+        $entityIds = $user->accessibleEntityIds();
         $designs = DesignFormat::with(['entity', 'lottery', 'set'])
             ->whereIn('entity_id', $entityIds)
             ->where('approval_status', DesignApprovalService::STATUS_PENDING)
             ->orderByDesc('submitted_for_approval_at')
             ->get()
-            ->filter(fn (DesignFormat $design) => app(DesignApprovalService::class)->canReviewApproval(auth()->user(), $design))
+            ->filter(fn (DesignFormat $design) => app(DesignApprovalService::class)->canReviewApproval($user, $design))
             ->values();
 
         return view('design.approvals_index', compact('designs'));
@@ -5598,9 +5607,16 @@ class DesignController extends Controller
 
     public function approvalReview($id)
     {
-        $design = DesignFormat::with(['set.entity', 'lottery', 'entity'])->findOrFail($id);
-        if (! app(DesignApprovalService::class)->canReviewApproval(auth()->user(), $design)) {
-            abort(403, 'No tienes permisos para revisar este diseño.');
+        $design = DesignFormat::with(['set.entity', 'lottery', 'entity.manager.user'])->findOrFail($id);
+        $user = auth()->user();
+        $approvalService = app(DesignApprovalService::class);
+
+        if (! $approvalService->canReviewApproval($user, $design)) {
+            return view('design.approval_forbidden', [
+                'design' => $design,
+                'managerEmail' => trim((string) ($design->entity?->manager?->user?->email ?? '')),
+                'isEntityPanelAccount' => $user->isEntityPanelAccount(),
+            ]);
         }
 
         $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
@@ -5659,12 +5675,22 @@ class DesignController extends Controller
 
     public function approveDesign($id)
     {
-        $design = DesignFormat::with('set')->findOrFail($id);
+        $design = DesignFormat::with(['set', 'entity.manager.user'])->findOrFail($id);
         $user = auth()->user();
-        app(DesignApprovalService::class)->approve($design, $user);
+        $approvalService = app(DesignApprovalService::class);
+
+        if (! $approvalService->canReviewApproval($user, $design)) {
+            return view('design.approval_forbidden', [
+                'design' => $design,
+                'managerEmail' => trim((string) ($design->entity?->manager?->user?->email ?? '')),
+                'isEntityPanelAccount' => $user->isEntityPanelAccount(),
+            ]);
+        }
+
+        $approvalService->approve($design, $user);
 
         if ($user->isEntity() && ! $user->isAdministration()) {
-            $message = app(DesignApprovalService::class)->isPrintShopDesign($design)
+            $message = $approvalService->isPrintShopDesign($design)
                 ? 'Diseño aprobado correctamente. La imprenta podrá continuar con la impresión.'
                 : 'Diseño aprobado correctamente. La administración podrá continuar con el proceso.';
 
@@ -5678,7 +5704,18 @@ class DesignController extends Controller
 
     public function rejectDesign(Request $request, $id)
     {
-        $design = DesignFormat::with('set')->findOrFail($id);
+        $design = DesignFormat::with(['set', 'entity.manager.user'])->findOrFail($id);
+        $user = auth()->user();
+        $approvalService = app(DesignApprovalService::class);
+
+        if (! $approvalService->canReviewApproval($user, $design)) {
+            return view('design.approval_forbidden', [
+                'design' => $design,
+                'managerEmail' => trim((string) ($design->entity?->manager?->user?->email ?? '')),
+                'isEntityPanelAccount' => $user->isEntityPanelAccount(),
+            ]);
+        }
+
         $validated = $request->validate([
             'reason' => 'required|string|min:5|max:2000',
         ], [
@@ -5686,9 +5723,9 @@ class DesignController extends Controller
             'reason.min' => 'El motivo del rechazo debe tener al menos 5 caracteres.',
         ]);
 
-        app(DesignApprovalService::class)->reject($design, auth()->user(), $validated['reason']);
+        $approvalService->reject($design, $user, $validated['reason']);
 
-        $message = app(DesignApprovalService::class)->isPrintShopDesign($design)
+        $message = $approvalService->isPrintShopDesign($design)
             ? 'Diseño rechazado. La imprenta deberá corregirlo y reenviarlo a la entidad.'
             : 'Diseño rechazado. La administración deberá corregirlo y reenviarlo.';
 
@@ -8477,14 +8514,20 @@ class DesignController extends Controller
      */
     public function index(Request $request)
     {
+        $user = auth()->user();
+        if ($user->isEntityPanelAccount()) {
+            return redirect('/')
+                ->with('warning', 'La cuenta de la entidad no gestiona diseño ni aprobaciones. Use la cuenta del gestor responsable.');
+        }
+
         $entityFilterIdRaw = $request->query('entity_id');
         $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
             ? (int) $entityFilterIdRaw
             : null;
 
-        $entityIds = auth()->user()->accessibleEntityIds();
+        $entityIds = $user->accessibleEntityIds();
         if ($entityFilterId !== null) {
-            if (! auth()->user()->canAccessEntity((int) $entityFilterId)) {
+            if (! $user->canAccessEntity((int) $entityFilterId)) {
                 abort(403, 'No tienes permisos para gestionar esta entidad.');
             }
 
@@ -8497,7 +8540,6 @@ class DesignController extends Controller
             ->get();
 
         $approvalService = app(DesignApprovalService::class);
-        $user = auth()->user();
         $pendingApprovalsCount = 0;
         if ($user->isEntity() && ! $user->isAdministration()) {
             $designs = $designs

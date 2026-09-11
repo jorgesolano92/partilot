@@ -21,9 +21,9 @@
             <p><strong>Sorteo:</strong> {{ $design->lottery->name }}</p>
         @endif
     </div>
-    <p>Puede acceder directamente desde este enlace:</p>
+    <p>Puede acceder directamente desde este enlace (inicie sesión con la cuenta del <strong>gestor responsable</strong>, no con la cuenta de la entidad):</p>
     <p><a href="{{ $reviewUrl }}" class="btn">Revisar diseño</a></p>
-    <p>También puede entrar en <em>Diseño e Impresión → Aprobaciones</em> en su panel.</p>
+    <p>También puede entrar en <em>Diseño e Impresión → Aprobaciones</em> en su panel de gestor.</p>
     <p class="footer">Este mensaje se ha generado automáticamente.</p>
 </div>
 </body>

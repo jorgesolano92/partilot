@@ -528,9 +528,12 @@ class DesignApprovalService
             return false;
         }
 
-        return $user->isEntity()
-            && ! $user->isAdministration()
-            && $user->canAccessEntity((int) $design->entity_id);
+        // La cuenta panel de entidad no aprueba: solo el gestor responsable.
+        if ($user->isEntityPanelAccount() || $user->isAdministration() || $user->isSuperAdmin()) {
+            return false;
+        }
+
+        return $user->isPrimaryAcceptedManagerForEntity((int) $design->entity_id);
     }
 
     public function isAwaitingEntityManagementFeeBeforeAdminDesign(DesignFormat $design): bool

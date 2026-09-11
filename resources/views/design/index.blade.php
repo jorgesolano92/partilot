@@ -32,7 +32,7 @@
                         <div class="alert alert-danger">{{ session('error') }}</div>
                     @endif
 
-                    @if(auth()->user()->isEntity() && ($pendingApprovalsCount ?? 0) > 0)
+                    @if(auth()->user()->isEntity() && ! auth()->user()->isEntityPanelAccount() && ($pendingApprovalsCount ?? 0) > 0)
                         <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                             <span>
                                 <i class="ri-checkbox-circle-line me-1"></i>
@@ -44,7 +44,7 @@
                         </div>
                     @endif
 
-                    @if(auth()->user()->isEntity())
+                    @if(auth()->user()->isEntity() && ! auth()->user()->isEntityPanelAccount())
                         <div class="d-flex justify-content-end mb-3 {{ count($designs) ? 'd-none' : '' }}">
                             <a href="{{ route('design.approvals.index') }}" style="border-radius: 30px;" class="btn btn-md btn-outline-primary">
                                 <i class="ri-checkbox-circle-line"></i> Aprobaciones
@@ -63,7 +63,7 @@
                             </div>
 
                             <div class="float-end d-flex align-items-center gap-2">
-                                @if(auth()->user()->isEntity())
+                                @if(auth()->user()->isEntity() && ! auth()->user()->isEntityPanelAccount())
                                     <a href="{{ route('design.approvals.index') }}" style="border-radius: 30px;" class="btn btn-md btn-outline-primary">
                                         <i class="ri-checkbox-circle-line"></i> Aprobaciones
                                     </a>

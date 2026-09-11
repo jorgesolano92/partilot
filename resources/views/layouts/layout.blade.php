@@ -934,9 +934,8 @@
                             || !$isRestrictedEntityUser
                             || $currentUser->hasEntityManagerPermission('sellers')
                         );
-                        $canSeeDesignModules = $canSeeEntityModules && (
-                            $isEntityPanelReadOnly
-                            || !$isRestrictedEntityUser
+                        $canSeeDesignModules = $canSeeEntityModules && ! $isEntityPanelReadOnly && (
+                            ! $isRestrictedEntityUser
                             || $currentUser->hasEntityManagerPermission('design')
                         );
 
