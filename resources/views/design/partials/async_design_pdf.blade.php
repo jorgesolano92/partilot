@@ -226,43 +226,30 @@
     }
   }
 
-  /** Descarga en la misma pestaña (blob), sin abrir ventanas. */
+  /** Descarga nativa (sin cargar el PDF entero en RAM del navegador). */
   function partilotTriggerDownload(url, preferredName) {
     if (!url) return Promise.resolve(false);
-    var fallbackName = preferredName || partilotFilenameFromUrl(url, 'archivo.pdf');
 
-    if (window.fetch) {
-      return fetch(url, { credentials: 'same-origin', redirect: 'follow' })
-        .then(function (res) {
-          if (!res.ok) {
-            throw new Error('HTTP ' + res.status);
-          }
-          var name = partilotFilenameFromDisposition(res.headers.get('Content-Disposition'), fallbackName);
-          return res.blob().then(function (blob) {
-            return { blob: blob, name: name };
-          });
-        })
-        .then(function (payload) {
-          var objectUrl = URL.createObjectURL(payload.blob);
-          var a = document.createElement('a');
-          a.href = objectUrl;
-          a.download = payload.name || fallbackName;
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(function () {
-            a.remove();
-            URL.revokeObjectURL(objectUrl);
-          }, 2000);
-          return true;
-        })
-        .catch(function () {
-          // Fallback silencioso: iframe oculto (no abre pestaña).
-          return partilotTriggerDownloadIframe(url);
-        });
+    // Importante: NO usar fetch()+blob() aquí. Los PDF de participaciones pueden pesar
+    // cientos de MB; meterlos en memoria JS hace que "Preparando descarga…" dure mucho
+    // (o falle) en portátiles con 8GB RAM, aunque la generación en servidor ya haya terminado.
+    try {
+      var a = document.createElement('a');
+      a.href = url;
+      if (preferredName) {
+        a.setAttribute('download', preferredName);
+      }
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        a.remove();
+      }, 2000);
+      return Promise.resolve(true);
+    } catch (e) {
+      return Promise.resolve(partilotTriggerDownloadIframe(url));
     }
-
-    return Promise.resolve(partilotTriggerDownloadIframe(url));
   }
 
   function partilotTriggerDownloadIframe(url) {
@@ -280,10 +267,10 @@
     }
   }
 
-  function partilotFinishDownload(url, title) {
+  function partilotFinishDownload(url, title, preferredName) {
     if (!url) return;
-    partilotNotifyPdf('info', title || 'PDF', 'Preparando descarga…', true);
-    partilotTriggerDownload(url).then(function (ok) {
+    partilotNotifyPdf('info', title || 'PDF', 'Iniciando descarga en el navegador…', true);
+    partilotTriggerDownload(url, preferredName).then(function (ok) {
       if (ok) {
         partilotNotifyPdf(
           'success',
