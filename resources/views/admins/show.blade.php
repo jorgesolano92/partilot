@@ -220,7 +220,7 @@
 			                    			<div>
 			                    				<div class="row">
 			                    					
-			                    					<div class="col-4">
+			                    					<div class="col-3">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nombre comercial</label>
 
@@ -234,7 +234,7 @@
 							                                </div>
 						                    			</div>
 			                    					</div>
-			                    					<div class="col-3">
+			                    					<div class="col-2">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nº Receptor</label>
 
@@ -244,12 +244,11 @@
 							                                        <img src="{{url('assets/form-groups/admin/2.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{$administration->receiving ?? ''}}" class="form-control" type="number" placeholder="000000" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{$administration->receiving ?? ''}}" class="form-control" type="text" placeholder="00000" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 						                    		</div>
-
-			                    					<div class="col-3">
+			                    					<div class="col-2">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nº Administración</label>
 
@@ -263,7 +262,6 @@
 							                                </div>
 						                    			</div>
 						                    		</div>
-			                    					
 			                    					<div class="col-5">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nombre Autónomo / Sociedad</label>
@@ -334,12 +332,12 @@
 							                                        <img src="{{url('assets/form-groups/admin/7.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{$administration->postal_code ?? ''}}" class="form-control" type="number" placeholder="C.P." style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{$administration->postal_code ?? ''}}" class="form-control" type="text" placeholder="C.P." style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
 
-			                    					<div class="col-4">
+			                    					<div class="col-5">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Dirección</label>
 
@@ -369,7 +367,7 @@
 						                    			</div>
 			                    					</div>
 
-			                    					<div class="col-4">
+			                    					<div class="col-3">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Teléfono</label>
 
