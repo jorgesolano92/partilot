@@ -144,6 +144,60 @@ class Administration extends Model
     }
 
     /**
+     * True si el usuario de panel sigue en formato "solo receptor" y ahora hay Nº Administración:
+     * conviene regenerar a receptor + 3 últimos dígitos.
+     */
+    public static function panelLoginUsernameNeedsAdminNumberUpgrade(
+        ?string $currentUsername,
+        ?string $receiving,
+        ?string $adminNumber
+    ): bool {
+        if (trim((string) $adminNumber) === '') {
+            return false;
+        }
+
+        $current = trim((string) $currentUsername);
+        if ($current === '') {
+            return true;
+        }
+
+        $receptorOnly = self::panelLoginUsernameFromParts($receiving, null);
+        if ($current === $receptorOnly) {
+            return true;
+        }
+
+        // Colisión histórica: 12345-1, 12345-2, …
+        return (bool) preg_match('/^'.preg_quote($receptorOnly, '/').'-\d+$/', $current);
+    }
+
+    /**
+     * Si el login quedó solo con el receptor (sin nº administración al crear) y ahora
+     * hay Nº Administración, actualiza `panel_login_username` del usuario panel.
+     */
+    public function syncPanelLoginUsernameAfterAdminNumber(?User $panelUser): ?string
+    {
+        if (! $panelUser) {
+            return null;
+        }
+
+        $receiving = (string) ($this->receiving ?? '');
+        $adminNumber = (string) ($this->admin_number ?? '');
+        if (! self::panelLoginUsernameNeedsAdminNumberUpgrade(
+            $panelUser->panel_login_username,
+            $receiving,
+            $adminNumber
+        )) {
+            return null;
+        }
+
+        $base = self::panelLoginUsernameFromParts($receiving, $adminNumber);
+        $username = self::ensureUniquePanelLoginUsername($base, (int) $panelUser->id);
+        $panelUser->forceFill(['panel_login_username' => $username])->save();
+
+        return $username;
+    }
+
+    /**
      * Garantizar unicidad de `panel_login_username` en users.
      */
     public static function ensureUniquePanelLoginUsername(string $base, ?int $exceptUserId = null): string

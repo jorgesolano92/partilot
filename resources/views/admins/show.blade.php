@@ -248,6 +248,21 @@
 							                                </div>
 						                    			</div>
 						                    		</div>
+
+			                    					<div class="col-3">
+			                    						<div class="form-group mt-2 mb-3">
+			                    							<label class="label-control">Nº Administración</label>
+
+							                    			<div class="input-group input-group-merge group-form">
+
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/2.svg')}}" alt="">
+							                                    </div>
+
+							                                    <input readonly="" value="{{$administration->admin_number ?? ''}}" class="form-control" type="text" placeholder="—" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+						                    		</div>
 			                    					
 			                    					<div class="col-5">
 			                    						<div class="form-group mt-2 mb-3">
@@ -375,7 +390,7 @@
 			                    				<div class="row mt-3">
 			                    					<div class="col-12">
 			                    						<h4 class="mb-0 mt-1">Acceso al panel web</h4>
-			                    						<small class="text-muted">Usuario fijo (no se puede cambiar). El correo con el enlace se envía al email de contacto de la administración.</small>
+			                    						<small class="text-muted">Formato: Nº Receptor + 3 últimos del Nº Administración (si no hay nº administración, solo el receptor). Si se completa el Nº Administración después del alta, el usuario se regenera al guardar. El correo con el enlace se envía al email de contacto de la administración.</small>
 			                    					</div>
 			                    					<div class="col-md-4 mt-2">
 			                    						<label class="label-control">Usuario de acceso</label>

@@ -147,6 +147,7 @@ class AdministratorController extends Controller
             $request
         );
 
+        $upgradedUsername = null;
         if ($panelUser) {
             $u = [
                 'email' => $newEmail,
@@ -158,6 +159,10 @@ class AdministratorController extends Controller
                 $u['password'] = $request->panel_password;
             }
             $panelUser->update($u);
+
+            // Si al crear no había Nº Administración (login = solo receptor) y ahora sí, regenerar usuario.
+            $administration->refresh();
+            $upgradedUsername = $administration->syncPanelLoginUsernameAfterAdminNumber($panelUser->fresh());
         }
 
         // Contraseña de panel definida: si la administración seguía pendiente, pasar a activa.
@@ -168,8 +173,13 @@ class AdministratorController extends Controller
             }
         }
 
+        $success = 'Administración actualizada correctamente';
+        if (! empty($upgradedUsername)) {
+            $success .= '. Usuario de acceso al panel actualizado a «'.$upgradedUsername.'» (se completó el Nº Administración).';
+        }
+
         return redirect()->route('administrations.show', $administration->id)
-            ->with('success', 'Administración actualizada correctamente');
+            ->with('success', $success);
     }
 
     /**
