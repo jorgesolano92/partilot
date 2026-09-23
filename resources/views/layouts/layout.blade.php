@@ -395,14 +395,19 @@
                 width: auto;
                 min-height: 48px;
                 height: auto !important;
-                padding: 6px 8px 6px 4px !important;
-                gap: 8px;
+                padding: 6px 10px 6px 4px !important;
+                gap: 6px;
                 border: 0;
                 background: transparent;
-                align-items: flex-start !important;
+                align-items: center !important;
             }
             .navbar-custom .topbar .nav-user img {
                 display: none;
+            }
+            .navbar-custom .topbar .nav-user .partilot-account-menu-text {
+                display: inline-block;
+                line-height: 1.15;
+                min-width: 0;
             }
             .navbar-custom .topbar .nav-user .user-name {
                 display: block;
@@ -421,11 +426,17 @@
                 margin-top: 2px;
                 line-height: 1;
             }
-            .navbar-custom .topbar .nav-user .mdi-chevron-down {
-                display: inline-block;
-                margin-left: 4px;
+            .navbar-custom .topbar .nav-user .mdi-chevron-down,
+            .navbar-custom .topbar .nav-user .partilot-account-menu-caret {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                margin-left: 2px;
                 font-size: 18px;
-                vertical-align: middle;
+                line-height: 1;
+                color: #6c7489;
+                align-self: center;
             }
             .navbar-custom .topbar .partilot-account-menu-trigger {
                 border: 1px solid rgba(0,0,0,.12);
@@ -1470,14 +1481,14 @@
                                         }
                                     @endphp
                                     @php $topbarContextLabel = Auth::user()?->panelHeaderContextLabel(); @endphp
-                                    <span class="ms-2 d-none d-md-inline-block text-start">
+                                    <span class="ms-2 d-none d-md-inline-block text-start partilot-account-menu-text">
                                         @if($topbarContextLabel)
                                             <span class="topbar-user-context d-block" title="{{ $topbarContextLabel }}">{{ $topbarContextLabel }}</span>
                                         @endif
                                         <span class="user-name">{{ Auth::user()->name ? Auth::user()->name.' '.Auth::user()->last_name : 'Usuario' }}</span>
                                         <span class="user-role">{{ $topbarRole }} · Menú</span>
-                                        <i class="mdi mdi-chevron-down"></i>
                                     </span>
+                                    <i class="mdi mdi-chevron-down partilot-account-menu-caret" aria-hidden="true"></i>
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-end profile-dropdown ">
                                     <div class="dropdown-header noti-title">
