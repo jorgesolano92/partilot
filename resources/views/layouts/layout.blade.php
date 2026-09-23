@@ -422,7 +422,22 @@
                 line-height: 1;
             }
             .navbar-custom .topbar .nav-user .mdi-chevron-down {
-                display: none;
+                display: inline-block;
+                margin-left: 4px;
+                font-size: 18px;
+                vertical-align: middle;
+            }
+            .navbar-custom .topbar .partilot-account-menu-trigger {
+                border: 1px solid rgba(0,0,0,.12);
+                border-radius: 999px;
+                padding: 4px 10px 4px 4px !important;
+                background: rgba(255,255,255,.65);
+            }
+            .navbar-custom .topbar .partilot-account-menu-trigger:hover,
+            .navbar-custom .topbar .partilot-account-menu-trigger[aria-expanded="true"] {
+                background: #fff;
+                border-color: rgba(0,0,0,.22);
+                box-shadow: 0 1px 4px rgba(0,0,0,.08);
             }
             .navbar-custom .topbar .dropdown-menu {
                 z-index: 1100;
@@ -899,12 +914,6 @@
                         @if(Auth::check() && Auth::user()->isPanelAccount() && Auth::user()->panel_account_type === 'administration')
                             <a href="{{ route('account.my-data') }}" class="btn btn-sm btn-light mb-2">Mis datos</a>
                         @endif
-                        <form method="POST" action="{{ url('logout') }}" class="menu-logout-link">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-                                <i class="fe-log-out me-1"></i> Cerrar sesión
-                            </button>
-                        </form>
                     </div>
 
                     <!--- Menu -->
@@ -980,15 +989,6 @@
                                         <img src="{{url('icons_')}}/administraciones{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
                                     </span>
                                     <span class="menu-text"> Administraciones </span>
-                                    @php $selected = null; @endphp
-                                </a>
-                            </li>
-                            <li class="menu-item @if (Request::is('prize-payments/*') || Request::is('prize-payments')) menuitem-active @php $selected = 1; @endphp @endif">
-                                <a href="{{ route('prize-payments.index') }}" class="menu-link">
-                                    <span class="menu-icon">
-                                        <i class="ri-money-euro-circle-line" style="font-size: 18px; position: relative; top: 3px;"></i>
-                                    </span>
-                                    <span class="menu-text"> Cobro de premios </span>
                                     @php $selected = null; @endphp
                                 </a>
                             </li>
@@ -1158,17 +1158,6 @@
                             </a>
                         </li>
 
-                        @if($canSeeSettingsModules)
-                            <li class="menu-item @if (Request::is('configuration/*') || Request::is('configuration')) menuitem-active @php $selected = 1; @endphp @endif">
-                                <a href="{{url('configuration')}}" class="menu-link">
-                                    <span class="menu-icon">
-                                        <i class="fe-settings"></i>
-                                    </span>
-                                    <span class="menu-text"> Ajustes </span>
-                                    @php $selected = null; @endphp
-                                </a>
-                            </li>
-                        @endif
 
                         @endif
 
@@ -1211,6 +1200,29 @@
                         </li> --}}
 
                         
+
+                        @if($currentUser && $currentUser->isSuperAdmin())
+                            <li class="menu-item @if (Request::is('prize-payments/*') || Request::is('prize-payments')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{ route('prize-payments.index') }}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <i class="ri-money-euro-circle-line" style="font-size: 18px; position: relative; top: 3px;"></i>
+                                    </span>
+                                    <span class="menu-text"> Cobro de premios </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
+                        @endif
+
+                        <li class="menu-item mt-3 menu-logout-footer">
+                            <form method="POST" action="{{ url('logout') }}" class="menu-logout-link">
+                                @csrf
+                                <button type="submit" class="menu-link w-100 text-start border-0 bg-transparent" style="color:#dc3545;">
+                                    <span class="menu-icon"><i class="fe-log-out"></i></span>
+                                    <span class="menu-text"> Cerrar sesión </span>
+                                </button>
+                            </form>
+                        </li>
+
                     </ul>
                     <!--- End Menu -->
                     <div class="clearfix"></div>
@@ -1438,7 +1450,7 @@
 
                             <!-- User Dropdown -->
                             <li class="dropdown">
-                                <a class="nav-link dropdown-toggle nav-user me-0 waves-effect waves-light d-flex align-items-center" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
+                                <a class="nav-link dropdown-toggle nav-user me-0 waves-effect waves-light d-flex align-items-center partilot-account-menu-trigger" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" title="Cuenta y opciones" aria-label="Abrir menú de cuenta">
                                     @php $panelHeaderImgTop = Auth::user()?->panelAccountHeaderImageUrl(); @endphp
                                     <img src="{{ $panelHeaderImgTop ?? url('default').'/assets/images/users/user-1.jpg' }}" alt="" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">
                                     @php
@@ -1463,7 +1475,7 @@
                                             <span class="topbar-user-context d-block" title="{{ $topbarContextLabel }}">{{ $topbarContextLabel }}</span>
                                         @endif
                                         <span class="user-name">{{ Auth::user()->name ? Auth::user()->name.' '.Auth::user()->last_name : 'Usuario' }}</span>
-                                        <span class="user-role">{{ $topbarRole }}</span>
+                                        <span class="user-role">{{ $topbarRole }} · Menú</span>
                                         <i class="mdi mdi-chevron-down"></i>
                                     </span>
                                 </a>
@@ -1483,6 +1495,13 @@
                                     <div class="dropdown-divider"></div>
                                     @endif
 
+                                    @if(!empty($canSeeSettingsModules))
+                                    <a href="{{ url('configuration') }}" class="dropdown-item notify-item">
+                                        <i class="fe-settings me-1"></i>
+                                        <span>Ajustes generales</span>
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    @endif
                                     <form method="POST" action="{{ url('logout') }}">
                                         @csrf
                                         <button type="submit" class="dropdown-item notify-item text-danger" style="background: none; border: none; width: 100%; text-align: left;">
@@ -2013,6 +2032,7 @@
         <script src="{{url('default')}}/assets/js/vendor.min.js"></script>
         <script src="{{ url('assets/libs/pnotify/pnotify.js') }}"></script>
         <script src="{{ url('assets/libs/pnotify/pnotify.buttons.js') }}"></script>
+        <script src="{{ url('js/partilot-ui.js') }}"></script>
         @include('partials.partilot-flash-notify')
 
         <!-- App js -->

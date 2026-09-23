@@ -44,9 +44,12 @@
                         if ($adminStatusValue === null || $adminStatusValue === -1) {
                             $adminStatusText = 'Pendiente';
                             $adminStatusClass = 'bg-secondary';
-                        } elseif ($adminStatusValue == 1) {
+                        } elseif ((int) $adminStatusValue === 1) {
                             $adminStatusText = 'Activo';
                             $adminStatusClass = 'bg-success';
+                        } elseif ((int) $adminStatusValue === 3) {
+                            $adminStatusText = 'Bloqueado';
+                            $adminStatusClass = 'bg-warning';
                         } else {
                             $adminStatusText = 'Inactivo';
                             $adminStatusClass = 'bg-danger';
@@ -123,8 +126,11 @@
                                 <div class="form-group mt-3 mb-3 admin-box">
                                     <div class="row">
                                         <div class="col-1">
-                                            <div class="photo-preview-2">
-                                                <i class="ri-account-circle-fill"></i>
+                                            @php $adminLogoUrl = $administration->logoPublicUrl(); @endphp
+                                            <div class="photo-preview-2 logo-round"@if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;"@endif>
+                                                @unless($adminLogoUrl)
+                                                    <i class="ri-account-circle-fill"></i>
+                                                @endunless
                                             </div>
                                             <div style="clear: both;"></div>
                                         </div>
@@ -267,15 +273,11 @@
 
                     				<div class="row">
                     					<div class="col-1">
-                    						
-		                    				<div class="photo-preview-2">
-		                    					
-		                    				@if($primaryManager->resolvedContactImage())
-		                    						<img src="{{url('manager/'.$primaryManager->resolvedContactImage())}}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
-		                    					@else
+                    						@php $adminLogoUrl = $administration->logoPublicUrl(); @endphp
+		                    				<div class="photo-preview-2 logo-round"@if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;"@endif>
+		                    					@unless($adminLogoUrl)
 		                    						<i class="ri-account-circle-fill"></i>
-		                    					@endif
-
+		                    					@endunless
 		                    				</div>
 		                    				
 		                    				<div style="clear: both;"></div>

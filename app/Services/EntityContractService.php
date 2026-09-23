@@ -39,7 +39,8 @@ class EntityContractService
             'contract_status' => Entity::CONTRACT_PENDING,
             'contract_reference' => $this->generateReference($entity),
             'contract_version' => self::VERSION,
-            'status' => 0,
+            // Pendiente hasta gestor registrado + condiciones aceptadas (INC-014).
+            'status' => null,
         ]);
 
         $entity = $entity->fresh(['administration']);

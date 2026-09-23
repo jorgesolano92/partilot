@@ -14,6 +14,13 @@ class Administration extends Model
 
     public const CONTRACT_SIGNED = 'signed';
 
+    /** Estados de ciclo de vida (INC-006): Pendiente=null, Activo=1, Inactivo=0, Bloqueado=3 */
+    public const STATUS_INACTIVE = 0;
+
+    public const STATUS_ACTIVE = 1;
+
+    public const STATUS_BLOCKED = 3;
+
     protected $fillable = [
         "web",
         "name",
@@ -55,7 +62,7 @@ class Administration extends Model
     ];
 
     protected $casts = [
-        'status' => 'integer',
+        // status: no castear a integer — (int) null === 0 y convertiría Pendiente en Inactivo (INC-006).
         'prepago_api_key' => 'encrypted',
         'prepago_use_partilot_default' => 'boolean',
         'prepago_integration_enabled' => 'boolean',
@@ -63,6 +70,29 @@ class Administration extends Model
         'contract_sent_at' => 'datetime',
         'contract_signed_at' => 'datetime',
     ];
+
+    /**
+     * Normaliza status conservando null = Pendiente.
+     */
+    public function getStatusAttribute($value)
+    {
+        if ($value === null || $value === '' || (int) $value === -1) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    public function setStatusAttribute($value): void
+    {
+        if ($value === null || $value === '' || (int) $value === -1) {
+            $this->attributes['status'] = null;
+
+            return;
+        }
+
+        $this->attributes['status'] = (int) $value;
+    }
 
     protected $hidden = [
         'prepago_api_key',
@@ -233,11 +263,13 @@ class Administration extends Model
     {
         if ($this->status === null || $this->status === -1) {
             return 'Pendiente';
-        } elseif ($this->status == 1) {
-            return 'Activo';
-        } else {
-            return 'Inactivo';
         }
+
+        return match ((int) $this->status) {
+            self::STATUS_ACTIVE => 'Activo',
+            self::STATUS_BLOCKED => 'Bloqueado',
+            default => 'Inactivo',
+        };
     }
 
     /**
@@ -247,11 +279,50 @@ class Administration extends Model
     {
         if ($this->status === null || $this->status === -1) {
             return 'secondary';
-        } elseif ($this->status == 1) {
-            return 'success';
-        } else {
-            return 'danger';
         }
+
+        return match ((int) $this->status) {
+            self::STATUS_ACTIVE => 'success',
+            self::STATUS_BLOCKED => 'warning',
+            default => 'danger',
+        };
+    }
+
+    public function isActive(): bool
+    {
+        return (int) $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === null || (int) $this->status === -1;
+    }
+
+    public function isBlocked(): bool
+    {
+        return (int) $this->status === self::STATUS_BLOCKED;
+    }
+
+    public function isInactive(): bool
+    {
+        return (int) $this->status === self::STATUS_INACTIVE;
+    }
+
+    /**
+     * URL pública del logotipo en public/images/ (o null si no hay archivo).
+     */
+    public function logoPublicUrl(): ?string
+    {
+        $image = trim((string) ($this->image ?? ''));
+        if ($image === '') {
+            return null;
+        }
+
+        if (! is_file(public_path('images/'.$image))) {
+            return null;
+        }
+
+        return asset('images/'.$image);
     }
 
     /**

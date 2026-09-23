@@ -121,9 +121,12 @@
                                         if ($statusValue === null || $statusValue === -1) {
                                             $statusText = 'Pendiente';
                                             $statusClass = 'bg-secondary';
-                                        } elseif ($statusValue == 1) {
+                                        } elseif ((int) $statusValue === 1) {
                                             $statusText = 'Activo';
                                             $statusClass = 'bg-success';
+                                        } elseif ((int) $statusValue === 3) {
+                                            $statusText = 'Bloqueado';
+                                            $statusClass = 'bg-warning';
                                         } else {
                                             $statusText = 'Inactivo';
                                             $statusClass = 'bg-danger';
@@ -138,12 +141,12 @@
 	                    				<label class="form-label">Cambiar Estado</label>
 	                    				<select name="status" id="admin_status" class="form-select">
 	                    					<option value="-1" {{ ($statusValue === null || $statusValue === -1) ? 'selected' : '' }}>Pendiente</option>
-	                    					<option value="1" {{ $statusValue == 1 ? 'selected' : '' }}>Activo</option>
-	                    					<option value="0" {{ $statusValue == 0 ? 'selected' : '' }}>Inactivo</option>
+	                    					<option value="1" {{ (int) $statusValue === 1 ? 'selected' : '' }}>Activo</option>
+	                    					<option value="3" {{ (int) $statusValue === 3 ? 'selected' : '' }}>Bloqueado</option>
+	                    					<option value="0" {{ $statusValue !== null && (int) $statusValue === 0 ? 'selected' : '' }}>Inactivo</option>
 	                    				</select>
 	                    			</div>
 	                    			<script>
-	                    			// Actualizar el badge de estado cuando se cambie el select
 	                    			document.addEventListener('DOMContentLoaded', function() {
 	                    				const select = document.getElementById('admin_status');
 	                    				if (select) {
@@ -158,6 +161,9 @@
 	                    							} else if (value === '1') {
 	                    								badge.textContent = 'Activo';
 	                    								badge.className = 'badge badge-lg bg-success float-end';
+	                    							} else if (value === '3') {
+	                    								badge.textContent = 'Bloqueado';
+	                    								badge.className = 'badge badge-lg bg-warning float-end';
 	                    							} else {
 	                    								badge.textContent = 'Inactivo';
 	                    								badge.className = 'badge badge-lg bg-danger float-end';
@@ -251,8 +257,10 @@
 				                                        <img src="{{url('assets/form-groups/admin/2.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input value="{{ old('admin_number', $administration->admin_number) }}" class="form-control" type="text" name="admin_number" placeholder="Nº Administración" maxlength="9" pattern="[0-9]{9}" inputmode="numeric" style="border-radius: 0 30px 30px 0;">
+				                                    <input value="{{ old('admin_number', $administration->admin_number) }}" class="form-control" type="text" name="admin_number" placeholder="260000001" maxlength="9" pattern="[0-9]{9}" inputmode="numeric" title="Exactamente 9 dígitos numéricos" style="border-radius: 0 30px 30px 0;">
 				                                </div>
+				                                <small class="form-text text-muted d-block mt-1">Introduce el número identificativo oficial de nueve dígitos (ejemplo: 260000001). Solo números; se conservan los ceros a la izquierda.</small>
+				                                @error('admin_number')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
 			                    			</div>
                     					</div>
                     					<div class="col-5">
@@ -622,16 +630,16 @@ let cityTs = null;
 if (provinceSelect && citySelect) {
 	fillCitiesByProvince(provinceSelect.value, selectedCity || '');
 	if (window.TomSelect) {
-		provinceTs = new TomSelect(provinceSelect, {
+		provinceTs = new TomSelect(provinceSelect, (window.partilotTomSelectStartsWithOptions || function (o) { return o; })({
 			create: false,
 			allowEmptyOption: true,
 			placeholder: 'Seleccionar provincia',
-		});
-		cityTs = new TomSelect(citySelect, {
+		}));
+		cityTs = new TomSelect(citySelect, (window.partilotTomSelectStartsWithOptions || function (o) { return o; })({
 			create: false,
 			allowEmptyOption: true,
 			placeholder: 'Seleccionar localidad',
-		});
+		}));
 		provinceTs.on('change', function(value) {
 			fillCitiesByProvince(value || '', '');
 		});

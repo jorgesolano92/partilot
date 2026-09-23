@@ -75,5 +75,6 @@ class Kernel extends HttpKernel
         'administration_saas_contract' => \App\Http\Middleware\EnsureAdministrationSaasContractSigned::class,
         'entity_framework_contract' => \App\Http\Middleware\EnsureEntityFrameworkContractSigned::class,
         'panel_legal_accepted' => \App\Http\Middleware\EnsurePanelLegalAccepted::class,
+        'panel_account_active' => \App\Http\Middleware\EnsureAssociatedPanelAccountActive::class,
     ];
 }

@@ -13,6 +13,7 @@ use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Services\CommunicationEmailService;
 use App\Services\DashboardService;
+use App\Services\PanelLegalAcceptanceService;
 use App\Services\ParticipationGiftService;
 use App\Services\PendingDigitalSaleService;
 use App\Services\RoleLegalAcceptanceService;
@@ -100,17 +101,23 @@ class AuthController extends Controller
             }
         }
 
-        // Bloquear login si la administración/entidad asociada está pendiente o inactiva.
-        // Regla: solo se permite acceso si el panel asociado tiene status == 1 (Activo).
+        // Bloquear login si la administración/entidad asociada no permite acceso.
+        // INC-006: Pendiente puede completar primer acceso + condiciones; Inactivo = genérico; Bloqueado = aviso específico.
         if (! $user->isSuperAdmin()) {
                 $hasActiveAccess = false;
+                $deniedMessage = 'Las credenciales proporcionadas no coinciden con nuestros registros.';
 
                 if ($user->isPanelAccount()) {
                     if ($user->panel_account_type === 'administration') {
-                        $hasActiveAccess = \App\Models\Administration::query()
-                            ->whereKey($user->panel_account_id)
-                            ->where('status', 1)
-                            ->exists();
+                        $administration = \App\Models\Administration::query()->find($user->panel_account_id);
+                        if ($administration && $administration->isActive()) {
+                            $hasActiveAccess = true;
+                        } elseif ($administration && $administration->isPending()) {
+                            // Primer acceso / aceptación de condiciones (INC-006).
+                            $hasActiveAccess = true;
+                        } elseif ($administration && $administration->isBlocked()) {
+                            $deniedMessage = 'Tu cuenta de Partilot ha sido bloqueada. Para obtener más información, ponte en contacto con Partilot';
+                        }
                     } elseif ($user->panel_account_type === 'entity') {
                         $hasActiveAccess = \App\Models\Entity::query()
                             ->whereKey($user->panel_account_id)
@@ -124,8 +131,17 @@ class AuthController extends Controller
                     if ($user->isAdministration()) {
                         $hasActiveAccess = $user->managers()
                             ->where('status', 1)
-                            ->whereHas('administration', fn ($q) => $q->where('status', 1))
+                            ->whereHas('administration', fn ($q) => $q->where('status', \App\Models\Administration::STATUS_ACTIVE))
                             ->exists();
+
+                        if (! $hasActiveAccess) {
+                            $blocked = $user->managers()
+                                ->whereHas('administration', fn ($q) => $q->where('status', \App\Models\Administration::STATUS_BLOCKED))
+                                ->exists();
+                            if ($blocked) {
+                                $deniedMessage = 'Tu cuenta de Partilot ha sido bloqueada. Para obtener más información, ponte en contacto con Partilot';
+                            }
+                        }
                     }
 
                     if (! $hasActiveAccess && $user->isEntity()) {
@@ -138,11 +154,15 @@ class AuthController extends Controller
 
                 if (! $hasActiveAccess) {
                     Auth::logout();
+
                     return back()->withErrors([
-                        'email' => 'Tu administración o entidad asociada no está activa (pendiente o inactiva).',
+                        'email' => $deniedMessage,
                     ])->withInput($request->only('email'));
                 }
         }
+
+        app(\App\Services\AdministrationSessionInvalidationService::class)
+            ->markSessionValidated((int) $user->id);
 
         // Superadmin, cuentas panel (administración/entidad) y gestor responsable acceden al panel web.
         // Gestores no responsables (solo secundarios) usan la web app / app Ionic.
@@ -283,6 +303,8 @@ class AuthController extends Controller
         $user->save();
 
         $request->session()->forget('provisional_password_skipped');
+
+        app(PanelLegalAcceptanceService::class)->activatePendingAdministrationIfReady($user->fresh());
 
         return redirect()->route('dashboard')->with('success', 'Contraseña actualizada correctamente.');
     }

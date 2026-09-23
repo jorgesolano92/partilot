@@ -142,9 +142,12 @@
 	                    				if ($statusValue === null || $statusValue === -1) {
 	                    					$statusText = 'Pendiente';
 	                    					$statusClass = 'bg-secondary';
-	                    				} elseif ($statusValue == 1) {
+	                    				} elseif ((int) $statusValue === 1) {
 	                    					$statusText = 'Activo';
 	                    					$statusClass = 'bg-success';
+	                    				} elseif ((int) $statusValue === 3) {
+	                    					$statusText = 'Bloqueado';
+	                    					$statusClass = 'bg-warning';
 	                    				} else {
 	                    					$statusText = 'Inactivo';
 	                    					$statusClass = 'bg-danger';
@@ -188,15 +191,11 @@
 			                    				<div class="row">
 			                    					
 				                    				<div class="col-1">
-				                    						
-					                    				<div class="photo-preview-3" style="background-image: url({{url('images/'.$administration->image)}});">
-					                    					
-					                    					@if($administration->image)
-
-					                    					@else
+				                    						@php $adminLogoUrl = $administration->logoPublicUrl(); @endphp
+					                    				<div class="photo-preview-3 logo-round"@if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;"@endif>
+					                    					@unless($adminLogoUrl)
 					                    						<i class="ri-account-circle-fill"></i>
-					                    					@endif
-
+					                    					@endunless
 					                    				</div>
 					                    				
 					                    				<div style="clear: both;"></div>
@@ -400,12 +399,47 @@
 			                    						</div>
 			                    					</div>
 			                    					<div class="col-md-8 mt-2 d-flex align-items-end">
-			                    						<form method="post" action="{{ route('administrations.send-panel-access', $administration) }}" class="d-inline" onsubmit="return confirm('¿Enviar correo con usuario y enlace para establecer contraseña?');">
+			                    						@php
+			                    							$panelAccessEmail = trim((string) ($administration->email ?? ''));
+			                    							$panelAccessEmailValid = $panelAccessEmail !== '' && filter_var($panelAccessEmail, FILTER_VALIDATE_EMAIL);
+			                    						@endphp
+			                    						<button type="button"
+			                    							class="btn btn-dark"
+			                    							style="border-radius: 30px;"
+			                    							@if(! $panelAccessEmailValid) disabled title="La administración no tiene un email válido" @endif
+			                    							data-bs-toggle="modal"
+			                    							data-bs-target="#partilot-send-access-modal">
+			                    							<i class="ri-mail-send-line"></i> Enviar correo de acceso al panel
+			                    						</button>
+			                    						@unless($panelAccessEmailValid)
+			                    							<small class="text-danger d-block mt-1">No se puede enviar: el email de la administración está vacío o no es válido.</small>
+			                    						@endunless
+			                    						<form method="post" action="{{ route('administrations.send-panel-access', $administration) }}" class="d-none" id="send-panel-access-form">
 			                    							@csrf
-			                    							<button type="submit" class="btn btn-dark" style="border-radius: 30px;">
-			                    								<i class="ri-mail-send-line"></i> Enviar correo de acceso al panel
-			                    							</button>
 			                    						</form>
+			                    						<div class="modal fade" id="partilot-send-access-modal" tabindex="-1" aria-hidden="true">
+			                    							<div class="modal-dialog modal-dialog-centered">
+			                    								<div class="modal-content" style="border-radius: 16px;">
+			                    									<div class="modal-header border-0">
+			                    										<h5 class="modal-title">Confirmar envío de acceso</h5>
+			                    										<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+			                    									</div>
+			                    									<div class="modal-body">
+			                    										<p class="mb-2">Se enviará el correo de acceso al panel a:</p>
+			                    										<p class="fw-bold mb-0">{{ $panelAccessEmail ?: '—' }}</p>
+			                    									</div>
+			                    									<div class="modal-footer border-0">
+			                    										<button type="button" class="btn btn-light" data-bs-dismiss="modal" style="border-radius: 30px;">Cancelar</button>
+			                    										<button type="button" class="btn btn-dark" id="btn-confirm-send-panel-access" style="border-radius: 30px;">Confirmar envío</button>
+			                    									</div>
+			                    								</div>
+			                    							</div>
+			                    						</div>
+			                    						<script>
+			                    						document.getElementById('btn-confirm-send-panel-access')?.addEventListener('click', function () {
+			                    							document.getElementById('send-panel-access-form')?.submit();
+			                    						});
+			                    						</script>
 			                    						<a href="{{ route('administrations.edit', $administration->id) }}" class="btn btn-light ms-2" style="border: 1px solid silver; border-radius: 30px;">Cambiar contraseña del panel</a>
 			                    					</div>
 			                    				</div>
@@ -889,10 +923,20 @@ document.getElementById('admin-toggle-status') && document.getElementById('admin
 			badge.textContent = data.status_text;
 			badge.className = 'badge badge-lg bg-' + data.status_class + ' mt-2';
 		} else {
-			alert('Error al cambiar el estado');
+			if (typeof window.partilotNotify === 'function') {
+				window.partilotNotify('error', 'No se pudo cambiar el estado', 'Error');
+			} else if (typeof PNotify !== 'undefined') {
+				new PNotify({ title: 'Error', text: 'No se pudo cambiar el estado', type: 'error', addclass: 'partilot-notify' });
+			}
 		}
 	})
-	.catch(function() { alert('Error al cambiar el estado'); })
+	.catch(function() {
+		if (typeof window.partilotNotify === 'function') {
+			window.partilotNotify('error', 'No se pudo cambiar el estado', 'Error');
+		} else if (typeof PNotify !== 'undefined') {
+			new PNotify({ title: 'Error', text: 'No se pudo cambiar el estado', type: 'error', addclass: 'partilot-notify' });
+		}
+	})
 	.finally(function() { btn.disabled = false; });
 });
 

@@ -85,6 +85,32 @@ class PanelLegalAcceptanceService
                 'panel_account_id' => $user->panel_account_id,
             ],
         );
+
+        // INC-006: tras aceptar condiciones (y sin contraseña provisional pendiente), activar administración Pendiente.
+        $this->activatePendingAdministrationIfReady($user);
+    }
+
+    /**
+     * Pasa a Activo una administración Pendiente cuando el primer acceso está completo.
+     */
+    public function activatePendingAdministrationIfReady(User $user): void
+    {
+        if (! $user->isAdministrationPanelAccount() || ! $user->panel_account_id) {
+            return;
+        }
+
+        if ($user->mustChangeProvisionalPassword()) {
+            return;
+        }
+
+        if (! $this->userHasAccepted($user)) {
+            return;
+        }
+
+        $administration = \App\Models\Administration::query()->find($user->panel_account_id);
+        if ($administration && $administration->isPending()) {
+            $administration->update(['status' => \App\Models\Administration::STATUS_ACTIVE]);
+        }
     }
 
     /**

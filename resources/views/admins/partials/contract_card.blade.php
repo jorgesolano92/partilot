@@ -33,7 +33,10 @@
             </a>
         @endif
         @if(!$administration->hasSignedSaasContract())
-            <form method="post" action="{{ route('administrations.send-contract', $administration) }}" class="d-inline" onsubmit="return confirm('¿Enviar o reenviar el correo con el enlace de firma del contrato SaaS?');">
+            <form method="post" action="{{ route('administrations.send-contract', $administration) }}" class="d-inline"
+                data-partilot-confirm="¿Enviar o reenviar el correo con el enlace de firma del contrato SaaS?"
+                data-partilot-confirm-title="Confirmar envío del contrato"
+                data-partilot-confirm-ok="Enviar">
                 @csrf
                 <button type="submit" class="btn btn-dark" style="border-radius: 30px;">
                     <i class="ri-mail-send-line"></i> {{ $administration->contract_sent_at ? 'Reenviar contrato' : 'Enviar contrato' }}

@@ -53,6 +53,13 @@ class AdministratorController extends Controller
         $request->merge(['account' => $accountValue ?? '']);
 
         // Validar formato básico primero
+        $adminNumberRaw = $request->input('admin_number');
+        if ($adminNumberRaw !== null && $adminNumberRaw !== '') {
+            $request->merge(['admin_number' => preg_replace('/\D/', '', (string) $adminNumberRaw)]);
+        } else {
+            $request->merge(['admin_number' => null]);
+        }
+
         $request->validate([
             'web' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
@@ -76,9 +83,13 @@ class AdministratorController extends Controller
                     }
                 },
             ],
-            'status' => 'nullable|in:-1,0,1',
+            'status' => 'nullable|in:-1,0,1,3',
             'panel_password' => 'nullable|string|min:8|confirmed',
             ...SecureImageUpload::rules('image'),
+        ], [
+            'admin_number.regex' => 'Se requieren exactamente 9 dígitos numéricos (ejemplo: 260000001). No se admiten letras, espacios ni símbolos.',
+            'receiving.regex' => 'El número de receptor debe tener exactamente 5 dígitos.',
+            'postal_code.regex' => 'El código postal debe tener exactamente 5 dígitos.',
         ]);
 
         // Validar IBAN completo solo si se proporciona cuenta
@@ -135,8 +146,17 @@ class AdministratorController extends Controller
             $data['image'] = SecureImageUpload::store($request->file('image'), 'images');
         }
 
+        $previousStatus = $administration->status;
         $previousAccount = $administration->account;
         $administration->update($data);
+
+        if ((int) ($previousStatus ?? -1) !== (int) ($data['status'] ?? -1)
+            || (($previousStatus === null) !== (($data['status'] ?? null) === null))) {
+            if (! $administration->fresh()->isActive()) {
+                app(\App\Services\AdministrationSessionInvalidationService::class)
+                    ->invalidateForAdministration($administration);
+            }
+        }
 
         app(AuditLogService::class)->logAdministrationFieldChange(
             $administration,
@@ -184,10 +204,19 @@ class AdministratorController extends Controller
 
     /**
      * Envío manual (superadmin): correo con usuario de panel y enlace mágico para establecer contraseña.
+     * Destinatario: correo de la administración (INC-004), no el del gestor personal.
      */
     public function sendPanelAccessEmail(Administration $administration)
     {
         $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
+
+        $recipientEmail = trim((string) ($administration->email ?? ''));
+        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            return back()->with(
+                'error',
+                'No se puede enviar el correo de acceso: el correo electrónico de la administración está vacío o no es válido. Actualice el campo en la ficha antes de reintentar.'
+            );
+        }
 
         $panelUser = User::query()
             ->where('panel_account_type', 'administration')
@@ -196,7 +225,7 @@ class AdministratorController extends Controller
 
         try {
             app(CommunicationEmailService::class)->sendAndLog(
-                recipientEmail: (string) $panelUser->email,
+                recipientEmail: $recipientEmail,
                 recipientRole: 'gestor_administracion',
                 recipientUser: $panelUser,
                 messageType: 'administration_welcome',
@@ -208,10 +237,10 @@ class AdministratorController extends Controller
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando acceso panel administración: '.$e->getMessage());
 
-            return back()->with('error', 'No se pudo enviar el correo. Inténtelo más tarde o revise la configuración de correo.');
+            return back()->with('error', 'No se pudo tramitar el envío del correo. Inténtelo más tarde o revise la configuración de correo.');
         }
 
-        return back()->with('success', 'Se ha enviado el correo con el usuario de acceso y el enlace para establecer la contraseña.');
+        return back()->with('success', 'Se ha tramitado el envío del correo con el usuario de acceso y el enlace para establecer la contraseña a '.$recipientEmail.'.');
     }
 
     /**
@@ -599,44 +628,35 @@ class AdministratorController extends Controller
     }
 
     /**
-     * Cambiar estado (Activo/Inactivo/Pendiente) de la administración vía AJAX.
+     * Cambiar estado (Pendiente/Activo/Bloqueado/Inactivo) de la administración vía AJAX.
      */
     public function toggleStatus(Request $request, Administration $administration)
     {
-        // Verificar permisos
         $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
 
-        // Determinar el nuevo estado según el estado actual
         $currentStatus = $administration->status;
 
-        // Lógica de toggle: null/-1 (Pendiente) -> 1 (Activo), 1 (Activo) -> 0 (Inactivo), 0 (Inactivo) -> 1 (Activo)
+        // Ciclo: Pendiente -> Activo -> Bloqueado -> Inactivo -> Activo (INC-006).
         $newStatus = match ($currentStatus) {
-            null, -1 => 1,  // Pendiente -> Activo
-            1 => 0,         // Activo -> Inactivo
-            0 => 1,         // Inactivo -> Activo
-            default => 1
+            null, -1 => Administration::STATUS_ACTIVE,
+            Administration::STATUS_ACTIVE => Administration::STATUS_BLOCKED,
+            Administration::STATUS_BLOCKED => Administration::STATUS_INACTIVE,
+            Administration::STATUS_INACTIVE => Administration::STATUS_ACTIVE,
+            default => Administration::STATUS_ACTIVE,
         };
 
         $administration->update(['status' => $newStatus]);
 
-        // Obtener texto y clase del nuevo estado
-        $statusValue = $administration->fresh()->status;
-        if ($statusValue === null || $statusValue === -1) {
-            $statusText = 'Pendiente';
-            $statusClass = 'secondary';
-        } elseif ($statusValue == 1) {
-            $statusText = 'Activo';
-            $statusClass = 'success';
-        } else {
-            $statusText = 'Inactivo';
-            $statusClass = 'danger';
+        $fresh = $administration->fresh();
+        if (! $fresh->isActive()) {
+            $this->invalidatePanelSessionsForAdministration($fresh);
         }
 
         return response()->json([
             'success' => true,
-            'status' => $newStatus,
-            'status_text' => $statusText,
-            'status_class' => $statusClass,
+            'status' => $fresh->status,
+            'status_text' => $fresh->status_text,
+            'status_class' => $fresh->status_class,
         ]);
     }
 
@@ -694,5 +714,15 @@ class AdministratorController extends Controller
         ])->save();
 
         return back()->with('success', 'Modalidad de cobro de la administración actualizada.');
+    }
+
+
+    /**
+     * INC-006: invalidar sesiones del panel cuando cambia el estado de la administración.
+     */
+    private function invalidatePanelSessionsForAdministration(Administration $administration): void
+    {
+        app(\App\Services\AdministrationSessionInvalidationService::class)
+            ->invalidateForAdministration($administration);
     }
 }

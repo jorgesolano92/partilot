@@ -99,9 +99,14 @@
                     			<div class="row">
                 					<div class="col-4">
                 						
-	                    				@php $adminImg = data_get(session('selected_administration'), 'image'); @endphp
-	                    				<div class="photo-preview-3 logo-round" @if($adminImg) style="background-image: url('{{ asset('images/' . $adminImg) }}'); background-size: cover;" @endif>
-	                    					@if(!$adminImg)
+	                    				@php
+	                    					$adminImg = data_get(session('selected_administration'), 'image');
+	                    					$adminLogoUrl = ($adminImg && is_file(public_path('images/'.$adminImg)))
+	                    						? asset('images/'.$adminImg)
+	                    						: null;
+	                    				@endphp
+	                    				<div class="photo-preview-3 logo-round" @if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover;" @endif>
+	                    					@if(!$adminLogoUrl)
 	                    						<i class="ri-account-circle-fill"></i>
 	                    					@endif
 	                    				</div>
@@ -404,7 +409,7 @@
 	                    				<div class="col-4">
 	                    					<div class="form-group mt-2 mb-3">
 	                    						<label class="label-control">DNI / NIE</label>
-	                    						<input class="form-control" type="text" name="signer_nif" value="{{ old('signer_nif', session('entity_information.signer_nif')) }}" required style="border-radius: 30px;">
+	                    						<input class="form-control" type="text" name="signer_nif" id="entity-signer-nif" value="{{ old('signer_nif', session('entity_information.signer_nif')) }}" required style="border-radius: 30px;">
 	                    						@error('signer_nif')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
 	                    					</div>
 	                    				</div>
@@ -586,16 +591,16 @@
         if (provinceSelect) {
             fillCities(provinceSelect.value);
             if (window.TomSelect) {
-                provinceTs = new TomSelect(provinceSelect, {
+                provinceTs = new TomSelect(provinceSelect, window.partilotTomSelectStartsWithOptions({
                     create: false,
                     allowEmptyOption: true,
                     placeholder: 'Seleccionar provincia',
-                });
-                cityTs = new TomSelect(citySelect, {
+                }));
+                cityTs = new TomSelect(citySelect, window.partilotTomSelectStartsWithOptions({
                     create: false,
                     allowEmptyOption: true,
                     placeholder: 'Seleccionar localidad',
-                });
+                }));
                 provinceTs.on('change', function(value) {
                     fillCities(value || '');
                 });
@@ -675,6 +680,10 @@
 
 	    initSpanishDocumentValidation('entity-nif-cif', {
 	        forEntity: true,
+	        showMessage: true
+	    });
+	    initSpanishDocumentValidation('entity-signer-nif', {
+	        forEntity: false,
 	        showMessage: true
 	    });
 	    initEmailValidation('entity-email', {

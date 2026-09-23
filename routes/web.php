@@ -188,7 +188,7 @@ Route::get('/design/external/thank-you', [\App\Http\Controllers\DesignController
 Route::get('/design/external/file/{id}/download', [\App\Http\Controllers\DesignController::class, 'externalDownloadFileSession'])->name('design.external.downloadFile');
 
 // Rutas protegidas por autenticación (cuenta panel entidad: solo lectura vía entity_panel.readonly)
-Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_contract', 'panel_legal_accepted', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
+Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_contract', 'panel_legal_accepted', 'panel_account_active', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
 
     Route::get('/contrato-administracion/pendiente', [AdministrationContractController::class, 'pending'])->name('administration-contract.pending');
     Route::post('/contrato-administracion/reenviar', [AdministrationContractController::class, 'resend'])->name('administration-contract.resend');
@@ -325,7 +325,8 @@ Route::group(['prefix' => 'entities'], function() {
     Route::post('/invite-manager', [EntityController::class, 'invite_manager'])->name('entities.invite-manager');
     Route::post('/register-manager/{id}', [EntityController::class, 'register_manager'])->name('entities.register-manager');
     Route::post('/create-pending-entity', [EntityController::class, 'create_pending_entity'])->name('entities.create-pending-entity');
-    
+    Route::post('/skip-manager-invitation', [EntityController::class, 'skip_manager_invitation'])->name('entities.skip-manager-invitation');
+
     // Ruta temporal para crear gestor de prueba
     Route::get('/create-test-manager', [EntityController::class, 'create_test_manager'])->name('entities.create-test-manager');
 

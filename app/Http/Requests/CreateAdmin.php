@@ -70,4 +70,25 @@ class CreateAdmin extends FormRequest
             ],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'admin_number.regex' => 'Se requieren exactamente 9 dígitos numéricos (ejemplo: 260000001). No se admiten letras, espacios ni símbolos.',
+            'receiving.regex' => 'El número de receptor debe tener exactamente 5 dígitos.',
+            'postal_code.regex' => 'El código postal debe tener exactamente 5 dígitos.',
+        ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('admin_number')) {
+            $raw = (string) $this->input('admin_number');
+            // Conservar ceros iniciales: solo eliminar no-dígitos, sin convertir a int.
+            $digits = preg_replace('/\D/', '', $raw);
+            $this->merge([
+                'admin_number' => $digits === '' ? null : $digits,
+            ]);
+        }
+    }
 }

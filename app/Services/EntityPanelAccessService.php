@@ -23,13 +23,14 @@ class EntityPanelAccessService
             throw new \InvalidArgumentException('La entidad debe tener un email de acceso al panel válido.');
         }
 
-        if (ContactEmailRegistry::isTaken($panelEmail)) {
-            throw new \InvalidArgumentException('Este correo ya está en uso en otra administración, entidad o cuenta de usuario.');
+        // INC-011: solo bloquear si ya es acceso de panel / otra entidad o administración.
+        if (ContactEmailRegistry::isPanelAuthTaken($panelEmail)) {
+            throw new \InvalidArgumentException('Este correo ya está en uso como acceso al panel de otra administración o entidad.');
         }
 
         $entityData = array_merge($entityInformation, [
             'administration_id' => is_object($administration) ? $administration->id : ($administration['id'] ?? null),
-            'status' => 0,
+            'status' => null,
         ]);
         unset($entityData['panel_password'], $entityData['remove_image']);
 
@@ -48,11 +49,82 @@ class EntityPanelAccessService
         return $entity;
     }
 
+
+    /**
+     * Actualiza una entidad ya creada en el asistente (mismo id de sesión).
+     */
+    public function updateWizardEntity(Entity $entity, $administration, array $entityInformation): Entity
+    {
+        $panelEmail = trim((string) ($entityInformation['email'] ?? ''));
+        if ($panelEmail === '' || ! filter_var($panelEmail, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('La entidad debe tener un email de acceso al panel válido.');
+        }
+
+        $panelUser = $this->findPanelUser($entity);
+        if (ContactEmailRegistry::isPanelAuthTaken(
+            $panelEmail,
+            $panelUser?->id,
+            null,
+            $entity->id
+        )) {
+            throw new \InvalidArgumentException('Este correo ya está en uso como acceso al panel de otra administración o entidad.');
+        }
+
+        $entityData = array_merge($entityInformation, [
+            'administration_id' => is_object($administration) ? $administration->id : ($administration['id'] ?? null),
+        ]);
+        unset($entityData['panel_password'], $entityData['remove_image'], $entityData['id'], $entityData['status']);
+
+        $allowed = (new Entity)->getFillable();
+        $entityData = array_intersect_key($entityData, array_flip($allowed));
+
+        if (($entityData['client_type'] ?? null) === Entity::CLIENT_TYPE_NATURAL_ORGANIZER) {
+            $entityData['nif_cif'] = null;
+            $entityData['signer_is_primary_manager'] = true;
+        }
+
+        $entity->update($entityData);
+        $entity = $entity->fresh();
+
+        if (! $this->findPanelUser($entity)) {
+            $this->provisionPanelAccess($entity, $entityInformation, sendWelcome: false);
+        } elseif ($panelUser && strcasecmp((string) $panelUser->email, $panelEmail) !== 0) {
+            $panelUser->update([
+                'email' => $panelEmail,
+                'name' => trim((string) ($entityInformation['name'] ?? '')) ?: $panelUser->name,
+                'phone' => $entityInformation['phone'] ?? $panelUser->phone,
+                'nif_cif' => $entityInformation['nif_cif'] ?? $panelUser->nif_cif,
+            ]);
+        }
+
+        return $entity->fresh();
+    }
+
     public function createPanelUser(Entity $entity, array $entityInformation): array
     {
         $email = trim((string) ($entityInformation['email'] ?? ''));
         if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new \InvalidArgumentException('La entidad debe tener un email de acceso al panel válido.');
+        }
+
+        $existing = User::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [ContactEmailRegistry::normalize($email)])
+            ->first();
+
+        if ($existing) {
+            if ($existing->isPanelAccount()) {
+                if ($existing->panel_account_type === 'entity'
+                    && (int) $existing->panel_account_id === (int) $entity->id) {
+                    return [$existing, null];
+                }
+
+                throw new \InvalidArgumentException('Este correo ya está en uso como cuenta de acceso al panel.');
+            }
+
+            // Email de usuario ordinario: no convertir automáticamente (INC-011).
+            Log::info('Panel entidad '.$entity->id.': email ya pertenece al usuario '.$existing->id.'; se aplaza la cuenta panel dedicada.');
+
+            return [null, null];
         }
 
         $plainPassword = $this->provisionalPasswords->generate();
@@ -93,6 +165,64 @@ class EntityPanelAccessService
             ->first();
     }
 
+
+    /**
+     * Asegura cuenta panel: crea una nueva o vincula al gestor principal aceptado si comparte email.
+     */
+    public function ensurePanelAccess(Entity $entity): ?User
+    {
+        $panelUser = $this->findPanelUser($entity);
+        if ($panelUser) {
+            return $panelUser;
+        }
+
+        $email = ContactEmailRegistry::normalize((string) $entity->email);
+        if ($email === '') {
+            return null;
+        }
+
+        $existing = User::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
+
+        if ($existing && ! $existing->isPanelAccount()) {
+            $isPrimaryManager = Manager::query()
+                ->where('entity_id', $entity->id)
+                ->where('user_id', $existing->id)
+                ->where('is_primary', true)
+                ->where('status', 1)
+                ->exists();
+
+            if ($isPrimaryManager) {
+                $existing->update([
+                    'name' => trim((string) $entity->name) ?: $existing->name,
+                    'role' => User::ROLE_ENTITY,
+                    'panel_account_type' => 'entity',
+                    'panel_account_id' => $entity->id,
+                    'phone' => $entity->phone ?? $existing->phone,
+                    'nif_cif' => $entity->nif_cif ?? $existing->nif_cif,
+                ]);
+
+                return $existing->fresh();
+            }
+
+            return null;
+        }
+
+        if ($existing && $existing->isPanelAccount()) {
+            return null;
+        }
+
+        [$panelUser] = $this->createPanelUser($entity, [
+            'email' => $entity->email,
+            'name' => $entity->name,
+            'phone' => $entity->phone,
+            'nif_cif' => $entity->nif_cif,
+        ]);
+
+        return $panelUser;
+    }
+
     public function hasWelcomeBeenSent(Entity $entity): bool
     {
         return EmailCommunicationLog::query()
@@ -115,7 +245,7 @@ class EntityPanelAccessService
      */
     public function sendPanelAccessEmail(Entity $entity, bool $force = false): bool
     {
-        $panelUser = $this->findPanelUser($entity);
+        $panelUser = $this->ensurePanelAccess($entity);
         if (! $panelUser) {
             Log::warning('No hay cuenta panel para entidad '.$entity->id.'; no se envía EntityWelcomeMail.');
 
@@ -160,10 +290,10 @@ class EntityPanelAccessService
         }
     }
 
-    public function provisionPanelAccess(Entity $entity, array $entityInformation, bool $sendWelcome = false): User
+    public function provisionPanelAccess(Entity $entity, array $entityInformation, bool $sendWelcome = false): ?User
     {
         [$panelUser, $plainPassword] = $this->createPanelUser($entity, $entityInformation);
-        if ($sendWelcome) {
+        if ($panelUser && $sendWelcome && $plainPassword) {
             $this->sendWelcomeEmail($entity, $panelUser, $plainPassword);
         }
 

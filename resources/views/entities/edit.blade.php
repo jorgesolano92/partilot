@@ -466,16 +466,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (provinceSelect) {
         fillCities(provinceSelect.value);
         if (window.TomSelect) {
-            provinceTs = new TomSelect(provinceSelect, {
+            provinceTs = new TomSelect(provinceSelect, window.partilotTomSelectStartsWithOptions({
                 create: false,
                 allowEmptyOption: true,
                 placeholder: 'Seleccionar provincia',
-            });
-            cityTs = new TomSelect(citySelect, {
+            }));
+            cityTs = new TomSelect(citySelect, window.partilotTomSelectStartsWithOptions({
                 create: false,
                 allowEmptyOption: true,
                 placeholder: 'Seleccionar localidad',
-            });
+            }));
             provinceTs.on('change', function(value) {
                 fillCities(value || '');
             });

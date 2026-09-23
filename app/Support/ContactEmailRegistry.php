@@ -18,15 +18,34 @@ class ContactEmailRegistry
     }
 
     /**
+     * Correo ya usado como autenticación de panel (cuenta panel, admin o entidad).
+     * No considera usuarios ordinarios (gestores/vendedores) ni contactos sin login.
+     *
      * @param  int|null  $excludeUserId  Usuario (p. ej. cuenta panel) a excluir al editar
      * @param  int|null  $excludeAdministrationId  Fila de administración a excluir
      * @param  int|null  $excludeEntityId  Fila de entidad a excluir
+     */
+    public static function isPanelAuthTaken(
+        ?string $email,
+        ?int $excludeUserId = null,
+        ?int $excludeAdministrationId = null,
+        ?int $excludeEntityId = null
+    ): bool {
+        return self::isTaken($email, $excludeUserId, $excludeAdministrationId, $excludeEntityId, false);
+    }
+
+    /**
+     * @param  int|null  $excludeUserId  Usuario (p. ej. cuenta panel) a excluir al editar
+     * @param  int|null  $excludeAdministrationId  Fila de administración a excluir
+     * @param  int|null  $excludeEntityId  Fila de entidad a excluir
+     * @param  bool  $includeRegularUsers  Si false, solo cuentas de acceso al panel (INC-011)
      */
     public static function isTaken(
         ?string $email,
         ?int $excludeUserId = null,
         ?int $excludeAdministrationId = null,
-        ?int $excludeEntityId = null
+        ?int $excludeEntityId = null,
+        bool $includeRegularUsers = true
     ): bool {
         $norm = self::normalize($email);
         if ($norm === '' || ! filter_var($norm, FILTER_VALIDATE_EMAIL)) {
@@ -36,6 +55,10 @@ class ContactEmailRegistry
         $qUser = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [$norm]);
         if ($excludeUserId !== null) {
             $qUser->where('id', '!=', $excludeUserId);
+        }
+        if (! $includeRegularUsers) {
+            $qUser->whereNotNull('panel_account_type')
+                ->where('panel_account_type', '!=', '');
         }
         if ($qUser->exists()) {
             return true;

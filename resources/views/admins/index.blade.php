@@ -89,9 +89,12 @@
                                             if ($statusValue === null || $statusValue === -1) {
                                                 $statusText = 'Pendiente';
                                                 $statusClass = 'bg-secondary';
-                                            } elseif ($statusValue == 1) {
+                                            } elseif ((int) $statusValue === 1) {
                                                 $statusText = 'Activo';
                                                 $statusClass = 'bg-success';
+                                            } elseif ((int) $statusValue === 3) {
+                                                $statusText = 'Bloqueado';
+                                                $statusClass = 'bg-warning';
                                             } else {
                                                 $statusText = 'Inactivo';
                                                 $statusClass = 'bg-danger';

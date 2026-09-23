@@ -175,8 +175,10 @@
 					                                        <img src="{{url('assets/form-groups/admin/2.svg')}}" alt="">
 					                                    </div>
 
-					                                    <input class="form-control" type="text" name="admin_number" value="{{ old('admin_number') }}" placeholder="Nº Administración" maxlength="9" pattern="[0-9]{9}" inputmode="numeric" style="border-radius: 0 30px 30px 0;">
+					                                    <input class="form-control" type="text" name="admin_number" value="{{ old('admin_number') }}" placeholder="260000001" maxlength="9" pattern="[0-9]{9}" inputmode="numeric" title="Exactamente 9 dígitos numéricos" style="border-radius: 0 30px 30px 0;">
 					                                </div>
+					                                <small class="form-text text-muted d-block mt-1">Introduce el número identificativo oficial de nueve dígitos (ejemplo: 260000001). Solo números; se conservan los ceros a la izquierda.</small>
+					                                @error('admin_number')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
 				                    			</div>
 	                    					</div>
                     					<div class="col-5">
@@ -603,16 +605,16 @@
     if (provinceSelect && citySelect) {
         fillCitiesByProvince(provinceSelect.value, citySelect.value || oldCity || '');
         if (window.TomSelect) {
-            provinceTs = new TomSelect(provinceSelect, {
+            provinceTs = new TomSelect(provinceSelect, (window.partilotTomSelectStartsWithOptions || function (o) { return o; })({
                 create: false,
                 allowEmptyOption: true,
                 placeholder: 'Seleccionar provincia',
-            });
-            cityTs = new TomSelect(citySelect, {
+            }));
+            cityTs = new TomSelect(citySelect, (window.partilotTomSelectStartsWithOptions || function (o) { return o; })({
                 create: false,
                 allowEmptyOption: true,
                 placeholder: 'Seleccionar localidad',
-            });
+            }));
             provinceTs.on('change', function(value) {
                 fillCitiesByProvince(value || '', '');
                 saveFormData();

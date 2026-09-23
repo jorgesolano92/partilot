@@ -453,7 +453,10 @@
 			                    							<br><small class="text-muted">Invitación enviada: {{ $primaryPendingInvitation->confirmation_sent_at->format('d/m/Y H:i') }}</small>
 			                    						@endif
 			                    						@if(!empty($canResendManagerInvitations))
-			                    							<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2" onsubmit="return confirm('¿Reenviar la invitación a {{ $primaryPendingInvitation->email }}?');">
+			                    							<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2"
+			                    								data-partilot-confirm="¿Reenviar la invitación a {{ $primaryPendingInvitation->email }}?"
+			                    								data-partilot-confirm-title="Reenviar invitación"
+			                    								data-partilot-confirm-ok="Reenviar">
 			                    								@csrf
 			                    								<input type="hidden" name="entity_id" value="{{ $entity->id }}">
 			                    								<input type="hidden" name="pending_invitation_id" value="{{ $primaryPendingInvitation->id }}">
@@ -725,7 +728,10 @@
 							                                		<br><small class="text-muted">{{ $pendingInvite->confirmation_sent_at->format('d/m/Y H:i') }}</small>
 							                                	@endif
 							                                	@if(!empty($canResendManagerInvitations))
-							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2" onsubmit="return confirm('¿Reenviar la invitación a {{ $pendingInvite->email }}?');">
+							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2"
+							                                			data-partilot-confirm="¿Reenviar la invitación a {{ $pendingInvite->email }}?"
+							                                			data-partilot-confirm-title="Reenviar invitación"
+							                                			data-partilot-confirm-ok="Reenviar">
 							                                			@csrf
 							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
 							                                			<input type="hidden" name="pending_invitation_id" value="{{ $pendingInvite->id }}">
@@ -808,7 +814,10 @@
 							                                </td>
 							                                <td>
 							                                	@if($managerPending && !empty($canResendManagerInvitations))
-							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="d-inline-block mb-1" onsubmit="return confirm('¿Reenviar la invitación a {{ $manager->user->email ?? 'este gestor' }}?');">
+							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="d-inline-block mb-1"
+							                                			data-partilot-confirm="¿Reenviar la invitación a {{ $manager->user->email ?? 'este gestor' }}?"
+							                                			data-partilot-confirm-title="Reenviar invitación"
+							                                			data-partilot-confirm-ok="Reenviar">
 							                                			@csrf
 							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
 							                                			<input type="hidden" name="manager_id" value="{{ $manager->id }}">
@@ -828,7 +837,10 @@
 							                                				? '¿Asignar a este gestor como principal? El actual principal pasará a ser gestor secundario.' 
 							                                				: '¿Asignar a este gestor como principal?';
 							                                		@endphp
-							                                		<form action="{{ route('entities.set-primary-manager') }}" method="POST" class="d-inline" onsubmit="return confirm('{{ $confirmMessage }}');">
+							                                		<form action="{{ route('entities.set-primary-manager') }}" method="POST" class="d-inline"
+							                                			data-partilot-confirm="{{ $confirmMessage }}"
+							                                			data-partilot-confirm-title="Cambiar gestor principal"
+							                                			data-partilot-confirm-ok="Confirmar">
 							                                			@csrf
 							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
 							                                			<input type="hidden" name="new_primary_manager_id" value="{{ $manager->id }}">
@@ -1593,25 +1605,40 @@ function validatePrimaryChange(event, managerId) {
     const form = document.getElementById('change-primary-form-' + managerId);
     const select = form.querySelector('.primary-manager-select');
     const selectedValue = select.value;
-    
+
     if (!selectedValue || selectedValue === '') {
         event.preventDefault();
-        alert('Debe seleccionar un gestor para asignar como principal. No puede quedar la entidad sin gestor principal.');
+        if (typeof window.partilotNotify === 'function') {
+            window.partilotNotify('warning', 'Debe seleccionar un gestor para asignar como principal. No puede quedar la entidad sin gestor principal.');
+        }
         return false;
     }
-    
+
+    if (form.getAttribute('data-partilot-confirmed') === '1') {
+        form.removeAttribute('data-partilot-confirmed');
+        return true;
+    }
+
+    event.preventDefault();
     const selectedText = select.options[select.selectedIndex].text;
-    const confirmMessage = '¿Está seguro de cambiar el gestor principal?\n\n' +
-                          'El gestor actual pasará a ser gestor secundario y podrá tener permisos restringidos.\n' +
-                          'El nuevo gestor principal será: ' + selectedText + '\n\n' +
+    const confirmMessage = '¿Está seguro de cambiar el gestor principal?<br><br>' +
+                          'El gestor actual pasará a ser gestor secundario y podrá tener permisos restringidos.<br>' +
+                          'El nuevo gestor principal será: <strong>' + selectedText + '</strong><br><br>' +
                           'Esta acción no se puede deshacer automáticamente.';
-    
-    if (!confirm(confirmMessage)) {
-        event.preventDefault();
-        return false;
+
+    if (typeof window.partilotConfirm === 'function') {
+        window.partilotConfirm({
+            title: 'Cambiar gestor principal',
+            message: confirmMessage,
+            confirmText: 'Confirmar'
+        }).then(function (ok) {
+            if (!ok) return;
+            form.setAttribute('data-partilot-confirmed', '1');
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.submit();
+        });
     }
-    
-    return true;
+    return false;
 }
 
 // Habilitar/deshabilitar botón de cambiar según selección
@@ -1638,43 +1665,36 @@ $(document).on('click', '.delete-manager', function(e) {
     const managerName = managerRow.find('td').eq(1).text().trim() || 'Gestor';
     const isPrimary = managerRow.find('.badge').text().includes('Principal');
     
-    let confirmMessage = '¿Está seguro de eliminar este gestor?\n\n';
-    confirmMessage += 'Gestor: ' + managerName + '\n\n';
+    let confirmMessage = '¿Está seguro de eliminar este gestor?<br><br>';
+    confirmMessage += 'Gestor: <strong>' + managerName + '</strong><br><br>';
     
     if (isPrimary) {
-        confirmMessage += '⚠️ ADVERTENCIA: Este gestor es el principal.\n';
-        confirmMessage += 'Si es el único gestor disponible, no se podrá eliminar.\n\n';
+        confirmMessage += '<strong>ADVERTENCIA:</strong> Este gestor es el principal.<br>';
+        confirmMessage += 'Si es el único gestor disponible, no se podrá eliminar.<br><br>';
     }
     
     confirmMessage += 'Esta acción eliminará la relación del gestor con la entidad, pero NO eliminará el usuario asociado.';
-    
-    if (!confirm(confirmMessage)) {
-        return false;
+
+    function doDelete() {
+        const deleteUrl = '{{ url("entities/destroy/manager") }}/' + entityId + '/' + managerId;
+        const form = $('<form>', { 'method': 'POST', 'action': deleteUrl });
+        form.append($('<input>', { 'type': 'hidden', 'name': '_token', 'value': '{{ csrf_token() }}' }));
+        form.append($('<input>', { 'type': 'hidden', 'name': '_method', 'value': 'DELETE' }));
+        $('body').append(form);
+        form.submit();
     }
-    
-    // Construir URL usando la ruta de Laravel
-    const deleteUrl = '{{ url("entities/destroy/manager") }}/' + entityId + '/' + managerId;
-    
-    // Crear formulario para enviar DELETE
-    const form = $('<form>', {
-        'method': 'POST',
-        'action': deleteUrl
-    });
-    
-    form.append($('<input>', {
-        'type': 'hidden',
-        'name': '_token',
-        'value': '{{ csrf_token() }}'
-    }));
-    
-    form.append($('<input>', {
-        'type': 'hidden',
-        'name': '_method',
-        'value': 'DELETE'
-    }));
-    
-    $('body').append(form);
-    form.submit();
+
+    if (typeof window.partilotConfirm === 'function') {
+        window.partilotConfirm({
+            title: 'Eliminar gestor',
+            message: confirmMessage,
+            confirmText: 'Eliminar'
+        }).then(function (ok) {
+            if (ok) doDelete();
+        });
+    } else {
+        doDelete();
+    }
 });
 
 </script>

@@ -94,9 +94,14 @@
                     			
                     			<div class="row">
                 					<div class="col-4">
-                						@php $entityImg = data_get(session('entity_information'), 'image'); @endphp
-	                    				<div class="photo-preview-3" @if($entityImg) style="background-image: url('{{ asset('uploads/' . $entityImg) }}'); background-size: cover; background-position: center;" @endif>
-	                    					@if(!$entityImg)
+                						@php
+                							$adminImg = data_get(session('selected_administration'), 'image');
+                							$adminLogoUrl = ($adminImg && is_file(public_path('images/'.$adminImg)))
+                								? asset('images/'.$adminImg)
+                								: null;
+                						@endphp
+	                    				<div class="photo-preview-3 logo-round" @if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;" @endif>
+	                    					@if(!$adminLogoUrl)
 	                    						<i class="ri-account-circle-fill"></i>
 	                    					@endif
 	                    				</div>
@@ -184,7 +189,7 @@
                     						
                     						<div class="mt-4 text-center">
 
-                    							<div class="" id="manager-buttons">
+                    						<div class="" id="manager-buttons">
 
 	                    							<button class="btn btn-light btn-xl text-center m-2 bs" id="invite-manager" style="border: 1px solid #f0f0f0; padding: 16px; width: 150px; border-radius: 16px;">
 	                    								<img class="mt-2" src="{{url('assets/invite.svg')}}" alt="">
@@ -197,6 +202,14 @@
 	                    							</button>
 
                     							</div>
+
+                    							<form action="{{ route('entities.skip-manager-invitation') }}" method="POST" class="mt-3" id="skip-manager-form">
+                    								@csrf
+                    								<button type="submit" class="btn btn-outline-secondary btn-md" style="border-radius: 30px; padding: 8px 24px;">
+                    									Guardar entidad y omitir invitación
+                    								</button>
+                    								<small class="d-block text-muted mt-1">La entidad quedará en estado Pendiente. Podrá invitar al gestor más tarde desde su ficha.</small>
+                    							</form>
 
                     							<div class="d-none" id="invite-form">
 
@@ -336,9 +349,10 @@
                     						<!-- Formularios ocultos para manejar las invitaciones -->
                     						<form id="invite-manager-form" action="{{url('entities/invite-manager')}}" method="POST" style="display: none;">
                     							@csrf()
-                    							<input type="hidden" name="entity_id" id="invite-entity-id-input" value="{{ data_get(session('entity_information'), 'id', '') }}">
-                    							<input type="hidden" name="user_id" id="user-id-input">
-                    							<input type="hidden" name="invite_email" id="invite-email-input">
+                    							{{-- En el alta, la entidad ya está en sesión (wizard); no enviar entity_id vacío. --}}
+                    							<input type="hidden" name="user_id" id="user-id-input" value="">
+                    							<input type="hidden" name="pending_invite_email" id="pending-invite-email-for-invite" value="">
+                    							<input type="hidden" name="invite_email" id="invite-email-input" value="">
                     							<input type="hidden" name="permission_sellers" id="invite-permission-sellers" value="1">
                     							<input type="hidden" name="permission_design" id="invite-permission-design" value="1">
                     							<input type="hidden" name="permission_statistics" id="invite-permission-statistics" value="1">
@@ -644,30 +658,40 @@ $('#invite-button').click(function (e) {
 			_token: '{{csrf_token()}}'
 		},
 		success: function(response) {
+			if (response.is_panel_account) {
+				alert(response.message || 'Ese correo corresponde a una cuenta de acceso al panel y no puede usarse como gestor.');
+				return;
+			}
+
 			$('#invite-form').addClass('d-none');
 			$('#accept-invite').removeClass('d-none');
 
-			if (response.exists) {
-				// Hay coincidencia
+			if (response.exists && response.user_id) {
+				// Coincidencia con usuario real invitable (INC-013 / INC-015)
 				$('#coincidence').removeClass('d-none');
 				$('#no-coincidence').addClass('d-none');
 				$('#coincidence-email').text(email);
-				
-				// Guardar datos para el formulario
-				                    $('#user-id-input').val(response.user_id);
+				$('#user-id-input').val(response.user_id);
 				$('#invite-email-input').val(email);
+				$('#pending-invite-email-for-invite').val('');
+				$('#pending-invite-email-input').val('');
 			} else {
-				// No hay coincidencia
+				// Sin usuario registrado: invitación pendiente
 				$('#coincidence').addClass('d-none');
 				$('#no-coincidence').removeClass('d-none');
 				$('#no-coincidence-email').text(email);
-				
-				// Guardar email para el formulario de entidad pendiente
+				$('#user-id-input').val('');
+				$('#invite-email-input').val(email);
+				$('#pending-invite-email-for-invite').val(email);
 				$('#pending-invite-email-input').val(email);
 			}
 		},
-		error: function() {
-			alert('Error al verificar el email. Por favor, intente nuevamente.');
+		error: function(xhr) {
+			var msg = 'Error al verificar el email. Por favor, intente nuevamente.';
+			if (xhr.responseJSON && xhr.responseJSON.message) {
+				msg = xhr.responseJSON.message;
+			}
+			alert(msg);
 		},
 		complete: function() {
 			$('#invite-button').prop('disabled', false).text('Invitar');
@@ -722,15 +746,22 @@ $('#register-manager').click(function (e) {
 $('#accept-invite-btn').click(function (e) {
 	e.preventDefault();
 	syncInvitePermissions();
-	
-	// Determinar qué formulario enviar basado en si hay coincidencia o no
-	if ($('#coincidence').is(':visible')) {
-		// Hay coincidencia - enviar formulario de invitación
+
+	var userId = $('#user-id-input').val();
+	if (userId) {
+		$('#pending-invite-email-for-invite').val('');
 		$('#invite-manager-form').submit();
-	} else {
-		// No hay coincidencia - enviar formulario de entidad pendiente
-		$('#create-pending-entity-form').submit();
+		return;
 	}
+
+	var pendingEmail = $('#pending-invite-email-input').val() || $('#invite-email-input').val();
+	if (!pendingEmail) {
+		alert('Indique un email válido para continuar la invitación.');
+		return;
+	}
+
+	$('#pending-invite-email-input').val(pendingEmail);
+	$('#create-pending-entity-form').submit();
 });
 
 // Inicializar validación de documento español
