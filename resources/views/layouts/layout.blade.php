@@ -1480,21 +1480,33 @@
                                             }
                                         }
                                     @endphp
-                                    @php $topbarContextLabel = Auth::user()?->panelHeaderContextLabel(); @endphp
+                                    @php
+                                        $topbarContextLabel = Auth::user()?->panelHeaderContextLabel();
+                                        $topbarDisplayName = trim((Auth::user()->name ?? '').' '.(Auth::user()->last_name ?? ''));
+                                        if ($topbarDisplayName === '') {
+                                            $topbarDisplayName = 'Usuario';
+                                        }
+                                        // Evitar repetir el mismo texto (p. ej. cuenta panel de administración:
+                                        // contexto = administrations.name y user.name = nombre comercial).
+                                        $topbarShowContext = $topbarContextLabel
+                                            && strcasecmp($topbarContextLabel, $topbarDisplayName) !== 0;
+                                    @endphp
                                     <span class="ms-2 d-none d-md-inline-block text-start partilot-account-menu-text">
-                                        @if($topbarContextLabel)
+                                        @if($topbarShowContext)
                                             <span class="topbar-user-context d-block" title="{{ $topbarContextLabel }}">{{ $topbarContextLabel }}</span>
                                         @endif
-                                        <span class="user-name">{{ Auth::user()->name ? Auth::user()->name.' '.Auth::user()->last_name : 'Usuario' }}</span>
+                                        <span class="user-name">{{ $topbarDisplayName }}</span>
                                         <span class="user-role">{{ $topbarRole }} · Menú</span>
                                     </span>
                                     <i class="mdi mdi-chevron-down partilot-account-menu-caret" aria-hidden="true"></i>
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-end profile-dropdown ">
                                     <div class="dropdown-header noti-title">
-                                        <h6 class="text-overflow m-0">{{ Auth::user()->name ? Auth::user()->name.' '.Auth::user()->last_name : 'Usuario' }}</h6>
-                                        @if($topbarContextLabel)
+                                        <h6 class="text-overflow m-0">{{ $topbarDisplayName }}</h6>
+                                        @if($topbarShowContext)
                                             <small class="text-muted">{{ $topbarContextLabel }}</small>
+                                        @elseif(Auth::user()?->isAdministrationPanelAccount() && Auth::user()->email)
+                                            <small class="text-muted">{{ Auth::user()->email }}</small>
                                         @endif
                                     </div>
 
