@@ -1486,13 +1486,21 @@
                                         if ($topbarDisplayName === '') {
                                             $topbarDisplayName = 'Usuario';
                                         }
-                                        // Evitar repetir el mismo texto (p. ej. cuenta panel de administración:
-                                        // contexto = administrations.name y user.name = nombre comercial).
-                                        $topbarShowContext = $topbarContextLabel
-                                            && strcasecmp($topbarContextLabel, $topbarDisplayName) !== 0;
+                                        // Topbar: 3 líneas (contexto + nombre + rol) cuando hay contexto.
+                                        // Desplegable: no duplicar el mismo texto; si coincide, usar email.
+                                        $topbarContextMatchesName = $topbarContextLabel
+                                            && strcasecmp($topbarContextLabel, $topbarDisplayName) === 0;
+                                        $dropdownSecondaryLabel = null;
+                                        if ($topbarContextLabel && ! $topbarContextMatchesName) {
+                                            $dropdownSecondaryLabel = $topbarContextLabel;
+                                        } elseif (Auth::user()?->isAdministrationPanelAccount() && Auth::user()->email) {
+                                            $dropdownSecondaryLabel = Auth::user()->email;
+                                        } elseif (Auth::user()?->isEntityPanelAccount() && Auth::user()->email) {
+                                            $dropdownSecondaryLabel = Auth::user()->email;
+                                        }
                                     @endphp
                                     <span class="ms-2 d-none d-md-inline-block text-start partilot-account-menu-text">
-                                        @if($topbarShowContext)
+                                        @if($topbarContextLabel)
                                             <span class="topbar-user-context d-block" title="{{ $topbarContextLabel }}">{{ $topbarContextLabel }}</span>
                                         @endif
                                         <span class="user-name">{{ $topbarDisplayName }}</span>
@@ -1503,10 +1511,8 @@
                                 <div class="dropdown-menu dropdown-menu-end profile-dropdown ">
                                     <div class="dropdown-header noti-title">
                                         <h6 class="text-overflow m-0">{{ $topbarDisplayName }}</h6>
-                                        @if($topbarShowContext)
-                                            <small class="text-muted">{{ $topbarContextLabel }}</small>
-                                        @elseif(Auth::user()?->isAdministrationPanelAccount() && Auth::user()->email)
-                                            <small class="text-muted">{{ Auth::user()->email }}</small>
+                                        @if($dropdownSecondaryLabel)
+                                            <small class="text-muted">{{ $dropdownSecondaryLabel }}</small>
                                         @endif
                                     </div>
 
