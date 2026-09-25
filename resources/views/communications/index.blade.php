@@ -255,24 +255,34 @@
   },100);
 
   function deleteEmailLog(id) {
-    if (!confirm('¿Eliminar de forma permanente este registro de comunicación?')) {
-        return;
-    }
+    var run = function () {
+      fetch('{{ url('/') }}/communications/' + id, {
+          method: 'DELETE',
+          headers: {
+              'X-CSRF-TOKEN': '{{ csrf_token() }}',
+              'X-Requested-With': 'XMLHttpRequest'
+          }
+      }).then(r => {
+          if (!r.ok) {
+              throw new Error('HTTP ' + r.status);
+          }
+          window.location.reload();
+      }).catch(e => {
+          if (typeof window.partilotNotify === 'function') {
+              window.partilotNotify('error', 'No se pudo eliminar: ' + e.message);
+          }
+      });
+    };
 
-    fetch('{{ url('/') }}/communications/' + id, {
-        method: 'DELETE',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    }).then(r => {
-        if (!r.ok) {
-            throw new Error('HTTP ' + r.status);
-        }
-        window.location.reload();
-    }).catch(e => {
-        alert('No se pudo eliminar: ' + e.message);
-    });
+    if (typeof window.partilotConfirm === 'function') {
+      window.partilotConfirm({
+        title: 'Eliminar comunicación',
+        message: '¿Eliminar de forma permanente este registro de comunicación?',
+        confirmText: 'Eliminar'
+      }).then(function (ok) { if (ok) run(); });
+      return;
+    }
+    run();
   }
 
   const emailPreviewModal = document.getElementById('emailPreviewModal');

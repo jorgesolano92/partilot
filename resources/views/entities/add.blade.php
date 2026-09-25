@@ -122,7 +122,7 @@
 				                                <td>{{$administration->receiving}}</td>
 				                                <td>{{$administration->province}}</td>
 				                                <td>{{$administration->city}}</td>
-				                                <td><label class="badge bg-success">Activo</label></td>
+				                                <td><label class="badge bg-{{ $administration->status_class }}">{{ $administration->status_text }}</label></td>
 				                                <td class="d-none">
 				                                    <div class="form-check">
 				                                        <input class="form-check-input" type="radio" name="administration_id" value="{{$administration->id}}" id="admin_{{$administration->id}}" required>

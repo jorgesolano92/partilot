@@ -66,11 +66,7 @@
                                         <td>{{ $administration->province }}</td>
                                         <td>{{ $administration->city }}</td>
                                         <td>
-                                            @if($administration->status)
-                                            <label class="badge bg-success">Activo</label>
-                                            @else
-                                            <label class="badge bg-danger">Inactivo</label>
-                                            @endif
+                                            <label class="badge bg-{{ $administration->status_class }}">{{ $administration->status_text }}</label>
                                         </td>
                                         <td class="d-none">
                                             <div class="form-check">

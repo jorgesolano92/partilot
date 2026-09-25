@@ -599,24 +599,28 @@ class EntityController extends Controller
                 ->with('error', 'Este usuario ya es gestor de esta entidad.');
         }
 
-        // En creación inicial de entidad, el gestor invitado debe quedar como principal.
-        if ($isCreationFlow) {
+        // En creación inicial (o recuperación sin gestor principal), el invitado queda como responsable.
+        $needsPrimary = $isCreationFlow || $this->entityNeedsPrimaryGestor($entity);
+        if ($needsPrimary) {
             Manager::where('entity_id', $entity->id)
                 ->where('is_primary', true)
                 ->update(['is_primary' => false]);
         }
 
+        $deferPrimaryInvite = $needsPrimary
+            && $entity->contract_status !== Entity::CONTRACT_SIGNED;
+
         // Crear la relación manager-entity (pendiente de confirmación por email)
         $manager = Manager::create([
             'user_id' => $request->user_id,
             'entity_id' => $entity->id,
-            'is_primary' => $isCreationFlow ? true : false,
-            'permission_sellers' => $request->boolean('permission_sellers'),
-            'permission_design' => $request->boolean('permission_design'),
-            'permission_statistics' => $request->boolean('permission_statistics'),
-            'permission_payments' => $request->boolean('permission_payments'),
+            'is_primary' => $needsPrimary,
+            'permission_sellers' => $needsPrimary ? true : $request->boolean('permission_sellers'),
+            'permission_design' => $needsPrimary ? true : $request->boolean('permission_design'),
+            'permission_statistics' => $needsPrimary ? true : $request->boolean('permission_statistics'),
+            'permission_payments' => $needsPrimary ? true : $request->boolean('permission_payments'),
             'confirmation_token' => Str::random(64),
-            'confirmation_sent_at' => $isCreationFlow ? null : now(),
+            'confirmation_sent_at' => $deferPrimaryInvite ? null : now(),
             'requires_password_setup' => false,
             'user_created_for_invitation' => false,
             'status' => null, // Pendiente por defecto
@@ -627,8 +631,8 @@ class EntityController extends Controller
             $user->update(['role' => User::ROLE_ENTITY]);
         }
 
-        // En alta inicial, la invitación se envía tras la firma del contrato. En gestores secundarios, se envía ya.
-        if (! $isCreationFlow) {
+        // En alta/recuperación de principal sin contrato firmado, la invitación se envía tras la firma.
+        if (! $deferPrimaryInvite) {
             try {
                 if ($user && ! empty($user->email)) {
                     app(CommunicationEmailService::class)->sendAndLog(
@@ -659,10 +663,16 @@ class EntityController extends Controller
                 );
         }
 
-        return redirect()->route('entities.show', $entity->id)
-            ->with('success', $isCreationFlow
-                ? 'Entidad creada. Se ha enviado el contrato marco al email del firmante. El gestor será notificado cuando el firmante firme; el acceso al panel de la entidad se enviará cuando el gestor acepte el cargo.'
+        $successMessage = $isCreationFlow
+            ? 'Entidad creada. Se ha enviado el contrato marco al email del firmante. El gestor será notificado cuando el firmante firme; el acceso al panel de la entidad se enviará cuando el gestor acepte el cargo.'
+            : ($needsPrimary
+                ? ($deferPrimaryInvite
+                    ? 'Gestor responsable designado. Recibirá la invitación cuando el firmante autorice el contrato marco.'
+                    : 'Gestor responsable invitado exitosamente.')
                 : 'Gestor invitado exitosamente.');
+
+        return redirect()->route('entities.show', $entity->id)
+            ->with('success', $successMessage);
     }
 
     /**
@@ -748,49 +758,67 @@ class EntityController extends Controller
                 ->with('error', 'Este usuario ya es gestor de esta entidad.');
         }
 
-        // Crear la relación manager-entity (gestor secundario pendiente de confirmación)
+        // Crear la relación manager-entity (principal si la entidad aún no tiene gestor responsable)
+        $needsPrimary = $this->entityNeedsPrimaryGestor($entity);
+        $deferPrimaryInvite = $needsPrimary
+            && $entity->contract_status !== Entity::CONTRACT_SIGNED;
+
+        if ($needsPrimary) {
+            Manager::where('entity_id', $entity->id)
+                ->where('is_primary', true)
+                ->update(['is_primary' => false]);
+        }
+
         $manager = Manager::create([
             'user_id' => $user->id,
             'entity_id' => $entity->id,
-            'is_primary' => false,
-            'permission_sellers' => $request->has('permission_sellers') ? true : false,
-            'permission_design' => $request->has('permission_design') ? true : false,
-            'permission_statistics' => $request->has('permission_statistics') ? true : false,
-            'permission_payments' => $request->has('permission_payments') ? true : false,
+            'is_primary' => $needsPrimary,
+            'permission_sellers' => $needsPrimary ? true : ($request->has('permission_sellers') ? true : false),
+            'permission_design' => $needsPrimary ? true : ($request->has('permission_design') ? true : false),
+            'permission_statistics' => $needsPrimary ? true : ($request->has('permission_statistics') ? true : false),
+            'permission_payments' => $needsPrimary ? true : ($request->has('permission_payments') ? true : false),
             'confirmation_token' => Str::random(64),
-            'confirmation_sent_at' => now(),
+            'confirmation_sent_at' => $deferPrimaryInvite ? null : now(),
             'requires_password_setup' => false,
             'user_created_for_invitation' => $userWasNew,
             'status' => null, // Pendiente por defecto
         ]);
 
         // Cadena de alta entidad/gestor: email al gestor recién registrado/invitado
-        try {
-            if (! empty($user->email)) {
-                app(CommunicationEmailService::class)->sendAndLog(
-                    recipientEmail: (string) $user->email,
-                    recipientRole: 'gestor_entidad',
-                    recipientUser: $user,
-                    messageType: 'entity_manager_invitation',
-                    templateKey: null,
-                    mailClass: EntityManagerInvitationMail::class,
-                    mailPayload: array_filter([
-                        'entity_id' => $entity->id,
-                        'user_id' => $user->id,
-                        'manager_id' => $manager->id,
-                        'plain_password' => $managerPlainPassword,
-                    ]),
-                    context: ['entity_id' => $entity->id],
-                );
+        if (! $deferPrimaryInvite) {
+            try {
+                if (! empty($user->email)) {
+                    app(CommunicationEmailService::class)->sendAndLog(
+                        recipientEmail: (string) $user->email,
+                        recipientRole: 'gestor_entidad',
+                        recipientUser: $user,
+                        messageType: 'entity_manager_invitation',
+                        templateKey: null,
+                        mailClass: EntityManagerInvitationMail::class,
+                        mailPayload: array_filter([
+                            'entity_id' => $entity->id,
+                            'user_id' => $user->id,
+                            'manager_id' => $manager->id,
+                            'plain_password' => $managerPlainPassword,
+                        ]),
+                        context: ['entity_id' => $entity->id],
+                    );
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Fallo enviando invitación a gestor nuevo: '.$e->getMessage());
             }
-        } catch (\Throwable $e) {
-            \Log::warning('Fallo enviando invitación a gestor nuevo: '.$e->getMessage());
         }
 
         return redirect()->route('entities.show', $entity->id)
-            ->with('success', $userWasNew
-                ? 'Gestor registrado. Se ha enviado un correo con los datos de acceso y la invitación para aceptar o rechazar.'
-                : 'Gestor invitado exitosamente.');
+            ->with('success', $needsPrimary
+                ? ($deferPrimaryInvite
+                    ? 'Gestor responsable designado. Recibirá la invitación cuando el firmante autorice el contrato marco.'
+                    : ($userWasNew
+                        ? 'Gestor responsable registrado. Se ha enviado un correo con los datos de acceso y la invitación para aceptar o rechazar.'
+                        : 'Gestor responsable invitado exitosamente.'))
+                : ($userWasNew
+                    ? 'Gestor registrado. Se ha enviado un correo con los datos de acceso y la invitación para aceptar o rechazar.'
+                    : 'Gestor invitado exitosamente.'));
     }
 
     /**
@@ -1264,7 +1292,10 @@ class EntityController extends Controller
             unlink(public_path('uploads/'.$entity->image));
         }
 
-        $entity->delete();
+        DB::transaction(function () use ($entity) {
+            app(EntityPanelAccessService::class)->revokePanelAccess($entity);
+            $entity->delete();
+        });
 
         return redirect()->route('entities.index')
             ->with('success', 'Entidad eliminada exitosamente.');
@@ -2041,13 +2072,27 @@ class EntityController extends Controller
                 ->with('error', 'Ese email ya está registrado. Use la búsqueda de invitación cuando aparezca la coincidencia.');
         }
 
+        $needsPrimary = $this->entityNeedsPrimaryGestor($entity);
+        $deferPrimaryInvite = $needsPrimary
+            && $entity->contract_status !== Entity::CONTRACT_SIGNED;
+
         $pending = PendingEntityManagerInvitation::storeInvitation($entity->id, $email, [
-            'is_primary' => false,
-            'permission_sellers' => $request->boolean('permission_sellers'),
-            'permission_design' => $request->boolean('permission_design'),
-            'permission_statistics' => $request->boolean('permission_statistics'),
-            'permission_payments' => $request->boolean('permission_payments'),
+            'is_primary' => $needsPrimary,
+            'permission_sellers' => $needsPrimary ? true : $request->boolean('permission_sellers'),
+            'permission_design' => $needsPrimary ? true : $request->boolean('permission_design'),
+            'permission_statistics' => $needsPrimary ? true : $request->boolean('permission_statistics'),
+            'permission_payments' => $needsPrimary ? true : $request->boolean('permission_payments'),
         ]);
+
+        if ($deferPrimaryInvite) {
+            $pending->update(['confirmation_sent_at' => null]);
+
+            return redirect()->route('entities.show', $entity->id)
+                ->with(
+                    'success',
+                    'Gestor responsable designado. Recibirá el correo para aceptar el cargo cuando el firmante autorice el contrato marco.'
+                );
+        }
 
         try {
             app(CommunicationEmailService::class)->sendAndLog(
@@ -2068,7 +2113,32 @@ class EntityController extends Controller
         }
 
         return redirect()->route('entities.show', $entity->id)
-            ->with('success', 'Invitación enviada. El destinatario recibirá un correo para aceptar (registro) o rechazar la invitación.');
+            ->with(
+                'success',
+                $needsPrimary
+                    ? 'Invitación de gestor responsable enviada. El destinatario recibirá un correo para aceptar o rechazar.'
+                    : 'Invitación enviada. El destinatario recibirá un correo para aceptar (registro) o rechazar la invitación.'
+            );
+    }
+
+    /**
+     * True si la entidad aún no tiene gestor principal ni invitación pendiente de principal.
+     */
+    private function entityNeedsPrimaryGestor(Entity $entity): bool
+    {
+        $hasPrimary = Manager::query()
+            ->where('entity_id', $entity->id)
+            ->where('is_primary', true)
+            ->exists();
+
+        if ($hasPrimary) {
+            return false;
+        }
+
+        return ! PendingEntityManagerInvitation::query()
+            ->where('entity_id', $entity->id)
+            ->where('is_primary', true)
+            ->exists();
     }
 
     /**

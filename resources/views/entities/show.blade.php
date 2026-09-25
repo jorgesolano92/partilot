@@ -438,7 +438,7 @@
 			                    				@if($entity->manager && $entity->manager->user)
 			                    					Todos los campos son obligatorios
 			                    				@elseif(!empty($canManageManagers))
-			                    					Esta entidad no tiene gestor principal asignado. Puedes seleccionar uno de la lista de gestores en la pestaña "Gestores".
+			                    					Esta entidad no tiene gestor principal asignado. Usa <strong>Añadir</strong> en la pestaña Gestores para invitar o registrar al gestor responsable.
 			                    				@else
 			                    					Esta entidad no tiene gestor principal asignado.
 			                    				@endif
@@ -466,7 +466,7 @@
 			                    							</form>
 			                    						@endif
 			                    					@else
-			                    						<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal asignado. Por favor, agrega un gestor para poder gestionar esta entidad correctamente.
+			                    						<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal. @if(!empty($canManageManagers)) Abre la pestaña <strong>Gestores</strong> y pulsa <strong>Añadir</strong> para invitar o registrar al gestor responsable. @endif
 			                    					@endif
 			                    				</div>
 			                    			@endif
@@ -884,7 +884,7 @@
 							                            <tr>
 							                                <td colspan="6" class="text-center">
 									@if(!empty($entityPanelUser))
-										No hay gestores adicionales. La cuenta de acceso al panel de la entidad no se muestra en esta lista. Use <strong>Añadir</strong> para invitar gestores secundarios.
+										No hay gestores adicionales. La cuenta de acceso al panel de la entidad no se muestra en esta lista. Use <strong>Añadir</strong> para invitar al gestor responsable (si aún no hay) o a gestores secundarios.
 									@else
 										No hay gestores asignados
 									@endif

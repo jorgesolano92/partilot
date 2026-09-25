@@ -257,7 +257,7 @@
   },100);
 
   function deleteSocialWeb(id) {
-    if (confirm('¿Estás seguro de que deseas eliminar esta Web Social?')) {
+    var run = function () {
       $.ajax({
         url: '/social/' + id,
         type: 'DELETE',
@@ -267,15 +267,27 @@
         success: function(response) {
           if (response.success) {
             location.reload();
-          } else {
-            alert('Error al eliminar la Web Social');
+          } else if (typeof window.partilotNotify === 'function') {
+            window.partilotNotify('error', 'Error al eliminar la Web Social');
           }
         },
         error: function() {
-          alert('Error al eliminar la Web Social');
+          if (typeof window.partilotNotify === 'function') {
+            window.partilotNotify('error', 'Error al eliminar la Web Social');
+          }
         }
       });
+    };
+
+    if (typeof window.partilotConfirm === 'function') {
+      window.partilotConfirm({
+        title: 'Eliminar Web Social',
+        message: '¿Estás seguro de que deseas eliminar esta Web Social?',
+        confirmText: 'Eliminar'
+      }).then(function (ok) { if (ok) run(); });
+      return;
     }
+    run();
   }
 
 </script>

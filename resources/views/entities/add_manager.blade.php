@@ -143,6 +143,9 @@
 
                     				<div class="row">
                     					<div class="col-1">
+                    						@php
+                    							$entityImg = data_get(session('entity_information'), 'image');
+                    						@endphp
 		                    				<div class="photo-preview-3" @if($entityImg) style="background-image: url('{{ asset('uploads/' . $entityImg) }}'); background-size: cover; background-position: center;" @endif>
 		                    					@if(!$entityImg)
 		                    						<i class="ri-account-circle-fill"></i>

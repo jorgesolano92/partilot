@@ -165,6 +165,41 @@ class EntityPanelAccessService
             ->first();
     }
 
+    /**
+     * Revoca la cuenta de acceso al panel de la entidad (R2-INC-002).
+     * Debe llamarse antes de borrar la fila de entidad.
+     */
+    public function revokePanelAccess(Entity $entity): void
+    {
+        $panelUser = $this->findPanelUser($entity);
+        if (! $panelUser) {
+            return;
+        }
+
+        Manager::query()
+            ->where('user_id', $panelUser->id)
+            ->where('entity_id', $entity->id)
+            ->delete();
+
+        $stillLinkedElsewhere = Manager::query()
+            ->where('user_id', $panelUser->id)
+            ->exists();
+
+        $dedicatedToThisEntity = $panelUser->panel_account_type === 'entity'
+            && (int) $panelUser->panel_account_id === (int) $entity->id;
+
+        if ($dedicatedToThisEntity && ! $stillLinkedElsewhere) {
+            $panelUser->delete();
+
+            return;
+        }
+
+        $panelUser->forceFill([
+            'panel_account_type' => null,
+            'panel_account_id' => null,
+        ])->save();
+    }
+
 
     /**
      * Asegura cuenta panel: crea una nueva o vincula al gestor principal aceptado si comparte email.

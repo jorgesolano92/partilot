@@ -684,3 +684,19 @@ html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer .row {
     margin-right: 0 !important;
     width: 100%;
 }
+
+/* MEJ-002: TomSelect single — el ítem seleccionado no tapa el texto al filtrar */
+.group-form .ts-wrapper.single .ts-control,
+.ts-wrapper.single.partilot-geo .ts-control {
+    align-items: center;
+    overflow: hidden;
+}
+.group-form .ts-wrapper.single .ts-control > input,
+.ts-wrapper.single.partilot-geo .ts-control > input {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+.group-form .ts-wrapper.single.input-active .ts-control .item,
+.ts-wrapper.single.partilot-geo.input-active .ts-control .item {
+    display: none !important;
+}

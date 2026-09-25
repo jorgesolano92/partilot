@@ -19,6 +19,7 @@ use App\Support\SecureImageUpload;
 use App\Models\User;
 use App\Models\Manager;
 use App\Mail\AdministrationWelcomeMail;
+use App\Models\EmailCommunicationLog;
 use App\Services\AdministrationBillingService;
 use App\Services\AdministrationContractService;
 use App\Services\AuditLogService;
@@ -224,7 +225,7 @@ class AdministratorController extends Controller
             ->firstOrFail();
 
         try {
-            app(CommunicationEmailService::class)->sendAndLog(
+            $log = app(CommunicationEmailService::class)->sendAndLog(
                 recipientEmail: $recipientEmail,
                 recipientRole: 'gestor_administracion',
                 recipientUser: $panelUser,
@@ -240,7 +241,16 @@ class AdministratorController extends Controller
             return back()->with('error', 'No se pudo tramitar el envío del correo. Inténtelo más tarde o revise la configuración de correo.');
         }
 
-        return back()->with('success', 'Se ha tramitado el envío del correo con el usuario de acceso y el enlace para establecer la contraseña a '.$recipientEmail.'.');
+        if ($log->status !== EmailCommunicationLog::STATUS_SENT
+            && $log->status !== EmailCommunicationLog::STATUS_RE_SENT) {
+            return back()->with(
+                'error',
+                'No se pudo entregar el correo a '.$recipientEmail.'. '
+                .($log->error_message ?: 'Revise la configuración SMTP o el buzón de destino e inténtelo de nuevo.')
+            );
+        }
+
+        return back()->with('success', 'Se ha enviado el correo con el usuario de acceso y el enlace para establecer la contraseña a '.$recipientEmail.'.');
     }
 
     /**

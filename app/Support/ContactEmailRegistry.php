@@ -57,8 +57,26 @@ class ContactEmailRegistry
             $qUser->where('id', '!=', $excludeUserId);
         }
         if (! $includeRegularUsers) {
+            // Solo cuentas de panel cuyo admin/entidad siga existiendo (ignora huérfanas tras borrado).
             $qUser->whereNotNull('panel_account_type')
-                ->where('panel_account_type', '!=', '');
+                ->where('panel_account_type', '!=', '')
+                ->where(function ($q) {
+                    $q->where(function ($entityPanel) {
+                        $entityPanel->where('panel_account_type', 'entity')
+                            ->whereExists(function ($sub) {
+                                $sub->selectRaw('1')
+                                    ->from('entities')
+                                    ->whereColumn('entities.id', 'users.panel_account_id');
+                            });
+                    })->orWhere(function ($adminPanel) {
+                        $adminPanel->where('panel_account_type', 'administration')
+                            ->whereExists(function ($sub) {
+                                $sub->selectRaw('1')
+                                    ->from('administrations')
+                                    ->whereColumn('administrations.id', 'users.panel_account_id');
+                            });
+                    });
+                });
         }
         if ($qUser->exists()) {
             return true;
