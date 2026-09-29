@@ -19,6 +19,7 @@ use App\Services\PendingDigitalSaleService;
 use App\Services\RoleLegalAcceptanceService;
 use App\Services\UserConsentService;
 use App\Support\ActiveEntityContext;
+use App\Support\PanelAuthContext;
 use App\Support\PasswordRules;
 
 class AuthController extends Controller
@@ -28,11 +29,11 @@ class AuthController extends Controller
      */
     public function showLoginForm()
     {
-        // Si ya está autenticado, redirigir al dashboard
+        // Si ya está autenticado, ir al home de ese rol (nunca heredar otro contexto).
         if (Auth::check()) {
-            return redirect('/dashboard');
+            return PanelAuthContext::redirectHome(Auth::user());
         }
-        
+
         return view('login');
     }
 
@@ -200,13 +201,10 @@ class AuthController extends Controller
             return redirect()->route('provisional-password.show');
         }
 
-        if ($user->isPrintShop()) {
-            return redirect()->intended(route('print-shop.index'));
-        }
-
         ActiveEntityContext::bootstrapSession($request, $user);
+        PanelAuthContext::clearIntended($request);
 
-        return redirect()->intended('/dashboard');
+        return PanelAuthContext::redirectHome($user);
     }
 
     /**
@@ -229,7 +227,7 @@ class AuthController extends Controller
     {
         $user = Auth::user();
         if (! $user || ! $user->mustChangeEntityManagerLegacyPassword()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         return view('auth.entity-manager-legacy-password');
@@ -242,7 +240,7 @@ class AuthController extends Controller
     {
         $user = Auth::user();
         if (! $user || ! $user->mustChangeEntityManagerLegacyPassword()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         $request->validate([
@@ -269,15 +267,16 @@ class AuthController extends Controller
 
         Auth::login($user);
         ActiveEntityContext::bootstrapSession($request, $user);
+        PanelAuthContext::clearIntended($request);
 
-        return redirect()->route('dashboard')->with('success', 'Contraseña actualizada correctamente.');
+        return PanelAuthContext::redirectHome($user, 'success', 'Contraseña actualizada correctamente.');
     }
 
     public function showProvisionalPassword()
     {
         $user = Auth::user();
         if (! $user || ! $user->mustChangeProvisionalPassword()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         return view('auth.provisional-password');
@@ -287,7 +286,7 @@ class AuthController extends Controller
     {
         $user = Auth::user();
         if (! $user || ! $user->mustChangeProvisionalPassword()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         $request->validate([
@@ -303,22 +302,25 @@ class AuthController extends Controller
         $user->save();
 
         $request->session()->forget('provisional_password_skipped');
+        PanelAuthContext::clearIntended($request);
 
-        app(PanelLegalAcceptanceService::class)->activatePendingAdministrationIfReady($user->fresh());
+        $user = $user->fresh();
+        app(PanelLegalAcceptanceService::class)->activatePendingAdministrationIfReady($user);
 
-        return redirect()->route('dashboard')->with('success', 'Contraseña actualizada correctamente.');
+        return PanelAuthContext::redirectHome($user, 'success', 'Contraseña actualizada correctamente.');
     }
 
     public function skipProvisionalPassword(Request $request)
     {
         $user = Auth::user();
         if (! $user || ! $user->mustChangeProvisionalPassword()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         $request->session()->put('provisional_password_skipped', true);
+        PanelAuthContext::clearIntended($request);
 
-        return redirect()->intended('/dashboard');
+        return PanelAuthContext::redirectHome($user);
     }
 
     /**
@@ -326,11 +328,12 @@ class AuthController extends Controller
      */
     public function dashboard(DashboardService $dashboardService)
     {
-        if (auth()->user()?->isPrintShop()) {
-            return redirect()->route('print-shop.index');
+        $user = auth()->user();
+        if ($user?->isPrintShop()) {
+            return PanelAuthContext::redirectHome($user);
         }
 
-        $dashboard = $dashboardService->build(auth()->user());
+        $dashboard = $dashboardService->build($user);
 
         return view('welcome', compact('dashboard'));
     }

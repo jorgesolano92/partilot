@@ -92,6 +92,8 @@ class PanelLegalAcceptanceService
 
     /**
      * Pasa a Activo una administración Pendiente cuando el primer acceso está completo.
+     * El destino posterior (home del rol) lo resuelve PanelAuthContext en los controladores
+     * de activación / contraseña / firma (R3-INC-001).
      */
     public function activatePendingAdministrationIfReady(User $user): void
     {
@@ -111,6 +113,14 @@ class PanelLegalAcceptanceService
         if ($administration && $administration->isPending()) {
             $administration->update(['status' => \App\Models\Administration::STATUS_ACTIVE]);
         }
+    }
+
+    /**
+     * URL de inicio del panel para la cuenta en activación (nunca hereda intended ajeno).
+     */
+    public function homeUrlForUser(User $user): string
+    {
+        return \App\Support\PanelAuthContext::homeUrlFor($user);
     }
 
     /**

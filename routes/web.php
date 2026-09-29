@@ -156,6 +156,8 @@ Route::get('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymen
 Route::post('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'store'])->name('prize-contract.sign.submit');
 Route::get('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'show'])->name('administration-contract.sign');
 Route::post('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'store'])->name('administration-contract.sign.submit');
+Route::get('/contrato-administracion/ir-al-panel/{administration}', [AdministrationContractController::class, 'goToPanel'])
+    ->name('administration-contract.go-to-panel');
 Route::get('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'acceptPrimaryManager'])->name('entity-contract.accept-primary');
 Route::post('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'storePrimaryManagerAcceptance'])->name('entity-contract.accept-primary.store');
 Route::get('/contrato-entidad/firmar/{token}', [EntityContractController::class, 'sign'])->name('entity-contract.sign');
@@ -614,7 +616,7 @@ Route::put('/design/format/update/{id}', [App\Http\Controllers\DesignController:
 Route::get('/design/summary/{id}', [App\Http\Controllers\DesignController::class, 'summary'])->name('design.summary');
 Route::delete('/design/format/{id}', [App\Http\Controllers\DesignController::class, 'destroy'])->name('design.destroy');
 
-Route::group(['prefix' => 'social'], function() {
+Route::group(['prefix' => 'social', 'middleware' => 'role:super_admin'], function() {
     Route::get('/', [App\Http\Controllers\SocialWebController::class, 'index'])->name('social.index');
     Route::get('/add', [App\Http\Controllers\SocialWebController::class, 'create'])->name('social.create');
     Route::post('/add/design', [App\Http\Controllers\SocialWebController::class, 'storeEntity'])->name('social.store-entity');
@@ -625,9 +627,9 @@ Route::group(['prefix' => 'social'], function() {
     Route::delete('/{id}', [App\Http\Controllers\SocialWebController::class, 'destroy'])->name('social.destroy');
     Route::post('/{id}/change-status', [App\Http\Controllers\SocialWebController::class, 'changeStatus'])->name('social.change-status');
 });
-Route::get('requests',function() {
+Route::get('requests', function () {
     return view('requests.index');
-});
+})->middleware('role:super_admin')->name('requests.index');
 
 // Rutas de configuración/ajustes
 Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:payments'], function() {
