@@ -60,6 +60,18 @@
 
                     <h5 class="mb-3">Resumen del cobro</h5>
 
+                    @if(!empty($managementFee['admin_fee_before_design']) && !empty($managementFee['show_admin_fee_actions']))
+                        <div class="alert alert-warning text-start mb-3">
+                            <strong>Condición previa al diseño.</strong>
+                            Debe resolver esta cuota (tarjeta o remesa) antes de enviar el set a diseño. No puede avanzar hasta completar esta condición.
+                        </div>
+                    @elseif(($managementFee['payment_before_editor'] ?? false) || ($managementFee['payment_before_admin_design'] ?? false))
+                        <div class="alert alert-warning text-start mb-3">
+                            <strong>Condición previa al diseño.</strong>
+                            Debe resolver esta cuota antes de enviar el set a diseño o continuar en el editor.
+                        </div>
+                    @endif
+
                     <div class="d-flex justify-content-between mb-2">
 
                         <span>Set</span>

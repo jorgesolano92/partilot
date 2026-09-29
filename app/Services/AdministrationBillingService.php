@@ -75,10 +75,9 @@ class AdministrationBillingService
             return false;
         }
 
-        if ($design && app(DesignApprovalService::class)->requiresEntityApproval($design)) {
-            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED) {
-                return false;
-            }
+        // Cuota antes del diseño: no exigir aprobación de entidad para encolar remesa.
+        if ($feeService->managementFeePaymentBlockedByApproval($design, $set)) {
+            return false;
         }
 
         if (! $this->shouldQueueManagementFeeRemittance($set)) {

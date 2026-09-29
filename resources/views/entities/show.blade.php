@@ -179,6 +179,21 @@
                     		@include('entities.partials.billing_switches_card', ['entity' => $entity, 'readonly' => true])
                     		@endif
 
+                    		@if(!empty($entityLotteries) && $entityLotteries->isNotEmpty())
+                    		<div class="form-card mb-3 bs">
+                    			<h4 class="mb-1 mt-1">Sorteos</h4>
+                    			<small><i>Décimos vinculados a esta entidad</i></small>
+                    			<div class="d-flex flex-wrap gap-3 mt-3">
+                    				@foreach($entityLotteries as $entityLottery)
+                    					<div class="text-center" style="width: 88px;">
+                    						@include('partials.lottery_image', ['lotteryImageModel' => $entityLottery, 'lotteryImageSize' => 72])
+                    						<div class="small mt-1 text-truncate" title="{{ $entityLottery->name }}">{{ $entityLottery->name }}</div>
+                    					</div>
+                    				@endforeach
+                    			</div>
+                    		</div>
+                    		@endif
+
                     		<a href="{{url('entities?table=1')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder;" class="btn btn-md btn-light entity-detail-back">
                     						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                     	</div>

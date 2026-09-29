@@ -161,7 +161,23 @@ class DesignController extends Controller
         $set = Set::forUser(auth()->user())->findOrFail($set_id);
         $designLock = $this->getSetDesignLockContext($set);
 
-        return view('design.choose_type', compact('entity', 'lottery', 'set', 'designLock'));
+        $feeService = app(ManagementFeeService::class);
+        $feeService->ensureSnapshot($set);
+        $managementFeeBlocksDesign = $feeService->blocksDesignEntry($set);
+        $managementFee = $managementFeeBlocksDesign
+            ? $feeService->buildSummaryContext($set, auth()->user())
+            : null;
+        $actsAsAdministration = app(DesignApprovalService::class)->userActsAsAdministration(auth()->user());
+
+        return view('design.choose_type', compact(
+            'entity',
+            'lottery',
+            'set',
+            'designLock',
+            'managementFeeBlocksDesign',
+            'managementFee',
+            'actsAsAdministration'
+        ));
     }
 
     /**
@@ -1027,24 +1043,19 @@ class DesignController extends Controller
 
             $approvalService = app(DesignApprovalService::class);
             $feeService = app(ManagementFeeService::class);
-            if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
-                $lottery = Lottery::findOrFail(session('design_lottery_id'));
-                $placeholder = $this->ensurePlaceholderDesign($set, $entity, (int) $lottery->id);
-
-                if ($approvalService->isAdministrationSideUser(auth()->user())) {
-                    if ($approvalService->entityDesignEnabled($entity)) {
-                        return redirect()->route('design.summary', $placeholder->id)
-                            ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
-                    }
-
+            if ($redirect = $this->redirectIfManagementFeeBlocksDesignEntry($set)) {
+                // Entity-payer path: notify entity when admin is waiting on them.
+                if ($feeService->blocksAdminDesignUntilEntityPays($set)
+                    && $approvalService->isAdministrationSideUser(auth()->user())
+                    && ! $approvalService->entityDesignEnabled($entity)) {
+                    $lottery = Lottery::findOrFail(session('design_lottery_id'));
+                    $placeholder = $this->ensurePlaceholderDesign($set, $entity, (int) $lottery->id);
                     $this->notifyEntityManagementFeePaymentRequired($placeholder);
-
                     return redirect()->route('design.summary', $placeholder->id)
                         ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de que la administración pueda continuar con el diseño.');
                 }
 
-                return redirect()->route('design.managementFee.pay', $set->id)
-                    ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+                return $redirect;
             }
         }
 
@@ -1335,7 +1346,7 @@ class DesignController extends Controller
         $byPrintShop = (bool) session('print_shop_order_id');
         if ($set && ! $byPrintShop) {
             $set->loadMissing('entity');
-            if (app(ManagementFeeService::class)->blocksAdminDesignUntilEntityPays($set)) {
+            if (app(ManagementFeeService::class)->blocksDesignEntry($set)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'La cuota de gestión PARTILOT debe confirmarse antes de guardar el diseño.',
@@ -5456,14 +5467,8 @@ class DesignController extends Controller
         $setForLock = $format->set_id ? Set::find($format->set_id) : null;
         if ($setForLock) {
             $feeService = app(ManagementFeeService::class);
-            if ($feeService->blocksAdminDesignUntilEntityPays($setForLock)) {
-                if (app(DesignApprovalService::class)->isAdministrationSideUser(auth()->user())) {
-                    return redirect()->route('design.summary', $format->id)
-                        ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de continuar con el diseño.');
-                }
-
-                return redirect()->route('design.managementFee.pay', $setForLock->id)
-                    ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+            if ($redirect = $this->redirectIfManagementFeeBlocksDesignEntry($setForLock, $format)) {
+                return $redirect;
             }
         }
         $printOrderLock = $this->getPrintOrderLockContext($format->id);
@@ -5764,6 +5769,13 @@ class DesignController extends Controller
 
         $feeService->ensureSnapshot($set, $design);
         $managementFee = $feeService->buildSummaryContext($set, auth()->user(), $design);
+
+        // Obligación interna de la administración: la entidad no debe ver ni pagar esta cuota.
+        if (! empty($managementFee['hide_fee_from_entity'])) {
+            return redirect()->route('design.index')
+                ->with('info', 'La administración está preparando el diseño de este set.');
+        }
+
         [$stripePublishableKey, ] = app(ManagementFeePaymentService::class)->resolveStripeKeys();
         $stripePaymentEnabled = app(ManagementFeePaymentService::class)->hasStripeConfigured();
         $paymentSuccessRedirectUrl = $this->managementFeePaymentSuccessUrl($set, $design);
@@ -5857,14 +5869,8 @@ class DesignController extends Controller
             return redirect()->route('design.showChooseType');
         }
 
-        if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
-            if ($approvalService->isAdministrationSideUser($user)) {
-                return redirect()->route('design.summary', $design->id)
-                    ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
-            }
-
-            return redirect()->route('design.managementFee.pay', $set->id)
-                ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+        if ($feeService->blocksDesignEntry($set)) {
+            return $this->redirectIfManagementFeeBlocksDesignEntry($set, $design);
         }
 
         $setLock = $this->getSetDesignLockContext($set);
@@ -5900,20 +5906,8 @@ class DesignController extends Controller
 
         $feeService = app(ManagementFeeService::class);
         $approvalService = app(DesignApprovalService::class);
-        if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
-            $design = DesignFormat::query()->where('set_id', $set->id)->orderByDesc('id')->first();
-            if ($approvalService->isAdministrationSideUser(auth()->user())) {
-                if ($design) {
-                    return redirect()->route('design.summary', $design->id)
-                        ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
-                }
-
-                return redirect()->route('design.index')
-                    ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
-            }
-
-            return redirect()->route('design.managementFee.pay', $set->id)
-                ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+        if ($redirect = $this->redirectIfManagementFeeBlocksDesignEntry($set)) {
+            return $redirect;
         }
 
         $request = Request::create(route('design.format'), 'POST', [
@@ -6532,6 +6526,24 @@ class DesignController extends Controller
             ];
         }
 
+        if (! empty($managementFee['admin_fee_before_design'])) {
+            if ($entityViewer || ! empty($managementFee['hide_fee_from_entity'])) {
+                return [
+                    'tone' => 'warning',
+                    'title' => 'Diseño en preparación',
+                    'message' => 'La administración está preparando el diseño de este set. Le avisaremos cuando pueda revisarlo.',
+                ];
+            }
+
+            return [
+                'tone' => 'warning',
+                'title' => 'Cuota de gestión pendiente',
+                'message' => 'Debe resolver la cuota de gestión PARTILOT'
+                    .($amountLabel ? " ({$amountLabel})" : '')
+                    .' (tarjeta o remesa) antes de enviar este set a diseño. No puede avanzar hasta completar esta condición.',
+            ];
+        }
+
         if (! $hasDesignContent) {
             return [
                 'tone' => 'warning',
@@ -6955,7 +6967,7 @@ class DesignController extends Controller
             $requestedName = $request->query('download_filename', $request->input('download_filename'));
         }
         $requestedName = is_string($requestedName) ? $requestedName : null;
-        $notifyEmail = auth()->user()?->email;
+        $notifyEmail = $this->resolvePdfNotifyEmail($request);
         $designId = (int) $id;
 
         $job_id = 'pdf_part_'.$id.'_'.$from.'_'.$to.'_'.time();
@@ -7669,7 +7681,7 @@ class DesignController extends Controller
     /**
      * Portada + trasera: generación síncrona (sin worker).
      */
-    public function exportCoverBackPdfAsync($id)
+    public function exportCoverBackPdfAsync(Request $request, $id)
     {
         $design = DesignFormat::findOrFail($id);
         $this->authorizeDesignPdfExport($design);
@@ -7680,7 +7692,7 @@ class DesignController extends Controller
             ], 404);
         }
 
-        $notifyEmail = auth()->user()?->email;
+        $notifyEmail = $this->resolvePdfNotifyEmail($request);
         $designId = (int) $id;
         $job_id = 'pdf_cover_back_'.$id.'_'.time();
 
@@ -7728,16 +7740,22 @@ class DesignController extends Controller
         
         if (is_file($file_path)) {
             \App\Support\PdfJobStatus::markCompleted($job_id);
+            $tracked = \App\Support\PdfJobStatus::get($job_id) ?? [];
 
             return response()->json([
                 'status' => 'completed',
-                'download_url' => route('design.downloadPdf', $job_id)
+                'download_url' => route('design.downloadPdf', $job_id),
+                'email_sent' => ! empty($tracked['email_sent']),
+                'email_failed' => ! empty($tracked['email_failed']),
+                'email_error' => $tracked['email_error'] ?? null,
             ]);
         }
         
         return response()->json([
             'status' => 'processing',
             'message' => 'El PDF aún se está generando.',
+            'email_sent' => ! empty(($tracked['email_sent'] ?? false)),
+            'email_failed' => ! empty(($tracked['email_failed'] ?? false)),
         ]);
     }
 
@@ -8008,25 +8026,54 @@ class DesignController extends Controller
         return null;
     }
 
-    private function redirectIfEntityDesignerMustPayManagementFee(Set $set, ?DesignFormat $design = null)
+    /**
+     * Cuota de gestión pendiente: bloquear entrada a diseño con aviso + CTA (admin)
+     * o pago (entidad). Nunca un avance silencioso.
+     */
+    private function redirectIfManagementFeeBlocksDesignEntry(Set $set, ?DesignFormat $design = null)
     {
         $feeService = app(ManagementFeeService::class);
-        if (! $feeService->blocksAdminDesignUntilEntityPays($set)) {
-            return null;
-        }
-
         $approvalService = app(DesignApprovalService::class);
-        if ($approvalService->isAdministrationSideUser(auth()->user())) {
-            if ($design) {
-                return redirect()->route('design.summary', $design->id)
-                    ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de continuar con el diseño.');
+        $user = auth()->user();
+
+        if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
+            if ($approvalService->isAdministrationSideUser($user)) {
+                if ($design) {
+                    return redirect()->route('design.summary', $design->id)
+                        ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de continuar con el diseño.');
+                }
+
+                return redirect()->route('design.managementFee.pay', $set->id)
+                    ->with('warning', 'La entidad debe pagar la cuota de gestión PARTILOT antes de enviar este set a diseño.');
             }
 
-            return null;
+            return redirect()->route('design.managementFee.pay', $set->id)
+                ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
         }
 
-        return redirect()->route('design.managementFee.pay', $set->id)
-            ->with('info', 'Debe confirmar la cuota de gestión PARTILOT antes de acceder al editor de diseño.');
+        if ($feeService->blocksDesignUntilAdministrationFeeSettled($set)) {
+            if ($approvalService->isAdministrationSideUser($user) || ($user && $user->isSuperAdmin())) {
+                $payUrl = route('design.managementFee.pay', $set->id);
+                if ($design) {
+                    return redirect()->route('design.summary', $design->id)
+                        ->with('warning', 'Debe resolver la cuota de gestión PARTILOT antes de enviar este set a diseño. Use «Pagar cuota de gestión» en el resumen.');
+                }
+
+                return redirect()->to($payUrl)
+                    ->with('info', 'Debe resolver la cuota de gestión PARTILOT (tarjeta o remesa) antes de enviar este set a diseño.');
+            }
+
+            // Entidad: no informar de la obligación interna de la administración.
+            return redirect()->route('design.index')
+                ->with('info', 'La administración está preparando el diseño de este set.');
+        }
+
+        return null;
+    }
+
+    private function redirectIfEntityDesignerMustPayManagementFee(Set $set, ?DesignFormat $design = null)
+    {
+        return $this->redirectIfManagementFeeBlocksDesignEntry($set, $design);
     }
 
     public function exportCoverPdfAsync(Request $request, $id)
@@ -8055,7 +8102,7 @@ class DesignController extends Controller
             $requestedName = $request->query('download_filename', $request->input('download_filename'));
         }
         $requestedName = is_string($requestedName) ? $requestedName : null;
-        $notifyEmail = auth()->user()?->email;
+        $notifyEmail = $this->resolvePdfNotifyEmail($request);
         $designId = (int) $id;
         $job_id = 'pdf_cover_grid_'.$id.'_'.time();
 
@@ -8111,7 +8158,7 @@ class DesignController extends Controller
             $requestedName = $request->query('download_filename', $request->input('download_filename'));
         }
         $requestedName = is_string($requestedName) ? $requestedName : null;
-        $notifyEmail = auth()->user()?->email;
+        $notifyEmail = $this->resolvePdfNotifyEmail($request);
         $designId = (int) $id;
         $job_id = 'pdf_back_'.$id.'_'.time();
 
@@ -8153,27 +8200,83 @@ class DesignController extends Controller
     }
 
     /**
+     * Destinatario del correo PDF listo: solo si el usuario confirmó explícitamente (send_pdf_email=1).
+     */
+    private function resolvePdfNotifyEmail(Request $request): ?string
+    {
+        if (! config('pdf_optimization.send_email', false)) {
+            return null;
+        }
+
+        if (! $request->boolean('send_pdf_email')) {
+            return null;
+        }
+
+        $email = trim((string) $request->input('notify_email', $request->query('notify_email', '')));
+        if ($email === '') {
+            $email = trim((string) (auth()->user()?->email ?? ''));
+        }
+
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+
+        return $email;
+    }
+
+    /**
      * Email opcional al terminar un PDF (PDF_SEND_EMAIL).
+     * Registra el resultado real vía sendAndLog (no afirma entrega si SMTP falla).
      */
     private function maybeSendDesignPdfReadyEmail(string $jobId, string $title, int $designId, ?string $notifyEmail = null): void
     {
-        $notifyEmail = $notifyEmail ?? auth()->user()?->email;
+        $notifyEmail = trim((string) ($notifyEmail ?? ''));
         if (
             ! config('pdf_optimization.send_email', false)
-            || ! is_string($notifyEmail)
             || $notifyEmail === ''
+            || ! filter_var($notifyEmail, FILTER_VALIDATE_EMAIL)
         ) {
             return;
         }
 
+        if (\App\Support\PdfJobStatus::wasEmailSent($jobId)) {
+            return;
+        }
+
         try {
-            \Illuminate\Support\Facades\Mail::to($notifyEmail)->send(new \App\Mail\DesignPdfReadyMail(
-                route('design.downloadPdf', $jobId),
-                $title,
-                $designId
-            ));
-            \App\Support\PdfJobStatus::markEmailSent($jobId);
+            $log = app(CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: $notifyEmail,
+                recipientRole: 'administration',
+                recipientUser: auth()->user(),
+                messageType: 'design_pdf_ready',
+                templateKey: null,
+                mailClass: \App\Mail\DesignPdfReadyMail::class,
+                mailPayload: [
+                    'job_id' => $jobId,
+                    'title' => $title,
+                    'design_format_id' => $designId,
+                    'download_url' => route('design.downloadPdf', $jobId),
+                ],
+                context: [
+                    'job_id' => $jobId,
+                    'design_format_id' => $designId,
+                ],
+            );
+
+            if ($log->status === EmailCommunicationLog::STATUS_SENT
+                || $log->status === EmailCommunicationLog::STATUS_RE_SENT) {
+                \App\Support\PdfJobStatus::markEmailSent($jobId);
+            } else {
+                \App\Support\PdfJobStatus::markEmailFailed($jobId, $log->error_message);
+                Log::warning('maybeSendDesignPdfReadyEmail SMTP failed', [
+                    'job_id' => $jobId,
+                    'email' => $notifyEmail,
+                    'status' => $log->status,
+                    'error' => $log->error_message,
+                ]);
+            }
         } catch (\Throwable $mailEx) {
+            \App\Support\PdfJobStatus::markEmailFailed($jobId, $mailEx->getMessage());
             Log::warning('maybeSendDesignPdfReadyEmail failed', [
                 'job_id' => $jobId,
                 'message' => $mailEx->getMessage(),
@@ -8587,30 +8690,40 @@ class DesignController extends Controller
             $setLocked = ! empty($designLockByDesignId[$d->id]['locked']);
             $printLocked = ! empty($printOrderLockByDesignId[$d->id]['locked']);
             $awaitingEntityFee = $d->set && $feeService->blocksAdminDesignUntilEntityPays($d->set);
+            $awaitingAdminFee = $d->set && $feeService->blocksDesignUntilAdministrationFeeSettled($d->set);
             $printPayment = app(AdministrationBillingService::class)->buildPrintPaymentContext($d, $user);
             $blocksExport = $approvalService->blocksQrExport($d);
+            $actsAsAdmin = $approvalService->userActsAsAdministration($user);
             $approvalContextByDesignId[$d->id] = [
                 'label' => $approvalService->statusLabel($d->approval_status),
                 'status' => $approvalService->normalizedApprovalStatus($d->approval_status),
                 'requires_approval' => $approvalService->requiresEntityApproval($d),
-                'can_submit' => $approvalService->canSubmitForApproval($user, $d) && ! $awaitingEntityFee,
-                'can_resend_approval' => $approvalService->canResendApprovalNotification($user, $d) && ! $awaitingEntityFee,
+                'can_submit' => $approvalService->canSubmitForApproval($user, $d)
+                    && ! $awaitingEntityFee
+                    && ! $awaitingAdminFee,
+                'can_resend_approval' => $approvalService->canResendApprovalNotification($user, $d)
+                    && ! $awaitingEntityFee
+                    && ! $awaitingAdminFee,
                 'can_edit' => $approvalService->canEntityEditDesign($user, $d),
                 'can_open_editor' => ! $awaitingEntityFee
+                    && ! $awaitingAdminFee
                     && $approvalService->canOpenDesignEditor($user, $d, $setLocked, $printLocked),
                 'export_locked' => $approvalService->isLockedAfterParticipationExport($d),
                 'can_review' => $approvalService->canReviewApproval($user, $d),
                 'awaiting_entity_fee' => $awaitingEntityFee,
-                'management_fee_pending' => $approvalService->managementFeePendingAfterApproval($d)
-                    || $feeService->entityOwesManagementFee($d),
+                'awaiting_admin_fee' => $awaitingAdminFee && $actsAsAdmin,
+                'management_fee_pending' => ($approvalService->managementFeePendingAfterApproval($d)
+                    || $feeService->entityOwesManagementFee($d)
+                    || ($awaitingAdminFee && $actsAsAdmin)),
                 'entity_fee_due' => $feeService->entityOwesManagementFee($d),
-                'acts_as_administration' => $approvalService->userActsAsAdministration($user),
+                'acts_as_administration' => $actsAsAdmin,
                 'blocks_export' => $blocksExport,
                 'can_export_design_pdf' => $user->canExportDesignPdf($d),
                 'pdf_export_block_reason' => $approvalService->pdfExportBlockReasonForUser($user, $d),
                 'can_download_pending_sample' => $approvalService->canDownloadPendingParticipationSample($user, $d),
                 'block_message' => $approvalService->blockMessage($d),
                 'can_send_to_print' => ! $awaitingEntityFee
+                    && ! $awaitingAdminFee
                     && ! ($d->set && $this->designSetIsDigitalOnly($d->set))
                     && $this->printOrderSubmissionBlockMessage($d) === null
                     && ! empty($printPayment['user_may_submit']),

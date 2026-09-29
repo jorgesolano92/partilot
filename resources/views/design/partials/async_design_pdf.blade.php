@@ -193,10 +193,34 @@
     </div>
 </div>
 
+<div class="modal fade design-pdf-print-modal" id="designPdfEmailConfirmModal" tabindex="-1" aria-labelledby="designPdfEmailConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="designPdfEmailConfirmModalLabel">Confirmar envío por correo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Al terminar la generación se enviará un correo con el enlace de descarga a:</p>
+                <p class="fs-5 fw-semibold mb-3" id="designPdfEmailConfirmAddress">—</p>
+                <p class="small text-muted mb-0">Puede cancelar sin enviar. Si confirma, se intentará el envío; un fallo SMTP no se mostrará como entrega garantizada.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal" id="designPdfEmailConfirmCancel">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfEmailConfirmSend">Confirmar y generar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Overlay bloqueante eliminado: solo aviso PNotify (arriba derecha) mientras genera el PDF --}}
 
 <script>
 (function ($) {
+  var PARTILOT_PDF_SEND_EMAIL = @json((bool) config('pdf_optimization.send_email', false));
+  var PARTILOT_PDF_NOTIFY_EMAIL = @json(trim((string) (auth()->user()?->email ?? '')));
+  var partilotPendingPdfStart = null;
+  var partilotAwaitingPdfEmail = false;
   function partilotRemoveAllNotifies() {
     if (typeof PNotify !== 'undefined' && typeof PNotify.removeAll === 'function') {
       PNotify.removeAll();
@@ -267,26 +291,46 @@
     }
   }
 
-  function partilotFinishDownload(url, title, preferredName) {
+  function partilotFinishDownload(url, title, preferredName, emailMeta) {
     if (!url) return;
     partilotNotifyPdf('info', title || 'PDF', 'Iniciando descarga en el navegador…', true);
     partilotTriggerDownload(url, preferredName).then(function (ok) {
+      var emailNote = partilotPdfEmailStatusHtml(emailMeta);
       if (ok) {
         partilotNotifyPdf(
-          'success',
+          (emailMeta && emailMeta.email_failed) ? 'warning' : 'success',
           title || 'PDF',
-          'Descarga iniciada. Si no ve el archivo, compruebe la carpeta de descargas o <a href="' + url + '" target="_blank" rel="noopener">pulse aquí</a>.',
-          false
+          'Descarga iniciada. Si no ve el archivo, compruebe la carpeta de descargas o <a href="' + url + '" target="_blank" rel="noopener">pulse aquí</a>.'
+            + emailNote,
+          !!(emailMeta && emailMeta.email_failed)
         );
       } else {
         partilotNotifyPdf(
           'warning',
           title || 'PDF',
-          'No se pudo iniciar la descarga automática. <a href="' + url + '" target="_blank" rel="noopener">Pulse aquí para descargar</a>.',
+          'No se pudo iniciar la descarga automática. <a href="' + url + '" target="_blank" rel="noopener">Pulse aquí para descargar</a>.'
+            + emailNote,
           true
         );
       }
+      partilotAwaitingPdfEmail = false;
     });
+  }
+
+  function partilotPdfEmailStatusHtml(emailMeta) {
+    if (!partilotAwaitingPdfEmail) {
+      return '';
+    }
+    var to = PARTILOT_PDF_NOTIFY_EMAIL || '';
+    if (emailMeta && emailMeta.email_sent) {
+      return '<br><br>Correo de aviso enviado a <strong>' + to + '</strong>.';
+    }
+    if (emailMeta && emailMeta.email_failed) {
+      return '<br><br>El PDF está listo, pero no se pudo enviar el correo a <strong>' + to + '</strong>'
+        + (emailMeta.email_error ? ' (' + String(emailMeta.email_error).replace(/</g, '&lt;') + ')' : '')
+        + '. No se considera entregado.';
+    }
+    return '<br><br>El aviso por correo a <strong>' + to + '</strong> no se ha confirmado como entregado.';
   }
 
   function partilotNotifyPdf(type, title, message, sticky) {
@@ -316,7 +360,10 @@
     new PNotify(opts);
   }
 
-  function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl) {
+  function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl, emailWaitLeft) {
+    if (typeof emailWaitLeft === 'undefined') {
+      emailWaitLeft = 15;
+    }
     if (attemptsLeft <= 0) {
       if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
       partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si el PDF era grande, vuelva a intentarlo en unos minutos; si el problema continúa, revise el log del servidor.');
@@ -330,27 +377,40 @@
       .done(function (st) {
         if (st && st.status === 'failed') {
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+          partilotAwaitingPdfEmail = false;
           partilotNotifyPdf('error', notifyTitle || 'PDF', st.message || 'La generación del PDF falló.', false);
           return;
         }
         if (st && st.status === 'completed' && st.download_url) {
+          // Esperar confirmación SMTP real antes de informar del correo.
+          if (partilotAwaitingPdfEmail && !st.email_sent && !st.email_failed && emailWaitLeft > 0) {
+            setTimeout(function () {
+              partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl, emailWaitLeft - 1);
+            }, 1000);
+            return;
+          }
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-          partilotFinishDownload(st.download_url, notifyTitle);
+          partilotFinishDownload(st.download_url, notifyTitle, null, {
+            email_sent: !!st.email_sent,
+            email_failed: !!st.email_failed,
+            email_error: st.email_error || null
+          });
           return;
         }
         setTimeout(function () {
-          partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl);
+          partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl, emailWaitLeft);
         }, 2000);
       })
       .fail(function () {
         // Fallo puntual de red: reintentar un poco antes de abortar
         if (attemptsLeft > 3) {
           setTimeout(function () {
-            partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl);
+            partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl, emailWaitLeft);
           }, 3000);
           return;
         }
         if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+        partilotAwaitingPdfEmail = false;
         partilotNotifyPdf('error', notifyTitle || 'PDF', 'No se pudo consultar el estado del PDF.');
       });
   }
@@ -493,6 +553,48 @@
     return baseUrl + sep + query;
   }
 
+  function partilotAppendPdfEmailQuery(url) {
+    if (!PARTILOT_PDF_SEND_EMAIL || !PARTILOT_PDF_NOTIFY_EMAIL) {
+      return url;
+    }
+    return partilotAppendQuery(
+      url,
+      'send_pdf_email=1&notify_email=' + encodeURIComponent(PARTILOT_PDF_NOTIFY_EMAIL)
+    );
+  }
+
+  function partilotConfirmPdfEmailThenStart(url, title, $btn) {
+    if (!PARTILOT_PDF_SEND_EMAIL) {
+      partilotStartDesignPdfAjax(url, title, $btn);
+      return;
+    }
+    if (!PARTILOT_PDF_NOTIFY_EMAIL) {
+      partilotNotifyPdf('error', title || 'PDF', 'No hay un correo de destinatario válido para el aviso de PDF listo. No se puede enviar.', false);
+      return;
+    }
+    partilotPendingPdfStart = { url: url, title: title, $btn: $btn };
+    $('#designPdfEmailConfirmAddress').text(PARTILOT_PDF_NOTIFY_EMAIL);
+    partilotModalShow(document.getElementById('designPdfEmailConfirmModal'));
+  }
+
+  $('#designPdfEmailConfirmSend').on('click', function () {
+    var pending = partilotPendingPdfStart;
+    partilotPendingPdfStart = null;
+    partilotModalHide(document.getElementById('designPdfEmailConfirmModal'));
+    if (!pending) return;
+    partilotAwaitingPdfEmail = true;
+    partilotStartDesignPdfAjax(
+      partilotAppendPdfEmailQuery(pending.url),
+      pending.title,
+      pending.$btn
+    );
+  });
+
+  $('#designPdfEmailConfirmCancel').on('click', function () {
+    partilotPendingPdfStart = null;
+    partilotAwaitingPdfEmail = false;
+  });
+
   function partilotStartDesignPdfAjax(url, title, $btn) {
     $btn.prop('disabled', true);
     partilotNotifyPdf('info', title, 'Generando PDF en segundo plano… Puede seguir usando el panel.', true);
@@ -502,7 +604,11 @@
       .done(function (data) {
         if (data && data.status === 'completed' && data.download_url) {
           $btn.prop('disabled', false);
-          partilotFinishDownload(data.download_url, title);
+          partilotFinishDownload(data.download_url, title, null, {
+            email_sent: !!data.email_sent,
+            email_failed: !!data.email_failed,
+            email_error: data.email_error || null
+          });
           return;
         }
         if (data && data.status === 'failed') {
@@ -638,7 +744,7 @@
       return;
     }
 
-    partilotStartDesignPdfAjax(
+    partilotConfirmPdfEmailThenStart(
       partilotAppendQuery(baseUrl, 'download_name=' + encodeURIComponent(partilotDefaultDownloadBase($btn.attr('data-design-name'), 'pdf'))),
       title,
       $btn
@@ -667,7 +773,7 @@
     var url = partilotAppendQuery(baseUrl, 'pdf_from=' + encodeURIComponent(from) + '&pdf_to=' + encodeURIComponent(to) + '&' + partilotReadDocsQuery('designPdfPart'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfPart');
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotConfirmPdfEmailThenStart(url, title, $btn);
   });
 
   $('#designPdfCoverConfirm').on('click', function () {
@@ -688,7 +794,7 @@
     var url = partilotAppendQuery(baseUrl, partilotReadCoverTacoQuery() + '&' + partilotReadDocsQuery('designPdfCover'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfCover');
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotConfirmPdfEmailThenStart(url, title, $btn);
   });
 
   $('#designPdfBackConfirm').on('click', function () {
@@ -708,7 +814,7 @@
     var url = partilotAppendQuery(baseUrl, 'count=' + encodeURIComponent(n) + '&' + partilotReadDocsQuery('designPdfBack'));
     partilotSyncBtnDocsDefaults($btn, 'designPdfBack');
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotConfirmPdfEmailThenStart(url, title, $btn);
   });
 })(window.jQuery);
 </script>

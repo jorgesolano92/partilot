@@ -70,11 +70,22 @@ class PdfJobStatus
     {
         $current = self::get($jobId) ?? [];
         $current['email_sent'] = true;
+        $current['email_failed'] = false;
+        $current['email_error'] = null;
+        Cache::put(self::key($jobId), $current, self::TTL_SECONDS);
+    }
+
+    public static function markEmailFailed(string $jobId, ?string $message = null): void
+    {
+        $current = self::get($jobId) ?? [];
+        $current['email_sent'] = false;
+        $current['email_failed'] = true;
+        $current['email_error'] = $message;
         Cache::put(self::key($jobId), $current, self::TTL_SECONDS);
     }
 
     /**
-     * @return array{status?: string, message?: ?string, presence_at?: int, email_sent?: bool}|null
+     * @return array{status?: string, message?: ?string, presence_at?: int, email_sent?: bool, email_failed?: bool, email_error?: ?string}|null
      */
     public static function get(string $jobId): ?array
     {

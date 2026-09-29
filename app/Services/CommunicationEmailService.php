@@ -493,6 +493,17 @@ class CommunicationEmailService
             return new \App\Mail\DesignApprovalPendingMail($design);
         }
 
+        if ($mailClass === \App\Mail\DesignPdfReadyMail::class) {
+            $downloadUrl = (string) ($mailPayload['download_url'] ?? '');
+            $title = (string) ($mailPayload['title'] ?? 'PDF');
+            $designId = (int) ($mailPayload['design_format_id'] ?? 0);
+            if ($downloadUrl === '' && ! empty($mailPayload['job_id'])) {
+                $downloadUrl = route('design.downloadPdf', (string) $mailPayload['job_id']);
+            }
+
+            return new \App\Mail\DesignPdfReadyMail($downloadUrl, $title, $designId);
+        }
+
         if ($mailClass === \App\Mail\PrintShopWelcomeMail::class) {
             $configId = (int) ($mailPayload['print_configuration_id'] ?? 0);
             $userId = (int) ($mailPayload['user_id'] ?? 0);

@@ -211,28 +211,12 @@ class ManagementFeeService
     }
 
     /**
-     * El pago de cuota exige aprobación previa del diseño.
-     * Solo cuando pagador es administración; la entidad paga primero y aprueba después.
+     * La cuota de gestión se resuelve antes del diseño (tarjeta/remesa existente).
+     * Ya no se bloquea el cobro esperando la aprobación de la entidad.
      */
     public function managementFeePaymentBlockedByApproval(?DesignFormat $design, Set $set): bool
     {
-        $set->loadMissing('entity');
-        $entity = $set->entity;
-
-        if (! $entity || $this->resolvePayer($entity) === self::PAYER_ENTITY) {
-            return false;
-        }
-
-        if (! $design) {
-            return false;
-        }
-
-        $approvalService = app(DesignApprovalService::class);
-        if (! $approvalService->requiresEntityApproval($design)) {
-            return false;
-        }
-
-        return $design->approval_status !== DesignApprovalService::STATUS_APPROVED;
+        return false;
     }
 
     public function entityDesigns(Entity $entity): bool
@@ -275,6 +259,37 @@ class ManagementFeeService
         return $this->requiresEntityPaymentBeforeAdminDesign($entity);
     }
 
+    /**
+     * Pagador administración: la cuota debe resolverse antes de enviar el set a diseño.
+     */
+    public function blocksDesignUntilAdministrationFeeSettled(Set $set): bool
+    {
+        $set->loadMissing('entity');
+        $entity = $set->entity;
+
+        if (! $entity || $this->resolvePayer($entity) !== self::PAYER_ADMINISTRATION) {
+            return false;
+        }
+
+        $this->ensureSnapshot($set);
+
+        return ! $this->isManagementFeeSettled($set->refresh());
+    }
+
+    /**
+     * Bloqueo de entrada a diseño (elegir tipo / editor) por cuota de gestión pendiente.
+     */
+    public function blocksDesignEntry(Set $set): bool
+    {
+        return $this->blocksAdminDesignUntilEntityPays($set)
+            || $this->blocksDesignUntilAdministrationFeeSettled($set);
+    }
+
+    public function administrationOwesManagementFee(Set $set): bool
+    {
+        return $this->blocksDesignUntilAdministrationFeeSettled($set);
+    }
+
     public function ensureSnapshot(Set $set, ?DesignFormat $design = null): Set
     {
         if ($this->isManagementFeeSettled($set)) {
@@ -282,24 +297,13 @@ class ManagementFeeService
         }
 
         $set->loadMissing('entity');
-        $entityForSnapshot = $set->entity;
-        $paymentBeforeAdminDesign = $entityForSnapshot
-            && $this->requiresEntityPaymentBeforeAdminDesign($entityForSnapshot);
-        $entityPaysFee = $entityForSnapshot
-            && $this->resolvePayer($entityForSnapshot) === self::PAYER_ENTITY;
-
-        if ($design && app(DesignApprovalService::class)->requiresEntityApproval($design)) {
-            if ($design->approval_status !== DesignApprovalService::STATUS_APPROVED
-                && ! $paymentBeforeAdminDesign
-                && ! $entityPaysFee) {
-                return $set;
-            }
-        }
-
         $entity = $set->relationLoaded('entity') ? $set->entity : $set->entity()->first();
         if (! $entity) {
             return $set;
         }
+
+        // Cuota antes del diseño: calcular siempre (pagador admin o entidad).
+        // $design se acepta por compatibilidad con llamadas existentes.
 
         if ($set->management_fee_status === self::STATUS_PENDING
             && $set->management_fee_amount !== null
@@ -381,6 +385,10 @@ class ManagementFeeService
             && $this->resolvePayer($entity) === self::PAYER_ENTITY
             && app(DesignApprovalService::class)->entityDesignEnabled($entity)
             && ! $this->isManagementFeeSettled($set);
+        $adminFeeBeforeDesign = $entity
+            && $this->resolvePayer($entity) === self::PAYER_ADMINISTRATION
+            && ! $this->isManagementFeeSettled($set);
+        $actsAsAdministration = app(DesignApprovalService::class)->userActsAsAdministration($user);
         $paymentBlockedByApproval = $this->managementFeePaymentBlockedByApproval($design, $set);
 
         return [
@@ -405,6 +413,11 @@ class ManagementFeeService
             'awaiting_approval' => $awaitingApproval,
             'payment_before_admin_design' => $paymentBeforeAdminDesign,
             'payment_before_editor' => $paymentBeforeEditor,
+            'admin_fee_before_design' => $adminFeeBeforeDesign,
+            'show_admin_fee_actions' => $adminFeeBeforeDesign && $actsAsAdministration,
+            'hide_fee_from_entity' => $adminFeeBeforeDesign && ! $actsAsAdministration
+                && $user->isEntity()
+                && ! $user->isAdministration(),
             'needs_payment_action' => ! $this->isManagementFeeSettled($set) && ! $paymentBlockedByApproval,
         ];
     }

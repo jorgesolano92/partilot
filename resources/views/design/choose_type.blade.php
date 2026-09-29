@@ -175,16 +175,50 @@
                     </div>
                 @endif
 
+                @if(!empty($managementFeeBlocksDesign))
+                    <div class="alert alert-warning mb-3 text-start">
+                        <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente</h5>
+                        @if(!empty($actsAsAdministration) || !empty($managementFee['show_admin_fee_actions']))
+                            <p class="mb-3 small">
+                                Debe resolver la cuota de gestión PARTILOT
+                                @if(!empty($managementFee['amount']))
+                                    ({{ number_format($managementFee['amount'], 2, ',', '.') }}€)
+                                @endif
+                                antes de enviar este set a diseño. No puede avanzar hasta completar esta condición.
+                            </p>
+                            <a href="{{ route('design.managementFee.pay', $set->id) }}" class="btn btn-success">
+                                <i class="ri-bank-card-line me-1"></i> Resolver cuota de gestión
+                            </a>
+                        @elseif(($managementFee['payer'] ?? '') === 'entity')
+                            <p class="mb-3 small">
+                                Debe confirmar la cuota de gestión PARTILOT antes de continuar con el diseño.
+                            </p>
+                            <a href="{{ route('design.managementFee.pay', $set->id) }}" class="btn btn-success">
+                                <i class="ri-bank-card-line me-1"></i> Pagar cuota de gestión
+                            </a>
+                        @else
+                            <p class="mb-0 small">La administración está preparando el diseño de este set.</p>
+                        @endif
+                    </div>
+                @endif
+
                 <form id="choose-type-submit-form" method="POST" action="{{ route('design.format') }}">
                     @csrf
                     <input type="hidden" name="set_id" value="{{ $set->id }}">
                     <input type="hidden" id="choose-mode" value="self">
                     <input type="hidden" id="choose-submode" value="new">
                     <div class="text-end mt-5">
+                        @if(!empty($managementFeeBlocksDesign) || !empty($designLock['locked']))
+                            <button type="button" id="choose-submit-btn" disabled style="border-radius: 30px; width: 200px; background-color: #c8c8c8; color: #666; padding: 8px; font-weight: bolder; position: relative; cursor: not-allowed;" class="btn btn-md btn-light" title="Resuelva la condición pendiente para continuar">
+                                Seleccionar
+                                <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i>
+                            </button>
+                        @else
                         <button type="submit" id="choose-submit-btn" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light">
                             Seleccionar
                             <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i>
                         </button>
+                        @endif
                     </div>
                 </form>
             </div>
@@ -223,6 +257,15 @@
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         @if(!empty($designLock['locked']))
+            alert(@json($designLock['message'] ?? 'Este set tiene el diseño bloqueado y no se puede continuar.'));
+            return;
+        @endif
+        @if(!empty($managementFeeBlocksDesign))
+            @if(!empty($actsAsAdministration) || !empty($managementFee['show_admin_fee_actions']) || (($managementFee['payer'] ?? '') === 'entity'))
+            alert('Debe resolver la cuota de gestión PARTILOT antes de enviar este set a diseño.');
+            @else
+            alert('La administración está preparando el diseño de este set.');
+            @endif
             return;
         @endif
         var mode = modeInput.value;

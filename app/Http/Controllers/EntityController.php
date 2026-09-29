@@ -1022,6 +1022,14 @@ class EntityController extends Controller
         );
         $canManageBillingSwitches = $user && ($user->isSuperAdmin() || $user->isAdministration());
 
+        $entityLotteries = \App\Models\Lottery::query()
+            ->whereHas('reserves', function ($q) use ($entity) {
+                $q->where('entity_id', $entity->id);
+            })
+            ->orderByDesc('draw_date')
+            ->limit(8)
+            ->get();
+
         return view('entities.show', compact(
             'entity',
             'managersVisible',
@@ -1040,7 +1048,8 @@ class EntityController extends Controller
             'hideRegisterManager',
             'managerTabLabel',
             'isEntityRole',
-            'canManageBillingSwitches'
+            'canManageBillingSwitches',
+            'entityLotteries'
         ));
     }
 

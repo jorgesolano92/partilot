@@ -89,7 +89,7 @@
                                     @if(app(\App\Services\DesignApprovalService::class)->isPrintShopDesign($design))
                                         Al aprobar el diseño la imprenta PARTILOT podrá generar los archivos de impresión.
                                     @else
-                                        Al aprobar el diseño se habilitará el cobro de la cuota de gestión PARTILOT al pagador configurado en la entidad.
+                                        Al aprobar el diseño, si la cuota de gestión PARTILOT aún no está resuelta para el pagador configurado, podrá gestionarse desde el resumen del diseño.
                                     @endif
                                 </p>
 
