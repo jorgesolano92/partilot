@@ -243,6 +243,26 @@
         height: 260px !important;
         min-height: 260px !important;
     }
+    .dashboard-panel .operational-tasks {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .dashboard-panel .operational-task-link {
+        font-size: .78rem;
+        color: #3b4356;
+        border: 1px solid #e0e4ef;
+        border-radius: 999px;
+        padding: 6px 12px;
+        text-decoration: none;
+        background: #fafbfd;
+    }
+    .dashboard-panel .operational-task-link:hover {
+        border-color: #fcb941;
+        background: #fff8eb;
+        color: #1f2430;
+    }
 </style>
 @endsection
 
@@ -294,6 +314,18 @@
         @endforeach
     </div>
 
+    @if(!empty($dashboard['entity_operational_home']) && !empty($dashboard['operational_tasks']))
+        <div class="row g-3 mt-1">
+            <div class="col-12">
+                <div class="operational-tasks" aria-label="Accesos operativos">
+                    @foreach($dashboard['operational_tasks'] as $task)
+                        <a href="{{ $task['url'] }}" class="operational-task-link">{{ $task['label'] }}</a>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="row g-3 mt-1 panel-row-paired @if($dashboard['show_sellers_panel'] ?? false) panel-row-entity @endif">
         @php
             $entitiesPanelCol = ($dashboard['show_users_panel'] ?? false) || ($dashboard['show_sellers_panel'] ?? false)
@@ -304,36 +336,70 @@
         <div class="{{ $entitiesPanelCol }}">
             <div class="panel-card card">
                 <div class="card-body">
-                    <div class="panel-head">
-                        <div>
-                            <h5 class="panel-title">Entidades</h5>
-                            <p class="panel-subtitle">Últimas entidades registradas en PARTILOT</p>
+                    @if(!empty($dashboard['entity_operational_home']))
+                        <div class="panel-head">
+                            <div>
+                                <h5 class="panel-title">Sets de participaciones</h5>
+                                <p class="panel-subtitle">Tacos recientes de tu entidad</p>
+                            </div>
+                            <a href="{{ url('/sets') }}" class="panel-link">Ver más</a>
                         </div>
-                        <a href="{{ url('entities') }}" class="panel-link">Ver más</a>
-                    </div>
-                    @if($dashboard['recent_entities']->isEmpty())
-                        <div class="panel-empty">No hay entidades registradas</div>
-                    @else
-                        <div class="panel-table-wrap">
-                            <table class="table users-table mb-0">
-                                <thead>
-                                    <tr>
-                                        <th class="col-id">ID</th>
-                                        <th class="col-name">Nombre</th>
-                                        <th class="col-meta">Ubicación</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($dashboard['recent_entities'] as $entity)
+                        @if($dashboard['recent_sets']->isEmpty())
+                            <div class="panel-empty">No hay sets registrados</div>
+                        @else
+                            <div class="panel-table-wrap">
+                                <table class="table users-table mb-0">
+                                    <thead>
                                         <tr>
-                                            <td class="col-id"><a href="{{ url('entities/view', $entity->id) }}" class="text-dark text-decoration-none">#EN{{ str_pad($entity->id, 4, '0', STR_PAD_LEFT) }}</a></td>
-                                            <td class="col-name" title="{{ $entity->name ?? 'Sin nombre' }}">{{ $entity->name ?? 'Sin nombre' }}</td>
-                                            <td class="col-meta" title="{{ trim(($entity->province ?? 'Sin provincia') . ' / ' . ($entity->city ?? 'Sin localidad'), ' /') }}">{{ trim(($entity->province ?? 'Sin provincia') . ' / ' . ($entity->city ?? 'Sin localidad'), ' /') }}</td>
+                                            <th class="col-id">ID</th>
+                                            <th class="col-name">Nombre</th>
+                                            <th class="col-meta">Sorteo</th>
                                         </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($dashboard['recent_sets'] as $set)
+                                            <tr>
+                                                <td class="col-id"><a href="{{ route('sets.show', $set->id) }}" class="text-dark text-decoration-none">#SP{{ str_pad($set->id, 4, '0', STR_PAD_LEFT) }}</a></td>
+                                                <td class="col-name" title="{{ $set->set_name ?? 'Sin nombre' }}">{{ $set->set_name ?? 'Sin nombre' }}</td>
+                                                <td class="col-meta" title="{{ $set->reserve?->lottery?->name ?? 'Sin sorteo' }}">{{ $set->reserve?->lottery?->name ?? 'Sin sorteo' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    @else
+                        <div class="panel-head">
+                            <div>
+                                <h5 class="panel-title">Entidades</h5>
+                                <p class="panel-subtitle">Últimas entidades registradas en PARTILOT</p>
+                            </div>
+                            <a href="{{ url('entities') }}" class="panel-link">Ver más</a>
                         </div>
+                        @if($dashboard['recent_entities']->isEmpty())
+                            <div class="panel-empty">No hay entidades registradas</div>
+                        @else
+                            <div class="panel-table-wrap">
+                                <table class="table users-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-id">ID</th>
+                                            <th class="col-name">Nombre</th>
+                                            <th class="col-meta">Ubicación</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($dashboard['recent_entities'] as $entity)
+                                            <tr>
+                                                <td class="col-id"><a href="{{ url('entities/view', $entity->id) }}" class="text-dark text-decoration-none">#EN{{ str_pad($entity->id, 4, '0', STR_PAD_LEFT) }}</a></td>
+                                                <td class="col-name" title="{{ $entity->name ?? 'Sin nombre' }}">{{ $entity->name ?? 'Sin nombre' }}</td>
+                                                <td class="col-meta" title="{{ trim(($entity->province ?? 'Sin provincia') . ' / ' . ($entity->city ?? 'Sin localidad'), ' /') }}">{{ trim(($entity->province ?? 'Sin provincia') . ' / ' . ($entity->city ?? 'Sin localidad'), ' /') }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
                     @endif
                 </div>
             </div>

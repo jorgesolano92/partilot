@@ -2178,9 +2178,6 @@
 
                         preloader.classList.add('partilot-preloader--hide');
                         window.setTimeout(function () {
-                            if (preloader.parentNode) {
-                                preloader.parentNode.removeChild(preloader);
-                            }
                             window.setTimeout(function () {
                                 if (typeof window.partilotShowPageFlashes === 'function') {
                                     window.partilotShowPageFlashes();
@@ -2189,6 +2186,29 @@
                         }, 380);
                     }, delay);
                 }
+
+                window.partilotBeginNavLoading = function () {
+                    document.documentElement.classList.add('partilot-loading');
+                    var preloader = document.getElementById('partilot-preloader');
+                    if (preloader) {
+                        preloader.classList.remove('partilot-preloader--hide');
+                    }
+                };
+
+                document.addEventListener('click', function (event) {
+                    var link = event.target.closest('a.menu-link[href], a.panel-link[href], .left-side-menu a[href]');
+                    if (!link || link.target === '_blank') {
+                        return;
+                    }
+                    var href = link.getAttribute('href');
+                    if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+                        return;
+                    }
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                        return;
+                    }
+                    window.partilotBeginNavLoading();
+                });
 
                 function whenReady() {
                     var loadDone = new Promise(function (resolve) {

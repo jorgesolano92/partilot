@@ -6,7 +6,9 @@ use App\Models\Administration;
 use App\Models\Entity;
 use App\Models\Participation;
 use App\Models\Seller;
+use App\Models\Set;
 use App\Models\User;
+use App\Support\ActiveEntityContext;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -18,6 +20,7 @@ class DashboardService
         $showUsers = $user->isSuperAdmin();
         $showAdministrations = $user->isSuperAdmin();
         $showSellersPanel = ! $showUsers && $user->isEntity();
+        $entityOperationalHome = $this->usesEntityOperationalHome($user);
 
         return [
             'metrics' => [
@@ -27,6 +30,8 @@ class DashboardService
                 'participations' => $this->metricFor(Participation::query()->forUser($user)),
             ],
             'recent_entities' => $this->recentEntities($user),
+            'recent_sets' => $entityOperationalHome ? $this->recentSets($user) : collect(),
+            'operational_tasks' => $entityOperationalHome ? $this->operationalTasks($user) : [],
             'recent_users' => $showUsers ? $this->recentUsers($user) : collect(),
             'recent_sellers' => $showSellersPanel ? $this->recentSellers($user) : collect(),
             'recent_administrations' => $showAdministrations ? $this->recentAdministrations() : collect(),
@@ -34,7 +39,70 @@ class DashboardService
             'show_users_panel' => $showUsers,
             'show_sellers_panel' => $showSellersPanel,
             'show_administrations_panel' => $showAdministrations,
+            'entity_operational_home' => $entityOperationalHome,
+            'show_entities_panel' => ! $entityOperationalHome,
         ];
+    }
+
+    /**
+     * Gestor / panel entidad con una sola entidad en contexto: inicio operativo (sets), no selector de entidades.
+     */
+    private function usesEntityOperationalHome(User $user): bool
+    {
+        if ($user->isSuperAdmin() || $user->isAdministration()) {
+            return false;
+        }
+
+        if (! $user->isEntity()) {
+            return false;
+        }
+
+        if ($user->isEntityPanelAccount()) {
+            return true;
+        }
+
+        return ! ActiveEntityContext::usesActiveEntityScope($user);
+    }
+
+    private function recentSets(User $user): Collection
+    {
+        return Set::query()
+            ->forUser($user)
+            ->with(['reserve.lottery'])
+            ->orderByDesc('created_at')
+            ->limit(7)
+            ->get();
+    }
+
+    /**
+     * @return array<int, array{label: string, url: string}>
+     */
+    private function operationalTasks(User $user): array
+    {
+        $tasks = [
+            ['label' => 'Sets de participaciones', 'url' => url('/sets')],
+            ['label' => 'Participaciones', 'url' => url('participations')],
+        ];
+
+        $canSeeSellers = $user->isEntityPanelReadOnly()
+            || ! ($user->isEntity() && ! $user->isSuperAdmin() && ! $user->isAdministration())
+            || $user->hasEntityManagerPermission('sellers');
+
+        if ($canSeeSellers) {
+            $tasks[] = ['label' => 'Vendedores', 'url' => url('sellers')];
+        }
+
+        if ($user->isEntityPanelReadOnly()
+            || ! ($user->isEntity() && ! $user->isSuperAdmin() && ! $user->isAdministration())
+            || $user->hasEntityManagerPermission('design')) {
+            $tasks[] = ['label' => 'Diseño e impresión', 'url' => url('/design')];
+        }
+
+        if ($user->hasAccessToDevolutionsModule()) {
+            $tasks[] = ['label' => 'Devoluciones', 'url' => url('devolutions')];
+        }
+
+        return $tasks;
     }
 
     private function usersBaseQuery(User $user): Builder
@@ -132,10 +200,9 @@ class DashboardService
     {
         return Entity::query()
             ->forUser($user)
-            ->with(['manager.user', 'administration'])
             ->orderByDesc('created_at')
             ->limit(7)
-            ->get();
+            ->get(['id', 'name', 'province', 'city', 'created_at']);
     }
 
     private function recentUsers(User $user): Collection
