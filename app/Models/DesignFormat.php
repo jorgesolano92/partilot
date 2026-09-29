@@ -254,10 +254,7 @@ class DesignFormat extends Model
                         $insertedCount = count($participationsToCreate);
                         $totalCreated += $insertedCount;
                         \Log::info('Insertado lote de ' . $insertedCount . ' participaciones. Total creadas: ' . $totalCreated);
-                        
-                        // Crear logs para las participaciones insertadas
-                        $this->createActivityLogsForBatch($participationsToCreate);
-                        
+
                         $participationsToCreate = [];
                     } catch (\Exception $e) {
                         \Log::error('Error al insertar lote de participaciones: ' . $e->getMessage());
@@ -276,9 +273,6 @@ class DesignFormat extends Model
                     $insertedCount = count($participationsToCreate);
                     $totalCreated += $insertedCount;
                     \Log::info('Insertado lote final de ' . $insertedCount . ' participaciones. Total creadas: ' . $totalCreated);
-                    
-                    // Crear logs para las participaciones insertadas
-                    $this->createActivityLogsForBatch($participationsToCreate);
                 } catch (\Exception $e) {
                     \Log::error('Error al insertar lote final de participaciones: ' . $e->getMessage());
                     \Log::error('Datos del lote final: ' . json_encode($participationsToCreate));
@@ -302,66 +296,6 @@ class DesignFormat extends Model
             \Log::error('Error en generateParticipations: ' . $e->getMessage());
             \Log::error('Stack trace: ' . $e->getTraceAsString());
             throw $e;
-        }
-    }
-
-    /**
-     * Crear logs de actividad para un lote de participaciones insertadas
-     */
-    private function createActivityLogsForBatch($participationsData)
-    {
-        try {
-            $logsToCreate = [];
-            $now = now();
-            
-            foreach ($participationsData as $participationData) {
-                // Obtener el ID de la participación recién creada por su código
-                $participation = Participation::where('participation_code', $participationData['participation_code'])
-                    ->where('design_format_id', $this->id)
-                    ->first();
-                
-                if ($participation) {
-                    $logsToCreate[] = [
-                        'participation_id' => $participation->id,
-                        'activity_type' => 'created',
-                        'user_id' => auth()->id(),
-                        'seller_id' => null,
-                        'entity_id' => $this->entity_id,
-                        'old_status' => null,
-                        'new_status' => 'disponible',
-                        'old_seller_id' => null,
-                        'new_seller_id' => null,
-                        'description' => "Participación #{$participationData['participation_number']} creada",
-                        'metadata' => json_encode([
-                            'participation_code' => $participationData['participation_code'],
-                            'book_number' => $participationData['book_number'],
-                            'set_id' => $this->set_id,
-                            'design_format_id' => $this->id,
-                        ]),
-                        'ip_address' => request()->ip(),
-                        'user_agent' => request()->userAgent(),
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
-                
-                // Insertar logs en lotes de 100
-                if (count($logsToCreate) >= 100) {
-                    DB::table('participation_activity_logs')->insert($logsToCreate);
-                    \Log::info('Insertados ' . count($logsToCreate) . ' logs de actividad');
-                    $logsToCreate = [];
-                }
-            }
-            
-            // Insertar logs restantes
-            if (!empty($logsToCreate)) {
-                DB::table('participation_activity_logs')->insert($logsToCreate);
-                \Log::info('Insertados ' . count($logsToCreate) . ' logs de actividad (lote final)');
-            }
-            
-        } catch (\Exception $e) {
-            \Log::error('Error al crear logs de actividad: ' . $e->getMessage());
-            // No lanzar excepción para no interrumpir la creación de participaciones
         }
     }
 

@@ -26,6 +26,7 @@ use App\Models\BillingDirectDebitOrder;
 use App\Services\AdministrationBillingService;
 use App\Services\EntityLotteryPrizePaymentService;
 use App\Services\ManagerAccountService;
+use App\Services\PanelActivityLogService;
 use App\Support\ContactEmailRegistry;
 use App\Rules\ValidCalendarDate;
 use App\Support\PanelSelectionResolver;
@@ -160,6 +161,7 @@ class ConfigurationController extends Controller
         $selectedLogManager = null;
         $selectedLogSeller = null;
         $selectedLogUser = null;
+        $logActivityRows = [];
 
         if ($section === 'logs-actividad') {
             $allowedTabs = ['partilot', 'administracion', 'entidades', 'vendedores', 'usuarios'];
@@ -245,6 +247,16 @@ class ConfigurationController extends Controller
                 ->orderBy('name')
                 ->limit(500)
                 ->get(['id', 'name', 'last_name', 'last_name2', 'email', 'phone', 'status']);
+
+            $logActivityRows = app(PanelActivityLogService::class)->rowsForScope(
+                $logTab,
+                $user,
+                $selectedLogAdministration?->id,
+                $selectedLogEntity,
+                $selectedLogManager,
+                $selectedLogSeller,
+                $selectedLogUser,
+            );
         }
 
         if ($section === 'codigos-recarga') {
@@ -566,6 +578,7 @@ class ConfigurationController extends Controller
             'selectedLogManager',
             'selectedLogSeller',
             'selectedLogUser',
+            'logActivityRows',
             'configurationEntityScoped',
             'configurationAdministrationScoped',
             'scopedEntityId',

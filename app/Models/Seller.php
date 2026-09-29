@@ -36,6 +36,9 @@ class Seller extends Model
     const STATUS_PENDING = 2;
     const STATUS_BLOCKED = 3;
 
+    /** Días tras los cuales una invitación PARTILOT pendiente se considera caducada. */
+    public const INVITATION_EXPIRY_DAYS = 30;
+
     protected $casts = [
         'birthday' => 'date',
         'confirmation_sent_at' => 'datetime',
@@ -212,6 +215,35 @@ class Seller extends Model
     public function isPendingLink()
     {
         return $this->user_id === 0; // Tanto PARTILOT pendientes como EXTERNO
+    }
+
+    /**
+     * Estado unificado de invitación PARTILOT (panel + app): sent | pending | accepted | rejected | expired
+     */
+    public function invitationAssignmentState(): ?string
+    {
+        if ($this->seller_type !== 'partilot') {
+            return null;
+        }
+
+        if ((int) $this->status === self::STATUS_ACTIVE) {
+            return 'accepted';
+        }
+
+        if ((int) $this->status !== self::STATUS_PENDING) {
+            return null;
+        }
+
+        if (! $this->confirmation_token) {
+            return 'rejected';
+        }
+
+        if ($this->confirmation_sent_at
+            && $this->confirmation_sent_at->copy()->addDays(self::INVITATION_EXPIRY_DAYS)->isPast()) {
+            return 'expired';
+        }
+
+        return $this->confirmation_sent_at ? 'pending' : 'sent';
     }
 
     /**
