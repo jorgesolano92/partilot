@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Administration;
+use App\Models\User;
 use App\Services\AdministrationContractService;
+use App\Support\ActiveEntityContext;
+use App\Support\PanelAuthContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 
 class AdministrationContractController extends Controller
 {
@@ -13,7 +17,7 @@ class AdministrationContractController extends Controller
         private AdministrationContractService $contractService
     ) {}
 
-    public function show(string $token)
+    public function show(Request $request, string $token)
     {
         $administration = $this->findPendingByToken($token);
         if (! $administration) {
@@ -23,6 +27,10 @@ class AdministrationContractController extends Controller
                 'message' => 'El enlace de firma no es válido o el contrato ya fue gestionado.',
             ]);
         }
+
+        $panelUser = $this->panelUserForAdministration($administration);
+        // R3-INC-001: si hay sesión de otro rol, forzar cierre antes de firmar.
+        PanelAuthContext::forceLogoutIfNotUser($panelUser, $request);
 
         $administration->load(['manager.user']);
 
@@ -44,6 +52,9 @@ class AdministrationContractController extends Controller
             ]);
         }
 
+        $panelUser = $this->panelUserForAdministration($administration);
+        PanelAuthContext::forceLogoutIfNotUser($panelUser, $request);
+
         $data = $request->validate([
             'signer_name' => 'required|string|max:255',
             'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
@@ -53,7 +64,7 @@ class AdministrationContractController extends Controller
         ]);
 
         try {
-            $this->contractService->signContractByToken(
+            $administration = $this->contractService->signContractByToken(
                 $token,
                 $data['signer_name'],
                 $data['signer_nif'],
@@ -69,11 +80,46 @@ class AdministrationContractController extends Controller
             ]);
         }
 
+        $goToPanelUrl = URL::temporarySignedRoute(
+            'administration-contract.go-to-panel',
+            now()->addHours(2),
+            ['administration' => $administration->id]
+        );
+
         return view('contracts.administration-result', [
             'success' => true,
             'title' => 'Contrato firmado',
             'message' => 'El contrato SaaS ha quedado registrado correctamente. Hemos enviado una copia en PDF al correo de la administración. Ya puede acceder al panel de PARTILOT.',
+            'goToPanelUrl' => $goToPanelUrl,
         ]);
+    }
+
+    /**
+     * R3-INC-001: «Ir al panel» tras firma — home del rol de la administración, sin heredar otra sesión.
+     */
+    public function goToPanel(Request $request, Administration $administration)
+    {
+        if (! $request->hasValidSignature()) {
+            abort(403);
+        }
+
+        if ($administration->contract_status !== Administration::CONTRACT_SIGNED) {
+            return redirect()->route('login')
+                ->withErrors(['email' => 'El contrato aún no está firmado. Use el enlace de firma recibido por correo.']);
+        }
+
+        $panelUser = $this->panelUserForAdministration($administration);
+        if (! $panelUser) {
+            PanelAuthContext::forceLogoutIfNotUser(null, $request);
+
+            return redirect()->route('login')
+                ->with('success', 'Contrato firmado. Inicie sesión con el usuario de panel de la administración.');
+        }
+
+        PanelAuthContext::switchToUser($panelUser, $request);
+        ActiveEntityContext::bootstrapSession($request, $panelUser);
+
+        return PanelAuthContext::redirectHome($panelUser);
     }
 
     public function pending(Request $request)
@@ -82,7 +128,7 @@ class AdministrationContractController extends Controller
         $administration = $this->contractService->firstPendingAdministrationForUser($user);
 
         if (! $administration) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         return view('contracts.administration-pending', [
@@ -96,7 +142,7 @@ class AdministrationContractController extends Controller
         $administration = $this->contractService->firstPendingAdministrationForUser($user);
 
         if (! $administration) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         if (! $this->contractService->userCanAccessAdministrationContract($user, $administration)) {
@@ -143,6 +189,14 @@ class AdministrationContractController extends Controller
         return Administration::query()
             ->where('contract_token', $token)
             ->where('contract_status', Administration::CONTRACT_PENDING)
+            ->first();
+    }
+
+    protected function panelUserForAdministration(Administration $administration): ?User
+    {
+        return User::query()
+            ->where('panel_account_type', 'administration')
+            ->where('panel_account_id', $administration->id)
             ->first();
     }
 }

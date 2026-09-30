@@ -73,6 +73,14 @@
                                 </h4>
                                 <small><i>Información del sorteo asociado</i></small>
                                 <br>
+                                @php $reserveLottery = $reserve->lottery ?? null; @endphp
+                                <div class="d-flex align-items-center gap-3 mt-3 mb-2">
+                                    @include('partials.lottery_image', ['lotteryImageModel' => $reserveLottery, 'lotteryImageSize' => 96])
+                                    <div>
+                                        <div class="fw-semibold">{{ $reserveLottery->name ?? 'Sin sorteo' }}</div>
+                                        <small class="text-muted">{{ $reserveLottery->description ?? '' }}</small>
+                                    </div>
+                                </div>
                                 <div class="row show-content">
                                     <div class="col-3 offset-2">
                                         <div class="form-group mt-2 mb-3">

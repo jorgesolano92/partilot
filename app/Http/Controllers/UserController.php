@@ -50,7 +50,7 @@ class UserController extends Controller
         $query = User::query()
             ->whereNull('panel_account_type')
             ->excludingAdministrationContactRecords()
-            ->orderBy('name');
+            ->orderByDesc('created_at');
         $auth = auth()->user();
         if ($auth && $auth->isAdministration() && ! $auth->isSuperAdmin()) {
             $query->forAdministrationScopedViewer($auth);

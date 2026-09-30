@@ -68,30 +68,6 @@ class SellerService
                     $user->update(['role' => User::ROLE_SELLER]);
                 }
 
-                try {
-                    $entity = Entity::find($entityId);
-                    if ($entity instanceof Entity) {
-                        $inbox = app(AppInboxNotificationService::class);
-                        $senderId = $inbox->resolveSenderIdForEntity($entityId) ?? (int) $user->id;
-                        $inbox->notifyUser(
-                            (int) $user->id,
-                            $entityId,
-                            $entity->administration_id ? (int) $entity->administration_id : null,
-                            $senderId,
-                            'invitacion_vendedor',
-                            $entity->name,
-                            'Te han invitado como vendedor PARTILOT para esta entidad. Revisa tu correo para confirmar.',
-                            [
-                                'seller_id' => $seller->id,
-                                'entity_id' => $entityId,
-                                'rol_context' => 'vendedor',
-                            ]
-                        );
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('Inbox invitación vendedor: '.$e->getMessage());
-                }
-                
                 Log::info("Vendedor PARTILOT creado pendiente de confirmación, usuario {$user->id} y entidad {$entityId}");
             } else {
                 // Usuario no existe - crear vendedor pendiente de vinculación y confirmación
@@ -134,6 +110,13 @@ class SellerService
             if ($log->status === EmailCommunicationLog::STATUS_CANCELLED) {
                 Log::error("Error al enviar correo de confirmación: " . ($log->error_message ?? 'unknown'));
                 // No lanzar excepción, el vendedor ya está creado
+            }
+
+            $seller->refresh();
+            try {
+                app(AppInboxNotificationService::class)->notifySellerInvitation($seller, $entityId);
+            } catch (\Throwable $e) {
+                Log::warning('Inbox invitación vendedor (post-alta): '.$e->getMessage());
             }
             
             return $seller;

@@ -44,11 +44,15 @@
                                 && ($managementFeeData['payer'] ?? '') === 'entity'
                             )
                         );
+                        $adminMustPayBeforeDesign = ! empty($managementFeeData['admin_fee_before_design'])
+                            && ! empty($managementFeeData['show_admin_fee_actions']);
+                        $hideFeeCardFromEntity = ! empty($managementFeeData['hide_fee_from_entity']);
                         $entityFeeBlocksEditing = ! empty($awaitingEntityFeeBeforeDesign)
                             || ! empty($entityFeeDue)
                             || (! empty($managementFeeData['payment_before_admin_design']) && $adminUser)
-                            || (! empty($managementFeeData['payment_before_editor']) && $entityViewer);
-                        $showExportActions = ! $entityMustPayNow && empty($blocksQrExport) && ! empty($canExportDesignPdf);
+                            || (! empty($managementFeeData['payment_before_editor']) && $entityViewer)
+                            || $adminMustPayBeforeDesign;
+                        $showExportActions = ! $entityMustPayNow && ! $adminMustPayBeforeDesign && empty($blocksQrExport) && ! empty($canExportDesignPdf);
                         $qrBlockTitle = $summaryBlockMessage ?? $approvalService->blockMessage($design);
                         $canDownloadPendingSample = ! empty($canDownloadPendingSample);
                         $canExportDesignPdfFlag = ! empty($canExportDesignPdf);
@@ -67,10 +71,31 @@
                                 <i class="ri-check-line me-1"></i> Confirmar pago cuota gestión
                             </button>
                         </form>
+                    @elseif($adminMustPayBeforeDesign && !empty($managementFeeData['can_pay_stripe']))
+                        <div class="text-center mb-4">
+                            <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-success btn-lg">
+                                <i class="ri-bank-card-line me-1"></i> Resolver cuota de gestión
+                            </a>
+                        </div>
+                    @elseif($adminMustPayBeforeDesign && !empty($managementFeeData['can_queue_remittance']))
+                        <form action="{{ route('design.managementFee.confirmRemittance', $design->set_id) }}" method="POST" class="text-center mb-4" onsubmit="return confirm('¿Confirmar el cargo de cuota de gestión en la próxima remesa?');">
+                            @csrf
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="ri-bank-line me-1"></i> Confirmar cargo en remesa
+                            </button>
+                        </form>
+                    @elseif($adminMustPayBeforeDesign && !empty($managementFeeData['can_mark_paid']))
+                        <form action="{{ route('design.markManagementFeePaid', $design->set_id) }}" method="POST" class="text-center mb-4" onsubmit="return confirm('¿Confirmar el pago de la cuota de gestión PARTILOT?');">
+                            @csrf
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="ri-check-line me-1"></i> Confirmar pago cuota gestión
+                            </button>
+                        </form>
                     @endif
 
                     @if(
                         empty($entityMustPayNow)
+                        && empty($adminMustPayBeforeDesign)
                         && empty($awaitingEntityFeeBeforeDesign)
                         && !empty($hasDesignContent)
                         && (!empty($canOpenEditor) || !empty($canPreviewDesign))
@@ -228,8 +253,8 @@
                         </div>
                     @endif
 
-                    @if(!empty($managementFee))
-                        <div class="alert {{ !empty($managementFee['blocks_export']) ? 'alert-warning' : 'alert-light border' }} text-start design-summary-card">
+                    @if(!empty($managementFee) && empty($hideFeeCardFromEntity))
+                        <div class="alert {{ !empty($managementFee['blocks_export']) || !empty($managementFee['admin_fee_before_design']) ? 'alert-warning' : 'alert-light border' }} text-start design-summary-card">
                             <h5 class="mb-3">Cuota de gestión PARTILOT</h5>
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Estado</span>
@@ -257,7 +282,11 @@
                                     <strong>{{ $managementFee['paid_at']->format('d/m/Y H:i') }}</strong>
                                 </div>
                             @endif
-                            @if(!empty($managementFee['payment_before_admin_design']))
+                            @if(!empty($managementFee['admin_fee_before_design']) && !empty($managementFee['show_admin_fee_actions']))
+                                <p class="small text-warning mb-3">
+                                    <strong>Paso pendiente:</strong> debe resolver la cuota de gestión (tarjeta o remesa) antes de enviar este set a diseño. No puede avanzar hasta completar esta condición.
+                                </p>
+                            @elseif(!empty($managementFee['payment_before_admin_design']))
                                 <p class="small text-warning mb-3">
                                     <strong>Paso pendiente:</strong> la entidad debe confirmar el pago de la cuota antes de que la administración pueda entrar al editor y crear el diseño.
                                 </p>

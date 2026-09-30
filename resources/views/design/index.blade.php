@@ -145,6 +145,8 @@
                                     <a href="{{ $statusHref }}" class="text-decoration-none d-inline-block" title="Ver resumen del diseño">
                                     @if(!empty($approvalCtx['awaiting_entity_fee']))
                                         <label class="badge bg-danger rounded-pill" style="cursor: pointer;">Cuota gestión impagada</label>
+                                    @elseif(!empty($approvalCtx['awaiting_admin_fee']))
+                                        <label class="badge bg-warning text-dark rounded-pill" style="cursor: pointer;">Cuota gestión pendiente</label>
                                     @elseif(!empty($approvalCtx['entity_fee_due']))
                                         <label class="badge bg-warning text-dark rounded-pill" style="cursor: pointer;">
                                             {{ $entityViewer ? 'Cuota gestión pendiente' : 'Pendiente pago entidad' }}
@@ -178,6 +180,8 @@
                                 <td class="no-click" style="cursor: default;">
                                     @if($awaitingEntityFee || (!empty($approvalCtx['entity_fee_due']) && $entityViewer))
                                         <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-sm btn-success" title="Pagar cuota de gestión"><i class="ri-bank-card-line"></i></a>
+                                    @elseif(!empty($approvalCtx['awaiting_admin_fee']))
+                                        <a href="{{ route('design.managementFee.pay', $design->set_id) }}" class="btn btn-sm btn-success" title="Resolver cuota de gestión antes de diseñar"><i class="ri-bank-card-line"></i></a>
                                     @else
                                     @if($canOpenEditor)
                                         <a href="{{ route('design.editFormat', $design->id) }}" class="btn btn-sm btn-light" title="Editar diseño" onclick="event.stopPropagation();"><img src="{{ url('assets/form-groups/edit.svg') }}" alt="" width="12"></a>
@@ -200,7 +204,7 @@
                                     @if(!empty($design->participation_html))
                                         <a href="{{ route('design.participationPreview', $design->id) }}" class="btn btn-sm btn-light" title="Ver diseño"><i class="ri-image-line"></i></a>
                                     @endif
-                                    @if($feePending && !empty($approvalCtx['acts_as_administration']) && empty($approvalCtx['entity_fee_due']))
+                                    @if($feePending && !empty($approvalCtx['acts_as_administration']) && empty($approvalCtx['entity_fee_due']) && empty($approvalCtx['awaiting_admin_fee']))
                                         <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-success" title="Gestionar pago cuota de gestión"><i class="ri-bank-card-line"></i></a>
                                     @elseif(!empty($approvalCtx['entity_fee_due']) && !empty($approvalCtx['acts_as_administration']))
                                         <a href="{{ route('design.summary', $design->id) }}" class="btn btn-sm btn-light" title="Cuota de gestión pendiente — debe pagar la entidad"><i class="ri-information-line"></i></a>

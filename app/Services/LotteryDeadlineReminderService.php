@@ -18,6 +18,11 @@ class LotteryDeadlineReminderService
 {
     public const REMINDER_DAYS = [3, 2, 1, 0];
 
+    /** @var Collection<int, array<string, mixed>>|null */
+    private ?Collection $cachedReminderContexts = null;
+
+    private ?string $cachedReminderContextsDay = null;
+
     public function __construct(
         private SellerLiquidationService $sellerLiquidationService
     ) {}
@@ -65,6 +70,12 @@ class LotteryDeadlineReminderService
     public function collectReminderContexts(?Carbon $today = null): Collection
     {
         $today = ($today ?? now())->copy()->startOfDay();
+        $dayKey = $today->toDateString();
+
+        if ($this->cachedReminderContexts !== null && $this->cachedReminderContextsDay === $dayKey) {
+            return $this->cachedReminderContexts;
+        }
+
         $contexts = collect();
 
         $lotteries = Lottery::query()
@@ -116,7 +127,9 @@ class LotteryDeadlineReminderService
             }
         }
 
-        return $contexts->sortBy([
+        $this->cachedReminderContextsDay = $dayKey;
+
+        return $this->cachedReminderContexts = $contexts->sortBy([
             ['days_before', 'asc'],
             ['entity_name', 'asc'],
         ])->values();

@@ -967,6 +967,12 @@
                             || ($isRestrictedEntityUser && $currentUser->hasEntityManagerPermission('payments'))
                         );
                         $isPrintShopUser = $currentUser && $currentUser->isPrintShop();
+                        // R3-MEJ-002: menú agrupado por bloques solo para administración de lotería.
+                        $isLotteryAdministrationMenu = $currentUser
+                            && $currentUser->isAdministration()
+                            && ! $currentUser->isSuperAdmin();
+                        // R3-REQ-001: Web Social / Solicitudes solo Partilot (superadmin).
+                        $canSeePartilotSocialModules = $currentUser && $currentUser->isSuperAdmin();
                     @endphp
                     <ul class="menu">
 
@@ -1005,6 +1011,10 @@
                             </li>
                         @endif
 
+                        @if($isLotteryAdministrationMenu && ($canSeeEntitiesMenu || $canSeeSellerModules))
+                            <li class="menu-title">Gestión</li>
+                        @endif
+
                         @if($canSeeEntitiesMenu)
                             <li class="menu-item @if (Request::is('entities/*') || Request::is('entities')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('/entities')}}" class="menu-link">
@@ -1041,6 +1051,10 @@
                             </li>
                         @endif
 
+                        @if($isLotteryAdministrationMenu && ($canSeeEntityModules || $canSeeAdminModules))
+                            <li class="menu-title">Sorteos</li>
+                        @endif
+
                         @if($canSeeEntityModules)
                             <li class="menu-item @if (Request::is('lottery/*') || Request::is('lottery') || Request::is('lottery_types/*') || Request::is('lottery_types')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('/lottery')}}" class="menu-link">
@@ -1048,6 +1062,18 @@
                                         <img src="{{url('icons_')}}/sorteos{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
                                     </span>
                                     <span class="menu-text"> Sorteos </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($canSeeEntityModules)
+                            <li class="menu-item @if (Request::is('reserves/*') || Request::is('reserves')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{url('/reserves')}}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <img src="{{url('icons_')}}/reservas{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
+                                    </span>
+                                    <span class="menu-text"> Reservas </span>
                                     @php $selected = null; @endphp
                                 </a>
                             </li>
@@ -1065,16 +1091,8 @@
                             </li>
                         @endif
 
-                        @if($canSeeEntityModules)
-                            <li class="menu-item @if (Request::is('reserves/*') || Request::is('reserves')) menuitem-active @php $selected = 1; @endphp @endif">
-                                <a href="{{url('/reserves')}}" class="menu-link">
-                                    <span class="menu-icon">
-                                        <img src="{{url('icons_')}}/reservas{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
-                                    </span>
-                                    <span class="menu-text"> Reservas </span>
-                                    @php $selected = null; @endphp
-                                </a>
-                            </li>
+                        @if($isLotteryAdministrationMenu && ($canSeeEntityModules || $canSeeDesignModules))
+                            <li class="menu-title">Participaciones</li>
                         @endif
 
                         @if($canSeeEntityModules)
@@ -1125,7 +1143,7 @@
                             </li>
                         @endif
 
-                        @if($canSeeEntityModules)
+                        @if($canSeePartilotSocialModules)
                             <li class="menu-item @if (Request::is('social/*') || Request::is('social')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('social')}}" class="menu-link">
                                     <span class="menu-icon">
@@ -1135,28 +1153,32 @@
                                     @php $selected = null; @endphp
                                 </a>
                             </li>
+
+                            <li class="menu-item @if (Request::is('requests/*') || Request::is('requests')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{url('requests')}}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <img src="{{url('icons_')}}/solicitudes{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
+                                    </span>
+                                    <span class="menu-text"> Solicitudes </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
                         @endif
 
-                        <li class="menu-item @if (Request::is('requests/*') || Request::is('requests')) menuitem-active @php $selected = 1; @endphp @endif">
-                            <a href="{{url('requests')}}" class="menu-link">
-                                <span class="menu-icon">
-                                    <img src="{{url('icons_')}}/solicitudes{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
-                                </span>
-                                <span class="menu-text"> Solicitudes </span>
-                                @php $selected = null; @endphp
-                            </a>
-                        </li>
+                        @if($isLotteryAdministrationMenu)
+                            <li class="menu-title">Comunicación</li>
+                        @endif
 
                         @if(auth()->user()?->isSuperAdmin())
-                        <li class="menu-item @if (Request::is('notifications/*') || Request::is('notifications')) menuitem-active @php $selected = 1; @endphp @endif">
-                            <a href="{{url('notifications')}}" class="menu-link">
-                                <span class="menu-icon">
-                                    <img src="{{url('icons_')}}/comunicados{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
-                                </span>
-                                <span class="menu-text"> Notificaciones </span>
-                                @php $selected = null; @endphp
-                            </a>
-                        </li>
+                            <li class="menu-item @if (Request::is('notifications/*') || Request::is('notifications')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{url('notifications')}}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <img src="{{url('icons_')}}/comunicados{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
+                                    </span>
+                                    <span class="menu-text"> Notificaciones </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
                         @endif
 
                         <li class="menu-item @if (Request::is('communications/*') || Request::is('communications')) menuitem-active @php $selected = 1; @endphp @endif">
@@ -2156,9 +2178,6 @@
 
                         preloader.classList.add('partilot-preloader--hide');
                         window.setTimeout(function () {
-                            if (preloader.parentNode) {
-                                preloader.parentNode.removeChild(preloader);
-                            }
                             window.setTimeout(function () {
                                 if (typeof window.partilotShowPageFlashes === 'function') {
                                     window.partilotShowPageFlashes();
@@ -2167,6 +2186,29 @@
                         }, 380);
                     }, delay);
                 }
+
+                window.partilotBeginNavLoading = function () {
+                    document.documentElement.classList.add('partilot-loading');
+                    var preloader = document.getElementById('partilot-preloader');
+                    if (preloader) {
+                        preloader.classList.remove('partilot-preloader--hide');
+                    }
+                };
+
+                document.addEventListener('click', function (event) {
+                    var link = event.target.closest('a.menu-link[href], a.panel-link[href], .left-side-menu a[href]');
+                    if (!link || link.target === '_blank') {
+                        return;
+                    }
+                    var href = link.getAttribute('href');
+                    if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+                        return;
+                    }
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                        return;
+                    }
+                    window.partilotBeginNavLoading();
+                });
 
                 function whenReady() {
                     var loadDone = new Promise(function (resolve) {

@@ -281,6 +281,7 @@ Route::middleware('auth.api')->group(function () {
         Route::post('/me/store-existing-user', [SellerController::class, 'apiManagerStoreExistingUser']);
         Route::post('/me/store-new-user', [SellerController::class, 'apiManagerStoreNewUser']);
         Route::post('/me/store-external-seller', [SellerController::class, 'apiManagerStoreExternalSeller']);
+        Route::post('/me/entities/{entityId}/sellers/{sellerId}/notify-invitation', [SellerController::class, 'apiManagerNotifySellerInvitation']);
     });
     
     // ========================================================================
@@ -302,6 +303,8 @@ Route::middleware('auth.api')->group(function () {
         Route::put('/{id}/read', [NotificationController::class, 'apiMarkAsRead'])->whereNumber('id');
 
         Route::delete('/{id}', [NotificationController::class, 'apiDestroy'])->whereNumber('id');
+
+        Route::post('/seller-invitations/{sellerId}/notify', [SellerController::class, 'apiNotifySellerInvitationForUser']);
     });
     
     // ========================================================================

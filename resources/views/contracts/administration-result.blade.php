@@ -21,7 +21,7 @@
         <h1 class="{{ ($success ?? false) ? 'success' : 'error' }}">{{ $title ?? '' }}</h1>
         <p>{{ $message ?? '' }}</p>
         @if ($success ?? false)
-            <a class="btn" href="{{ route('login') }}">Ir al acceso del panel</a>
+            <a class="btn" href="{{ $goToPanelUrl ?? route('login') }}">Ir al panel</a>
         @endif
     </div>
 </body>

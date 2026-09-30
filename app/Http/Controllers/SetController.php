@@ -46,7 +46,7 @@ class SetController extends Controller
             }
         }
 
-        $query = Set::with(['entity', 'reserve'])
+        $query = Set::with(['entity', 'reserve.lottery'])
             ->forUser($user);
 
         if ($filterAdministration) {

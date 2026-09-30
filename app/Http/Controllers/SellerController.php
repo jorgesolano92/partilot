@@ -1594,6 +1594,87 @@ class SellerController extends Controller
     /**
      * API Gestor: Invitar vendedor SIPART sin cuenta (0 coincidencias): solo email, como en el panel web.
      */
+    /**
+     * API Gestor: reenviar notificación in-app / push de invitación de vendedor pendiente.
+     */
+    /**
+     * API App: re-sincronizar notificación in-app de invitación vendedor pendiente (propia).
+     */
+    public function apiNotifySellerInvitationForUser(Request $request, $sellerId)
+    {
+        $user = $request->user();
+        $seller = Seller::query()
+            ->where('id', (int) $sellerId)
+            ->where('status', Seller::STATUS_PENDING)
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+                if (filled($user->email)) {
+                    $q->orWhere(function ($inner) use ($user) {
+                        $inner->where('user_id', 0)->where('email', $user->email);
+                    });
+                }
+            })
+            ->with('entities')
+            ->first();
+
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Invitación no encontrada o ya procesada.'], 404);
+        }
+
+        $entityId = (int) ($seller->entities->first()?->id ?? 0);
+        if ($entityId <= 0) {
+            return response()->json(['success' => false, 'message' => 'Entidad de la invitación no encontrada.'], 422);
+        }
+
+        $notification = app(\App\Services\AppInboxNotificationService::class)->notifySellerInvitation($seller, $entityId);
+
+        return response()->json([
+            'success' => true,
+            'assignment_state' => $seller->invitationAssignmentState(),
+            'role_invitation_key' => 'seller-'.$seller->id,
+            'notification_id' => $notification?->id,
+        ]);
+    }
+
+    public function apiManagerNotifySellerInvitation(Request $request, $entityId, $sellerId)
+    {
+        $entityId = (int) $entityId;
+        $sellerId = (int) $sellerId;
+        $user = $request->user();
+        if (! in_array($entityId, $user->getManagerEntityIds(), true)) {
+            return response()->json(['success' => false, 'message' => 'No tienes acceso a esta entidad.'], 403);
+        }
+        if ($response = $this->jsonUnlessManagerSellersPermission($user, $entityId)) {
+            return $response;
+        }
+
+        $seller = Seller::query()
+            ->where('id', $sellerId)
+            ->whereHas('entities', fn ($q) => $q->where('entities.id', $entityId))
+            ->first();
+
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Vendedor no encontrado en esta entidad.'], 404);
+        }
+
+        if ((int) $seller->status !== Seller::STATUS_PENDING) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La invitación ya no está pendiente.',
+                'assignment_state' => $seller->invitationAssignmentState(),
+            ], 422);
+        }
+
+        $notification = app(\App\Services\AppInboxNotificationService::class)->notifySellerInvitation($seller, $entityId);
+
+        return response()->json([
+            'success' => true,
+            'message' => $notification ? 'Notificación enviada.' : 'No hay usuario destino para la notificación in-app.',
+            'assignment_state' => $seller->invitationAssignmentState(),
+            'notification_id' => $notification?->id,
+        ]);
+    }
+
     public function apiManagerStoreNewUser(Request $request)
     {
         $request->validate([

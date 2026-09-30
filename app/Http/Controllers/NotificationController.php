@@ -29,8 +29,24 @@ class NotificationController extends Controller
             $action = $request->route()?->getActionMethod();
             $tokenExcept = ['registerToken', 'unregisterToken', 'getFirebaseConfig'];
             $panelInboxActions = ['panelInboxFeed', 'panelInboxMarkRead', 'panelInboxMarkAllRead'];
+            $appInboxApiActions = [
+                'apiIndex',
+                'apiShow',
+                'apiMarkAsRead',
+                'apiMarkAllAsRead',
+                'apiUnreadCount',
+                'apiDestroy',
+            ];
 
             if (in_array($action, $tokenExcept, true)) {
+                return $next($request);
+            }
+
+            if (in_array($action, $appInboxApiActions, true)) {
+                if (! auth()->user()) {
+                    abort(401, 'No autorizado.');
+                }
+
                 return $next($request);
             }
 
@@ -1294,6 +1310,10 @@ class NotificationController extends Controller
                     $q->orWhereIn('entity_id', $entityIds);
                 }
             })
+            ->where(function ($q) {
+                $q->whereNull('kind')
+                    ->orWhere('kind', '!=', 'push_directo_panel');
+            })
             ->orderByDesc('created_at')
             ->limit(400);
 
@@ -1405,6 +1425,11 @@ class NotificationController extends Controller
             in_array($kind, ['asignacion_participaciones', 'invitacion_vendedor'], true) ? 'vendedor' : 'usuario'
         );
 
+        $actionable = (bool) ($meta['actionable'] ?? false);
+        if ($kind === 'invitacion_vendedor' && in_array($meta['assignment_state'] ?? '', ['sent', 'pending'], true)) {
+            $actionable = true;
+        }
+
         return [
             'id' => $n->id,
             'tipo' => $kind,
@@ -1417,6 +1442,10 @@ class NotificationController extends Controller
             'entidadNombre' => $n->entity?->name ?? ($meta['entidad_nombre'] ?? $n->title),
             'invitadorTexto' => $meta['invitador_texto'] ?? null,
             'entity_image' => $n->entity?->image ?? null,
+            'roleInvitationKey' => $meta['role_invitation_key'] ?? null,
+            'assignmentState' => $meta['assignment_state'] ?? null,
+            'actionable' => $actionable,
+            'deepLink' => $meta['deep_link'] ?? null,
         ];
     }
 }

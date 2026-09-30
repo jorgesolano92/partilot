@@ -420,17 +420,19 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                                 
                                                 <div class="col-12">
                                                     <div class="form-group mt-2 mb-3">
-                                                        <label class="label-control">Plantilla rápida</label>
+                                                        <label class="label-control" for="format">Plantilla rápida</label>
 
-                                                        <div class="input-group input-group-merge group-form">
-
-                                                            <select class="form-control" name="" id="format" style="border-radius: 30px;">
+                                                        <div class="input-group input-group-merge group-form plantilla-rapida-select">
+                                                            <select class="form-control form-select" name="" id="format" aria-label="Plantilla rápida" style="border-radius: 30px 0 0 30px; appearance: none; -webkit-appearance: none; -moz-appearance: none; padding-right: 0.75rem;">
                                                                 <option value="a3-h-3x2">A3 - Apaisado - (3x2)</option>
                                                                 <option value="a3-h-4x2">A3 - Apaisado - (4x2)</option>
                                                                 <option value="a4-v-3x1">A4 - Vertical - (3x1)</option>
                                                                 <option value="a4-v-4x1">A4 - Vertical - (4x1)</option>
                                                                 <option value="custom">Personalizado</option>
                                                             </select>
+                                                            <span class="input-group-text plantilla-rapida-chevron" aria-hidden="true" style="border-radius: 0 30px 30px 0; background: #fff; border-left: 0; pointer-events: none; color: #333;">
+                                                                <i class="ri-arrow-down-s-line fs-5"></i>
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1659,31 +1661,40 @@ function initDatatable()
 }
 
 function recalculateDesign() {
-    let cols = $('#cols').val();
-    let rows = $('#rows').val();
-    let orientation = $('#orientation').val();
-    let page = $('#page').val();
+    let cols = Math.max(1, parseInt($('#cols').val(), 10) || 1);
+    let rows = Math.max(1, parseInt($('#rows').val(), 10) || 1);
+    let orientation = $('#orientation').val() || 'h';
+    let page = $('#page').val() || 'a3';
 
-    if (orientation == 'h') {
-        $('.preview-design > div').css('width','100%');
-    }else{
-        $('.preview-design > div').css('width','60%');
+    const paper = page === 'a4'
+        ? { shortSide: 210, longSide: 297 }
+        : { shortSide: 297, longSide: 420 };
+    const sheetW = orientation === 'h' ? paper.longSide : paper.shortSide;
+    const sheetH = orientation === 'h' ? paper.shortSide : paper.longSide;
+
+    let $sheet = $('.preview-design > div');
+    if (!$sheet.length) {
+        $('.preview-design').html('<div class="' + page + '"></div>');
+        $sheet = $('.preview-design > div');
     }
+    $sheet.removeClass('a3 a4').addClass(page);
+    $sheet.css({
+        width: orientation === 'h' ? '100%' : '62%',
+        maxWidth: '100%',
+        aspectRatio: sheetW + ' / ' + sheetH,
+        height: 'auto',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignContent: 'stretch',
+        boxSizing: 'border-box'
+    });
 
-    let h = 216 / rows;
-    let html = "";
     let percent = 100 / cols;
-    let margin = 1 / cols;
-    for (var i = 0; i < cols*rows; i++) {
-        html+=`<div style="height: ${h}px; width: ${percent-1}%; margin-left: ${margin}%"></div>`;
+    let html = '';
+    for (var i = 0; i < cols * rows; i++) {
+        html += '<div style="height: ' + (100 / rows) + '%; width: ' + (percent - 1) + '%; margin-left: 0.5%; margin-right: 0.5%; box-sizing: border-box;"></div>';
     }
-    $('.preview-design > div').html(html);
-
-    // Eliminado: cambio de tamaño de .format-box aquí
-    // if($('#format').val() === 'custom') {
-    //     const {w, h} = getCustomDimensions();
-    //     $('.format-box').css({width: w+'mm', height: h+'mm'});
-    // }
+    $sheet.html(html);
 }
 
 $('#cols,#rows').change(function (e) {
@@ -1709,57 +1720,32 @@ $('#format').change(function (e) {
     restoreValues();
     if($(this).val() == 'a3-h-3x2') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a3">
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-            </div>`;
+        $('#page').val('a3');
+        $('#orientation').val('h');
+        $('#rows').val(2);
+        $('#cols').val(3);
     } else if($(this).val() == 'a3-h-4x2') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a3">
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-            </div>`;
+        $('#page').val('a3');
+        $('#orientation').val('h');
+        $('#rows').val(2);
+        $('#cols').val(4);
     } else if($(this).val() == 'a4-v-3x1') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a4">
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-            </div>`;
+        $('#page').val('a4');
+        $('#orientation').val('v');
+        $('#rows').val(3);
+        $('#cols').val(1);
     } else if($(this).val() == 'a4-v-4x1') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a4">
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-            </div>`;
+        $('#page').val('a4');
+        $('#orientation').val('v');
+        $('#rows').val(4);
+        $('#cols').val(1);
     } else if($(this).val() == 'custom') {
         $('.custom').prop('disabled', false);
-        html = `<div class="a3">
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                </div>`;
-        // Actualizar el tamaño del format-box en tiempo real para personalizado
-        const {w, h} = getCustomDimensions();
-        console.log(w,h);
-        {{-- $('.format-box').css({width: w+'mm', height: h+'mm'}); --}}
     }
-    $('.preview-design').html(html);
+    recalculateDesign();
 });
 
   function restoreValues()

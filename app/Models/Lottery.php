@@ -81,6 +81,20 @@ class Lottery extends Model
         return $this->hasOne(LotteryResult::class);
     }
 
+    public function hasImage(): bool
+    {
+        return filled($this->image);
+    }
+
+    public function imageUrl(): ?string
+    {
+        if (! $this->hasImage()) {
+            return null;
+        }
+
+        return url('uploads/'.ltrim((string) $this->image, '/'));
+    }
+
     // Relación con los escrutinios de administraciones
     public function administrationScrutinies()
     {

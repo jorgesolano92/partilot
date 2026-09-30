@@ -97,6 +97,122 @@ class AppInboxNotificationService
     /**
      * Tras asignar participaciones a un vendedor con usuario vinculado.
      */
+    /**
+     * Invitación de vendedor PARTILOT: una notificación accionable por seller+entidad mientras esté pendiente.
+     */
+    public function notifySellerInvitation(Seller $seller, int $entityId, bool $sendPush = true): ?Notification
+    {
+        $seller->loadMissing(['entities', 'user']);
+        if ($seller->seller_type !== 'partilot' || (int) $seller->status !== Seller::STATUS_PENDING) {
+            return null;
+        }
+
+        $entity = Entity::query()->find($entityId);
+        if (! $entity instanceof Entity) {
+            return null;
+        }
+
+        $recipientUserId = $this->resolveRecipientUserIdForSeller($seller);
+        if ($recipientUserId <= 0) {
+            return null;
+        }
+
+        $senderId = $this->resolveSenderIdForEntity($entityId) ?? $recipientUserId;
+        $assignmentState = $seller->invitationAssignmentState() ?? 'pending';
+        if ($assignmentState === 'expired') {
+            $this->closeSellerInvitationNotifications($seller, $entityId, 'expired');
+
+            return null;
+        }
+
+        $roleKey = 'seller-'.$seller->id;
+        $title = $entity->name;
+        $message = 'Te han invitado como vendedor. Puedes aceptar o rechazar desde la app.';
+        $meta = [
+            'seller_id' => (int) $seller->id,
+            'entity_id' => $entityId,
+            'rol_context' => 'vendedor',
+            'role_invitation_key' => $roleKey,
+            'assignment_state' => $assignmentState,
+            'actionable' => in_array($assignmentState, ['sent', 'pending'], true),
+            'deep_link' => 'usuario/notificaciones?invitation='.$roleKey,
+            'entidad_nombre' => $entity->name,
+        ];
+
+        $notification = Notification::query()
+            ->where('recipient_user_id', $recipientUserId)
+            ->where('kind', 'invitacion_vendedor')
+            ->where('entity_id', $entityId)
+            ->where('meta->seller_id', (int) $seller->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($notification) {
+            $notification->update([
+                'title' => $title,
+                'message' => $message,
+                'meta' => array_merge(is_array($notification->meta) ? $notification->meta : [], $meta),
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+        } else {
+            $notification = Notification::create([
+                'recipient_user_id' => $recipientUserId,
+                'entity_id' => $entityId,
+                'administration_id' => $entity->administration_id ? (int) $entity->administration_id : null,
+                'sender_id' => $senderId,
+                'title' => $title,
+                'message' => $message,
+                'kind' => 'invitacion_vendedor',
+                'meta' => $meta,
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+        }
+
+        if ($sendPush) {
+            $this->sendPushForNotification($notification->fresh());
+        }
+
+        return $notification;
+    }
+
+    public function closeSellerInvitationNotifications(Seller $seller, ?int $entityId, string $assignmentState): void
+    {
+        $q = Notification::query()
+            ->where('kind', 'invitacion_vendedor')
+            ->where('meta->seller_id', (int) $seller->id);
+
+        if ($entityId) {
+            $q->where('entity_id', $entityId);
+        }
+
+        $q->get()->each(function (Notification $n) use ($assignmentState) {
+            $meta = is_array($n->meta) ? $n->meta : [];
+            $meta['assignment_state'] = $assignmentState;
+            $meta['actionable'] = false;
+            $n->update([
+                'meta' => $meta,
+                'read_at' => $n->read_at ?? now(),
+                'status' => 'read',
+            ]);
+        });
+    }
+
+    protected function resolveRecipientUserIdForSeller(Seller $seller): int
+    {
+        if ((int) $seller->user_id > 0) {
+            return (int) $seller->user_id;
+        }
+
+        $email = trim((string) ($seller->email ?? ''));
+        if ($email === '') {
+            return 0;
+        }
+
+        return (int) (User::query()->where('email', $email)->value('id') ?? 0);
+    }
+
     public function notifyParticipationAssigned(Seller $seller, int $assignedCount, ?string $lotteryHint): void
     {
         if ($assignedCount <= 0 || ! $seller->user_id) {
@@ -152,16 +268,25 @@ class AppInboxNotificationService
 
         foreach ($user->fcmTokens as $device) {
             try {
+                $meta = is_array($notification->meta) ? $notification->meta : [];
+                $payload = [
+                    'type' => 'inbox_notification',
+                    'notification_id' => (string) $notification->id,
+                    'kind' => (string) ($notification->kind ?? ''),
+                    'platform' => (string) $device->platform,
+                ];
+                if (! empty($meta['role_invitation_key'])) {
+                    $payload['role_invitation_key'] = (string) $meta['role_invitation_key'];
+                }
+                if (! empty($meta['deep_link'])) {
+                    $payload['deep_link'] = (string) $meta['deep_link'];
+                }
+
                 $this->firebase->sendToDevice(
                     $device->token,
                     $notification->title,
                     $body,
-                    [
-                        'type' => 'inbox_notification',
-                        'notification_id' => (string) $notification->id,
-                        'kind' => (string) ($notification->kind ?? ''),
-                        'platform' => (string) $device->platform,
-                    ]
+                    $payload
                 );
             } catch (\Throwable $e) {
                 \Log::warning('FCM inbox notification_id='.$notification->id.': '.$e->getMessage());

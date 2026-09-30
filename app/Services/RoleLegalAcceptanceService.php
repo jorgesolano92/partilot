@@ -154,24 +154,45 @@ class RoleLegalAcceptanceService
             return $this->rejectSeller($seller, $request, $actingUser);
         }
 
+        if ((int) $seller->status === Seller::STATUS_ACTIVE && ! $seller->confirmation_token) {
+            return [
+                'success' => true,
+                'message' => 'La invitación ya estaba aceptada.',
+            ];
+        }
+
+        $entityId = (int) ($seller->entities->first()?->id ?? 0);
+
+        $user = $actingUser ?? $seller->user;
+        if (! $user && filled($seller->email)) {
+            $user = User::where('email', $seller->email)->first();
+        }
+
+        if ($user && ! $user->isPanelAccount()) {
+            if (! $seller->isLinkedToUser() || (int) $seller->user_id !== (int) $user->id) {
+                $seller->update(['user_id' => $user->id]);
+            }
+            if ($user->role !== User::ROLE_SELLER) {
+                $user->update(['role' => User::ROLE_SELLER]);
+            }
+        }
+
         $seller->update([
             'status' => Seller::STATUS_ACTIVE,
             'confirmation_token' => null,
             'confirmation_sent_at' => null,
         ]);
 
-        $user = $actingUser ?? $seller->user;
-        if (! $user && filled($seller->email)) {
-            $user = User::where('email', $seller->email)->first();
-            if ($user && ! $user->isPanelAccount()) {
-                $seller->update(['user_id' => $user->id]);
-                if ($user->role !== User::ROLE_SELLER) {
-                    $user->update(['role' => User::ROLE_SELLER]);
-                }
-            }
-        }
         if ($user) {
             $this->recordSellerAcceptance($seller, $user, $request);
+        }
+
+        if ($entityId > 0) {
+            try {
+                app(AppInboxNotificationService::class)->closeSellerInvitationNotifications($seller, $entityId, 'accepted');
+            } catch (\Throwable $e) {
+                \Log::warning('Cerrar inbox invitación vendedor: '.$e->getMessage());
+            }
         }
 
         return [
@@ -253,10 +274,19 @@ class RoleLegalAcceptanceService
      */
     protected function pendingSellersForUser(User $user)
     {
+        $email = trim((string) $user->email);
+
         return Seller::query()
-            ->where('user_id', $user->id)
             ->where('status', Seller::STATUS_PENDING)
             ->whereNotNull('confirmation_token')
+            ->where(function ($q) use ($user, $email) {
+                $q->where('user_id', $user->id);
+                if ($email !== '') {
+                    $q->orWhere(function ($inner) use ($email) {
+                        $inner->where('user_id', 0)->where('email', $email);
+                    });
+                }
+            })
             ->with('entities')
             ->orderBy('id')
             ->get();
@@ -469,6 +499,14 @@ class RoleLegalAcceptanceService
                 administrationId: $entity?->administration_id ? (int) $entity->administration_id : null,
                 context: ['seller_id' => $seller->id],
             );
+        }
+
+        $entityId = (int) ($entity?->id ?? 0);
+
+        try {
+            app(AppInboxNotificationService::class)->closeSellerInvitationNotifications($seller, $entityId ?: null, 'rejected');
+        } catch (\Throwable $e) {
+            \Log::warning('Cerrar inbox invitación vendedor (rechazo): '.$e->getMessage());
         }
 
         $seller->entities()->detach();

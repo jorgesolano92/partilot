@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Administration;
 use App\Models\Entity;
 use App\Models\PanelAccessToken;
-use App\Models\User;
+use App\Support\ActiveEntityContext;
+use App\Support\PanelAuthContext;
 use Illuminate\Http\Request;
 
 class PanelMagicLinkController extends Controller
 {
-    public function show(string $token)
+    public function show(Request $request, string $token)
     {
         $record = PanelAccessToken::findValidForPlain($token);
         if (! $record) {
@@ -21,6 +22,9 @@ class PanelMagicLinkController extends Controller
         if (! $user || ! $user->isPanelAccount() || ! in_array($user->panel_account_type, ['administration', 'entity'], true)) {
             return view('auth.panel-magic-link-invalid');
         }
+
+        // R3-INC-001: no continuar con sesión de otro rol (p. ej. superadmin).
+        PanelAuthContext::forceLogoutIfNotUser($user, $request);
 
         $loginHint = $user->panel_account_type === 'administration'
             ? ($user->panel_login_username ?? '')
@@ -45,6 +49,9 @@ class PanelMagicLinkController extends Controller
             return redirect()->route('login')->withErrors(['email' => 'El enlace no es válido.']);
         }
 
+        // R3-INC-001: forzar cierre si hay otra identidad activa antes de activar.
+        PanelAuthContext::forceLogoutIfNotUser($user, $request);
+
         $request->validate([
             'password' => 'required|string|min:8|confirmed',
         ], [
@@ -55,6 +62,7 @@ class PanelMagicLinkController extends Controller
 
         // El modelo User aplica cast "hashed" a password (no usar Hash::make aquí).
         $user->password = $request->input('password');
+        $user->must_change_password = false;
         $user->save();
 
         $record->markUsed();
@@ -73,10 +81,10 @@ class PanelMagicLinkController extends Controller
             }
         }
 
-        $loginHint = $user->panel_account_type === 'administration'
-            ? 'su usuario de panel'
-            : 'su email de acceso al panel';
+        $user = $user->fresh();
+        PanelAuthContext::switchToUser($user, $request);
+        ActiveEntityContext::bootstrapSession($request, $user);
 
-        return redirect()->route('login')->with('success', 'Contraseña establecida. Ya puede iniciar sesión con '.$loginHint.' y la nueva contraseña.');
+        return PanelAuthContext::redirectHome($user, 'success', 'Contraseña establecida correctamente. Ya puede usar el panel.');
     }
 }

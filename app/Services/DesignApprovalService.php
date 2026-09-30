@@ -186,6 +186,12 @@ class DesignApprovalService
             return true;
         }
 
+        // Obligación interna de la administración: la entidad no ve el diseño ni mensajes de cuota admin.
+        $design->loadMissing('set');
+        if ($design->set && app(ManagementFeeService::class)->administrationOwesManagementFee($design->set)) {
+            return false;
+        }
+
         if (! $this->requiresEntityApproval($design)) {
             return true;
         }
@@ -407,6 +413,11 @@ class DesignApprovalService
             return false;
         }
 
+        $design->loadMissing('set');
+        if ($design->set && app(ManagementFeeService::class)->blocksDesignEntry($design->set)) {
+            return false;
+        }
+
         if ($this->isPrintShopDesign($design)) {
             return $this->userCanSubmitDesignForApproval($user, $design);
         }
@@ -552,6 +563,11 @@ class DesignApprovalService
     {
         if (! $this->canSubmitForApproval($user, $design)) {
             abort(403, 'No puedes enviar este diseño a aprobación.');
+        }
+
+        $design->loadMissing('set');
+        if ($design->set && app(ManagementFeeService::class)->blocksDesignEntry($design->set)) {
+            abort(422, 'La cuota de gestión PARTILOT debe resolverse antes de enviar el diseño a la entidad.');
         }
 
         if (empty(trim(strip_tags($design->participation_html ?? '')))) {
@@ -767,6 +783,11 @@ class DesignApprovalService
             return true;
         }
 
+        $design->loadMissing('set');
+        if ($design->set && app(ManagementFeeService::class)->administrationOwesManagementFee($design->set)) {
+            return true;
+        }
+
         if (! $this->designHasParticipationContent($design)) {
             return true;
         }
@@ -794,6 +815,11 @@ class DesignApprovalService
             }
 
             return 'La entidad debe abonar la cuota de gestión PARTILOT para que pueda continuar editando el diseño de participación.';
+        }
+
+        $design->loadMissing('set.entity');
+        if ($design->set && app(ManagementFeeService::class)->administrationOwesManagementFee($design->set)) {
+            return 'Debe resolver la cuota de gestión PARTILOT antes de enviar este set a diseño.';
         }
 
         if (! $this->designHasParticipationContent($design)) {

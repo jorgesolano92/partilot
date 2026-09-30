@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\PanelLegalAcceptanceService;
+use App\Support\PanelAuthContext;
 use Illuminate\Http\Request;
 
 class PanelLegalAcceptanceController extends Controller
@@ -16,11 +17,13 @@ class PanelLegalAcceptanceController extends Controller
         $user = $request->user();
 
         if (! $user || $user->isSuperAdmin()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         if (! $this->panelLegalAcceptance->userMustAcceptBeforeAccess($user)) {
-            return redirect($this->homeRouteForUser($user));
+            PanelAuthContext::clearIntended($request);
+
+            return PanelAuthContext::redirectHome($user);
         }
 
         $request->validate([
@@ -30,17 +33,8 @@ class PanelLegalAcceptanceController extends Controller
         ]);
 
         $this->panelLegalAcceptance->recordAcceptance($user, $request);
+        PanelAuthContext::clearIntended($request);
 
-        return redirect($this->homeRouteForUser($user))
-            ->with('success', 'Condiciones legales aceptadas correctamente.');
-    }
-
-    private function homeRouteForUser($user): string
-    {
-        if ($user->isPrintShop()) {
-            return route('print-shop.index');
-        }
-
-        return route('dashboard');
+        return PanelAuthContext::redirectHome($user, 'success', 'Condiciones legales aceptadas correctamente.');
     }
 }

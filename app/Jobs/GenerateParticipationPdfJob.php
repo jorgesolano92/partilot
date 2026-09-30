@@ -16,7 +16,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -153,17 +152,43 @@ class GenerateParticipationPdfJob implements ShouldQueue
         }
 
         try {
-            Mail::to($this->notifyEmail)->send(new DesignPdfReadyMail(
-                route('design.downloadPdf', $this->jobId),
-                $isZip ? 'Participaciones ZIP' : 'Participaciones PDF',
-                $this->designId
-            ));
-            PdfJobStatus::markEmailSent($this->jobId);
-            Log::info('GenerateParticipationPdfJob emailed download link', [
-                'job_id' => $this->jobId,
-                'email' => $this->notifyEmail,
-            ]);
+            $log = app(\App\Services\CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: $this->notifyEmail,
+                recipientRole: 'administration',
+                recipientUser: null,
+                messageType: 'design_pdf_ready',
+                templateKey: null,
+                mailClass: DesignPdfReadyMail::class,
+                mailPayload: [
+                    'job_id' => $this->jobId,
+                    'title' => $isZip ? 'Participaciones ZIP' : 'Participaciones PDF',
+                    'design_format_id' => $this->designId,
+                    'download_url' => route('design.downloadPdf', $this->jobId),
+                ],
+                context: [
+                    'job_id' => $this->jobId,
+                    'design_format_id' => $this->designId,
+                ],
+            );
+
+            if ($log->status === \App\Models\EmailCommunicationLog::STATUS_SENT
+                || $log->status === \App\Models\EmailCommunicationLog::STATUS_RE_SENT) {
+                PdfJobStatus::markEmailSent($this->jobId);
+                Log::info('GenerateParticipationPdfJob emailed download link', [
+                    'job_id' => $this->jobId,
+                    'email' => $this->notifyEmail,
+                ]);
+            } else {
+                PdfJobStatus::markEmailFailed($this->jobId, $log->error_message);
+                Log::warning('GenerateParticipationPdfJob email failed', [
+                    'job_id' => $this->jobId,
+                    'email' => $this->notifyEmail,
+                    'status' => $log->status,
+                    'error' => $log->error_message,
+                ]);
+            }
         } catch (\Throwable $e) {
+            PdfJobStatus::markEmailFailed($this->jobId, $e->getMessage());
             Log::warning('GenerateParticipationPdfJob email failed', [
                 'job_id' => $this->jobId,
                 'email' => $this->notifyEmail,
