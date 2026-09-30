@@ -2171,7 +2171,85 @@ class EntityController extends Controller
         }
 
         return redirect()->route('entities.show', $entity->id)
-            ->with('success', 'Se ha reenviado el email de firma del contrato marco al correo de la entidad.');
+            ->with('success', 'Se ha reenviado el email de firma del contrato marco a '.($entity->signer_email ?: $entity->email).'.');
+    }
+
+    /**
+     * Editar datos del firmante autorizado (solo si el contrato marco no está firmado).
+     */
+    public function edit_signer($id)
+    {
+        $this->assertCanEditEntityData();
+
+        $entity = Entity::forUser(auth()->user())->findOrFail($id);
+
+        if ($entity->hasSignedFrameworkContract()) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'El contrato marco ya está firmado; no se pueden modificar los datos del firmante.');
+        }
+
+        return view('entities.edit_signer', compact('entity'));
+    }
+
+    /**
+     * Actualizar firmante y, por defecto, reenviar el email de firma al correo corregido.
+     */
+    public function update_signer(Request $request, $id)
+    {
+        $this->assertCanEditEntityData();
+
+        $entity = Entity::forUser(auth()->user())->findOrFail($id);
+
+        if ($entity->hasSignedFrameworkContract()) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'El contrato marco ya está firmado; no se pueden modificar los datos del firmante.');
+        }
+
+        $isNatural = $entity->isNaturalOrganizer();
+
+        $validated = $request->validate([
+            'signer_name' => 'required|string|max:255',
+            'signer_last_name' => 'required|string|max:255',
+            'signer_last_name2' => 'nullable|string|max:255',
+            'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            'signer_email' => 'required|email|max:255',
+            'signer_birthday' => ValidCalendarDate::birthday(false),
+            'signer_is_primary_manager' => 'nullable|boolean',
+            'resend_contract' => 'nullable|boolean',
+        ], [
+            'signer_name.required' => 'Indique el nombre del firmante autorizado.',
+            'signer_last_name.required' => 'Indique el primer apellido del firmante autorizado.',
+            'signer_nif.required' => 'Indique el DNI/NIE del firmante autorizado.',
+            'signer_email.required' => 'Indique el email del firmante autorizado para enviar el contrato.',
+            'signer_email.email' => 'El email del firmante autorizado no es válido.',
+        ]);
+
+        $validated['signer_is_primary_manager'] = $isNatural ? true : $request->boolean('signer_is_primary_manager');
+        $validated['signer_birthday'] = $validated['signer_birthday'] ?? null;
+        $shouldResend = $request->boolean('resend_contract', true);
+
+        unset($validated['resend_contract']);
+
+        $entity->update($validated);
+        $entity->refresh();
+
+        if (! $shouldResend) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('success', 'Datos del firmante actualizados. Recuerda reenviar el email de firma si el contrato sigue pendiente.');
+        }
+
+        try {
+            app(EntityContractService::class)->sendSigningInvitation($entity);
+        } catch (\Throwable $e) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'Firmante actualizado, pero no se pudo reenviar el contrato: '.$e->getMessage());
+        }
+
+        return redirect()->route('entities.show', $entity->id)
+            ->with(
+                'success',
+                'Firmante actualizado. Se ha reenviado el email de firma a '.$entity->signer_email.' (el enlace anterior deja de ser válido).'
+            );
     }
 
     /**

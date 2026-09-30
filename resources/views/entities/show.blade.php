@@ -159,10 +159,14 @@
 	                    					<i class="ri-file-warning-line"></i> Contrato marco pendiente de firma del representante autorizado.
 	                    				</p>
 	                    				@if($canEditEntityData ?? false)
-	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2">
+	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2"
+	                    					data-partilot-confirm="¿Reenviar el email de firma a {{ $entity->signer_email ?: $entity->email }}?"
+	                    					data-partilot-confirm-title="Reenviar contrato"
+	                    					data-partilot-confirm-ok="Reenviar">
 	                    					@csrf
 	                    					<button type="submit" class="btn btn-sm btn-outline-warning" style="border-radius: 20px;">Reenviar email de firma</button>
 	                    				</form>
+	                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-sm btn-outline-secondary mt-1" style="border-radius: 20px;">Corregir firmante</a>
 	                    				@endif
 	                    			@else
 	                    				<p class="small text-success mb-0 mt-2">
@@ -365,8 +369,21 @@
 			                    				</div>
 			                    			</div>
 
-			                    			<h4 class="mb-0 mt-3">Tipo de cliente y firmante</h4>
-			                    			<small><i>Datos del representante autorizado para el contrato marco (sin cuenta de usuario).</i></small>
+			                    			<h4 class="mb-0 mt-3">
+			                    				Tipo de cliente y firmante
+			                    				@if(($canEditEntityData ?? false) && ! $entity->hasSignedFrameworkContract())
+			                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-light float-end" style="border: 1px solid silver; border-radius: 30px;">
+			                    					<img src="{{url('assets/form-groups/edit.svg')}}" alt="">
+			                    					Editar firmante
+			                    				</a>
+			                    				@endif
+			                    			</h4>
+			                    			<small><i>
+			                    				Datos del representante autorizado para el contrato marco (sin cuenta de usuario).
+			                    				@if(($canEditEntityData ?? false) && ! $entity->hasSignedFrameworkContract())
+			                    					Puedes corregirlos y reenviar el email de firma mientras el contrato no esté firmado.
+			                    				@endif
+			                    			</i></small>
 			                    			<div class="row mt-2">
 			                    				<div class="col-6">
 			                    					<div class="form-group mt-2 mb-3">
