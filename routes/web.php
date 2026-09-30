@@ -344,6 +344,8 @@ Route::group(['prefix' => 'entities'], function() {
     // Rutas para editar manager
     Route::get('/edit/manager/{id}', [EntityController::class, 'edit_manager'])->name('entities.edit-manager');
     Route::put('/update/manager/{id}', [EntityController::class, 'update_manager'])->name('entities.update-manager');
+    Route::get('/edit/signer/{id}', [EntityController::class, 'edit_signer'])->name('entities.edit-signer');
+    Route::put('/update/signer/{id}', [EntityController::class, 'update_signer'])->name('entities.update-signer');
     Route::get('/edit/manager-permissions/{entity_id}/{manager_id}', [EntityController::class, 'edit_manager_permissions'])->name('entities.edit-manager-permissions');
     Route::put('/update/manager-permissions/{entity_id}/{manager_id}', [EntityController::class, 'update_manager_permissions'])->name('entities.update-manager-permissions');
     Route::post('/set-primary-manager', [EntityController::class, 'set_primary_manager'])->name('entities.set-primary-manager');
