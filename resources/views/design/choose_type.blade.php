@@ -170,16 +170,13 @@
                 </div>
 
                 @if(!empty($designLock['locked']))
-                    <div class="show-alerts">
-                        <div class="alert alert-warning mb-3">
-                            <strong>Diseño bloqueado.</strong> {{ $designLock['message'] ?? '' }}
-                        </div>
+                    <div class="alert alert-warning mb-3" style="display: block !important;">
+                        <strong>Diseño bloqueado.</strong> {{ $designLock['message'] ?? '' }}
                     </div>
                 @endif
 
                 @if(!empty($managementFeeBlocksDesign))
-                    <div class="show-alerts">
-                    <div class="alert alert-warning mb-3 text-start">
+                    <div class="alert alert-warning mb-3 text-start" style="display: block !important;">
                         <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente</h5>
                         @if(!empty($actsAsAdministration) || !empty($managementFee['show_admin_fee_actions']))
                             <p class="mb-3 small">
@@ -203,7 +200,6 @@
                             <p class="mb-0 small">La administración está preparando el diseño de este set.</p>
                         @endif
                     </div>
-                    </div>
                 @endif
 
                 <form id="choose-type-submit-form" method="POST" action="{{ route('design.format') }}">
@@ -213,14 +209,12 @@
                     <input type="hidden" id="choose-submode" value="new">
                     <div class="text-end mt-5">
                         @if(!empty($managementFeeBlocksDesign) || !empty($designLock['locked']))
-                            <div class="show-alerts text-start mb-2">
-                                <div class="alert alert-warning py-2 mb-2">
-                                    @if(!empty($designLock['locked']))
-                                        <strong>No puede continuar:</strong> {{ $designLock['message'] ?? 'diseño bloqueado por operación.' }}
-                                    @else
-                                        <strong>No puede continuar:</strong> resuelva primero la cuota de gestión pendiente.
-                                    @endif
-                                </div>
+                            <div class="alert alert-warning py-2 mb-2 text-start" style="display: block !important;">
+                                @if(!empty($designLock['locked']))
+                                    <strong>No puede continuar:</strong> {{ $designLock['message'] ?? 'diseño bloqueado por operación.' }}
+                                @else
+                                    <strong>No puede continuar:</strong> resuelva primero la cuota de gestión pendiente.
+                                @endif
                             </div>
                             <button type="button" id="choose-submit-btn" disabled style="border-radius: 30px; width: 200px; background-color: #c8c8c8; color: #666; padding: 8px; font-weight: bolder; position: relative; cursor: not-allowed;" class="btn btn-md btn-light" title="Resuelva la condición pendiente para continuar">
                                 Seleccionar
