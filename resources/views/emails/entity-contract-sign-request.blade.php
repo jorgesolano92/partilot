@@ -32,6 +32,10 @@
         </a>
     </p>
     <p style="font-size:12px;color:#666;">Si el botón no funciona, copia este enlace en tu navegador:<br>{{ $signUrl }}</p>
+    <p style="font-size:12px;color:#856404;background:#fff3cd;padding:10px 12px;border-radius:8px;">
+        <strong>Importante:</strong> este enlace sustituye a cualquier envío anterior.
+        Si recibió otro correo de firma antes, ese enlace ya no es válido: use solo el de este mensaje.
+    </p>
 
     <hr style="border:none;border-top:1px solid #ddd;margin:28px 0;">
     <p style="font-size:13px;color:#555;">

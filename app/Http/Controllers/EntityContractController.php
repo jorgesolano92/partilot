@@ -66,8 +66,8 @@ class EntityContractController extends Controller
         if (! $entity) {
             return view('contracts.administration-result', [
                 'success' => false,
-                'title' => 'Enlace no válido',
-                'message' => 'El enlace de firma no es válido o el contrato ya fue firmado.',
+                'title' => 'Enlace no válido o caducado',
+                'message' => 'Este enlace de firma ya no es válido. Suele ocurrir si se reenvió el contrato a otra dirección o se generó un enlace nuevo: use únicamente el correo de firma más reciente.',
             ]);
         }
 
