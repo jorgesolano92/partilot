@@ -401,26 +401,42 @@ class RoleLegalAcceptanceService
      */
     protected function rejectManager(Manager $manager, Request $request, ?User $actingUser): array
     {
+        $manager->loadMissing(['user', 'entity']);
         $user = $actingUser ?? $manager->user;
-        $roleType = $manager->pending_primary ? 'gestor_responsable' : 'gestor';
+        $isResponsible = (bool) ($manager->is_primary || $manager->pending_primary);
+        $roleType = $isResponsible ? 'gestor_responsable' : 'gestor';
         $role = config("legal_roles.{$roleType}", []);
-        $action = $roleType === 'gestor_responsable'
+        $action = $isResponsible
             ? LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR_RESPONSABLE
             : LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR;
 
-        if ($user) {
-            $this->legalAcceptance->recordFromRequest(
-                action: $action,
-                request: $request,
-                user: $user,
-                result: LegalAcceptance::RESULT_RECHAZADO,
-                version: (string) ($role['version'] ?? '3'),
-                textHash: (string) ($role['hash'] ?? 'role_v3'),
-                entityId: $manager->entity_id ? (int) $manager->entity_id : null,
-                administrationId: $manager->entity?->administration_id ? (int) $manager->entity->administration_id : null,
-                context: ['manager_id' => $manager->id, 'role_type' => $roleType],
-            );
-        }
+        $managerEmail = trim((string) ($user?->email ?? $manager->contact_email ?? ''));
+        $managerName = trim(implode(' ', array_filter([
+            (string) ($user?->name ?? $manager->contact_name ?? ''),
+            (string) ($user?->last_name ?? $manager->contact_last_name ?? ''),
+            (string) ($user?->last_name2 ?? $manager->contact_last_name2 ?? ''),
+        ])));
+
+        // Guardar email/nombre en context antes de borrar el manager/usuario (el user_id del log puede quedar null por FK).
+        $this->legalAcceptance->recordFromRequest(
+            action: $action,
+            request: $request,
+            user: $user,
+            result: LegalAcceptance::RESULT_RECHAZADO,
+            version: (string) ($role['version'] ?? '3'),
+            textHash: (string) ($role['hash'] ?? 'role_v3'),
+            entityId: $manager->entity_id ? (int) $manager->entity_id : null,
+            administrationId: $manager->entity?->administration_id ? (int) $manager->entity->administration_id : null,
+            context: [
+                'manager_id' => $manager->id,
+                'role_type' => $roleType,
+                'is_primary' => (bool) $manager->is_primary,
+                'pending_primary' => (bool) $manager->pending_primary,
+                'manager_email' => $managerEmail !== '' ? $managerEmail : null,
+                'manager_name' => $managerName !== '' ? $managerName : null,
+                'user_created_for_invitation' => (bool) $manager->user_created_for_invitation,
+            ],
+        );
 
         if ($manager->pending_primary) {
             $this->roleNotifications->onManagerRejected($manager);

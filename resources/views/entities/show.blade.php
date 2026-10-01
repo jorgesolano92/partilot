@@ -159,12 +159,12 @@
 	                    					<i class="ri-file-warning-line"></i> Contrato marco pendiente de firma del representante autorizado.
 	                    				</p>
 	                    				@if($canEditEntityData ?? false)
-	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2"
+	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2" id="entity-resend-contract-form"
 	                    					data-partilot-confirm="¿Reenviar el email de firma a {{ $entity->signer_email ?: $entity->email }}?"
 	                    					data-partilot-confirm-title="Reenviar contrato"
 	                    					data-partilot-confirm-ok="Reenviar">
 	                    					@csrf
-	                    					<button type="submit" class="btn btn-sm btn-outline-warning" style="border-radius: 20px;">Reenviar email de firma</button>
+	                    					<button type="submit" id="entity-resend-contract-submit" class="btn btn-sm btn-outline-warning" style="border-radius: 20px;">Reenviar email de firma</button>
 	                    				</form>
 	                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-sm btn-outline-secondary mt-1" style="border-radius: 20px;">Corregir firmante</a>
 	                    				@endif
@@ -496,6 +496,19 @@
 			                    									<i class="ri-mail-send-line"></i> Reenviar invitación
 			                    								</button>
 			                    							</form>
+			                    						@endif
+			                    					@elseif($latestRejectedPrimaryInvitation ?? null)
+			                    						<strong>Invitación rechazada:</strong>
+			                    						@if(!empty($latestRejectedPrimaryInvitation['name']))
+			                    							{{ $latestRejectedPrimaryInvitation['name'] }}
+			                    						@endif
+			                    						(<strong>{{ $latestRejectedPrimaryInvitation['email'] }}</strong>)
+			                    						rechazó el cargo de {{ strtolower($latestRejectedPrimaryInvitation['role_label']) }}
+			                    						@if(!empty($latestRejectedPrimaryInvitation['at']))
+			                    							el {{ $latestRejectedPrimaryInvitation['at']->format('d/m/Y H:i') }}
+			                    						@endif.
+			                    						@if(!empty($canManageManagers))
+			                    							Puede volver a invitar a esa persona u otra desde la pestaña <strong>Gestores</strong> → <strong>Añadir</strong>.
 			                    						@endif
 			                    					@else
 			                    						<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal. @if(!empty($canManageManagers)) Abre la pestaña <strong>Gestores</strong> y pulsa <strong>Añadir</strong> para invitar o registrar al gestor responsable. @endif
@@ -926,6 +939,30 @@
 							                            @endforelse
 							                        </tbody>
 						                        </table>
+
+						                        @if(($rejectedManagerInvitations ?? collect())->isNotEmpty())
+						                        <div class="alert alert-light border mt-3 text-start">
+						                        	<h5 class="mb-2"><i class="ri-history-line me-1"></i> Historial de invitaciones rechazadas</h5>
+						                        	<ul class="mb-0 ps-3">
+						                        		@foreach($rejectedManagerInvitations as $rejection)
+						                        		<li class="mb-1">
+						                        			<span class="badge bg-danger me-1">Rechazado</span>
+						                        			<strong>{{ $rejection['role_label'] }}</strong>
+						                        			@if(!empty($rejection['name']))
+						                        				{{ $rejection['name'] }} —
+						                        			@endif
+						                        			{{ $rejection['email'] }}
+						                        			@if(!empty($rejection['at']))
+						                        				<small class="text-muted">({{ $rejection['at']->format('d/m/Y H:i') }})</small>
+						                        			@endif
+						                        		</li>
+						                        		@endforeach
+						                        	</ul>
+						                        	@if(!empty($canManageManagers))
+						                        	<p class="small text-muted mb-0 mt-2">Si necesita un gestor, use <strong>Añadir</strong> para volver a invitar.</p>
+						                        	@endif
+						                        </div>
+						                        @endif
 						                    </div>
                     					</div>
 
@@ -1726,6 +1763,15 @@ $(document).on('click', '.delete-manager', function(e) {
         });
     } else {
         doDelete();
+    }
+});
+
+
+document.getElementById('entity-resend-contract-form')?.addEventListener('submit', function () {
+    var btn = document.getElementById('entity-resend-contract-submit');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Reenviando…';
     }
 });
 

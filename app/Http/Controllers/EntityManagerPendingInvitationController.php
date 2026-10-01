@@ -163,6 +163,32 @@ class EntityManagerPendingInvitationController extends Controller
             ]);
         }
 
+        $pending->loadMissing('entity');
+        $email = PendingEntityManagerInvitation::normalizeEmail((string) $pending->email);
+        $roleType = $pending->is_primary ? 'gestor_responsable' : 'gestor';
+        $role = config("legal_roles.{$roleType}", []);
+        $action = $pending->is_primary
+            ? \App\Models\LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR_RESPONSABLE
+            : \App\Models\LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR;
+
+        app(LegalAcceptanceService::class)->recordFromRequest(
+            action: $action,
+            request: request(),
+            user: null,
+            result: \App\Models\LegalAcceptance::RESULT_RECHAZADO,
+            version: (string) ($role['version'] ?? '3'),
+            textHash: (string) ($role['hash'] ?? 'role_v3'),
+            entityId: (int) $pending->entity_id,
+            administrationId: $pending->entity?->administration_id ? (int) $pending->entity->administration_id : null,
+            context: [
+                'pending_invitation_id' => $pending->id,
+                'role_type' => $roleType,
+                'is_primary' => (bool) $pending->is_primary,
+                'manager_email' => $email !== '' ? $email : null,
+                'via' => 'pending_invitation',
+            ],
+        );
+
         $pending->delete();
 
         return view('entities.manager-confirmation-success', [

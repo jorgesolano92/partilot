@@ -1022,6 +1022,10 @@ class EntityController extends Controller
         );
         $canManageBillingSwitches = $user && ($user->isSuperAdmin() || $user->isAdministration());
 
+        $rejectedManagerInvitations = \App\Models\LegalAcceptance::managerInvitationRejectionsForEntity((int) $entity->id);
+        $latestRejectedPrimaryInvitation = $rejectedManagerInvitations->firstWhere('is_primary', true)
+            ?? $rejectedManagerInvitations->first();
+
         $entityLotteries = \App\Models\Lottery::query()
             ->whereHas('reserves', function ($q) use ($entity) {
                 $q->where('entity_id', $entity->id);
@@ -1035,6 +1039,8 @@ class EntityController extends Controller
             'managersVisible',
             'pendingManagerInvitations',
             'primaryPendingInvitation',
+            'rejectedManagerInvitations',
+            'latestRejectedPrimaryInvitation',
             'entityPanelUser',
             'canManageManagers',
             'canResendManagerInvitations',

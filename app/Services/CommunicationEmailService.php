@@ -368,10 +368,42 @@ class CommunicationEmailService
             $userId = (int) ($mailPayload['user_id'] ?? 0);
             $managerId = (int) ($mailPayload['manager_id'] ?? 0);
             $entity = \App\Models\Entity::findOrFail($entityId);
-            $user = User::findOrFail($userId);
+
+            $user = $userId > 0 ? User::query()->find($userId) : null;
             $manager = $managerId > 0
-                ? \App\Models\Manager::findOrFail($managerId)
-                : \App\Models\Manager::where('entity_id', $entityId)->where('user_id', $userId)->latest('id')->firstOrFail();
+                ? \App\Models\Manager::query()->find($managerId)
+                : ($user
+                    ? \App\Models\Manager::query()->where('entity_id', $entityId)->where('user_id', $user->id)->latest('id')->first()
+                    : null);
+
+            // Tras un rechazo se borran manager/usuario de solo-invitación; el log sigue existiendo.
+            if ((! $user || ! $manager) && ! $forPreview) {
+                throw new \RuntimeException(
+                    'No se puede reenviar: el gestor/usuario de la invitación ya no existe (p. ej. tras rechazar). Vuelva a invitar desde la entidad.'
+                );
+            }
+
+            if (! $user) {
+                $user = new User([
+                    'id' => $userId ?: null,
+                    'email' => $recipientEmail,
+                    'name' => (string) ($mailPayload['manager_name'] ?? 'Gestor'),
+                ]);
+            }
+
+            if (! $manager) {
+                $manager = new \App\Models\Manager([
+                    'id' => $managerId ?: null,
+                    'entity_id' => $entityId,
+                    'user_id' => $user->id,
+                    'is_primary' => (bool) ($mailPayload['is_primary'] ?? true),
+                    'pending_primary' => (bool) ($mailPayload['pending_primary'] ?? false),
+                    'confirmation_token' => 'preview-token-unavailable',
+                ]);
+                $manager->setRelation('user', $user);
+                $manager->setRelation('entity', $entity);
+            }
+
             $plainPassword = (string) ($storedSecrets['plain_password'] ?? $mailPayload['plain_password'] ?? '');
             if ($plainPassword === '') {
                 if ($forPreview) {

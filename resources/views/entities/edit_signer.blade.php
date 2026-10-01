@@ -30,7 +30,7 @@
 		<div class="col-12">
 			<div class="card">
 				<div class="card-body">
-					<form action="{{ route('entities.update-signer', $entity->id) }}" method="POST">
+					<form action="{{ route('entities.update-signer', $entity->id) }}" method="POST" id="entity-edit-signer-form">
 						@csrf
 						@method('PUT')
 
@@ -124,7 +124,7 @@
 									</a>
 								</div>
 								<div class="col-6 text-end">
-									<button type="submit" class="btn btn-md btn-light" style="border-radius: 30px; width: 220px; background-color: #e78307; color: #333; font-weight: bolder;">
+									<button type="submit" id="entity-edit-signer-submit" class="btn btn-md btn-light" style="border-radius: 30px; width: 220px; background-color: #e78307; color: #333; font-weight: bolder;">
 										Guardar firmante
 									</button>
 								</div>
@@ -136,5 +136,15 @@
 		</div>
 	</div>
 </div>
+
+<script>
+document.getElementById('entity-edit-signer-form')?.addEventListener('submit', function () {
+	var btn = document.getElementById('entity-edit-signer-submit');
+	if (btn) {
+		btn.disabled = true;
+		btn.textContent = 'Guardando…';
+	}
+});
+</script>
 
 @endsection
