@@ -857,7 +857,7 @@
                                                             <div class="card-header">Liquidación Actual</div>
                                                             <div class="card-body">
                                                                 <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00€</span></p>
-                                                                <p><strong>Participaciones Liquidadas:</strong> <span id="vendedor-settlement-liquidated-participations">0</span></p>
+                                                                <p><strong>Participaciones cubiertas por lo pagado:</strong> <span id="vendedor-settlement-liquidated-participations">0</span></p>
                                                                 <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00€</span></p>
                                                                 <p><strong>Participaciones Pendientes:</strong> <span id="vendedor-settlement-pending-participations">0</span></p>
                                                             </div>
@@ -3331,9 +3331,11 @@ $(document).ready(function() {
                     $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '€');
                     $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + '€');
                     $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + '€');
-                    $('#vendedor-settlement-liquidated-participations').text(liquidatedParticipations.toFixed(2));
+                    const totalParticipationsCount = parseInt(summary.total_participations, 10) || 0;
+                    const coveredParticipations = Math.min(totalParticipationsCount, Math.floor(liquidatedParticipations + 1e-6));
+                    $('#vendedor-settlement-liquidated-participations').text(coveredParticipations);
                     $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + '€');
-                    $('#vendedor-settlement-pending-participations').text(pendingParticipations.toFixed(2));
+                    $('#vendedor-settlement-pending-participations').text(Math.max(0, totalParticipationsCount - coveredParticipations));
                     $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + '€');
                     
                     console.log('Datos actualizados en la vista');
@@ -3407,6 +3409,17 @@ $(document).ready(function() {
             return;
         }
 
+        const pendienteActual = parseFloat(($('#vendedor-settlement-pending-amount').text().match(/[\d.,]+/) || ['0'])[0].replace(',', '.')) || 0;
+        const totalPagos = pagos.reduce((sum, p) => sum + p.amount, 0);
+        if (pendienteActual <= 0.009) {
+            mostrarMensaje('No queda importe pendiente de liquidar para este vendedor en este sorteo.', 'warning');
+            return;
+        }
+        if (totalPagos > pendienteActual + 0.009) {
+            mostrarMensaje('El importe a liquidar (' + totalPagos.toFixed(2) + '€) supera el pendiente (' + pendienteActual.toFixed(2) + '€).', 'warning');
+            return;
+        }
+
         // Deshabilitar botón
         $(this).prop('disabled', true).text('Procesando...');
 
@@ -3437,7 +3450,8 @@ $(document).ready(function() {
             },
             error: function(xhr, status, error) {
                 console.error('Error:', error);
-                mostrarMensaje('Error al registrar la liquidación', 'error');
+                const serverMessage = xhr.responseJSON && xhr.responseJSON.message;
+                mostrarMensaje(serverMessage || 'Error al registrar la liquidación', xhr.status === 422 ? 'warning' : 'error');
             },
             complete: function() {
                 $('#btn-registrar-liquidacion-vendedor').prop('disabled', false).html('<i class="ri-add-line"></i> Registrar Liquidación');
@@ -3458,7 +3472,7 @@ $(document).ready(function() {
             },
             success: function(response) {
                 if (response.success && response.settlements.length > 0) {
-                    let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Participaciones Liquidadas</th><th>Monto Pagado</th><th>Métodos de Pago</th></tr></thead><tbody>';
+                    let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Importe pagado</th><th>Pendiente tras el pago</th><th>Métodos de Pago</th></tr></thead><tbody>';
                     
                     response.settlements.forEach(settlement => {
                         const fecha = new Date(settlement.settlement_date).toLocaleDateString('es-ES');
@@ -3477,14 +3491,14 @@ $(document).ready(function() {
                             metodos.push(`${icono} ${paymentAmount.toFixed(2)}€`);
                         });
                         
-                        const calculatedParts = parseFloat(settlement.calculated_participations) || 0;
+                        const pendingAfter = Math.max(0, parseFloat(settlement.pending_amount) || 0);
                         const paidAmount = parseFloat(settlement.paid_amount) || 0;
                         
                         html += `
                             <tr>
                                 <td>${fecha}</td>
-                                <td>${calculatedParts.toFixed(2)}</td>
                                 <td class="fw-bold text-success">${paidAmount.toFixed(2)}€</td>
+                                <td>${pendingAfter.toFixed(2)}€</td>
                                 <td>${metodos.join(', ')}</td>
                             </tr>
                         `;

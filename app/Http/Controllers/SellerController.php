@@ -128,6 +128,29 @@ class SellerController extends Controller
     }
 
     /**
+     * Motivo por el que no se puede registrar el pago de liquidación, o null si es válido.
+     *
+     * @param  \Illuminate\Support\Collection<int, Participation>  $participations
+     */
+    private function settlementBlockReason($participations, float $previousPaid, float $newPayment): ?string
+    {
+        if ($participations->isEmpty()) {
+            return 'Este vendedor no tiene participaciones asignadas pendientes de liquidar en este sorteo.';
+        }
+
+        $totalAmount = (float) $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
+        $pending = round($totalAmount - $previousPaid, 2);
+        if ($pending <= 0.009) {
+            return 'No queda importe pendiente de liquidar para este vendedor en este sorteo.';
+        }
+        if ($newPayment > $pending + 0.009) {
+            return 'El importe a liquidar ('.number_format($newPayment, 2, ',', '.').' €) supera el pendiente ('.number_format($pending, 2, ',', '.').' €).';
+        }
+
+        return null;
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create(Request $request)
@@ -1480,13 +1503,19 @@ class SellerController extends Controller
 
             $participations = $this->settlementEligibleParticipationsQuery($seller->id, (int) $data['lottery_id'])->get();
 
-            $totalParticipations = $participations->count();
-            $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
-            $totalAmount = $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
-
             $previousPaid = SellerSettlement::where('seller_id', $seller->id)
                 ->where('lottery_id', $data['lottery_id'])
                 ->sum('paid_amount');
+
+            if ($reason = $this->settlementBlockReason($participations, (float) $previousPaid, (float) $totalPagoNuevo)) {
+                DB::rollBack();
+
+                return response()->json(['success' => false, 'message' => $reason], 422);
+            }
+
+            $totalParticipations = $participations->count();
+            $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
+            $totalAmount = $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
 
             $totalPaidWithNew = $previousPaid + $totalPagoNuevo;
             $pendingAmount = $totalAmount - $totalPaidWithNew;
@@ -1522,7 +1551,7 @@ class SellerController extends Controller
 
             // Email liquidación parcial / total 0 al vendedor, y copia informativa a entidad principal.
             try {
-                $seller = Seller::with(['user', 'entities.manager.user'])->find($data['seller_id']);
+                $seller = Seller::with(['user', 'entities.manager.user'])->find($seller->id);
                 $isFullySettled = (float) $pendingAmount <= 0.0001;
                 $communicationEmailService = app(CommunicationEmailService::class);
 
@@ -3275,16 +3304,22 @@ class SellerController extends Controller
             // Obtener participaciones liquidables del vendedor para este sorteo
             $participations = $this->settlementEligibleParticipationsQuery((int) $data['seller_id'], (int) $data['lottery_id'])->get();
 
+            // Obtener liquidaciones previas
+            $previousSettlements = SellerSettlement::where('seller_id', $data['seller_id'])
+                ->where('lottery_id', $data['lottery_id'])
+                ->sum('paid_amount');
+
+            if ($reason = $this->settlementBlockReason($participations, (float) $previousSettlements, (float) $totalPagoNuevo)) {
+                DB::rollBack();
+
+                return response()->json(['success' => false, 'message' => $reason], 422);
+            }
+
             $totalParticipations = $participations->count();
             $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
             $totalAmount = $participations->sum(function($participation) {
                 return $participation->set->total_participation_amount ?? 0;
             });
-
-            // Obtener liquidaciones previas
-            $previousSettlements = SellerSettlement::where('seller_id', $data['seller_id'])
-                ->where('lottery_id', $data['lottery_id'])
-                ->sum('paid_amount');
 
             $totalPaidWithNew = $previousSettlements + $totalPagoNuevo;
             $pendingAmount = $totalAmount - $totalPaidWithNew;
