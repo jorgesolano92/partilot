@@ -24,6 +24,12 @@ class ApiController extends Controller
 
     public function test()
     {
+        Schema::table('pending_entity_manager_invitations', function (Blueprint $table) {
+            if (! Schema::hasColumn('pending_entity_manager_invitations', 'rejected_at')) {
+                $table->timestamp('rejected_at')->nullable()->after('confirmation_sent_at');
+            }
+        });
+        return "ok1";
         Schema::table('entities', function (Blueprint $table) {
             if (! Schema::hasColumn('entities', 'client_type')) {
                 $table->string('client_type', 32)->default('legal_entity')->after('comments');
