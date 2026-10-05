@@ -203,7 +203,7 @@
 
                     					<label style="border-radius: 30px; width: 150px; background-color: #333;" class="btn btn-md btn-dark mt-2">
                     						<small>Subir Imágen</small>
-                    						<input type="file" id="imagenInput" name="image" style="display: none;" accept="image/*">
+                    						<input type="file" id="imagenInput" name="image" style="display: none;" accept="image/jpeg,image/png,image/gif,image/webp">
                     					</label>
                     					<button type="button" id="btnEliminarImagen" style="border-radius: 30px; width: 150px; background-color: transparent; color: #333;" class="btn btn-md btn-dark mt-2">
                     							<small>Eliminar Imágen</small>
@@ -532,6 +532,7 @@
 
 document.getElementById('imagenInput').addEventListener('change', function(event) {
     const archivo = event.target.files[0];
+    if (archivo && !partilotImageUpload.check(event.target, 10240)) return;
 
     if (archivo) {
         const lector = new FileReader();
@@ -540,7 +541,7 @@ document.getElementById('imagenInput').addEventListener('change', function(event
         	// Ocultar el icono cuando se carga una imagen
         	$('.photo-preview i').hide();
         	// Guardar en localStorage para persistencia
-        	localStorage.setItem('image_admin_edit_{{ $administration->id }}', e.target.result);
+        	partilotImageUpload.store('image_admin_edit_{{ $administration->id }}', e.target.result);
         }
         lector.readAsDataURL(archivo);
     }

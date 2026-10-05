@@ -87,7 +87,7 @@
                     						<label style="border-radius: 30px; width: 150px; background-color: transparent; color: #333;" class="btn btn-md btn-dark mt-2" onclick="removeImage()">
                     							<small>Eliminar Imagen</small>
                     						</label>
-                    						<input type="file" id="user-image" name="image" style="display: none;" accept="image/*" onchange="previewImage(this)">
+                    						<input type="file" id="user-image" name="image" style="display: none;" accept="image/jpeg,image/png,image/gif,image/webp" onchange="previewImage(this)">
                     					</div>
                     					<div style="clear: both;"></div>
                     				</div>
@@ -256,13 +256,14 @@
 
 function previewImage(input) {
     if (input.files && input.files[0]) {
+        if (!partilotImageUpload.check(input, 2048)) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             const avatar = document.getElementById('user-avatar');
             avatar.style.backgroundImage = `url(${e.target.result})`;
             avatar.innerHTML = '';
             // Guardar en localStorage para persistencia
-            localStorage.setItem('image_user_create', e.target.result);
+            partilotImageUpload.store('image_user_create', e.target.result);
         };
         reader.readAsDataURL(input.files[0]);
     }
