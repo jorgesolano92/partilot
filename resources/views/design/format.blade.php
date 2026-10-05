@@ -157,6 +157,12 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
         opacity: 0.85;
     }
 
+    /* Guías y capas de fondo son solo visuales: los clics deben llegar a textos e imágenes. */
+    .guide2, .guide3, .guide4,
+    .design-margin-bg, #design-participation-bg, #design-cover-bg, #design-back-bg {
+        pointer-events: none !important;
+    }
+
     .design-locked .format-box-btn,
     .design-locked #open-bg-modal,
     .design-locked #btn-guardar-margenes {
@@ -2055,6 +2061,16 @@ $('#format').change(function (e) {
     });
   });
 
+  $('#design-name-modal').on('shown.bs.modal', function() {
+    $('#design-name-input').trigger('focus').select();
+  });
+  $('#design-name-input').on('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('#design-name-confirm').trigger('click');
+    }
+  });
+
   $('#design-name-cancel').click(function() {
     if (typeof bootstrap !== 'undefined') {
       var el = document.getElementById('design-name-modal');
@@ -2145,14 +2161,7 @@ $('#format').change(function (e) {
             var nameModal = new bootstrap.Modal(document.getElementById('design-name-modal'));
             nameModal.show();
           } else {
-            var name = prompt('Nombre del diseño:', window.__defaultDesignName || '');
-            if (name === null) return;
-            window.__pendingDesignName = name;
-            persistDesignToServer({
-              reason: 'final-save',
-              showLoader: true,
-              redirectOnSuccess: true
-            });
+            $('#design-name-modal').modal('show');
           }
           return;
 

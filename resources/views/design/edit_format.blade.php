@@ -190,6 +190,12 @@
         z-index: -1;
         pointer-events: none;
     }
+
+    /* Guías y capas de fondo son solo visuales: los clics deben llegar a textos e imágenes. */
+    .guide2, .guide3, .guide4,
+    .design-margin-bg, #design-participation-bg, #design-cover-bg, #design-back-bg {
+        pointer-events: none !important;
+    }
 </style>
 
 <div class="container-fluid design-editor-page">
@@ -848,6 +854,24 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
         <button type="button" class="btn btn-primary" id="apply-bg">Aplicar fondo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="design-name-modal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nombre del diseño</h5>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Asigne un nombre para identificar este diseño en el listado de la entidad.</p>
+        <input type="text" class="form-control" id="design-name-input" maxlength="120" placeholder="Nombre del diseño">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="design-name-confirm">Guardar diseño</button>
       </div>
     </div>
   </div>
@@ -2530,12 +2554,24 @@ $(document).ready(function() {
                 $('#containment-wrapper4').css('padding-right', matrix+'mm');
             }
         }else{
-            var name = prompt('Nombre del diseño:', window.__defaultDesignName || '');
-            if (name === null) return;
-            window.__pendingDesignName = (name || '').trim() || window.__defaultDesignName;
-            $('#edit-format-form').data('from-step-5', true);
-            $('#edit-format-form').submit();
+            $('#design-name-input').val(window.__pendingDesignName || window.__defaultDesignName || '');
+            $('#design-name-modal').modal('show');
         }
+    });
+    $('#design-name-modal').on('shown.bs.modal', function() {
+        $('#design-name-input').trigger('focus').select();
+    });
+    $('#design-name-input').on('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            $('#design-name-confirm').trigger('click');
+        }
+    });
+    $('#design-name-confirm').click(function() {
+        window.__pendingDesignName = ($('#design-name-input').val() || '').trim() || window.__defaultDesignName;
+        $('#design-name-modal').modal('hide');
+        $('#edit-format-form').data('from-step-5', true);
+        $('#edit-format-form').submit();
     });
     $('.prev-step').click(function(e) {
         e.preventDefault();
