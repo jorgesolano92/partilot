@@ -130,9 +130,15 @@
                         
                             <tbody>
                                 @foreach($sets as $set)
+                                @php($setConfigLocked = $set->hasRealDesignWork())
                                 <tr class="row-clickable" data-href="{{url('sets/view', $set->id)}}" style="cursor: pointer;">
                                     <td><a href="{{url('sets/view', $set->id)}}">#SP{{str_pad($set->id, 4, '0', STR_PAD_LEFT)}}</a></td>
-                                    <td>{{$set->set_name}}</td>
+                                    <td>
+                                        {{$set->set_name}}
+                                        @if($setConfigLocked)
+                                            <i class="ri-lock-line text-muted ms-1" title="Configuración bloqueada: el set ya tiene diseño. Solo se puede cambiar la fecha límite."></i>
+                                        @endif
+                                    </td>
                                     <td>{{$set->reserve->lottery ? $set->reserve->lottery->name : 'Sin sorteo'}}</td>
                                     <td>
                                         @include('partials.lottery_image', [
@@ -169,7 +175,7 @@
                                         @if(auth()->user()?->isSuperAdmin())
                                         <a href="{{ route('sets.download-xml', $set->id) }}" class="btn btn-sm btn-light" title="Descargar XML"><i class="ri-download-line"></i></a>
                                         @endif
-                                        <a href="{{url('sets/edit', $set->id)}}" class="btn btn-sm btn-light"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
+                                        <a href="{{url('sets/edit', $set->id)}}" class="btn btn-sm btn-light" title="{{ $setConfigLocked ? 'Configuración bloqueada por diseño: solo fecha límite' : 'Editar set' }}">@if($setConfigLocked)<i class="ri-lock-line"></i>@else<img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12">@endif</a>
                                         <button class="btn btn-sm btn-danger delete-btn" data-id="{{$set->id}}" data-name="set #{{$set->id}}"><i class="ri-delete-bin-6-line"></i></button>
                                     </td>
                                 </tr>

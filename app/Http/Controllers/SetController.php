@@ -46,7 +46,7 @@ class SetController extends Controller
             }
         }
 
-        $query = Set::with(['entity', 'reserve.lottery'])
+        $query = Set::with(['entity', 'reserve.lottery', 'designFormats'])
             ->forUser($user);
 
         if ($filterAdministration) {
@@ -213,17 +213,52 @@ class SetController extends Controller
 
         $reserveTotalsAndAvailable = [];
         foreach ($reserves as $reserve) {
-            $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
-            $total = max(
-                (float) $reserve->total_amount,
-                $numNumbers > 0 ? round($numNumbers * (float) $reserve->reservation_amount, 2) : (float) $reserve->total_amount
-            );
-            $used = (float) Set::where('reserve_id', $reserve->id)->sum('total_amount');
-            $available = max(0, $total - $used);
-            $reserveTotalsAndAvailable[$reserve->id] = ['total' => $total, 'available' => $available];
+            $reserveTotalsAndAvailable[$reserve->id] = $this->reserveTotalAndAvailable($reserve);
         }
 
         return view('sets.add_reserve', compact('reserves', 'reserveTotalsAndAvailable'));
+    }
+
+    /**
+     * Admite coma decimal ("0,50") en los importes del set; formatos ambiguos se dejan tal cual para que falle la validación numeric.
+     */
+    private function normalizeDecimalAmounts(Request $request): void
+    {
+        $normalized = [];
+        foreach (['played_amount', 'donation_amount', 'total_participation_amount', 'total_amount'] as $field) {
+            $raw = $request->input($field);
+            if (! is_string($raw)) {
+                continue;
+            }
+            $value = str_replace([' ', '€'], '', trim($raw));
+            if (str_contains($value, ',') && str_contains($value, '.')) {
+                $value = str_replace('.', '', $value);
+            }
+            $value = str_replace(',', '.', $value);
+            if (preg_match('/^\d+(\.\d+)?$/', $value)) {
+                $normalized[$field] = $value;
+            }
+        }
+        if ($normalized !== []) {
+            $request->merge($normalized);
+        }
+    }
+
+    /**
+     * Total de la reserva (importe por número × números, por compatibilidad con total_amount antiguo) y saldo libre para sets.
+     *
+     * @return array{total: float, available: float}
+     */
+    private function reserveTotalAndAvailable(Reserve $reserve): array
+    {
+        $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
+        $total = max(
+            (float) $reserve->total_amount,
+            $numNumbers > 0 ? round($numNumbers * (float) $reserve->reservation_amount, 2) : (float) $reserve->total_amount
+        );
+        $used = (float) Set::where('reserve_id', $reserve->id)->sum('total_amount');
+
+        return ['total' => $total, 'available' => max(0, round($total - $used, 2))];
     }
 
     /**
@@ -279,14 +314,7 @@ class SetController extends Controller
         // Total y disponible por reserva
         $reserveTotalsAndAvailable = [];
         foreach ($reserves as $reserve) {
-            $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
-            $total = max(
-                (float) $reserve->total_amount,
-                $numNumbers > 0 ? round($numNumbers * (float) $reserve->reservation_amount, 2) : (float) $reserve->total_amount
-            );
-            $used = (float) Set::where('reserve_id', $reserve->id)->sum('total_amount');
-            $available = max(0, $total - $used);
-            $reserveTotalsAndAvailable[$reserve->id] = ['total' => $total, 'available' => $available];
+            $reserveTotalsAndAvailable[$reserve->id] = $this->reserveTotalAndAvailable($reserve);
         }
 
         return view('sets.add_reserve', compact('reserves', 'reserveTotalsAndAvailable'));
@@ -318,6 +346,11 @@ class SetController extends Controller
 
         if ($response = $this->redirectIfReserveLotteryBlocked($reserve, 'sets.create')) {
             return $response;
+        }
+
+        if ($this->reserveTotalAndAvailable($reserve)['available'] <= 0.009) {
+            return redirect()->route('sets.add-reserve')
+                ->with('error', 'Esta reserva ya no tiene saldo disponible: todo su importe está asignado a sets.');
         }
 
         $entity = Entity::with(['administration', 'manager'])
@@ -362,6 +395,13 @@ class SetController extends Controller
 
         if ($response = $this->jsonIfLotteryDrawDateBlocked($reserve->lottery)) {
             return $response;
+        }
+
+        if ($this->reserveTotalAndAvailable($reserve)['available'] <= 0.009) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta reserva ya no tiene saldo disponible: todo su importe está asignado a sets.',
+            ], 422);
         }
 
         $entity = Entity::with(['administration', 'manager'])
@@ -465,6 +505,8 @@ class SetController extends Controller
         $request->session()->put('selected_entity', $entity);
         $request->session()->put('selected_reserve', $reserve);
 
+        $this->normalizeDecimalAmounts($request);
+
         $validated = $request->validate([
             'set_name' => 'required|string|max:255',
             'played_amount' => 'nullable|numeric|min:0',
@@ -476,6 +518,13 @@ class SetController extends Controller
             'digital_participations' => 'nullable|integer|min:0',
             'deadline_date' => array_merge(ValidCalendarDate::rules(true), [new \App\Rules\DeadlineBeforeLottery($reserve->id)]),
         ]);
+
+        $maxPlayed = (float) ($reserve->reservation_amount ?? 0);
+        if ($maxPlayed > 0 && (float) ($validated['played_amount'] ?? 0) > $maxPlayed + 0.001) {
+            return back()->withInput()->withErrors([
+                'played_amount' => 'El Importe Jugado (Número) no puede ser mayor al importe por número de la reserva ('.number_format($maxPlayed, 2, ',', '.').' €).',
+            ]);
+        }
 
         // Total reserva = importe por número × cantidad de números
         $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
@@ -604,6 +653,8 @@ class SetController extends Controller
             return redirect()->route('sets.show', $set->id)
                 ->with('success', 'Fecha límite actualizada correctamente.');
         }
+
+        $this->normalizeDecimalAmounts($request);
 
         $validated = $request->validate([
             'set_name' => 'required|string|max:255',

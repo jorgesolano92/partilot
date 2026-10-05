@@ -150,7 +150,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="number" step="0.01" name="played_amount" id="played_amount" value="{{ old('played_amount', $set->played_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? '' : 'readonly' }}>
+                                                        <input class="form-control" type="text" inputmode="decimal" autocomplete="off" name="played_amount" id="played_amount" value="{{ old('played_amount', $set->played_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? '' : 'readonly' }}>
                                                     </div>
                                                 </div>
                                             </div>
@@ -161,7 +161,7 @@
                                                         <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                             <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
                                                         </div>
-                                                        <input class="form-control" type="number" step="0.01" name="donation_amount" id="donation_amount" value="{{ old('donation_amount', $set->donation_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? '' : 'readonly' }}>
+                                                        <input class="form-control" type="text" inputmode="decimal" autocomplete="off" name="donation_amount" id="donation_amount" value="{{ old('donation_amount', $set->donation_amount) }}" style="border-radius: 0 30px 30px 0;" {{ !empty($canEditConfig) ? '' : 'readonly' }}>
                                                     </div>
                                                 </div>
                                             </div>
@@ -292,9 +292,25 @@ $(document).ready(function() {
             $('#digital_participations').val(0);
         }
     }
+    function parseDecimalInput(raw) {
+        var s = String(raw == null ? '' : raw).trim().replace(/\s|€/g, '');
+        if (s === '') return NaN;
+        if (s.indexOf(',') !== -1 && s.indexOf('.') !== -1) {
+            s = s.replace(/\./g, '').replace(',', '.');
+        } else {
+            s = s.replace(',', '.');
+        }
+        return /^\d+(\.\d{1,2})?$/.test(s) ? parseFloat(s) : NaN;
+    }
+    $('form').on('submit', function () {
+        ['#played_amount', '#donation_amount'].forEach(function (sel) {
+            var v = parseDecimalInput($(sel).val());
+            if (!isNaN(v)) $(sel).val(v.toFixed(2));
+        });
+    });
     function recalcTotals() {
-        var played = parseFloat($('#played_amount').val()) || 0;
-        var donation = parseFloat($('#donation_amount').val()) || 0;
+        var played = parseDecimalInput($('#played_amount').val()) || 0;
+        var donation = parseDecimalInput($('#donation_amount').val()) || 0;
         var totalPart = Math.round((played + donation) * 100) / 100;
         $('#total_participation_amount').val(totalPart.toFixed(2));
         var qty = parseInt($('#total_participations').val(), 10) || 0;
