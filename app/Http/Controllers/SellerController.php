@@ -302,7 +302,7 @@ class SellerController extends Controller
             'name' => 'nullable|string|max:255', // No requerido
             'last_name' => 'nullable|string|max:255', // No requerido
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif', 'unique:sellers,nif_cif'],
+            'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument],
             'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email',
             'phone' => 'nullable|string|max:255',
@@ -331,6 +331,33 @@ class SellerController extends Controller
         $entity = Entity::find($request->entity_id);
         if (!$entity || $entity->status != 1) {
             return redirect()->route('sellers.add-information')->withErrors(['entity_id' => 'Solo se puede asignar un vendedor a una entidad activa.'])->withInput();
+        }
+
+        $nif = strtoupper(trim((string) $request->nif_cif));
+        $sellerWithNif = Seller::with('entities')->where('nif_cif', $nif)->first();
+        $identityError = null;
+        if ($sellerWithNif && $sellerWithNif->entities->contains($entity->id)) {
+            $identityError = 'Ya existe un vendedor con este DNI/NIE en esta entidad.';
+        } elseif ($sellerWithNif && $sellerWithNif->seller_type !== 'externo') {
+            $identityError = 'Este DNI/NIE pertenece a un vendedor con cuenta en Partilot. Añádelo como «Vendedor Partilot» con el email con el que está registrado; recibirá la invitación en su app.';
+        } elseif (! $sellerWithNif && User::where('nif_cif', $nif)->exists()) {
+            $identityError = 'Este DNI/NIE pertenece a un usuario ya registrado en Partilot. Añádelo como «Vendedor Partilot» con el email de su cuenta; recibirá la invitación en su app.';
+        }
+        if ($identityError) {
+            session(['selected_entity' => $entity->loadMissing('administration')]);
+
+            return redirect()->route('sellers.add-information')
+                ->withErrors(['nif_cif' => $identityError])
+                ->withInput();
+        }
+
+        if ($sellerWithNif) {
+            // Vendedor externo ya dado de alta en otra entidad: se reutiliza su ficha.
+            $sellerWithNif->entities()->attach($entity->id);
+            session()->forget('selected_entity');
+
+            return redirect()->route('sellers.index')
+                ->with('success', 'Este DNI/NIE ya estaba registrado como vendedor externo en otra entidad: se ha reutilizado su ficha y se ha añadido a esta entidad.');
         }
 
         try {
