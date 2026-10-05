@@ -2981,19 +2981,31 @@ class DevolutionsController extends Controller
             return null;
         }
 
-        $pending = app(SellerLiquidationService::class)
-            ->sumPendingLiquidationForEntityLottery($entityId, $lotteryId);
+        $liquidationService = app(SellerLiquidationService::class);
+        $pending = $liquidationService->sumPendingLiquidationForEntityLottery($entityId, $lotteryId);
 
         if ($pending <= 0) {
             return null;
         }
 
+        $breakdown = $liquidationService->pendingBreakdownForEntityLottery($entityId, $lotteryId);
+        $soloDevolucion = filter_var($request->input('solo_devolucion', false), FILTER_VALIDATE_BOOLEAN);
+        $physicalInHand = $soloDevolucion ? 0 : array_sum(array_column($breakdown, 'physical_in_hand'));
+
+        $message = 'Hay vendedores con liquidación pendiente para este sorteo ('.number_format($pending, 2, ',', '.').' €).';
+        if ($physicalInHand > 0) {
+            $message .= ' Tienen aún '.$physicalInHand.' papeleta(s) física(s) en mano que, si continúas, pasarán a considerarse vendidas.';
+        }
+        $message .= ' Puedes continuar, pero conviene que liquiden antes.';
+
         return response()->json([
             'success' => false,
             'requires_confirmation' => true,
             'warning_code' => 'seller_liquidation_pending',
-            'message' => 'Hay vendedores con liquidación pendiente para este sorteo ('.number_format($pending, 2, ',', '.').' €). Puedes continuar, pero conviene que liquiden antes.',
+            'message' => $message,
             'seller_pending_amount' => round($pending, 2),
+            'physical_in_hand_total' => $physicalInHand,
+            'sellers' => $breakdown,
         ], 409);
     }
 

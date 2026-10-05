@@ -1362,13 +1362,58 @@ function manejarAdvertenciaLiquidacionVendedores(xhr, payload, reenviarFn) {
     if (xhr.status === 409 && data && data.requires_confirmation
         && data.warning_code === 'seller_liquidation_pending'
         && !payload.acknowledge_seller_liquidation_warning) {
-        if (window.confirm((data.message || 'Hay vendedores con liquidación pendiente.') + '\n\n¿Deseas continuar de todas formas?')) {
+        mostrarAvisoLiquidacionVendedores(data, function () {
             payload.acknowledge_seller_liquidation_warning = true;
             reenviarFn(payload);
-        }
+        });
         return true;
     }
     return false;
+}
+
+function escapeHtmlAviso(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+function mostrarAvisoLiquidacionVendedores(data, onContinue) {
+    var sellers = Array.isArray(data.sellers) ? data.sellers : [];
+    var physicalTotal = parseInt(data.physical_in_hand_total, 10) || 0;
+    var rows = sellers.map(function (s) {
+        return '<tr><td>' + escapeHtmlAviso(s.name) + '</td>'
+            + '<td class="text-end">' + (parseFloat(s.pending_amount) || 0).toFixed(2) + ' €</td>'
+            + (physicalTotal > 0 ? '<td class="text-end">' + (parseInt(s.physical_in_hand, 10) || 0) + '</td>' : '')
+            + '</tr>';
+    }).join('');
+    var table = rows
+        ? '<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Vendedor</th><th class="text-end">Importe pendiente</th>'
+            + (physicalTotal > 0 ? '<th class="text-end">Papeletas físicas en mano</th>' : '')
+            + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+        : '';
+    var physicalAlert = physicalTotal > 0
+        ? '<div class="alert alert-danger" style="display:block;">Si continúas, <strong>' + physicalTotal
+            + ' papeleta(s) física(s)</strong> que siguen en manos de vendedores pasarán a considerarse vendidas definitivamente.</div>'
+        : '';
+    var html = '<div class="modal fade" id="aviso-liquidacion-vendedores" tabindex="-1" data-bs-backdrop="static">'
+        + '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">'
+        + '<div class="modal-header"><h5 class="modal-title">Vendedores con liquidación pendiente</h5></div>'
+        + '<div class="modal-body">' + physicalAlert
+        + '<p>' + escapeHtmlAviso(data.message || 'Hay vendedores con liquidación pendiente.') + '</p>' + table + '</div>'
+        + '<div class="modal-footer">'
+        + '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Revisar antes</button>'
+        + '<button type="button" class="btn btn-danger" id="aviso-liquidacion-continuar">Continuar de todas formas</button>'
+        + '</div></div></div></div>';
+
+    $('#aviso-liquidacion-vendedores').remove();
+    $('body').append(html);
+    var $modal = $('#aviso-liquidacion-vendedores');
+    $modal.find('#aviso-liquidacion-continuar').on('click', function () {
+        $modal.modal('hide');
+        onContinue();
+    });
+    $modal.on('hidden.bs.modal', function () { $modal.remove(); });
+    $modal.modal('show');
 }
 
 $(document).ready(function() {

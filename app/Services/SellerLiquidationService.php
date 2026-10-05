@@ -60,6 +60,59 @@ class SellerLiquidationService
         return array_sum($this->getPendingLiquidationBySellerLottery($sellerIds, $lotteryId));
     }
 
+    /**
+     * Desglose por vendedor para el aviso previo a la devolución a administración: importe pendiente
+     * y papeletas físicas aún asignadas (en mano), que pasarían a considerarse vendidas al cerrar.
+     *
+     * @return list<array{seller_id: int, name: string, pending_amount: float, physical_in_hand: int}>
+     */
+    public function pendingBreakdownForEntityLottery(int $entityId, int $lotteryId): array
+    {
+        $sellers = Seller::query()
+            ->whereHas('entities', fn ($q) => $q->where('entities.id', $entityId))
+            ->with('user:id,name,last_name,last_name2')
+            ->get();
+        if ($sellers->isEmpty()) {
+            return [];
+        }
+
+        $sellerIds = $sellers->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $pendingBySeller = $this->getPendingLiquidationBySellerLottery($sellerIds, $lotteryId);
+
+        $physicalBySeller = Participation::query()
+            ->whereIn('seller_id', $sellerIds)
+            ->where('status', 'asignada')
+            ->whereRaw("(participation_code IS NULL OR participation_code NOT LIKE '1D/%')")
+            ->whereHas('set', fn ($q) => $q->where('entity_id', $entityId)
+                ->whereHas('reserve', fn ($r) => $r->where('lottery_id', $lotteryId)))
+            ->selectRaw('seller_id, COUNT(*) as total')
+            ->groupBy('seller_id')
+            ->pluck('total', 'seller_id');
+
+        $rows = [];
+        foreach ($sellers as $seller) {
+            $pending = round((float) ($pendingBySeller[$seller->id] ?? 0), 2);
+            $physical = (int) ($physicalBySeller[$seller->id] ?? 0);
+            if ($pending <= 0 && $physical <= 0) {
+                continue;
+            }
+            $name = trim(implode(' ', array_filter([$seller->name, $seller->last_name, $seller->last_name2])));
+            if ($name === '' && $seller->user) {
+                $name = trim(implode(' ', array_filter([$seller->user->name, $seller->user->last_name, $seller->user->last_name2])));
+            }
+            $rows[] = [
+                'seller_id' => (int) $seller->id,
+                'name' => $name !== '' ? $name : ('Vendedor #'.$seller->id),
+                'pending_amount' => $pending,
+                'physical_in_hand' => $physical,
+            ];
+        }
+
+        usort($rows, fn ($a, $b) => [$b['physical_in_hand'], $b['pending_amount']] <=> [$a['physical_in_hand'], $a['pending_amount']]);
+
+        return $rows;
+    }
+
     public function hasPendingSellerLiquidationForEntityLottery(int $entityId, int $lotteryId): bool
     {
         return $this->sumPendingLiquidationForEntityLottery($entityId, $lotteryId) > 0;
