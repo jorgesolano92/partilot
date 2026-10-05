@@ -352,10 +352,11 @@
 				                                            }
 				                                        }
 				                                    @endphp
-				                                    <input class="form-control" type="text" id="account-input" placeholder="12 1234 1234 12 1234567890" value="{{ $accountDisplay }}" style="border-radius: 0 30px 30px 0;">
+				                                    <input class="form-control" type="text" id="account-input" name="account" inputmode="numeric" autocomplete="off" placeholder="12 1234 1234 12 1234567890" value="{{ $accountDisplay }}" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
 			                    			<small class="text-muted">Ingrese el número de cuenta bancaria. El prefijo ES se añadirá automáticamente.</small>
+			                    			<small class="text-danger" id="account-error" style="display:none;"></small>
 
 	                    				</div>
 
@@ -533,19 +534,6 @@
         // No borrar administration_form_data aquí: al volver atrás desde paso 2 se restaura la cuenta y el resto
     });
 
-    // Validar cuenta bancaria antes de enviar: vacía o exactamente 22 dígitos
-    document.querySelector('form').addEventListener('submit', function(e) {
-        const accountInput = document.getElementById('account-input');
-        if (accountInput) {
-            const digits = accountInput.value.replace(/\s/g, '');
-            if (digits.length > 0 && digits.length !== 22) {
-                e.preventDefault();
-                alert('La cuenta bancaria debe estar vacía o tener exactamente 22 dígitos.');
-                return false;
-            }
-        }
-    });
-
 	// Máscara para Nº Receptor (solo números, máximo 5)
 	const receivingInput = document.querySelector('input[name="receiving"]');
 	if (receivingInput) {
@@ -692,15 +680,63 @@
 			this.setSelectionRange(newPosition, newPosition);
 		});
 
-		// Antes de enviar el formulario, remover espacios y guardar solo números
-		document.querySelector('#add-form').addEventListener('submit', function(e) {
-			// Crear un campo hidden con el valor sin espacios (incluso si está vacío)
-			const hiddenInput = document.createElement('input');
-			hiddenInput.type = 'hidden';
-			hiddenInput.name = 'account';
-			hiddenInput.value = accountInput.value.replace(/\s/g, '');
-			this.appendChild(hiddenInput);
+		// Dígito de control CCC (módulo 11, Banco de España).
+		function cccControlDigit(digits) {
+			const weights = [1, 2, 4, 8, 5, 10, 9, 7, 3, 6];
+			let sum = 0;
+			for (let i = 0; i < 10; i++) sum += parseInt(digits[i], 10) * weights[i];
+			const d = 11 - (sum % 11);
+			return d === 11 ? 0 : (d === 10 ? 1 : d);
+		}
+
+		// Devuelve '' si es válida o vacía; si no, el mensaje de error.
+		function spanishAccountError(raw) {
+			const digits = raw.replace(/\s/g, '');
+			if (digits === '') return '';
+			if (!/^\d{22}$/.test(digits)) return 'La cuenta debe tener exactamente 22 dígitos (después de ES).';
+			const bank = digits.slice(2, 10);
+			const dc = digits.slice(10, 12);
+			const number = digits.slice(12);
+			if (String(cccControlDigit('00' + bank)) + String(cccControlDigit(number)) !== dc) {
+				return 'Los dígitos de control de la cuenta (CCC) no son correctos. Revisa el número.';
+			}
+			// IBAN módulo 97: BBAN + "ES" (E=14, S=28) + dígitos IBAN.
+			const rearranged = digits.slice(2) + '1428' + digits.slice(0, 2);
+			let remainder = 0;
+			for (let i = 0; i < rearranged.length; i++) {
+				remainder = (remainder * 10 + parseInt(rearranged[i], 10)) % 97;
+			}
+			if (remainder !== 1) return 'El IBAN no es válido: revisa los dos dígitos que siguen a ES.';
+			return '';
+		}
+
+		const accountError = document.getElementById('account-error');
+		function showAccountError(message) {
+			if (!accountError) return;
+			accountError.textContent = message;
+			accountError.style.display = message ? 'block' : 'none';
+			accountInput.classList.toggle('is-invalid', !!message);
+		}
+		accountInput.addEventListener('blur', function() {
+			showAccountError(spanishAccountError(this.value));
 		});
+		accountInput.addEventListener('input', function() {
+			const complete = this.value.replace(/\s/g, '').length === 22;
+			showAccountError(complete ? spanishAccountError(this.value) : '');
+		});
+
+		// Fase de captura: si el IBAN no es válido, se corta el envío antes que el resto de manejadores.
+		document.querySelector('#add-form').addEventListener('submit', function(e) {
+			const message = spanishAccountError(accountInput.value);
+			if (message) {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				showAccountError(message);
+				accountInput.focus();
+				return false;
+			}
+			accountInput.value = accountInput.value.replace(/\s/g, '');
+		}, true);
 	}
 
 </script>
