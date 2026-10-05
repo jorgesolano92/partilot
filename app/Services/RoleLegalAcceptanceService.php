@@ -419,7 +419,7 @@ class RoleLegalAcceptanceService
             (string) ($user?->last_name2 ?? $manager->contact_last_name2 ?? ''),
         ])));
 
-        // Guardar email/nombre en context antes de borrar el manager/usuario (el user_id del log puede quedar null por FK).
+        // Guardar email/nombre en context (el user se conserva; el log sigue siendo trazable).
         $this->legalAcceptance->recordFromRequest(
             action: $action,
             request: $request,
@@ -440,42 +440,26 @@ class RoleLegalAcceptanceService
             ],
         );
 
-        if ($manager->pending_primary) {
+        if ($manager->pending_primary || $manager->is_primary) {
             $this->roleNotifications->onManagerRejected($manager);
-
-            $userCreatedForInvitation = (bool) $manager->user_created_for_invitation;
-            $invitedUser = $manager->user;
-            $managerId = $manager->id;
-
-            if ($userCreatedForInvitation) {
-                $manager->delete();
-                if ($invitedUser) {
-                    $this->deleteInvitationOnlyUser($invitedUser, $managerId);
-                }
-            } else {
-                $manager->update([
-                    'pending_primary' => false,
-                    'confirmation_token' => null,
-                    'confirmation_sent_at' => null,
-                ]);
-            }
-        } else {
-            $userCreatedForInvitation = (bool) $manager->user_created_for_invitation;
-            $invitedUser = $manager->user;
-            $managerId = $manager->id;
-
-            $manager->delete();
-
-            if ($userCreatedForInvitation && $invitedUser) {
-                $this->deleteInvitationOnlyUser($invitedUser, $managerId);
-            }
         }
+
+        // Conservar manager + usuario (también los de solo-invitación) para poder reenviar sin reintroducir datos.
+        $manager->update([
+            'status' => Manager::STATUS_INVITATION_REJECTED,
+            'confirmation_token' => null,
+            'confirmation_sent_at' => null,
+            'requires_password_setup' => false,
+            // Si era “principal pendiente” (cambio de responsable), dejar de serlo; si ya era is_primary se conserva.
+            'pending_primary' => false,
+        ]);
 
         return ['success' => true, 'message' => 'Invitación rechazada.'];
     }
 
     protected function deleteInvitationOnlyUser(User $user, int $exceptManagerId): void
     {
+        // Conservado por compatibilidad; el flujo de rechazo ya no borra usuarios temporales.
         if ($user->isPanelAccount()) {
             return;
         }

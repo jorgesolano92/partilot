@@ -279,6 +279,7 @@ class EntityContractService
         return PendingEntityManagerInvitation::query()
             ->where('entity_id', $entity->id)
             ->where('is_primary', true)
+            ->whereNull('rejected_at')
             ->exists();
     }
 
@@ -341,6 +342,7 @@ class EntityContractService
         $pendingInvites = PendingEntityManagerInvitation::query()
             ->where('entity_id', $entity->id)
             ->where('is_primary', true)
+            ->whereNull('rejected_at')
             ->get();
 
         foreach ($pendingInvites as $pending) {

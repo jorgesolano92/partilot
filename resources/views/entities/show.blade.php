@@ -497,6 +497,30 @@
 			                    								</button>
 			                    							</form>
 			                    						@endif
+			                    					@elseif($rejectedPrimaryManager ?? null)
+			                    						<strong>Invitación rechazada:</strong>
+			                    						{{ $rejectedPrimaryManager->user->name ?? '' }} {{ $rejectedPrimaryManager->user->last_name ?? '' }}
+			                    						(<strong>{{ $rejectedPrimaryManager->user->email ?? '—' }}</strong>)
+			                    						rechazó el cargo de gestor responsable.
+			                    						Los datos se conservan: puede reenviar la misma invitación sin volver a introducirlos.
+			                    						@if(!empty($canResendManagerInvitations))
+			                    							<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2 d-inline-block me-2"
+			                    								data-partilot-confirm="¿Reenviar la invitación a {{ $rejectedPrimaryManager->user->email ?? 'este gestor' }}?"
+			                    								data-partilot-confirm-title="Reenviar invitación"
+			                    								data-partilot-confirm-ok="Reenviar">
+			                    								@csrf
+			                    								<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+			                    								<input type="hidden" name="manager_id" value="{{ $rejectedPrimaryManager->id }}">
+			                    								<button type="submit" class="btn btn-sm btn-outline-warning">
+			                    									<i class="ri-mail-send-line"></i> Reenviar invitación
+			                    								</button>
+			                    							</form>
+			                    						@endif
+			                    						@if(!empty($canManageManagers))
+			                    							<a href="#" class="btn btn-sm btn-outline-danger mt-2 delete-manager" data-manager-id="{{ $rejectedPrimaryManager->id }}" data-invitation-rejected="1">
+			                    								<i class="ri-delete-bin-6-line"></i> Eliminar e invitar a otra persona
+			                    							</a>
+			                    						@endif
 			                    					@elseif($latestRejectedPrimaryInvitation ?? null)
 			                    						<strong>Invitación rechazada:</strong>
 			                    						@if(!empty($latestRejectedPrimaryInvitation['name']))
@@ -743,7 +767,7 @@
 							                    
 							                        <tbody>
 							                            @foreach($pendingManagerInvitations ?? [] as $pendingInvite)
-							                            <tr class="table-warning">
+							                            <tr class="{{ $pendingInvite->isRejected() ? 'table-danger' : 'table-warning' }}">
 							                                <td>#IN{{ str_pad($pendingInvite->id, 4, '0', STR_PAD_LEFT) }}</td>
 							                                <td>
 							                                	{{ $pendingInvite->email }}
@@ -755,7 +779,11 @@
 							                                	@else
 							                                		Gestor
 							                                	@endif
-							                                	<span class="badge bg-warning text-dark ms-1">Invitación enviada</span>
+							                                	@if($pendingInvite->isRejected())
+							                                		<span class="badge bg-danger ms-1">Rechazada</span>
+							                                	@else
+							                                		<span class="badge bg-warning text-dark ms-1">Invitación enviada</span>
+							                                	@endif
 							                                </td>
 							                                <td>
 							                                	@php
@@ -766,14 +794,27 @@
 							                                	@endphp
 							                                	{{ $pendingInvite->is_primary ? 'Total' : ($allPermissions ? 'Total' : 'Parcial') }}
 							                                </td>
-							                                <td><label class="badge bg-secondary">Pendiente registro</label></td>
 							                                <td>
-							                                	<span class="text-warning fw-semibold">Esperando aceptación</span>
-							                                	@if($pendingInvite->confirmation_sent_at)
-							                                		<br><small class="text-muted">{{ $pendingInvite->confirmation_sent_at->format('d/m/Y H:i') }}</small>
+							                                	@if($pendingInvite->isRejected())
+							                                		<label class="badge bg-danger">Rechazada</label>
+							                                		@if($pendingInvite->rejected_at)
+							                                			<br><small class="text-muted">{{ $pendingInvite->rejected_at->format('d/m/Y H:i') }}</small>
+							                                		@endif
+							                                	@else
+							                                		<label class="badge bg-secondary">Pendiente registro</label>
+							                                	@endif
+							                                </td>
+							                                <td>
+							                                	@if($pendingInvite->isRejected())
+							                                		<span class="text-danger fw-semibold">Invitación rechazada</span>
+							                                	@else
+							                                		<span class="text-warning fw-semibold">Esperando aceptación</span>
+							                                		@if($pendingInvite->confirmation_sent_at)
+							                                			<br><small class="text-muted">{{ $pendingInvite->confirmation_sent_at->format('d/m/Y H:i') }}</small>
+							                                		@endif
 							                                	@endif
 							                                	@if(!empty($canResendManagerInvitations))
-							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2"
+							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2 d-inline-block"
 							                                			data-partilot-confirm="¿Reenviar la invitación a {{ $pendingInvite->email }}?"
 							                                			data-partilot-confirm-title="Reenviar invitación"
 							                                			data-partilot-confirm-ok="Reenviar">
@@ -782,6 +823,20 @@
 							                                			<input type="hidden" name="pending_invitation_id" value="{{ $pendingInvite->id }}">
 							                                			<button type="submit" class="btn btn-sm btn-outline-warning" title="Reenviar invitación">
 							                                				<i class="ri-mail-send-line"></i> Reenviar invitación
+							                                			</button>
+							                                		</form>
+							                                	@endif
+							                                	@if(!empty($canManageManagers))
+							                                		<form action="{{ route('entities.destroy-pending-manager-invitation') }}" method="POST" class="mt-2 d-inline-block"
+							                                			data-partilot-confirm="¿Eliminar la invitación a {{ $pendingInvite->email }}? Podrá invitar a otra persona después."
+							                                			data-partilot-confirm-title="Eliminar invitación"
+							                                			data-partilot-confirm-ok="Eliminar">
+							                                			@csrf
+							                                			@method('DELETE')
+							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+							                                			<input type="hidden" name="pending_invitation_id" value="{{ $pendingInvite->id }}">
+							                                			<button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar invitación">
+							                                				<i class="ri-delete-bin-6-line"></i> Eliminar
 							                                			</button>
 							                                		</form>
 							                                	@endif
@@ -842,13 +897,15 @@
 							                                		}
 							                                	@endphp
 							                                	<label class="badge {{ $statusClass }}">{{ $statusText }}</label>
-							                                	@if($managerPending)
+							                                	@if($manager->isInvitationRejected())
+							                                		<br><small class="text-danger">Puede reenviar la invitación sin volver a introducir los datos</small>
+							                                	@elseif($managerPending)
 							                                		<br><small class="text-warning">Pendiente de aceptación</small>
 							                                	@endif
-							                                	@if(! $managerRoleLegalOk)
+							                                	@if(! $managerRoleLegalOk && ! $manager->isInvitationRejected())
 							                                		<br><small class="text-warning">Marco legal no firmado</small>
 							                                	@endif
-							                                	@if(!$manager->is_primary && !$manager->pending_primary && !empty($canManageManagers))
+							                                	@if(!$manager->is_primary && !$manager->pending_primary && ! $manager->isInvitationRejected() && !empty($canManageManagers))
 							                                		<button class="btn btn-sm {{ $newStatusBtnClass }} toggle-manager-status ms-2" 
 							                                		        data-manager-id="{{ $manager->id }}" 
 							                                		        data-new-status="{{ $newStatus }}"
@@ -858,7 +915,7 @@
 							                                	@endif
 							                                </td>
 							                                <td>
-							                                	@if($managerPending && !empty($canResendManagerInvitations))
+							                                	@if(($managerPending || $manager->isInvitationRejected()) && !empty($canResendManagerInvitations))
 							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="d-inline-block mb-1"
 							                                			data-partilot-confirm="¿Reenviar la invitación a {{ $manager->user->email ?? 'este gestor' }}?"
 							                                			data-partilot-confirm-title="Reenviar invitación"
@@ -871,7 +928,10 @@
 							                                			</button>
 							                                		</form>
 							                                	@endif
-							                                	@if($manager->pending_primary)
+							                                	@if($manager->isInvitationRejected() && !empty($canManageManagers))
+							                                		<a href="#" class="btn btn-sm btn-danger delete-manager mb-1" data-manager-id="{{ $manager->id }}" data-invitation-rejected="1" title="Eliminar invitación rechazada"><i class="ri-delete-bin-6-line"></i> Eliminar</a>
+							                                		<span class="text-danger fw-semibold d-block">Invitación rechazada</span>
+							                                	@elseif($manager->pending_primary)
 							                                		@if(!($managerPending && !empty($canResendManagerInvitations)))
 							                                			<span class="text-warning fw-semibold">Pendiente de aceptación</span>
 							                                		@endif
@@ -1732,17 +1792,22 @@ $(document).on('click', '.delete-manager', function(e) {
     const entityId = {{ $entity->id }};
     const managerRow = $(this).closest('tr');
     const managerName = managerRow.find('td').eq(1).text().trim() || 'Gestor';
-    const isPrimary = managerRow.find('.badge').text().includes('Principal');
+    const isPrimary = managerRow.find('.badge').text().includes('Principal') || managerRow.find('.badge').text().includes('responsable');
+    const isRejected = String($(this).data('invitation-rejected') || '') === '1';
     
     let confirmMessage = '¿Está seguro de eliminar este gestor?<br><br>';
     confirmMessage += 'Gestor: <strong>' + managerName + '</strong><br><br>';
     
-    if (isPrimary) {
-        confirmMessage += '<strong>ADVERTENCIA:</strong> Este gestor es el principal.<br>';
-        confirmMessage += 'Si es el único gestor disponible, no se podrá eliminar.<br><br>';
+    if (isRejected) {
+        confirmMessage += 'Se eliminará la invitación rechazada de la lista. Después podrá invitar a otra persona.<br><br>';
+        confirmMessage += 'Si el usuario se creó solo para esta invitación, también se eliminará esa cuenta temporal.';
+    } else {
+        if (isPrimary) {
+            confirmMessage += '<strong>ADVERTENCIA:</strong> Este gestor es el principal.<br>';
+            confirmMessage += 'Si es el único gestor disponible, no se podrá eliminar.<br><br>';
+        }
+        confirmMessage += 'Esta acción eliminará la relación del gestor con la entidad, pero NO eliminará el usuario asociado (salvo cuentas creadas solo para la invitación).';
     }
-    
-    confirmMessage += 'Esta acción eliminará la relación del gestor con la entidad, pero NO eliminará el usuario asociado.';
 
     function doDelete() {
         const deleteUrl = '{{ url("entities/destroy/manager") }}/' + entityId + '/' + managerId;
@@ -1755,7 +1820,7 @@ $(document).on('click', '.delete-manager', function(e) {
 
     if (typeof window.partilotConfirm === 'function') {
         window.partilotConfirm({
-            title: 'Eliminar gestor',
+            title: isRejected ? 'Eliminar invitación rechazada' : 'Eliminar gestor',
             message: confirmMessage,
             confirmText: 'Eliminar'
         }).then(function (ok) {

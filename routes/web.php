@@ -351,6 +351,7 @@ Route::group(['prefix' => 'entities'], function() {
     Route::post('/set-primary-manager', [EntityController::class, 'set_primary_manager'])->name('entities.set-primary-manager');
     Route::post('/toggle-manager-status', [EntityController::class, 'toggle_manager_status'])->name('entities.toggle-manager-status');
     Route::post('/resend-manager-invitation', [EntityController::class, 'resend_manager_invitation'])->name('entities.resend-manager-invitation');
+    Route::delete('/destroy/pending-manager-invitation', [EntityController::class, 'destroy_pending_manager_invitation'])->name('entities.destroy-pending-manager-invitation');
     Route::post('/{entity}/resend-contract', [EntityController::class, 'resendContract'])->name('entities.resend-contract');
     Route::delete('/destroy/manager/{entity_id}/{manager_id}', [EntityController::class, 'destroy_manager'])->name('entities.destroy-manager');
     

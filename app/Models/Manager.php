@@ -8,7 +8,16 @@ use Illuminate\Database\Eloquent\Model;
 class Manager extends Model
 {
     use HasFactory;
-    
+
+    /** Gestor activo. */
+    public const STATUS_ACTIVE = 1;
+
+    /** Gestor inactivo. */
+    public const STATUS_INACTIVE = 0;
+
+    /** Invitación rechazada (se conserva el registro para poder reinvitar). */
+    public const STATUS_INVITATION_REJECTED = -2;
+
     protected $fillable = [
         "user_id",
         "contact_email",
@@ -140,6 +149,10 @@ class Manager extends Model
      */
     public function isPendingActivation(): bool
     {
+        if ($this->isInvitationRejected()) {
+            return false;
+        }
+
         if ($this->pending_primary) {
             return true;
         }
@@ -151,8 +164,17 @@ class Manager extends Model
         return $this->status === null || (int) $this->status === -1;
     }
 
+    public function isInvitationRejected(): bool
+    {
+        return $this->status !== null && (int) $this->status === self::STATUS_INVITATION_REJECTED;
+    }
+
     public function statusLabel(): string
     {
+        if ($this->isInvitationRejected()) {
+            return 'Rechazado';
+        }
+
         if ($this->isPendingActivation()) {
             return 'Pendiente';
         }
@@ -162,11 +184,26 @@ class Manager extends Model
 
     public function statusBadgeClass(): string
     {
+        if ($this->isInvitationRejected()) {
+            return 'bg-danger';
+        }
+
         if ($this->isPendingActivation()) {
             return 'bg-secondary';
         }
 
         return (int) $this->status === 1 ? 'bg-success' : 'bg-danger';
+    }
+
+    /**
+     * Scope: gestores que no están en estado de invitación rechazada.
+     */
+    public function scopeNotInvitationRejected($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('status')
+                ->orWhere('status', '!=', self::STATUS_INVITATION_REJECTED);
+        });
     }
 
     /**

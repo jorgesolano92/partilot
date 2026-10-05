@@ -156,6 +156,8 @@ class EntityManagerPendingInvitationController extends Controller
 
     public function reject(string $token)
     {
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
         $pending = PendingEntityManagerInvitation::findByToken($token);
         if (! $pending) {
             return view('entities.manager-confirmation-error', [
@@ -189,7 +191,11 @@ class EntityManagerPendingInvitationController extends Controller
             ],
         );
 
-        $pending->delete();
+        $pending->update([
+            'rejected_at' => now(),
+            'confirmation_token' => null,
+            'confirmation_sent_at' => null,
+        ]);
 
         return view('entities.manager-confirmation-success', [
             'message' => 'Invitación rechazada. No se creará ninguna cuenta ni vínculo como gestor de esta entidad.',

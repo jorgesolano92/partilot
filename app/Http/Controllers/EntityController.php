@@ -595,6 +595,10 @@ class EntityController extends Controller
             ->first();
 
         if ($existingManager) {
+            if ($existingManager->isInvitationRejected()) {
+                return $this->resendExistingManagerInvitation($entity, (int) $existingManager->id);
+            }
+
             return redirect()->route('entities.show', $entity->id)
                 ->with('error', 'Este usuario ya es gestor de esta entidad.');
         }
@@ -754,6 +758,10 @@ class EntityController extends Controller
             ->first();
 
         if ($existingManager) {
+            if ($existingManager->isInvitationRejected()) {
+                return $this->resendExistingManagerInvitation($entity, (int) $existingManager->id);
+            }
+
             return redirect()->route('entities.show', $entity->id)
                 ->with('error', 'Este usuario ya es gestor de esta entidad.');
         }
@@ -980,9 +988,18 @@ class EntityController extends Controller
             ->forUser(auth()->user())
             ->findOrFail($id);
 
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
         $pendingManagerInvitations = $entity->pendingManagerInvitations;
-        $primaryPendingInvitation = $pendingManagerInvitations->firstWhere('is_primary', true)
-            ?? $pendingManagerInvitations->first();
+        $primaryPendingInvitation = $pendingManagerInvitations
+            ->whereNull('rejected_at')
+            ->firstWhere('is_primary', true)
+            ?? $pendingManagerInvitations->whereNull('rejected_at')->first();
+
+        $rejectedPrimaryManager = $entity->managers
+            ->filter(fn ($m) => $m->isInvitationRejected() && ($m->is_primary || $m->pending_primary))
+            ->sortByDesc('updated_at')
+            ->first();
 
         $managersVisible = $entity->managers->filter(function ($m) use ($entity) {
             $u = $m->user;
@@ -1039,6 +1056,7 @@ class EntityController extends Controller
             'managersVisible',
             'pendingManagerInvitations',
             'primaryPendingInvitation',
+            'rejectedPrimaryManager',
             'rejectedManagerInvitations',
             'latestRejectedPrimaryInvitation',
             'entityPanelUser',
@@ -1846,8 +1864,9 @@ class EntityController extends Controller
 
     /**
      * Eliminar un gestor (manager) de una entidad.
-     * Solo elimina la relación manager-entity, NO elimina el usuario.
-     * No se puede eliminar el gestor principal si es el único gestor.
+     * Solo elimina la relación manager-entity, NO elimina el usuario (salvo cuentas creadas solo para la invitación).
+     * No se puede eliminar el gestor principal activo si es el único gestor.
+     * Los gestores con invitación rechazada sí se pueden eliminar aunque sean el único / principal.
      */
     public function destroy_manager($entity_id, $manager_id)
     {
@@ -1868,18 +1887,22 @@ class EntityController extends Controller
                 ->with('error', 'No se puede eliminar la cuenta de acceso al panel de la entidad.');
         }
 
-        // Verificar que no se está eliminando el gestor principal si es el único
-        if ($manager->is_primary) {
-            $totalManagers = Manager::where('entity_id', $entity_id)->count();
+        $isRejectedInvitation = $manager->isInvitationRejected();
+
+        // Verificar que no se está eliminando el gestor principal activo si es el único
+        if ($manager->is_primary && ! $isRejectedInvitation) {
+            $totalManagers = Manager::where('entity_id', $entity_id)
+                ->notInvitationRejected()
+                ->count();
 
             if ($totalManagers <= 1) {
                 return redirect()->route('entities.show', $entity_id)
                     ->with('error', 'No se puede eliminar el gestor principal. Debe haber al menos otro gestor disponible antes de eliminar el principal.');
             }
 
-            // Si hay otros gestores, verificar que al menos uno no sea principal
             $otherManagers = Manager::where('entity_id', $entity_id)
                 ->where('id', '!=', $manager_id)
+                ->notInvitationRejected()
                 ->count();
 
             if ($otherManagers < 1) {
@@ -1888,11 +1911,74 @@ class EntityController extends Controller
             }
         }
 
-        // Eliminar solo el manager (la relación), NO el usuario
+        $userCreatedForInvitation = (bool) $manager->user_created_for_invitation;
+        $invitedUser = $manager->user;
+        $managerId = $manager->id;
+
         $manager->delete();
 
+        if ($userCreatedForInvitation && $invitedUser) {
+            $this->cleanupInvitationOnlyManagerUser($invitedUser, $managerId);
+        }
+
         return redirect()->route('entities.show', $entity_id)
-            ->with('success', 'Gestor eliminado correctamente. El usuario asociado no ha sido eliminado.');
+            ->with('success', $isRejectedInvitation
+                ? 'Invitación rechazada eliminada. Ya puede invitar a otra persona.'
+                : 'Gestor eliminado correctamente.');
+    }
+
+    /**
+     * Eliminar una invitación pendiente (email sin cuenta), p. ej. tras un rechazo.
+     */
+    public function destroy_pending_manager_invitation(Request $request)
+    {
+        $request->validate([
+            'entity_id' => 'required|integer|exists:entities,id',
+            'pending_invitation_id' => 'required|integer|exists:pending_entity_manager_invitations,id',
+        ]);
+
+        $entity = Entity::forUser(auth()->user())->findOrFail($request->entity_id);
+        if (! $this->canManageSecondaryManagers($entity)) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'Solo la administración o el gestor responsable aceptado pueden gestionar gestores de la entidad.');
+        }
+
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
+        $pending = PendingEntityManagerInvitation::query()
+            ->where('entity_id', $entity->id)
+            ->findOrFail((int) $request->pending_invitation_id);
+
+        $email = $pending->email;
+        $pending->delete();
+
+        return redirect()->route('entities.show', $entity->id)
+            ->with('success', 'Invitación eliminada ('.$email.'). Ya puede invitar a otra persona.');
+    }
+
+    /**
+     * Borra el usuario solo si se creó para la invitación y no tiene otros vínculos.
+     */
+    private function cleanupInvitationOnlyManagerUser(User $user, int $exceptManagerId): void
+    {
+        if ($user->isPanelAccount()) {
+            return;
+        }
+
+        $hasOtherManagers = Manager::query()
+            ->where('user_id', $user->id)
+            ->where('id', '!=', $exceptManagerId)
+            ->exists();
+
+        if ($hasOtherManagers) {
+            return;
+        }
+
+        if (\App\Models\Seller::query()->where('user_id', $user->id)->exists()) {
+            return;
+        }
+
+        $user->delete();
     }
 
     /**
@@ -2144,15 +2230,19 @@ class EntityController extends Controller
         $hasPrimary = Manager::query()
             ->where('entity_id', $entity->id)
             ->where('is_primary', true)
+            ->notInvitationRejected()
             ->exists();
 
         if ($hasPrimary) {
             return false;
         }
 
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
         return ! PendingEntityManagerInvitation::query()
             ->where('entity_id', $entity->id)
             ->where('is_primary', true)
+            ->whereNull('rejected_at')
             ->exists();
     }
 
@@ -2292,7 +2382,7 @@ class EntityController extends Controller
             ->where('entity_id', $entity->id)
             ->findOrFail($managerId);
 
-        if (! $manager->isPendingActivation()) {
+        if (! $manager->isPendingActivation() && ! $manager->isInvitationRejected()) {
             return redirect()->route('entities.show', $entity->id)
                 ->with('error', 'Este gestor ya no está pendiente de aceptación; no hay invitación que reenviar.');
         }
@@ -2309,6 +2399,7 @@ class EntityController extends Controller
                 ->with('error', 'El gestor no tiene email para reenviar la invitación.');
         }
 
+        $manager->status = null;
         $manager->confirmation_token = Str::random(64);
         $manager->confirmation_sent_at = now();
         $manager->save();
@@ -2325,6 +2416,9 @@ class EntityController extends Controller
                     'entity_id' => $entity->id,
                     'user_id' => $user->id,
                     'manager_id' => $manager->id,
+                    'is_primary' => (bool) $manager->is_primary,
+                    'pending_primary' => (bool) $manager->pending_primary,
+                    'manager_name' => trim(($user->name ?? '').' '.($user->last_name ?? '')),
                 ],
                 context: ['entity_id' => $entity->id],
             );
@@ -2341,12 +2435,15 @@ class EntityController extends Controller
 
     private function resendPendingEmailInvitation(Entity $entity, int $pendingId): \Illuminate\Http\RedirectResponse
     {
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
         $pending = PendingEntityManagerInvitation::query()
             ->where('entity_id', $entity->id)
             ->findOrFail($pendingId);
 
         $pending->confirmation_token = PendingEntityManagerInvitation::issueToken();
         $pending->confirmation_sent_at = now();
+        $pending->rejected_at = null;
         $pending->save();
 
         $email = PendingEntityManagerInvitation::normalizeEmail((string) $pending->email);

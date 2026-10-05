@@ -163,7 +163,9 @@ class Entity extends Model
      */
     public function manager()
     {
-        return $this->hasOne(Manager::class,'entity_id','id')->where('is_primary', true);
+        return $this->hasOne(Manager::class, 'entity_id', 'id')
+            ->where('is_primary', true)
+            ->notInvitationRejected();
     }
 
     /**
