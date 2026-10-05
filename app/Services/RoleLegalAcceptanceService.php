@@ -195,6 +195,8 @@ class RoleLegalAcceptanceService
             }
         }
 
+        $this->roleNotifications->onSellerInvitationAnswered($seller, $seller->entities->first(), accepted: true);
+
         return [
             'success' => true,
             'message' => 'Invitación aceptada correctamente.',
@@ -525,8 +527,14 @@ class RoleLegalAcceptanceService
             \Log::warning('Cerrar inbox invitación vendedor (rechazo): '.$e->getMessage());
         }
 
-        $seller->entities()->detach();
-        $seller->delete();
+        // Se conserva el vendedor y su vínculo con la entidad para que el gestor vea el rechazo y pueda reinvitar.
+        $seller->update([
+            'status' => Seller::STATUS_REJECTED,
+            'confirmation_token' => null,
+            'confirmation_sent_at' => null,
+        ]);
+
+        $this->roleNotifications->onSellerInvitationAnswered($seller, $entity, accepted: false);
 
         return ['success' => true, 'message' => 'Invitación rechazada.'];
     }

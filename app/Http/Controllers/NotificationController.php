@@ -51,11 +51,15 @@ class NotificationController extends Controller
             }
 
             if (in_array($action, $panelInboxActions, true)) {
-                $user = auth()->user();
-                if (! $user || (! $user->isSuperAdmin() && ! $user->isAdministrationPanelAccount() && ! $user->isEntityPanelAccount())) {
+                // panelInboxQuery ya limita a avisos propios del usuario o de su cuenta de panel.
+                if (! auth()->user()) {
                     abort(403, 'No autorizado.');
                 }
 
+                return $next($request);
+            }
+
+            if ($action === 'index' && auth()->user() && ! auth()->user()->isSuperAdmin()) {
                 return $next($request);
             }
 
@@ -91,6 +95,17 @@ class NotificationController extends Controller
      */
     public function index()
     {
+        $user = Auth::user();
+        if (! $user->isSuperAdmin()) {
+            $notifications = $this->panelInboxQuery($user)
+                ->with(['sender:id,name', 'entity:id,name'])
+                ->orderByDesc('created_at')
+                ->limit(200)
+                ->get();
+
+            return view('notifications.inbox', compact('notifications'));
+        }
+
         $notifications = Notification::with(['sender', 'entity.manager.user', 'administration'])
             ->orderBy('created_at', 'desc')
             ->get();

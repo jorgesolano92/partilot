@@ -23,7 +23,10 @@ class SellerService
             // Primero verificar si ya existe un seller con este email
             $existingSeller = Seller::with('entities')->where('email', $data['email'])->first();
             
-            if ($existingSeller) {
+            // Generar token de confirmación
+            $confirmationToken = Str::random(64);
+
+            if ($existingSeller && (int) $existingSeller->status !== Seller::STATUS_REJECTED) {
                 // Seller ya existe - verificar si ya está vinculado a esta entidad
                 if ($existingSeller->entities->contains($entityId)) {
                     throw new \Exception("Este vendedor ya está asignado a la entidad seleccionada");
@@ -35,14 +38,24 @@ class SellerService
                 Log::info("Vendedor existente ID:{$existingSeller->id} agregado a la entidad {$entityId}");
                 return $existingSeller;
             }
-            
-            // No existe seller con este email, buscar usuario
-            $user = User::where('email', $data['email'])->first();
-            
-            // Generar token de confirmación
-            $confirmationToken = Str::random(64);
-            
-            if ($user) {
+
+            $user = $existingSeller ? null : User::where('email', $data['email'])->first();
+
+            if ($existingSeller) {
+                // Rechazó una invitación anterior: se reinvita conservando el mismo registro.
+                if (! $existingSeller->entities->contains($entityId)) {
+                    $existingSeller->entities()->attach($entityId);
+                }
+                $existingSeller->update([
+                    'status' => Seller::STATUS_PENDING,
+                    'confirmation_token' => $confirmationToken,
+                    'confirmation_sent_at' => now(),
+                    'role_invitation_reminder_sent_at' => null,
+                ]);
+                $seller = $existingSeller;
+
+                Log::info("Vendedor ID:{$seller->id} reinvitado a la entidad {$entityId} tras rechazo previo");
+            } elseif ($user) {
                 // Usuario existe - crear vendedor pendiente de confirmación
                 $seller = Seller::create([
                     'user_id' => $user->id,

@@ -151,6 +151,11 @@ class AuthController extends Controller
                             ->whereHas('entity', fn ($q) => $q->where('status', 1))
                             ->exists();
                     }
+
+                    // Contraseña correcta pero cuenta de vendedor/usuario de app: indicarlo en vez de «credenciales».
+                    if (! $hasActiveAccess && ! $user->isAdministration() && ! $user->isEntity()) {
+                        $deniedMessage = 'Tu cuenta es de vendedor o usuario de Partilot y no tiene acceso al panel de control. Accede desde la app o web app de Partilot con este mismo email y contraseña.';
+                    }
                 }
 
                 if (! $hasActiveAccess) {

@@ -88,6 +88,16 @@
                     				</div>
                     			</div>
 
+                    			@if($errors->any())
+                    			<div class="show-alerts mt-2">
+                    				<div class="alert alert-danger mb-0" role="alert">
+                    					@foreach($errors->all() as $error)
+                    						<div>{{ $error }}</div>
+                    					@endforeach
+                    				</div>
+                    			</div>
+                    			@endif
+
                     			<div class="form-group mt-2 mb-3 admin-box">
 
                     				<div class="row">
@@ -200,7 +210,7 @@
 		                    								<h2>¡Hay 0 coincidencias!</h2>
 
 		                    								<p>
-		                    									No hemos encontrado un <b>usuario registrado con el email "<span id="email-placeholder"></span>"</b>. Si haces clic en <b>Aceptar</b>, se le enviará una invitación para <b>unirse a tu entidad una vez se que registre.</b>
+		                    									No hemos encontrado un <b>usuario registrado con el email "<span id="email-placeholder"></span>"</b>. Si haces clic en <b>Aceptar</b>, se le enviará una invitación para <b>unirse a tu entidad una vez se registre.</b>
 		                    								</p>
                     									</div>
 
@@ -212,17 +222,45 @@
 		                    								</p>
                     									</div>
 
+                    									<div class="d-none" id="previously-rejected">
+		                    								<h2>Rechazó una invitación anterior</h2>
+
+		                    								<p>
+		                    									El usuario con email "<b><span class="invite-email-placeholder"></span></b>" rechazó la última invitación de tu entidad. Si haces clic en <b>Aceptar</b>, se le volverá a enviar.
+		                    								</p>
+                    									</div>
+
+                    									<div class="d-none" id="already-linked">
+		                    								<h2>Ya es vendedor de tu entidad</h2>
+
+		                    								<p>
+		                    									El email "<b><span class="invite-email-placeholder"></span></b>" ya está vinculado a tu entidad (estado: <b id="already-linked-status"></b>). No hace falta volver a invitarle.
+		                    								</p>
+		                    								<a href="#" id="already-linked-link" class="btn btn-sm btn-outline-dark" style="border-radius: 20px;">Ver ficha del vendedor</a>
+                    									</div>
+
+                    									<div class="d-none" id="check-email-error">
+		                    								<h2>No se pudo comprobar el email</h2>
+
+		                    								<p id="check-email-error-text"></p>
+                    									</div>
+
+                    									<div class="text-muted d-none" id="check-email-loading">
+                    										<p>Comprobando email…</p>
+                    									</div>
+
 	                    								<div class="row">
 	                    									<div class="col-6">
 	                    										<button style="border-radius: 30px; width: 100%; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-3" id="cancel-invite">Cancelar</button>
 	                    									</div>
 
-	                    									<div class="col-6">
-	                    										                    										<form action="{{ route('sellers.store-existing-user') }}" method="POST" id="invite-accept-form">
+	                    									<div class="col-6" id="invite-accept-col">
+	                    										<form action="{{ route('sellers.store-existing-user') }}" method="POST" id="invite-accept-form">
                     											@csrf
+                    											<input type="hidden" name="invite_flow" value="1">
                     											<input type="hidden" name="email" id="invite-email-hidden">
                     											<input type="hidden" name="entity_id" value="{{ session('selected_entity')->id }}">
-                    											<button type="submit" style="border-radius: 30px; width: 100%; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-3">Aceptar</button>
+                    											<button type="submit" id="invite-accept-submit" style="border-radius: 30px; width: 100%; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-3">Aceptar</button>
                     										</form>
 	                    									</div>
 	                    								</div>
@@ -401,49 +439,102 @@ $('#invite-manager').click(function (e) {
 	$('#invite-form').removeClass('d-none');
 });
 
-$('.invite-email').keyup(function(event) {
-	
-	if ($(this).val()) {
-		$('#invite-button').prop('disabled',false);
-	}else{
-		$('#invite-button').prop('disabled',true);
-	}
+function syncInviteButton() {
+	var value = ($('.invite-email').val() || '').trim();
+	$('#invite-button').prop('disabled', value === '');
+}
+
+// input/paste/change cubren pegado con ratón y autocompletado del navegador, no solo teclado.
+$('.invite-email').on('input keyup change paste blur', function () {
+	window.setTimeout(syncInviteButton, 0);
 });
+syncInviteButton();
+
+var inviteCheckRequest = null;
+
+function showInviteResult(state) {
+	$('#no-coincidence, #coincidence, #previously-rejected, #already-linked, #check-email-error, #check-email-loading').addClass('d-none');
+	if (state) {
+		$('#' + state).removeClass('d-none');
+	}
+	var canAccept = state === 'no-coincidence' || state === 'coincidence' || state === 'previously-rejected';
+	$('#invite-accept-col').toggleClass('d-none', !canAccept);
+	$('#invite-accept-submit').prop('disabled', !canAccept);
+}
 
 $('#invite-button').click(function (e) {
 	e.preventDefault();
 
-	$('#invite-form').addClass('d-none');
+	var email = ($('.invite-email').val() || '').trim();
+	if (email === '') {
+		return;
+	}
 
+	var emailInput = $('.invite-email').get(0);
+	if (emailInput && typeof emailInput.checkValidity === 'function' && !emailInput.checkValidity()) {
+		emailInput.reportValidity();
+		return;
+	}
+
+	$('#invite-form').addClass('d-none');
 	$('#accept-invite').removeClass('d-none');
 
-	var email = $('.invite-email').val();
 	$('#email-placeholder').text(email);
 	$('#email-placeholder2').text(email);
+	$('.invite-email-placeholder').text(email);
 	$('#invite-email-hidden').val(email);
 
-	// Verificar si el usuario existe
-	$.ajax({
+	showInviteResult('check-email-loading');
+
+	if (inviteCheckRequest) {
+		inviteCheckRequest.abort();
+	}
+
+	inviteCheckRequest = $.ajax({
 		url: '{{ route("sellers.check-user-email") }}',
 		method: 'POST',
 		data: {
 			email: email,
-			_token: '{{ csrf_token() }}'
+			entity_id: {{ (int) (session('selected_entity')->id ?? 0) }},
+			_token: $('meta[name="csrf-token"]').attr('content') || '{{ csrf_token() }}'
 		},
 		success: function(response) {
-			if (response.exists) {
-				$('#coincidence').removeClass('d-none');
-				$('#no-coincidence').addClass('d-none');
+			if (($('#invite-email-hidden').val() || '') !== email) {
+				return;
+			}
+			if (response.already_linked) {
+				$('#already-linked-status').text(response.seller_status_text || 'vinculado');
+				$('#already-linked-link').attr('href', response.seller_url || '{{ route("sellers.index") }}');
+				showInviteResult('already-linked');
+			} else if (response.previously_rejected) {
+				showInviteResult('previously-rejected');
+			} else if (response.exists) {
+				showInviteResult('coincidence');
 			} else {
-				$('#coincidence').addClass('d-none');
-				$('#no-coincidence').removeClass('d-none');
+				showInviteResult('no-coincidence');
 			}
 		},
-		error: function() {
-			$('#coincidence').addClass('d-none');
-			$('#no-coincidence').removeClass('d-none');
+		error: function(xhr, status) {
+			if (status === 'abort') {
+				return;
+			}
+			var text = 'Ha ocurrido un error al comprobar el email. Inténtalo de nuevo.';
+			if (xhr.status === 419) {
+				text = 'Tu sesión ha caducado por inactividad. Recarga la página (F5) y vuelve a intentarlo.';
+			} else if (xhr.status === 422) {
+				text = 'El email introducido no es válido.';
+			}
+			$('#check-email-error-text').text(text);
+			showInviteResult('check-email-error');
+		},
+		complete: function () {
+			inviteCheckRequest = null;
 		}
 	});
+});
+
+$('#invite-accept-form').on('submit', function () {
+	$('#invite-accept-submit').prop('disabled', true).text('Enviando…');
 });
 
 $('#cancel-invite').click(function (e) {
@@ -496,7 +587,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Si hay errores de validación y hay datos old() que indiquen que se intentó crear un vendedor externo
-    @if($errors->any() && old('entity_id'))
+    @if($errors->any() && old('entity_id') && old('invite_flow'))
+        $('#manager-buttons').addClass('d-none');
+        $('#back-to-buttons').removeClass('d-none');
+        $('#invite-form').removeClass('d-none');
+        $('.invite-email').val(@json(old('email', '')));
+        syncInviteButton();
+    @elseif($errors->any() && old('entity_id'))
         // Verificar si hay datos del formulario de registro (vendedor externo)
         // Si hay name, last_name, email, etc. significa que se intentó crear un vendedor externo
         @if(old('name') || old('last_name') || old('email') || old('nif_cif') || old('birthday') || old('phone'))

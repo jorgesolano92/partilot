@@ -61,6 +61,7 @@
                                 <option value="Activo">Activo</option>
                                 <option value="Pendiente">Pendiente</option>
                                 <option value="Bloqueado">Bloqueado</option>
+                                <option value="Rechazado">Rechazado</option>
                             </select>
                             <input type="text" class="form-control form-control-sm" style="max-width: 180px;" id="filter-busqueda" placeholder="Búsqueda">
                             @if($canManageSellers ?? false)
@@ -125,7 +126,7 @@
                                     @endif
                                     <td title="{{ $entidadesProvincias }}">{{ $entidadesProvincias ?: ($entidad?->province ?? '—') }}</td>
                                     <td>
-                                        <span class="badge bg-{{ $seller->status_class }}">{{ $seller->status_text }}</span>
+                                        <span class="badge bg-{{ $seller->status_class }}" title="{{ $seller->status_help }}">{{ $seller->status_text }}</span>
                                     </td>
                                     <td class="no-click" style="cursor: default;">
                                         <a href="{{ route('sellers.show', $seller->id) }}" class="btn btn-sm btn-light" title="Ver ficha"><i class="ri-external-link-line"></i></a>

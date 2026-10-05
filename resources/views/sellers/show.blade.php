@@ -534,6 +534,7 @@
                                                             @endif
                                                         </div>
                                                         <span class="badge {{ $seller->status_class }} mt-2" id="seller-status-badge" style="display: none;">{{ $seller->status_text }}</span>
+                                                        <small class="text-muted d-block mt-1" id="seller-status-help" style="padding-left: 12px;">{{ $seller->status_help }}</small>
                                                     </div>
                                                 </div>
                                             </div>
@@ -548,6 +549,7 @@
                                                             </div>
                                                             <input class="form-control" type="text" value="{{ $seller->status_text }}" readonly style="border-radius: 0 30px 30px 0;">
                                                         </div>
+                                                        <small class="text-muted d-block mt-1" style="padding-left: 12px;">{{ $seller->status_help }}</small>
                                                     </div>
                                                 </div>
                                             </div>
@@ -847,10 +849,20 @@
                                                         <small>Asigna Participaciones</small>
                                         
                                                         <br>
-                                        
+
+                                                        @if((int) $seller->status !== \App\Models\Seller::STATUS_ACTIVE)
+                                                        <p class="text-muted small mt-2 mb-0" style="max-width: 340px;">
+                                                            <i class="ri-lock-line"></i>
+                                                            No se pueden asignar participaciones: el vendedor está «{{ $seller->status_text }}». {{ $seller->status_help }}
+                                                        </p>
+                                                        <button type="button" disabled style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2" title="{{ $seller->status_help }}">
+                                                            <i style="position: relative; top: 2px;" class="ri-add-line"></i> Asignar
+                                                        </button>
+                                                        @else
                                                         <button id="btn-iniciar-asignacion" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2">
                                                             <i style="position: relative; top: 2px;" class="ri-add-line"></i> Asignar
                                                         </button>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -2771,6 +2783,8 @@ function initDatatable()
               input.value = data.status_text;
               badge.textContent = data.status_text;
               badge.className = 'badge ' + data.status_class + ' mt-2';
+              var help = document.getElementById('seller-status-help');
+              if (help && data.status_help) help.textContent = data.status_help;
           } else {
               alert(data.message || 'Error al cambiar el estado');
           }

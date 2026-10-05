@@ -54,6 +54,82 @@ class RoleLegalNotificationService
         $this->notifyAdministrationManagerRejectedOrAccepted($entity, $user, accepted: false);
     }
 
+    /**
+     * Aviso a los gestores de la entidad (responsable y con permiso de vendedores) cuando un vendedor
+     * PARTILOT acepta o rechaza la invitación: bandeja del panel + email.
+     */
+    public function onSellerInvitationAnswered(Seller $seller, ?Entity $entity, bool $accepted): void
+    {
+        if (! $entity) {
+            return;
+        }
+
+        $sellerName = trim((string) $seller->full_name);
+        if ($sellerName === '' || $sellerName === 'Sin nombre') {
+            $sellerName = (string) ($seller->email ?? 'El vendedor');
+        }
+
+        $title = $accepted ? 'Vendedor ha aceptado la invitación' : 'Vendedor ha rechazado la invitación';
+        $message = $accepted
+            ? "{$sellerName} ha aceptado ser vendedor de {$entity->name}. Ya puedes asignarle participaciones."
+            : "{$sellerName} ha rechazado la invitación como vendedor de {$entity->name}. Puedes reenviarle la invitación desde su ficha.";
+
+        $managerUsers = Manager::query()
+            ->where('entity_id', $entity->id)
+            ->where('status', Manager::STATUS_ACTIVE)
+            ->where(function ($q) {
+                $q->where('is_primary', true)->orWhere('permission_sellers', true);
+            })
+            ->with('user')
+            ->get()
+            ->pluck('user')
+            ->filter(fn ($u) => $u instanceof User && filled($u->email))
+            ->unique('id');
+
+        $inbox = app(AppInboxNotificationService::class);
+        $senderId = $inbox->resolveSenderIdForEntity((int) $entity->id);
+
+        foreach ($managerUsers as $managerUser) {
+            if ($senderId) {
+                try {
+                    $inbox->notifyUser(
+                        (int) $managerUser->id,
+                        (int) $entity->id,
+                        $entity->administration_id ? (int) $entity->administration_id : null,
+                        (int) $senderId,
+                        $accepted ? 'vendedor_invitacion_aceptada' : 'vendedor_invitacion_rechazada',
+                        $title,
+                        $message,
+                        ['seller_id' => (int) $seller->id, 'entity_id' => (int) $entity->id],
+                        sendPush: false,
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('Bandeja gestor respuesta invitación vendedor: '.$e->getMessage());
+                }
+            }
+
+            try {
+                app(CommunicationEmailService::class)->sendAndLog(
+                    recipientEmail: (string) $managerUser->email,
+                    recipientRole: 'gestor_entidad',
+                    recipientUser: $managerUser,
+                    messageType: $accepted ? 'seller_invitation_accepted' : 'seller_invitation_rejected',
+                    templateKey: null,
+                    mailClass: \App\Mail\SellerInvitationAnsweredToEntityManagerMail::class,
+                    mailPayload: [
+                        'seller_id' => (int) $seller->id,
+                        'entity_id' => (int) $entity->id,
+                        'manager_user_id' => (int) $managerUser->id,
+                        'accepted' => $accepted,
+                    ],
+                    context: ['seller_id' => (int) $seller->id, 'entity_id' => (int) $entity->id],
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Email gestor respuesta invitación vendedor: '.$e->getMessage());
+            }
+        }
+    }
+
     protected function notifyAdministrationManagerRejectedOrAccepted(Entity $entity, ?User $managerUser, bool $accepted): void
     {
         $entity->loadMissing('administration');

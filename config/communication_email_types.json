@@ -3,6 +3,8 @@
     "administration_welcome": "Bienvenida de administración (acceso al panel)",
     "entity_welcome": "Bienvenida de entidad (acceso al panel)",
     "seller_confirmation": "Confirmación de vendedor",
+    "seller_invitation_accepted": "Vendedor aceptó la invitación (aviso al gestor)",
+    "seller_invitation_rejected": "Vendedor rechazó la invitación (aviso al gestor)",
     "entity_manager_invitation": "Invitación a gestor de entidad",
     "entity_manager_preregister_invitation": "Invitación a gestor sin cuenta (pre-registro)",
     "entity_contract_sign_request": "Solicitud de firma del contrato marco de entidad",

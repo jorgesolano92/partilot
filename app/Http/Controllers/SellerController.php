@@ -233,13 +233,16 @@ class SellerController extends Controller
             // Verificar si el seller ya existe antes de crearlo
             $existingSeller = \App\Models\Seller::where('email', $request->email)->first();
             $wasExisting = $existingSeller !== null;
+            $wasRejected = $wasExisting && (int) $existingSeller->status === Seller::STATUS_REJECTED;
             
             $seller = $sellerService->createSeller($request->all(), $request->entity_id, 'partilot');
 
             session()->forget('selected_entity');
             
             // Determinar el mensaje
-            if ($wasExisting) {
+            if ($wasRejected) {
+                $message = 'Invitación reenviada. El vendedor había rechazado la anterior y queda de nuevo pendiente de aceptar.';
+            } elseif ($wasExisting) {
                 $message = 'Vendedor existente agregado a la entidad seleccionada';
             } else {
                 $message = $seller->isLinkedToUser() 
@@ -346,12 +349,31 @@ class SellerController extends Controller
     public function check_user_email(Request $request)
     {
         $request->validate([
-            'email' => 'required|email'
+            'email' => 'required|email',
+            'entity_id' => 'nullable|integer',
         ]);
 
-        $exists = User::where('email', $request->email)->exists();
+        $email = trim((string) $request->email);
+        $exists = User::where('email', $email)->exists();
 
-        return response()->json(['exists' => $exists]);
+        $linked = null;
+        $entityId = (int) $request->input('entity_id', 0);
+        if ($entityId > 0 && auth()->user()->canAccessEntity($entityId)) {
+            $linked = Seller::query()
+                ->where('email', $email)
+                ->whereHas('entities', fn ($q) => $q->where('entities.id', $entityId))
+                ->first();
+        }
+
+        $linkedStatus = $linked ? (int) $linked->status : null;
+
+        return response()->json([
+            'exists' => $exists,
+            'already_linked' => $linked !== null && $linkedStatus !== Seller::STATUS_REJECTED,
+            'previously_rejected' => $linkedStatus === Seller::STATUS_REJECTED,
+            'seller_status_text' => $linked?->status_text,
+            'seller_url' => $linked ? route('sellers.show', $linked->id) : null,
+        ]);
     }
 
     /**
@@ -3528,10 +3550,10 @@ class SellerController extends Controller
 
         $roleService->respondSellerInvitation($seller, 'reject', $request, $seller->user);
 
-        \Log::info("Vendedor {$sellerId} ({$email}) ha rechazado la solicitud de vendedor - Eliminado");
+        \Log::info("Vendedor {$sellerId} ({$email}) ha rechazado la solicitud de vendedor");
 
         return view('sellers.confirmation-success', [
-            'message' => 'Solicitud rechazada. El vendedor ha sido eliminado del sistema.',
+            'message' => 'Solicitud rechazada. Hemos avisado a la entidad.',
             'seller' => null,
             'type' => 'reject',
         ]);
@@ -3556,6 +3578,13 @@ class SellerController extends Controller
                 'message' => 'No se puede cambiar el estado de un vendedor pendiente'
             ], 400);
         }
+
+        if ($currentStatus == Seller::STATUS_REJECTED) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El vendedor rechazó la invitación. Vuelve a invitarle con su email para reactivarlo.'
+            ], 400);
+        }
         
         $newStatus = match($currentStatus) {
             0 => 1,  // Inactivo -> Activo
@@ -3571,6 +3600,7 @@ class SellerController extends Controller
             'status' => $newStatus,
             'status_text' => $seller->fresh()->status_text,
             'status_class' => $seller->fresh()->status_class,
+            'status_help' => $seller->fresh()->status_help,
         ]);
     }
 

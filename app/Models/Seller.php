@@ -30,11 +30,12 @@ class Seller extends Model
         'role_invitation_reminder_sent_at',
     ];
 
-    /** Estados: 0 = Inactivo, 1 = Activo, 2 = Pendiente, 3 = Bloqueado */
+    /** Estados: 0 = Inactivo, 1 = Activo, 2 = Pendiente, 3 = Bloqueado, 4 = Invitación rechazada */
     const STATUS_INACTIVE = 0;
     const STATUS_ACTIVE = 1;
     const STATUS_PENDING = 2;
     const STATUS_BLOCKED = 3;
+    const STATUS_REJECTED = 4;
 
     /** Días tras los cuales una invitación PARTILOT pendiente se considera caducada. */
     public const INVITATION_EXPIRY_DAYS = 30;
@@ -127,7 +128,20 @@ class Seller extends Model
             self::STATUS_ACTIVE => 'Activo',
             self::STATUS_PENDING => 'Pendiente',
             self::STATUS_BLOCKED => 'Bloqueado',
+            self::STATUS_REJECTED => 'Rechazado',
             default => 'Inactivo',
+        };
+    }
+
+    public function getStatusHelpAttribute(): string
+    {
+        $status = (int) ($this->attributes['status'] ?? 0);
+        return match ($status) {
+            self::STATUS_ACTIVE => 'Puede recibir participaciones.',
+            self::STATUS_PENDING => 'Pendiente de que el vendedor acepte la invitación. Hasta entonces no se le pueden asignar participaciones.',
+            self::STATUS_BLOCKED => 'Bloqueado: no puede recibir participaciones ni operar.',
+            self::STATUS_REJECTED => 'El vendedor rechazó la invitación. Puedes volver a invitarle con su email.',
+            default => 'Inactivo: no puede recibir participaciones.',
         };
     }
 
@@ -138,6 +152,7 @@ class Seller extends Model
             self::STATUS_ACTIVE => 'success',
             self::STATUS_PENDING => 'warning',
             self::STATUS_BLOCKED => 'danger',
+            self::STATUS_REJECTED => 'dark',
             default => 'secondary', // Inactivo = gris oscuro
         };
     }
@@ -228,6 +243,10 @@ class Seller extends Model
 
         if ((int) $this->status === self::STATUS_ACTIVE) {
             return 'accepted';
+        }
+
+        if ((int) $this->status === self::STATUS_REJECTED) {
+            return 'rejected';
         }
 
         if ((int) $this->status !== self::STATUS_PENDING) {

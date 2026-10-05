@@ -195,6 +195,19 @@ class CommunicationEmailService
             return new \App\Mail\SellerConfirmationMail($seller);
         }
 
+        if ($mailClass === \App\Mail\SellerInvitationAnsweredToEntityManagerMail::class) {
+            $seller = Seller::findOrFail((int) ($mailPayload['seller_id'] ?? 0));
+            $entity = \App\Models\Entity::findOrFail((int) ($mailPayload['entity_id'] ?? 0));
+            $managerUser = \App\Models\User::find((int) ($mailPayload['manager_user_id'] ?? 0));
+
+            return new \App\Mail\SellerInvitationAnsweredToEntityManagerMail(
+                $seller,
+                $entity,
+                $managerUser,
+                (bool) ($mailPayload['accepted'] ?? false),
+            );
+        }
+
         if ($mailClass === \App\Mail\ParticipationAssignmentMail::class) {
             $sellerId = (int) ($mailPayload['seller_id'] ?? 0);
             $seller = Seller::findOrFail($sellerId);

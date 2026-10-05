@@ -1456,7 +1456,7 @@
                                     <i class="fe-bell font-22"></i>
                                 </a>
                             </li>
-                            @elseif(auth()->user()?->isAdministrationPanelAccount() || auth()->user()?->isEntityPanelAccount())
+                            @elseif(auth()->check())
                             <li class="dropdown notification-list topbar-btn-notifications">
                                 <a class="nav-link dropdown-toggle waves-effect waves-light arrow-none" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="Notificaciones" id="panel-inbox-bell">
                                     <i class="fe-bell font-22"></i>
@@ -1470,6 +1470,7 @@
                                     <div class="panel-inbox-list" id="panel-inbox-list">
                                         <div class="p-3 text-muted text-center small">Cargando…</div>
                                     </div>
+                                    <a href="{{ route('notifications.index') }}" class="d-block text-center p-2 border-top small">Ver todas</a>
                                 </div>
                             </li>
                             @endif
@@ -2685,7 +2686,7 @@
         </script>
         @endauth
 
-        @if(auth()->check() && (auth()->user()->isAdministrationPanelAccount() || auth()->user()->isEntityPanelAccount()))
+        @if(auth()->check() && ! auth()->user()->isSuperAdmin())
         <script>
         (function () {
             var listEl = document.getElementById('panel-inbox-list');
