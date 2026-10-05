@@ -163,14 +163,28 @@ class AdministrationContractService
     public function buildViewData(Administration $administration, array $signature = []): array
     {
         $commercialName = trim((string) ($administration->name ?: $administration->society));
+        $administration->loadMissing('manager.user');
+        $manager = $administration->manager;
+
+        // El firmante es una persona física: nunca precargar razón social ni CIF de la sociedad.
         $representativeName = trim((string) ($signature['signer_name'] ?? ''));
-        if ($representativeName === '') {
-            $representativeName = trim((string) ($administration->society ?: $administration->name ?: ''));
+        if ($representativeName === '' && $manager) {
+            $representativeName = $manager->resolvedContactFullName();
         }
 
         $representativeNif = trim((string) ($signature['signer_nif'] ?? ''));
         if ($representativeNif === '') {
-            $representativeNif = trim((string) ($administration->nif_cif ?? ''));
+            $candidates = [
+                $manager ? (string) ($manager->contactField('nif_cif') ?? '') : '',
+                (string) ($administration->nif_cif ?? ''),
+            ];
+            foreach ($candidates as $candidate) {
+                $candidate = strtoupper(trim($candidate));
+                if (self::isPersonalDocument($candidate)) {
+                    $representativeNif = $candidate;
+                    break;
+                }
+            }
         }
 
         $signedAt = $signature['signed_at'] ?? null;
@@ -218,6 +232,12 @@ class AdministrationContractService
             'partilotSignerRole' => 'Administrador Único',
             'forPdf' => true,
         ];
+    }
+
+    /** DNI (8 dígitos + letra) o NIE (X/Y/Z + 7 dígitos + letra); excluye CIF de sociedades. */
+    public static function isPersonalDocument(string $document): bool
+    {
+        return (bool) preg_match('/^([0-9]{8}|[XYZ][0-9]{7})[A-Z]$/', strtoupper(trim($document)));
     }
 
     public function textHash(Administration $administration): string

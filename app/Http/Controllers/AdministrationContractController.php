@@ -57,10 +57,23 @@ class AdministrationContractController extends Controller
 
         $data = $request->validate([
             'signer_name' => 'required|string|max:255',
-            'signer_nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            'signer_nif' => [
+                'required', 'string', 'max:20',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if (! AdministrationContractService::isPersonalDocument((string) $value)) {
+                        $fail('Indica el DNI o NIE de la persona que firma (no el CIF de la sociedad).');
+                    }
+                },
+                new \App\Rules\SpanishDocument,
+            ],
             'accept_terms' => 'accepted',
         ], [
             'accept_terms.accepted' => 'Debes aceptar el contrato para continuar.',
+            'signer_name.required' => 'Indica el nombre y apellidos de la persona que firma.',
+            'signer_nif.required' => 'Indica el DNI o NIE de la persona que firma.',
+        ], [
+            'signer_name' => 'nombre del firmante',
+            'signer_nif' => 'DNI / NIE del firmante',
         ]);
 
         try {
