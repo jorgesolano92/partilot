@@ -30,7 +30,11 @@
                 @csrf
                 <div class="mb-3">
                     <label class="form-label">Nueva contraseña</label>
-                    <input type="password" name="password" class="form-control" required autocomplete="new-password" minlength="8">
+                    <input type="password" name="password" id="new-password" class="form-control" required autocomplete="new-password" minlength="8">
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar" id="password-strength-bar" role="progressbar" style="width: 0%;"></div>
+                    </div>
+                    <small class="text-muted" id="password-strength-text">Combina mayúsculas, minúsculas, números y símbolos.</small>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Confirmar contraseña</label>
@@ -49,5 +53,35 @@
         </div>
     </div>
 </div>
+<script>
+(function () {
+    var input = document.getElementById('new-password');
+    var bar = document.getElementById('password-strength-bar');
+    var text = document.getElementById('password-strength-text');
+    if (!input || !bar || !text) return;
+    var levels = [
+        { width: '0%', cls: '', label: 'Combina mayúsculas, minúsculas, números y símbolos.' },
+        { width: '25%', cls: 'bg-danger', label: 'Muy débil' },
+        { width: '50%', cls: 'bg-warning', label: 'Débil: añade números, mayúsculas o símbolos.' },
+        { width: '75%', cls: 'bg-info', label: 'Aceptable' },
+        { width: '100%', cls: 'bg-success', label: 'Robusta' }
+    ];
+    input.addEventListener('input', function () {
+        var v = input.value;
+        var score = 0;
+        if (v.length > 0) {
+            score = 1;
+            var kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(function (re) { return re.test(v); }).length;
+            if (v.length >= 8 && kinds >= 2) score = 2;
+            if (v.length >= 8 && kinds >= 3) score = 3;
+            if (v.length >= 12 && kinds === 4) score = 4;
+        }
+        var level = levels[score];
+        bar.style.width = level.width;
+        bar.className = 'progress-bar ' + level.cls;
+        text.textContent = level.label;
+    });
+})();
+</script>
 </body>
 </html>

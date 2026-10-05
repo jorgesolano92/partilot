@@ -22,8 +22,21 @@ class UserController extends Controller
     {
         $auth = auth()->user();
         if (! $auth || ! $auth->isSuperAdmin()) {
-            abort(403, 'No autorizado.');
+            abort(403, 'El módulo de usuarios solo está disponible para el superadministrador de Partilot.');
         }
+    }
+
+    private function existingEmailMessage(string $email): string
+    {
+        $existing = $email !== '' ? User::where('email', $email)->first() : null;
+        if ($existing && $existing->managers()->exists()) {
+            return 'Este usuario ya fue registrado automáticamente al dar de alta la entidad o administración como gestor. Revise su correo o solicite el reenvío de credenciales desde la ficha correspondiente.';
+        }
+        if ($existing && $existing->sellers()->exists()) {
+            return 'Este email ya pertenece a un vendedor registrado en Partilot.';
+        }
+
+        return 'Ya existe un usuario registrado con este email.';
     }
 
     /**
@@ -86,6 +99,8 @@ class UserController extends Controller
             'phone' => 'required|string|max:20',
             'password' => 'required|string|min:8',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ], [
+            'email.unique' => $this->existingEmailMessage((string) $request->input('email')),
         ]);
 
         try {
