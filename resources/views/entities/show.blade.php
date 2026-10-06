@@ -1222,6 +1222,7 @@
 					                    								<p>
 					                    									Hemos encontrado un <b>usuario registrado con el email “<span id="coincidence-email"></span>”</b>. Si haces clic en <b>Aceptar</b>, se le enviará una invitación para <b>unirse a tu entidad</b> y <b>definir su contraseña</b> al aceptar.
 					                    								</p>
+					                    								<p class="d-none small text-muted" id="coincidence-admin-contact"></p>
 			                    									</div>
 
 				                    								<div class="row">
@@ -1579,6 +1580,7 @@ $('#invite-button').click(function (e) {
 				$('#coincidence').removeClass('d-none');
 				$('#no-coincidence').addClass('d-none');
 				$('#coincidence-email').text(email);
+				$('#coincidence-admin-contact').toggleClass('d-none', !response.is_administration_contact).text(response.is_administration_contact ? (response.message || '') : '');
 				$('#invite-user-id').val(response.user_id);
 				$('#invite-pending-email').val('');
 			} else {

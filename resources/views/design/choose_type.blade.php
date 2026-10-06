@@ -175,7 +175,16 @@
                     </div>
                 @endif
 
-                @if(!empty($managementFeeBlocksDesign))
+                @php
+                    $feeHandledByAdministration = empty($actsAsAdministration)
+                        && empty($managementFee['show_admin_fee_actions'])
+                        && ($managementFee['payer'] ?? '') !== 'entity';
+                @endphp
+                @if(!empty($managementFeeBlocksDesign) && $feeHandledByAdministration)
+                    <div class="alert alert-info mb-3 text-start" style="display: block !important;">
+                        <p class="mb-0 small">La administración está preparando el diseño de este set. Podrá continuar cuando esté disponible.</p>
+                    </div>
+                @elseif(!empty($managementFeeBlocksDesign))
                     <div class="alert alert-warning mb-3 text-start" style="display: block !important;">
                         <h5 class="mb-2"><i class="ri-error-warning-line me-1"></i> Cuota de gestión pendiente</h5>
                         @if(!empty($actsAsAdministration) || !empty($managementFee['show_admin_fee_actions']))
@@ -196,8 +205,6 @@
                             <a href="{{ route('design.managementFee.pay', $set->id) }}" class="btn btn-success">
                                 <i class="ri-bank-card-line me-1"></i> Pagar cuota de gestión
                             </a>
-                        @else
-                            <p class="mb-0 small">La administración está preparando el diseño de este set.</p>
                         @endif
                     </div>
                 @endif

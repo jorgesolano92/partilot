@@ -447,7 +447,14 @@ class AdministratorController extends Controller
 
         $request->session()->forget(['administration', 'manager']);
 
-        app(AdministrationContractService::class)->initializeForNewAdministration($newAdministration->fresh(['manager']));
+        $contractSent = app(AdministrationContractService::class)->initializeForNewAdministration($newAdministration->fresh(['manager']));
+
+        if (! $contractSent) {
+            return redirect()->route('administrations.show', $newAdministration->id)->with(
+                'warning',
+                'Administración creada, pero no se pudo enviar el correo con el contrato SaaS. Revise el email de contacto y use «Enviar contrato» en esta ficha para reenviarlo.'
+            );
+        }
 
         return redirect('administrations')->with(
             'success',

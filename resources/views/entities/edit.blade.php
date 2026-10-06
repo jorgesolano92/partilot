@@ -66,7 +66,7 @@
 
                     			</div>
 
-                    			<div class="form-wizard-element" data-bs-toggle="tab" data-bs-target="#datos_contacto">
+                    			<div class="form-wizard-element" role="link" style="cursor: pointer;" onclick="window.location.href='{{ route('entities.edit-manager', $entity->id) }}'">
                     				
                     				<span>
                     					&nbsp;&nbsp;

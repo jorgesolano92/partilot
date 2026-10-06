@@ -254,7 +254,7 @@
                     @endif
 
                     @if(!empty($managementFee) && empty($hideFeeCardFromEntity))
-                        <div class="alert {{ !empty($managementFee['blocks_export']) || !empty($managementFee['admin_fee_before_design']) ? 'alert-warning' : 'alert-light border' }} text-start design-summary-card">
+                        <div class="alert {{ (!empty($managementFee['blocks_export']) && empty($managementFee['fee_settled'])) || !empty($managementFee['admin_fee_before_design']) ? 'alert-warning' : 'alert-light border' }} text-start design-summary-card">
                             <h5 class="mb-3">Cuota de gestión PARTILOT</h5>
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Estado</span>
@@ -290,7 +290,7 @@
                                 <p class="small text-warning mb-3">
                                     <strong>Paso pendiente:</strong> la entidad debe confirmar el pago de la cuota antes de que la administración pueda entrar al editor y crear el diseño.
                                 </p>
-                            @elseif(!empty($managementFee['blocks_export']) && ($managementFee['payer'] ?? '') === 'entity')
+                            @elseif(!empty($managementFee['blocks_export']) && empty($managementFee['fee_settled']) && ($managementFee['payer'] ?? '') === 'entity')
                                 <p class="small text-warning mb-3 mt-3">
                                     <strong>Paso pendiente:</strong>
                                     @if($entityViewer)
@@ -305,7 +305,7 @@
                                         El pago solo puede realizarse desde el panel de la entidad.
                                     @endif
                                 </p>
-                            @elseif(!empty($managementFee['blocks_export']) && empty($managementFee['awaiting_approval']))
+                            @elseif(!empty($managementFee['blocks_export']) && empty($managementFee['fee_settled']) && empty($managementFee['awaiting_approval']))
                                 <p class="small text-muted mb-3 mt-3">
                                     Los archivos con códigos QR permanecen bloqueados hasta confirmar el pago de la cuota de gestión.
                                 </p>

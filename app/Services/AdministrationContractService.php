@@ -27,7 +27,10 @@ class AdministrationContractService
         return sprintf('ADM-%s-%05d', now()->format('Y'), (int) $administration->id);
     }
 
-    public function initializeForNewAdministration(Administration $administration): Administration
+    /**
+     * @return bool true si el correo del contrato se envió correctamente
+     */
+    public function initializeForNewAdministration(Administration $administration): bool
     {
         $administration->update([
             'contract_status' => Administration::CONTRACT_PENDING,
@@ -37,11 +40,13 @@ class AdministrationContractService
 
         try {
             $this->sendContractInvitation($administration->fresh(['manager.user']));
+
+            return true;
         } catch (\Throwable $e) {
             \Log::warning('No se pudo enviar contrato SaaS al crear administración '.$administration->id.': '.$e->getMessage());
-        }
 
-        return $administration->fresh();
+            return false;
+        }
     }
 
     public function sendContractInvitation(Administration $administration, ?int $userId = null): Administration

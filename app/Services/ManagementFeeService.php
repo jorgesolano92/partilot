@@ -401,6 +401,7 @@ class ManagementFeeService
             'payer_label' => $this->payerLabel($set->management_fee_payer),
             'paid_at' => $set->management_fee_paid_at,
             'blocks_export' => $this->blocksQrExport($set, $design),
+            'fee_settled' => $this->isManagementFeeSettled($set),
             'can_pay_stripe' => $canPay && $stripeEnabled && ! $usesRemittance && ! $paymentBlockedByApproval,
             'can_queue_remittance' => $billingService->canQueueManagementFee($user, $set, $design),
             'uses_remittance' => $usesRemittance,

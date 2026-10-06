@@ -466,14 +466,19 @@ class EntityController extends Controller
             ]);
         }
 
+        $isAdministrationContact = $user && $user->isAdministrationContactOnly();
+
         return response()->json([
             'exists' => (bool) $user,
             'user_id' => $user ? $user->id : null,
             'is_panel_account' => false,
+            'is_administration_contact' => $isAdministrationContact,
             'manager_name' => $user ? trim(($user->name ?? '').' '.($user->last_name ?? '')) : null,
-            'message' => $user
-                ? 'Hemos encontrado un usuario registrado con ese email.'
-                : null,
+            'message' => match (true) {
+                $isAdministrationContact => 'Este email es el contacto del gestor de la administración. Puede invitarlo: recibirá un enlace para crear su contraseña como gestor de la entidad.',
+                (bool) $user => 'Hemos encontrado un usuario registrado con ese email.',
+                default => null,
+            },
         ]);
     }
 
@@ -588,6 +593,7 @@ class EntityController extends Controller
             return redirect()->route('entities.show', $entity->id)
                 ->with('error', 'No se puede asignar como gestor a la cuenta de acceso al panel de una administración o entidad.');
         }
+        $invitedWasAdministrationContact = $invited->isAdministrationContactOnly();
 
         // Verificar si ya existe un manager con este usuario para esta entidad
         $existingManager = Manager::where('user_id', $request->user_id)
@@ -633,6 +639,10 @@ class EntityController extends Controller
         $user = User::find($request->user_id);
         if ($user && $user->role !== User::ROLE_ENTITY) {
             $user->update(['role' => User::ROLE_ENTITY]);
+        }
+        // Un contacto de administración nunca tuvo acceso propio: la invitación le llevará el enlace para crear contraseña.
+        if ($user && $invitedWasAdministrationContact && ! $user->must_change_password) {
+            $user->update(['must_change_password' => true]);
         }
 
         // En alta/recuperación de principal sin contrato firmado, la invitación se envía tras la firma.
@@ -1285,9 +1295,9 @@ class EntityController extends Controller
                     ->withErrors(['email' => 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario.']);
             }
         } elseif (! $panelUser && $newEntityEmail !== '' && strcasecmp($newEntityEmail, (string) $entity->email) !== 0
-            && ContactEmailRegistry::isTaken($newEntityEmail, null, null, $entity->id)) {
+            && ContactEmailRegistry::isPanelAuthTaken($newEntityEmail, null, null, $entity->id)) {
             return back()->withInput()
-                ->withErrors(['email' => 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario.']);
+                ->withErrors(['email' => 'Este correo ya está en uso como acceso al panel de otra administración o entidad.']);
         }
 
         $entity->update($validated);
