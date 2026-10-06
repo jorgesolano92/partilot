@@ -76,7 +76,8 @@ class PanelMagicLinkController extends Controller
 
         if ($user->panel_account_type === 'entity') {
             $entity = Entity::query()->find($user->panel_account_id);
-            if ($entity && ($entity->status === null || (int) $entity->status === -1)) {
+            if ($entity && ($entity->status === null || (int) $entity->status === -1)
+                && $entity->hasAcceptedPrimaryManager()) {
                 $entity->update(['status' => 1]);
             }
         }

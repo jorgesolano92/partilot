@@ -88,6 +88,23 @@ class Entity extends Model
         return $this->contract_status === self::CONTRACT_SIGNED;
     }
 
+    /**
+     * Gestor responsable que ya aceptó el cargo (la cuenta panel de solo consulta no cuenta).
+     * Sin él la entidad no debe pasar a activa.
+     */
+    public function hasAcceptedPrimaryManager(): bool
+    {
+        return Manager::query()
+            ->where('entity_id', $this->id)
+            ->where('is_primary', true)
+            ->where('status', Manager::STATUS_ACTIVE)
+            ->whereHas('user', fn ($q) => $q->where(fn ($u) => $u
+                ->whereNull('panel_account_type')
+                ->orWhere('panel_account_type', '!=', 'entity')
+                ->orWhere('panel_account_id', '!=', $this->id)))
+            ->exists();
+    }
+
     public function signerFullName(): string
     {
         return trim(implode(' ', array_filter([

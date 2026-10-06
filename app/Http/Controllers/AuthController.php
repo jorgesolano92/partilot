@@ -93,11 +93,11 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        // Cuenta panel de entidad: al primer acceso con credenciales válidas, activar entidad pendiente
-        // (sustituye la activación que antes hacía el enlace mágico al establecer contraseña).
+        // Cuenta panel de entidad: activar la entidad pendiente solo si su gestor responsable ya aceptó el cargo.
         if ($user->isPanelAccount() && $user->panel_account_type === 'entity') {
             $entity = \App\Models\Entity::query()->find($user->panel_account_id);
-            if ($entity && ($entity->status === null || (int) $entity->status === -1)) {
+            if ($entity && ($entity->status === null || (int) $entity->status === -1)
+                && $entity->hasAcceptedPrimaryManager()) {
                 $entity->update(['status' => 1]);
             }
         }
@@ -120,10 +120,11 @@ class AuthController extends Controller
                             $deniedMessage = 'Tu cuenta de Partilot ha sido bloqueada. Para obtener más información, ponte en contacto con Partilot';
                         }
                     } elseif ($user->panel_account_type === 'entity') {
-                        $hasActiveAccess = \App\Models\Entity::query()
-                            ->whereKey($user->panel_account_id)
-                            ->where('status', 1)
-                            ->exists();
+                        $panelEntity = \App\Models\Entity::query()->find($user->panel_account_id);
+                        $hasActiveAccess = $panelEntity && (int) $panelEntity->status === 1;
+                        if ($panelEntity && ($panelEntity->status === null || (int) $panelEntity->status === -1)) {
+                            $deniedMessage = 'La entidad aún no está activa: falta que el gestor responsable acepte el cargo desde el correo de invitación.';
+                        }
                     } elseif ($user->panel_account_type === User::PANEL_ACCOUNT_PRINT_SHOP) {
                         $hasActiveAccess = (bool) $user->status;
                     }
