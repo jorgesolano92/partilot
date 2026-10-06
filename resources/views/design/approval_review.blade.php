@@ -85,6 +85,13 @@
                                 <p class="mb-1"><strong>Set:</strong> {{ $design->set->set_name ?? ('#'.$design->set_id) }}</p>
                                 <p class="mb-3"><strong>Participaciones:</strong> {{ number_format((int) ($design->set->total_participations ?? 0), 0, ',', '.') }}</p>
 
+                                @if(!empty($templatePlaceholders))
+                                    <div class="alert alert-warning small">
+                                        <strong>Revise los textos:</strong> el diseño todavía contiene textos de ejemplo de la plantilla
+                                        («{{ implode('», «', $templatePlaceholders) }}»). Si no son correctos, rechace el diseño indicando qué debe cambiarse.
+                                    </div>
+                                @endif
+
                                 <p class="text-muted small">
                                     @if(app(\App\Services\DesignApprovalService::class)->isPrintShopDesign($design))
                                         Al aprobar el diseño la imprenta PARTILOT podrá generar los archivos de impresión.

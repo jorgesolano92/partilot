@@ -328,7 +328,7 @@
 	                                                    <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 	                                                </div>
 
-	                                                <input class="form-control" name="deadline_date" type="date" value="{{ old('deadline_date', '2025/07/06') }}" style="border-radius: 0 30px 30px 0;">
+	                                                <input class="form-control" name="deadline_date" type="date" value="{{ old('deadline_date') }}" style="border-radius: 0 30px 30px 0;">
 	                                            </div>
 	                                        </div>
 	                                    </div>

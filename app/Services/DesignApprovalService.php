@@ -559,6 +559,31 @@ class DesignApprovalService
             && app(ManagementFeeService::class)->blocksAdminDesignUntilEntityPays($design->set);
     }
 
+    private const TEMPLATE_PLACEHOLDER_TEXTS = [
+        'DATOS DE LA EMPRESA',
+        'C/NOMBRE DE LA VIA',
+        '25/07/25',
+    ];
+
+    /**
+     * Textos de ejemplo de la plantilla que siguen en el diseño (no se han sustituido por datos reales).
+     *
+     * @return list<string>
+     */
+    public function templatePlaceholdersIn(DesignFormat $design): array
+    {
+        $text = mb_strtoupper(html_entity_decode(strip_tags(implode(' ', [
+            (string) ($design->participation_html ?? ''),
+            (string) ($design->cover_html ?? ''),
+            (string) ($design->back_html ?? ''),
+        ])), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+        return array_values(array_filter(
+            self::TEMPLATE_PLACEHOLDER_TEXTS,
+            fn (string $placeholder) => str_contains($text, $placeholder)
+        ));
+    }
+
     public function submitForApproval(DesignFormat $design, User $user): DesignFormat
     {
         if (! $this->canSubmitForApproval($user, $design)) {

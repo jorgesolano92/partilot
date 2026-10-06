@@ -739,10 +739,19 @@ window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
                                             </div>
                                                 <div class="elements text ui-draggable" style="padding: 10px; width: 200px; height: 120px; resize: both; overflow: hidden; position: absolute; top: 144px; left: 158px;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-                                                <span class="ui-draggable-handle"><h5 style="text-align:center;"><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">DATOS DE LA EMPRESA</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">NOMBRE</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">C/NOMBRE DE LA VIA</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">TELEFONO</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">DATOS</span></h5></span>
+                                                @php
+                                                    $entityTemplateLines = array_values(array_filter([
+                                                        $entity->name ?? null,
+                                                        !empty($entity->nif_cif) ? 'CIF: '.$entity->nif_cif : null,
+                                                        $entity->address ?? null,
+                                                        trim(implode(' ', array_filter([$entity->postal_code ?? null, $entity->city ?? null, !empty($entity->province) && ($entity->province ?? '') !== ($entity->city ?? '') ? '('.$entity->province.')' : null]))) ?: null,
+                                                        !empty($entity->phone) ? 'Tel. '.$entity->phone : null,
+                                                    ]));
+                                                @endphp
+                                                <span class="ui-draggable-handle"><h5 style="text-align:center;">@foreach($entityTemplateLines as $line)@if(!$loop->first)<br>@endif<span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">{{ $line }}</span>@endforeach</h5></span>
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 82px; height: 44px; resize: both; overflow: hidden; position: absolute; top: 144px; left: 42px;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-                                                <span class="ui-draggable-handle"><p><span style="color:hsl(0, 0%, 0%);" class="ui-draggable-handle"><strong>25/07/25</strong></span></p></span>
+                                                <span class="ui-draggable-handle"><p><span style="color:hsl(0, 0%, 0%);" class="ui-draggable-handle"><strong>{{ !empty($lottery?->draw_date) ? $lottery->draw_date->format('d/m/y') : '' }}</strong></span></p></span>
                                             </div><div class="elements text number mini ui-draggable" style="padding: 10px; width: 74px; height: 43px; resize: both; overflow: hidden; position: absolute; top: 180.797px; left: 51.7969px; z-index: 1001;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-family:Arial, Helvetica, sans-serif;font-size:14px;" class="ui-draggable-handle"><strong>{{ formatMini($reservation_numbers) }}</strong></span></p></span>

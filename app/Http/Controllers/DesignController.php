@@ -5625,8 +5625,9 @@ class DesignController extends Controller
         }
 
         $html = $this->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+        $templatePlaceholders = $approvalService->templatePlaceholdersIn($design);
 
-        return view('design.approval_review', compact('design', 'html'));
+        return view('design.approval_review', compact('design', 'html', 'templatePlaceholders'));
     }
 
     /**
@@ -5659,10 +5660,18 @@ class DesignController extends Controller
             abort(403, 'No tienes permisos para esta operación.');
         }
 
-        app(DesignApprovalService::class)->submitForApproval($design, auth()->user());
+        $approvalService = app(DesignApprovalService::class);
+        $approvalService->submitForApproval($design, auth()->user());
+        $placeholders = $approvalService->templatePlaceholdersIn($design->refresh());
 
-        return redirect()->route('design.summary', $design->id)
+        $redirect = redirect()->route('design.summary', $design->id)
             ->with('success', 'Diseño enviado a la entidad para su aprobación.');
+
+        if ($placeholders !== []) {
+            $redirect->with('warning', 'El diseño aún contiene textos de ejemplo de la plantilla: «'.implode('», «', $placeholders).'». Revíselo antes de que la entidad lo apruebe.');
+        }
+
+        return $redirect;
     }
 
     public function resendApprovalNotification($id)
