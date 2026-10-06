@@ -2246,6 +2246,9 @@ class EntityController extends Controller
             ->where('entity_id', $entity->id)
             ->where('is_primary', true)
             ->notInvitationRejected()
+            ->whereDoesntHave('user', fn ($q) => $q
+                ->where('panel_account_type', 'entity')
+                ->where('panel_account_id', $entity->id))
             ->exists();
 
         if ($hasPrimary) {
