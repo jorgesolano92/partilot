@@ -18,6 +18,7 @@ use App\Models\DesignFormat;
 use App\Models\BackgroundTask;
 use App\Jobs\ProcessParticipationAssignmentTask;
 use App\Services\SellerLiquidationService;
+use App\Services\SellerSettlementRegistrationService;
 use App\Services\SellerService;
 use App\Services\BackgroundTaskService;
 use Illuminate\Http\Request;
@@ -125,29 +126,6 @@ class SellerController extends Controller
         }
 
         return $query;
-    }
-
-    /**
-     * Motivo por el que no se puede registrar el pago de liquidación, o null si es válido.
-     *
-     * @param  \Illuminate\Support\Collection<int, Participation>  $participations
-     */
-    private function settlementBlockReason($participations, float $previousPaid, float $newPayment): ?string
-    {
-        if ($participations->isEmpty()) {
-            return 'Este vendedor no tiene participaciones asignadas pendientes de liquidar en este sorteo.';
-        }
-
-        $totalAmount = (float) $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
-        $pending = round($totalAmount - $previousPaid, 2);
-        if ($pending <= 0.009) {
-            return 'No queda importe pendiente de liquidar para este vendedor en este sorteo.';
-        }
-        if ($newPayment > $pending + 0.009) {
-            return 'El importe a liquidar ('.number_format($newPayment, 2, ',', '.').' €) supera el pendiente ('.number_format($pending, 2, ',', '.').' €).';
-        }
-
-        return null;
     }
 
     /**
@@ -1521,115 +1499,28 @@ class SellerController extends Controller
             'pagos' => 'required|array',
             'pagos.*.payment_method' => 'required|string|in:efectivo,bizum,transferencia',
             'pagos.*.amount' => 'required|numeric|min:0.01',
+            'concept' => 'nullable|string|max:255',
         ]);
 
         try {
-            DB::beginTransaction();
-
-            $totalPagoNuevo = collect($data['pagos'])->sum('amount');
-
-            $participations = $this->settlementEligibleParticipationsQuery($seller->id, (int) $data['lottery_id'])->get();
-
-            $previousPaid = SellerSettlement::where('seller_id', $seller->id)
-                ->where('lottery_id', $data['lottery_id'])
-                ->sum('paid_amount');
-
-            if ($reason = $this->settlementBlockReason($participations, (float) $previousPaid, (float) $totalPagoNuevo)) {
-                DB::rollBack();
-
-                return response()->json(['success' => false, 'message' => $reason], 422);
-            }
-
-            $totalParticipations = $participations->count();
-            $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
-            $totalAmount = $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
-
-            $totalPaidWithNew = $previousPaid + $totalPagoNuevo;
-            $pendingAmount = $totalAmount - $totalPaidWithNew;
-            $calculatedParticipations = $pricePerParticipation > 0 ? ($totalPagoNuevo / $pricePerParticipation) : 0;
-
-            $now = Carbon::now();
-
-            $settlement = SellerSettlement::create([
-                'seller_id' => $seller->id,
-                'lottery_id' => $data['lottery_id'],
-                'user_id' => $user->id,
-                'total_amount' => $totalAmount,
-                'paid_amount' => $totalPagoNuevo,
-                'pending_amount' => $pendingAmount,
-                'total_participations' => $totalParticipations,
-                'calculated_participations' => round($calculatedParticipations, 2),
-                'settlement_date' => $now->format('Y-m-d'),
-                'settlement_time' => $now->format('H:i:s'),
-                'notes' => 'Liquidación de vendedor (app gestor)',
-            ]);
-
-            foreach ($data['pagos'] as $pago) {
-                SellerSettlementPayment::create([
-                    'seller_settlement_id' => $settlement->id,
-                    'amount' => $pago['amount'],
-                    'payment_method' => $pago['payment_method'],
-                    'notes' => 'Pago de liquidación - ' . ucfirst($pago['payment_method']),
-                    'payment_date' => $now,
-                ]);
-            }
-
-            DB::commit();
-
-            // Email liquidación parcial / total 0 al vendedor, y copia informativa a entidad principal.
-            try {
-                $seller = Seller::with(['user', 'entities.manager.user'])->find($seller->id);
-                $isFullySettled = (float) $pendingAmount <= 0.0001;
-                $communicationEmailService = app(CommunicationEmailService::class);
-
-                if ($seller && $seller->user && !empty($seller->user->email)) {
-                    $communicationEmailService->sendAndLog(
-                        recipientEmail: (string) $seller->user->email,
-                        recipientRole: 'vendedor',
-                        recipientUser: $seller->user,
-                        messageType: $isFullySettled ? 'seller_settlement_full' : 'seller_settlement_partial',
-                        templateKey: null,
-                        mailClass: SellerSettlementStatusMail::class,
-                        mailPayload: [
-                            'seller_id' => $seller->id,
-                            'settlement_id' => $settlement->id,
-                            'is_fully_settled' => $isFullySettled,
-                        ],
-                        context: ['seller_id' => $seller->id, 'lottery_id' => $data['lottery_id'], 'entity_id' => $primaryEntity?->id],
-                    );
-                }
-
-                // ¿También a entidad? Sí, envío informativo al gestor principal de la primera entidad vinculada.
-                $entityManagerUser = $seller?->entities?->first()?->manager?->user;
-                $primaryEntity = $seller?->entities?->first();
-                $contextEntityId = $primaryEntity?->id;
-                if ($entityManagerUser && !empty($entityManagerUser->email)) {
-                    $communicationEmailService->sendAndLog(
-                        recipientEmail: (string) $entityManagerUser->email,
-                        recipientRole: 'gestor_entidad',
-                        recipientUser: $entityManagerUser,
-                        messageType: $isFullySettled ? 'seller_settlement_full_copy_entity' : 'seller_settlement_partial_copy_entity',
-                        templateKey: null,
-                        mailClass: SellerSettlementStatusMail::class,
-                        mailPayload: [
-                            'seller_id' => $seller->id,
-                            'settlement_id' => $settlement->id,
-                            'is_fully_settled' => $isFullySettled,
-                        ],
-                        context: ['seller_id' => $seller->id, 'lottery_id' => $data['lottery_id'], 'entity_id' => $contextEntityId],
-                    );
-                }
-            } catch (\Throwable $e) {
-                \Log::warning('Fallo enviando emails de liquidación: ' . $e->getMessage());
-            }
+            $settlement = app(SellerSettlementRegistrationService::class)->register(
+                $seller,
+                (int) $data['lottery_id'],
+                $data['pagos'],
+                $data['concept'] ?? null,
+                $user,
+                'Liquidación de vendedor (app gestor)'
+            );
 
             return response()->json([
                 'success' => true,
                 'message' => 'Liquidación registrada correctamente',
                 'settlement_id' => $settlement->id,
+                'pending_amount' => (float) $settlement->pending_amount,
             ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error al procesar la liquidación: ' . $e->getMessage(),
@@ -3248,10 +3139,6 @@ class SellerController extends Controller
             abort(403, 'No tienes permisos para consultar este vendedor.');
         }
 
-        if (!auth()->user()->canAccessSeller((int) $sellerId)) {
-            abort(403, 'No tienes permisos para consultar este vendedor.');
-        }
-
         \Log::info('=== SELLER SETTLEMENT SUMMARY ===');
         \Log::info('Seller ID:', [$sellerId]);
         \Log::info('Lottery ID:', [$lotteryId]);
@@ -3296,6 +3183,12 @@ class SellerController extends Controller
             'summary' => [
                 'total_participations' => $totalParticipations,
                 'price_per_participation' => $pricePerParticipation,
+                'participation_prices' => $participations
+                    ->map(fn ($p) => round((float) ($p->set->total_participation_amount ?? 0), 2))
+                    ->filter(fn ($price) => $price > 0)
+                    ->unique()
+                    ->sort()
+                    ->values(),
                 'total_amount' => $totalAmount,
                 'total_paid' => $totalPaid,
                 'pending_amount' => $pendingAmount,
@@ -3310,87 +3203,37 @@ class SellerController extends Controller
      */
     public function storeSettlement(Request $request)
     {
+        $data = $request->validate([
+            'seller_id' => 'required|exists:sellers,id',
+            'lottery_id' => 'required|exists:lotteries,id',
+            'pagos' => 'required|array',
+            'pagos.*.payment_method' => 'required|string|in:'.implode(',', SellerSettlementRegistrationService::PAYMENT_METHODS),
+            'pagos.*.amount' => 'required|numeric|min:0.01',
+            'concept' => 'nullable|string|max:255',
+        ]);
+
+        if (!auth()->user()->canAccessSeller((int) $data['seller_id'])) {
+            abort(403, 'No tienes permisos para gestionar este vendedor.');
+        }
+
         try {
-            DB::beginTransaction();
-
-            $data = $request->validate([
-                'seller_id' => 'required|exists:sellers,id',
-                'lottery_id' => 'required|exists:lotteries,id',
-                'pagos' => 'required|array',
-                'pagos.*.payment_method' => 'required|string',
-                'pagos.*.amount' => 'required|numeric|min:0.01'
-            ]);
-
-            if (!auth()->user()->canAccessSeller((int) $data['seller_id'])) {
-                abort(403, 'No tienes permisos para gestionar este vendedor.');
-            }
-
-            // Calcular totales
-            $totalPagoNuevo = collect($data['pagos'])->sum('amount');
-
-            // Obtener participaciones liquidables del vendedor para este sorteo
-            $participations = $this->settlementEligibleParticipationsQuery((int) $data['seller_id'], (int) $data['lottery_id'])->get();
-
-            // Obtener liquidaciones previas
-            $previousSettlements = SellerSettlement::where('seller_id', $data['seller_id'])
-                ->where('lottery_id', $data['lottery_id'])
-                ->sum('paid_amount');
-
-            if ($reason = $this->settlementBlockReason($participations, (float) $previousSettlements, (float) $totalPagoNuevo)) {
-                DB::rollBack();
-
-                return response()->json(['success' => false, 'message' => $reason], 422);
-            }
-
-            $totalParticipations = $participations->count();
-            $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
-            $totalAmount = $participations->sum(function($participation) {
-                return $participation->set->total_participation_amount ?? 0;
-            });
-
-            $totalPaidWithNew = $previousSettlements + $totalPagoNuevo;
-            $pendingAmount = $totalAmount - $totalPaidWithNew;
-            $calculatedParticipations = $pricePerParticipation > 0 ? ($totalPagoNuevo / $pricePerParticipation) : 0;
-
-            $now = Carbon::now();
-
-            // Crear registro de liquidación
-            $settlement = SellerSettlement::create([
-                'seller_id' => $data['seller_id'],
-                'lottery_id' => $data['lottery_id'],
-                'user_id' => auth()->id(),
-                'total_amount' => $totalAmount,
-                'paid_amount' => $totalPagoNuevo,
-                'pending_amount' => $pendingAmount,
-                'total_participations' => $totalParticipations,
-                'calculated_participations' => round($calculatedParticipations, 2),
-                'settlement_date' => $now->format('Y-m-d'),
-                'settlement_time' => $now->format('H:i:s'),
-                'notes' => 'Liquidación de vendedor'
-            ]);
-
-            // Crear registros de pago
-            foreach ($data['pagos'] as $pago) {
-                SellerSettlementPayment::create([
-                    'seller_settlement_id' => $settlement->id,
-                    'amount' => $pago['amount'],
-                    'payment_method' => $pago['payment_method'],
-                    'notes' => 'Pago de liquidación - ' . ucfirst($pago['payment_method']),
-                    'payment_date' => $now
-                ]);
-            }
-
-            DB::commit();
+            $settlement = app(SellerSettlementRegistrationService::class)->register(
+                Seller::findOrFail($data['seller_id']),
+                (int) $data['lottery_id'],
+                $data['pagos'],
+                $data['concept'] ?? null,
+                auth()->user()
+            );
 
             return response()->json([
                 'success' => true,
-                'message' => 'Liquidación registrada correctamente',
-                'settlement_id' => $settlement->id
+                'message' => 'Liquidación registrada correctamente. Se ha avisado al vendedor.',
+                'settlement_id' => $settlement->id,
+                'pending_amount' => (float) $settlement->pending_amount,
             ]);
-
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            DB::rollBack();
-            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al procesar la liquidación: ' . $e->getMessage()
@@ -3405,6 +3248,10 @@ class SellerController extends Controller
     {
         $sellerId = $request->get('seller_id');
         $lotteryId = $request->get('lottery_id');
+
+        if (!auth()->user()->canAccessSeller((int) $sellerId)) {
+            abort(403, 'No tienes permisos para consultar este vendedor.');
+        }
 
         $settlements = SellerSettlement::where('seller_id', $sellerId)
             ->where('lottery_id', $lotteryId)

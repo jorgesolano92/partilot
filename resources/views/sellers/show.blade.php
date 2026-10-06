@@ -996,7 +996,7 @@
                                                 <div class="card mt-3">
                                                     <div class="card-body">
                                                         <h5 class="card-title">Registrar Pagos</h5>
-                                                        <small class="text-muted">Puedes registrar múltiples formas de pago</small>
+                                                        <small class="text-muted">Puedes registrar múltiples formas de pago. Las participaciones no se fraccionan: el importe debe cubrir participaciones completas<span id="settlement-multiplo-hint"></span>.</small>
                                                         
                                                         <div class="row mt-3">
                                                             <div class="col-8">
@@ -1038,6 +1038,12 @@
                                                                         <input type="number" step="0.01" class="form-control settlement-payment-input" placeholder="0.00" id="settlement-pago-transferencia">
                                                                     </div>
                                                                 </div>
+
+                                                                <div class="mb-3">
+                                                                    <label for="settlement-concepto" class="form-label mb-1"><strong>Concepto</strong> <small class="text-muted">(opcional, lo verá el vendedor en el aviso)</small></label>
+                                                                    <input type="text" maxlength="255" class="form-control" id="settlement-concepto" placeholder="Ej.: Entrega de 20 participaciones del Sorteo de Navidad">
+                                                                </div>
+                                                                <div class="alert alert-warning py-2 d-none" id="settlement-importe-aviso"></div>
                                                             </div>
 
                                                             <div class="col-4">
@@ -2573,6 +2579,11 @@ function initDatatable()
                       const pricePerParticipation = parseFloat(summary.price_per_participation) || 0;
                       const totalAmount = parseFloat(summary.total_amount) || 0;
                       const totalPaid = parseFloat(summary.total_paid) || 0;
+                      settlementPrecios = (summary.participation_prices || []).map(p => parseFloat(p) || 0).filter(p => p > 0);
+                      settlementTotalPagado = totalPaid;
+                      $('#settlement-multiplo-hint').text(settlementPrecios.length
+                          ? ' (' + settlementPrecios.map(p => p.toFixed(2) + '€').join(', ') + ' cada una)'
+                          : '');
                       const pendingAmount = parseFloat(summary.pending_amount) || 0;
                       const liquidatedParticipations = parseFloat(summary.liquidated_participations) || 0;
                       const pendingParticipations = parseFloat(summary.pending_participations) || 0;
@@ -2604,6 +2615,32 @@ function initDatatable()
           });
       }
 
+      let settlementPrecios = [];
+      let settlementTotalPagado = 0;
+
+      // Motivo por el que el importe no es válido (supera lo pendiente o fracciona participaciones), o null.
+      function motivoImporteSettlementInvalido(totalPagarAhora, pendiente) {
+          if (totalPagarAhora <= 0) return null;
+          if (pendiente <= 0.009) return 'No queda importe pendiente de liquidar para este vendedor en este sorteo.';
+          if (totalPagarAhora > pendiente + 0.009) {
+              return 'El importe (' + totalPagarAhora.toFixed(2) + '€) supera el pendiente (' + pendiente.toFixed(2) + '€). No se puede dejar saldo a favor del vendedor.';
+          }
+          if (settlementPrecios.length === 1) {
+              const precio = Math.round(settlementPrecios[0] * 100);
+              const pagadoCents = Math.round(settlementTotalPagado * 100);
+              const objetivo = pagadoCents + Math.round(totalPagarAhora * 100);
+              if (objetivo % precio !== 0) {
+                  const inferior = Math.floor(objetivo / precio) * precio - pagadoCents;
+                  const opciones = [inferior, inferior + precio]
+                      .filter(c => c > 0 && c <= Math.round(pendiente * 100))
+                      .map(c => (c / 100).toFixed(2) + '€');
+                  return 'Las participaciones no se pueden fraccionar: el importe debe cubrir participaciones completas de '
+                      + (precio / 100).toFixed(2) + '€.' + (opciones.length ? ' Puedes registrar ' + opciones.join(' o ') + '.' : '');
+              }
+          }
+          return null;
+      }
+
       // Función para actualizar total a pagar ahora
       function actualizarTotalPagarAhoraSettlement() {
           const efectivo = parseFloat($('#settlement-pago-efectivo').val()) || 0;
@@ -2614,7 +2651,10 @@ function initDatatable()
           $('#settlement-pagar-ahora').text(totalPagarAhora.toFixed(2) + '€');
           
           const pendiente = parseFloat($('#settlement-pending-amount').text().replace('€', '').replace(',', '.')) || 0;
-          const quedaraPendiente = pendiente - totalPagarAhora;
+          const quedaraPendiente = Math.max(0, pendiente - totalPagarAhora);
+          const motivo = motivoImporteSettlementInvalido(totalPagarAhora, pendiente);
+          $('#settlement-importe-aviso').text(motivo || '').toggleClass('d-none', !motivo);
+          $('#btn-registrar-liquidacion').prop('disabled', !!motivo);
           
           $('#settlement-quedara-pendiente').text(quedaraPendiente.toFixed(2) + '€');
           
@@ -2662,12 +2702,9 @@ function initDatatable()
 
           const pendienteActual = parseFloat($('#settlement-pending-amount').text().replace('€', '').replace(',', '.')) || 0;
           const totalPagos = pagos.reduce((sum, p) => sum + p.amount, 0);
-          if (pendienteActual <= 0.009) {
-              mostrarMensaje('No queda importe pendiente de liquidar para este vendedor en este sorteo.', 'warning');
-              return;
-          }
-          if (totalPagos > pendienteActual + 0.009) {
-              mostrarMensaje('El importe a liquidar (' + totalPagos.toFixed(2) + '€) supera el pendiente (' + pendienteActual.toFixed(2) + '€).', 'warning');
+          const motivo = motivoImporteSettlementInvalido(totalPagos, pendienteActual);
+          if (motivo) {
+              mostrarMensaje(motivo, 'warning');
               return;
           }
 
@@ -2681,14 +2718,15 @@ function initDatatable()
                   seller_id: {{ $seller->id }},
                   lottery_id: sorteoSeleccionadoLiquidacion,
                   pagos: pagos,
+                  concept: ($('#settlement-concepto').val() || '').trim(),
                   _token: '{{ csrf_token() }}'
               },
               success: function(response) {
                   if (response.success) {
-                      mostrarMensaje('Liquidación registrada correctamente', 'success');
+                      mostrarMensaje(response.message || 'Liquidación registrada correctamente', 'success');
                       
                       // Limpiar campos de pago
-                      $('#settlement-pago-efectivo, #settlement-pago-bizum, #settlement-pago-transferencia').val('');
+                      $('#settlement-pago-efectivo, #settlement-pago-bizum, #settlement-pago-transferencia, #settlement-concepto').val('');
                       
                       // Recargar datos
                       setTimeout(() => {
@@ -2723,7 +2761,7 @@ function initDatatable()
               },
               success: function(response) {
                   if (response.success && response.settlements.length > 0) {
-                      let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Importe pagado</th><th>Pendiente tras el pago</th><th>Métodos de Pago</th></tr></thead><tbody>';
+                      let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Importe pagado</th><th>Pendiente tras el pago</th><th>Métodos de Pago</th><th>Concepto</th></tr></thead><tbody>';
                       
                       response.settlements.forEach(settlement => {
                           // Validar y formatear fecha de liquidación
@@ -2758,6 +2796,7 @@ function initDatatable()
                                   <td class="fw-bold text-success">${paidAmount.toFixed(2)}€</td>
                                   <td>${pendingAfter.toFixed(2)}€</td>
                                   <td>${metodos.join(', ')}</td>
+                                  <td>${$('<div>').text(settlement.notes || '').html()}</td>
                               </tr>
                           `;
                       });
