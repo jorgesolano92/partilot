@@ -156,7 +156,12 @@ class ManagementFeeService
             return null;
         }
 
-        foreach ($user->accessibleEntityIds() as $entityId) {
+        $entityPayerIds = Entity::query()
+            ->whereIn('id', $user->accessibleEntityIds())
+            ->where('entity_pays_management_fee', true)
+            ->pluck('id');
+
+        foreach ($entityPayerIds as $entityId) {
             $designs = DesignFormat::query()
                 ->with(['set.entity', 'entity'])
                 ->where('entity_id', $entityId)
