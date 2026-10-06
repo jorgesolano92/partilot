@@ -424,7 +424,7 @@ return [
             '15_S' => 300,        // Sorteo Extraordinario 15€
             '15_S_ESPECIAL' => 750, // Sorteo Especial 15€
             '20_N' => 1000,       // Sorteo de Navidad
-            '20_B' => 400,        // Sorteo del Niño
+            '20_B' => 1000,       // Sorteo del Niño
             '20_V' => 400,        // Sorteo de Vacaciones
         ],
         'cantidad_premios' => 1
@@ -450,7 +450,7 @@ return [
         'cantidad_premios' => 1
     ],
 
-    // 3 ÚLTIMAS CIFRAS DEL SEGUNDO PREMIO (Solo 15€ Especial)
+    // 3 ÚLTIMAS CIFRAS DEL SEGUNDO PREMIO (Niño y Vacaciones)
     [
         'nombre_categoria' => '3 Últimas Cifras del Segundo Premio',
         'key_categoria' => 'tresUltimasCifrasSegundoPremio',
@@ -462,10 +462,10 @@ return [
             '6_X' => 0,           // NO existe
             '12_S' => 0,          // NO existe
             '15_S' => 0,          // NO existe
-            '15_S_ESPECIAL' => 1000, // Solo Sorteo Especial 15€
+            '15_S_ESPECIAL' => 0, // NO existe
             '20_N' => 0,          // NO existe
-            '20_B' => 0,          // NO existe
-            '20_V' => 0,          // NO existe
+            '20_B' => 1000,       // Sorteo del Niño
+            '20_V' => 1000,       // Sorteo de Vacaciones
         ],
         'cantidad_premios' => 1
     ],
