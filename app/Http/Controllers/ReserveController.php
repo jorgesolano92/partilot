@@ -281,9 +281,11 @@ class ReserveController extends Controller
     {
         $validated = $request->validate([
             'reservation_numbers' => 'required|array|min:1',
-            'reservation_numbers.*' => 'required|string|max:10',
+            'reservation_numbers.*' => ['required', 'string', 'regex:/^\d{1,5}$/'],
             'reservation_amount' => 'required|numeric|min:0',
             'reservation_tickets' => 'required|integer|min:1',
+        ], [
+            'reservation_numbers.*.regex' => 'Cada número de la reserva debe tener como máximo 5 dígitos y solo números.',
         ]);
         $entityId = $request->session()->get('selected_entity_id');
         $lotteryId = $request->session()->get('selected_lottery_id');

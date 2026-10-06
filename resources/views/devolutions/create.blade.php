@@ -3382,6 +3382,8 @@ $(document).ready(function() {
                     $('#vendedor-settlement-multiplo-hint').text(vendedorSettlementPrecios.length
                         ? ' (' + vendedorSettlementPrecios.map(p => p.toFixed(2) + '€').join(', ') + ' cada una)'
                         : '');
+                    const pasoSettlement = pasoImporteSettlementVendedor(vendedorSettlementPrecios);
+                    $('.vendedor-settlement-payment-input').attr({ step: pasoSettlement, min: 0, placeholder: pasoSettlement });
                     
                     $('#vendedor-settlement-total-participations').text(summary.total_participations);
                     $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '€');
@@ -3411,6 +3413,14 @@ $(document).ready(function() {
 
     let vendedorSettlementPrecios = [];
     let vendedorSettlementTotalPagado = 0;
+
+    // Paso de los inputs de pago: precio de la participación (o el máximo común divisor si hay varios precios).
+    function pasoImporteSettlementVendedor(precios) {
+        const cents = precios.map(p => Math.round(p * 100)).filter(c => c > 0);
+        if (!cents.length) return '0.01';
+        const mcd = (a, b) => b ? mcd(b, a % b) : a;
+        return (cents.reduce(mcd) / 100).toFixed(2);
+    }
 
     // Motivo por el que el importe no es válido (supera lo pendiente o fracciona participaciones), o null.
     function motivoImporteSettlementVendedorInvalido(totalPagarAhora, pendiente) {

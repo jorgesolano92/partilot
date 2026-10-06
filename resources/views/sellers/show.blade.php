@@ -2584,6 +2584,8 @@ function initDatatable()
                       $('#settlement-multiplo-hint').text(settlementPrecios.length
                           ? ' (' + settlementPrecios.map(p => p.toFixed(2) + '€').join(', ') + ' cada una)'
                           : '');
+                      const pasoSettlement = pasoImporteSettlement(settlementPrecios);
+                      $('.settlement-payment-input').attr({ step: pasoSettlement, min: 0, placeholder: pasoSettlement });
                       const pendingAmount = parseFloat(summary.pending_amount) || 0;
                       const liquidatedParticipations = parseFloat(summary.liquidated_participations) || 0;
                       const pendingParticipations = parseFloat(summary.pending_participations) || 0;
@@ -2617,6 +2619,14 @@ function initDatatable()
 
       let settlementPrecios = [];
       let settlementTotalPagado = 0;
+
+      // Paso de los inputs de pago: precio de la participación (o el máximo común divisor si hay varios precios).
+      function pasoImporteSettlement(precios) {
+          const cents = precios.map(p => Math.round(p * 100)).filter(c => c > 0);
+          if (!cents.length) return '0.01';
+          const mcd = (a, b) => b ? mcd(b, a % b) : a;
+          return (cents.reduce(mcd) / 100).toFixed(2);
+      }
 
       // Motivo por el que el importe no es válido (supera lo pendiente o fracciona participaciones), o null.
       function motivoImporteSettlementInvalido(totalPagarAhora, pendiente) {

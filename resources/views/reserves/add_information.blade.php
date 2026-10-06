@@ -241,7 +241,7 @@
                                                             <div class="form-group mt-2 mb-3">
                                                                 <label class="label-control">Número</label>
                                                                 <div class="input-group input-group-merge group-form">
-                                                                    <input class="form-control reservation-number" type="text" name="reservation_numbers[]" placeholder="Número" style="border-radius: 30px 0 0 30px;" value="{{ $num }}" required>
+                                                                    <input class="form-control reservation-number" type="text" name="reservation_numbers[]" inputmode="numeric" pattern="[0-9]{1,5}" maxlength="5" title="Hasta 5 dígitos, solo números" placeholder="Número" style="border-radius: 30px 0 0 30px;" value="{{ $num }}" required>
                                                                     <div class="input-group-text remove-number" style="border-radius: 0 30px 30px 0; cursor:pointer;">
                                                                         <i class="ri-close-line"></i>
                                                                     </div>
@@ -254,7 +254,7 @@
                                                             <div class="form-group mt-2 mb-3">
                                                                 <label class="label-control">Número</label>
                                                                 <div class="input-group input-group-merge group-form">
-                                                                    <input class="form-control reservation-number" type="text" name="reservation_numbers[]" placeholder="Número" style="border-radius: 30px 0 0 30px;" required>
+                                                                    <input class="form-control reservation-number" type="text" name="reservation_numbers[]" inputmode="numeric" pattern="[0-9]{1,5}" maxlength="5" title="Hasta 5 dígitos, solo números" placeholder="Número" style="border-radius: 30px 0 0 30px;" required>
                                                                     <div class="input-group-text remove-number" style="border-radius: 0 30px 30px 0; cursor:pointer;">
                                                                         <i class="ri-close-line"></i>
                                                                     </div>
@@ -263,6 +263,9 @@
                                                         </div>
                                                     @endif
                                                 </div>  
+                                                @if($errors->has('reservation_numbers.*'))
+                                                    <div class="text-danger small">{{ $errors->first('reservation_numbers.*') }}</div>
+                                                @endif
 
                                             </div>
 
@@ -370,7 +373,7 @@ $('.add-number').click(function (e) {
         <div class=\"form-group mt-2 mb-3\">
             <label class=\"label-control\">Número</label>
             <div class=\"input-group input-group-merge group-form\">
-                <input class=\"form-control reservation-number\" type=\"text\" name=\"reservation_numbers[]\" placeholder=\"Número\" style=\"border-radius: 30px 0 0 30px;\" required>
+                <input class=\"form-control reservation-number\" type=\"text\" name=\"reservation_numbers[]\" inputmode=\"numeric\" pattern=\"[0-9]{1,5}\" maxlength=\"5\" title=\"Hasta 5 dígitos, solo números\" placeholder=\"Número\" style=\"border-radius: 30px 0 0 30px;\" required>
                 <div class=\"input-group-text remove-number\" style=\"border-radius: 0 30px 30px 0; cursor:pointer;\"><i class=\"ri-close-line\"></i></div>
             </div>
         </div>
@@ -387,6 +390,8 @@ $('.reservation-number').on('input', function() {
 });
 
 $(document).on('input', '.reservation-number', function() {
+    const limpio = this.value.replace(/\D/g, '').slice(0, 5);
+    if (this.value !== limpio) this.value = limpio;
     calculateTotal();
 });
 
