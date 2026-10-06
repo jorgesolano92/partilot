@@ -2,9 +2,9 @@
 
 @section('content')
     <p>Hola {{ $user->name }},</p>
-    <p>Se ha creado su cuenta de gestor en Partilot ({{ $contextLabel }}).</p>
+    <p>Se ha creado su cuenta en Partilot ({{ $contextLabel }}).</p>
     <p><strong>Usuario:</strong> {{ $user->email }}</p>
-    <p><strong>Contraseña provisional:</strong> {{ $plainPassword }}</p>
-    <p>Por seguridad, inicie sesión y cambie esta contraseña lo antes posible.</p>
-    <p><a href="{{ url('/login') }}">Acceder al panel</a></p>
+    <p>Para empezar, cree su contraseña desde este enlace personal. Solo se puede usar una vez y caduca en {{ $expiresInDays }} {{ $expiresInDays === 1 ? 'día' : 'días' }}.</p>
+    <p><a href="{{ $setPasswordUrl }}">Crear mi contraseña</a></p>
+    <p>Si el enlace ha caducado, use «¿Olvidaste tu contraseña?» en la pantalla de acceso con este mismo email.</p>
 @endsection

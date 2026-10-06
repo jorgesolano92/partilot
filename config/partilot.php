@@ -22,4 +22,11 @@ return [
     |--------------------------------------------------------------------------
     */
     'transfer_collection_verify_hours' => (int) env('PARTILOT_TRANSFER_COLLECTION_VERIFY_HOURS', 48),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Web app (vendedores y usuarios)
+    |--------------------------------------------------------------------------
+    */
+    'webapp_url' => rtrim((string) env('PARTILOT_WEBAPP_URL', 'https://partilot.es/panel'), '/'),
 ];

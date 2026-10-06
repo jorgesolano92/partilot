@@ -803,12 +803,11 @@ class EntityController extends Controller
                         messageType: 'entity_manager_invitation',
                         templateKey: null,
                         mailClass: EntityManagerInvitationMail::class,
-                        mailPayload: array_filter([
+                        mailPayload: [
                             'entity_id' => $entity->id,
                             'user_id' => $user->id,
                             'manager_id' => $manager->id,
-                            'plain_password' => $managerPlainPassword,
-                        ]),
+                        ],
                         context: ['entity_id' => $entity->id],
                     );
                 }

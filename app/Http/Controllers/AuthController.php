@@ -201,7 +201,6 @@ class AuthController extends Controller
             return redirect()->route('entity-manager.legacy-password.show');
         }
 
-        $request->session()->forget('provisional_password_skipped');
         if ($user->mustChangeProvisionalPassword()) {
             return redirect()->route('provisional-password.show');
         }
@@ -306,26 +305,12 @@ class AuthController extends Controller
         $user->must_change_password = false;
         $user->save();
 
-        $request->session()->forget('provisional_password_skipped');
         PanelAuthContext::clearIntended($request);
 
         $user = $user->fresh();
         app(PanelLegalAcceptanceService::class)->activatePendingAdministrationIfReady($user);
 
         return PanelAuthContext::redirectHome($user, 'success', 'Contraseña actualizada correctamente.');
-    }
-
-    public function skipProvisionalPassword(Request $request)
-    {
-        $user = Auth::user();
-        if (! $user || ! $user->mustChangeProvisionalPassword()) {
-            return PanelAuthContext::redirectHome($user);
-        }
-
-        $request->session()->put('provisional_password_skipped', true);
-        PanelAuthContext::clearIntended($request);
-
-        return PanelAuthContext::redirectHome($user);
     }
 
     /**

@@ -112,6 +112,10 @@ Route::middleware('guest')->group(function () {
 
 Route::get('panel/acceso/{token}', [PanelMagicLinkController::class, 'show'])->name('panel.access');
 Route::post('panel/acceso/{token}', [PanelMagicLinkController::class, 'update'])->name('panel.access.submit');
+Route::get('acceso/crear-contrasena/{token}', [\App\Http\Controllers\AccountSetPasswordController::class, 'show'])->name('account.set-password');
+Route::post('acceso/crear-contrasena/{token}', [\App\Http\Controllers\AccountSetPasswordController::class, 'update'])
+    ->middleware('throttle:10,1')
+    ->name('account.set-password.submit');
 
 // Ruta para crear usuario administrador por defecto (solo en desarrollo)
 Route::get('create-admin', [AuthController::class, 'createDefaultAdmin']);
@@ -190,7 +194,7 @@ Route::get('/design/external/thank-you', [\App\Http\Controllers\DesignController
 Route::get('/design/external/file/{id}/download', [\App\Http\Controllers\DesignController::class, 'externalDownloadFileSession'])->name('design.external.downloadFile');
 
 // Rutas protegidas por autenticación (cuenta panel entidad: solo lectura vía entity_panel.readonly)
-Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_contract', 'panel_legal_accepted', 'panel_account_active', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
+Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_contract', 'panel_legal_accepted', 'panel_account_active', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'provisional_password.changed', 'print_shop.scope'])->group(function () {
 
     Route::get('/contrato-administracion/pendiente', [AdministrationContractController::class, 'pending'])->name('administration-contract.pending');
     Route::post('/contrato-administracion/reenviar', [AdministrationContractController::class, 'resend'])->name('administration-contract.resend');
@@ -229,7 +233,6 @@ Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_con
 
     Route::get('panel/contrasena-provisional', [AuthController::class, 'showProvisionalPassword'])->name('provisional-password.show');
     Route::post('panel/contrasena-provisional', [AuthController::class, 'updateProvisionalPassword'])->name('provisional-password.update');
-    Route::post('panel/contrasena-provisional/omitir', [AuthController::class, 'skipProvisionalPassword'])->name('provisional-password.skip');
 
     Route::get('cuenta/mis-datos', [AccountController::class, 'myData'])->name('account.my-data');
     Route::post('cuenta/contrasena', [AccountController::class, 'updatePassword'])->name('account.update-password');

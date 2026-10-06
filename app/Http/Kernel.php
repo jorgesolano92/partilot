@@ -72,6 +72,7 @@ class Kernel extends HttpKernel
         'active_entity.context' => \App\Http\Middleware\EnsureActiveEntityContext::class,
         'entity_panel.readonly' => \App\Http\Middleware\EntityPanelReadOnly::class,
         'entity_manager.legacy_password' => \App\Http\Middleware\RedirectIfEntityManagerLegacyPassword::class,
+        'provisional_password.changed' => \App\Http\Middleware\RedirectIfProvisionalPassword::class,
         'print_shop.scope' => \App\Http\Middleware\EnsurePrintShopPanelScope::class,
         'administration_saas_contract' => \App\Http\Middleware\EnsureAdministrationSaasContractSigned::class,
         'entity_framework_contract' => \App\Http\Middleware\EnsureEntityFrameworkContractSigned::class,

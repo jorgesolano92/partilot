@@ -417,16 +417,15 @@ class CommunicationEmailService
                 $manager->setRelation('entity', $entity);
             }
 
-            $plainPassword = (string) ($storedSecrets['plain_password'] ?? $mailPayload['plain_password'] ?? '');
-            if ($plainPassword === '') {
-                if ($forPreview) {
-                    $plainPassword = '[contraseña no disponible en el historial]';
-                } elseif ($user->must_change_password) {
-                    $plainPassword = app(ProvisionalPasswordService::class)->assignToUser($user);
-                }
+            // Cuenta nueva: enlace de un solo uso para crear la contraseña (nunca contraseña en claro).
+            $setPasswordUrl = '';
+            if ($user->exists && $user->must_change_password) {
+                $setPasswordUrl = $forPreview
+                    ? route('account.set-password', ['token' => '********'])
+                    : route('account.set-password', ['token' => \App\Models\PanelAccessToken::issueForUser($user)]);
             }
 
-            return new \App\Mail\EntityManagerInvitationMail($entity, $user, $manager, $plainPassword);
+            return new \App\Mail\EntityManagerInvitationMail($entity, $user, $manager, $setPasswordUrl);
         }
 
         if ($mailClass === \App\Mail\EntityManagerPreregisterInviteMail::class) {
@@ -634,10 +633,6 @@ class CommunicationEmailService
 
         if ($mailable instanceof \App\Mail\EntityWelcomeMail && $mailable->plainPassword !== '') {
             $secrets['plain_password'] = $mailable->plainPassword;
-        }
-
-        if ($mailable instanceof \App\Mail\EntityManagerInvitationMail && $mailable->provisionalPassword !== '') {
-            $secrets['plain_password'] = $mailable->provisionalPassword;
         }
 
         if ($mailable instanceof \App\Mail\AdministrationWelcomeMail && $mailable->magicLinkUrl !== '') {

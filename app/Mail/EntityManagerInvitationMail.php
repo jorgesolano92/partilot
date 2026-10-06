@@ -22,7 +22,7 @@ class EntityManagerInvitationMail extends Mailable
         public Entity $entity,
         public User $managerUser,
         public Manager $manager,
-        public string $provisionalPassword = '',
+        public string $setPasswordUrl = '',
     ) {
         $this->entity->loadMissing('administration');
         $this->acceptUrl = route('entity-managers.confirm-accept', ['token' => $manager->confirmation_token]);

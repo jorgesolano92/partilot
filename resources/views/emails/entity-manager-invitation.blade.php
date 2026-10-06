@@ -25,10 +25,9 @@
 </ul>
 @endif
 <div class="info-box">
-    @if(!empty($provisionalPassword))
+    @if(!empty($setPasswordUrl))
         <p><strong>Email de acceso al panel:</strong> {{ $managerUser->email }}</p>
-        <p><strong>Contraseña provisional:</strong> {{ $provisionalPassword }}</p>
-        <p>Esta contraseña es temporal. Al iniciar sesión podrá cambiarla o posponer el cambio.</p>
+        <p>Cree su contraseña desde este enlace personal (de un solo uso): <a href="{{ $setPasswordUrl }}">Crear mi contraseña</a></p>
         <p>Además, debe <strong>aceptar o rechazar</strong> la invitación como gestor usando los botones de abajo.</p>
     @else
         <p>Para activar tu acceso como gestor, abre el enlace y <strong>confirma o rechaza</strong> la solicitud. No necesitas definir una nueva contraseña: usa la de tu cuenta existente.</p>

@@ -15,13 +15,14 @@ class ManagerProvisionalAccessMail extends Mailable
 
     public function __construct(
         public User $user,
-        public string $plainPassword,
+        public string $setPasswordUrl,
         public string $contextLabel,
+        public int $expiresInDays,
     ) {}
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Acceso a Partilot — contraseña provisional');
+        return new Envelope(subject: 'Acceso a Partilot — crea tu contraseña');
     }
 
     public function content(): Content

@@ -16,7 +16,7 @@
     </div>
     <div class="card">
         <div class="card-body p-4">
-            <p class="text-muted small">Su cuenta usa una <strong>contraseña provisional</strong> enviada por correo. Por seguridad, le recomendamos establecer una nueva contraseña (mínimo 8 caracteres). También puede continuar y cambiarla más tarde.</p>
+            <p class="text-muted small">Su cuenta usa una <strong>contraseña provisional</strong> enviada por correo. Por seguridad, debe establecer una nueva contraseña (mínimo 8 caracteres) antes de continuar.</p>
             @if ($errors->any())
                 <div class="alert alert-danger">
                     <ul class="mb-0">
@@ -44,11 +44,9 @@
                     <button type="submit" class="btn btn-dark" style="border-radius: 30px;">Cambiar contraseña</button>
                 </div>
             </form>
-            <form method="post" action="{{ route('provisional-password.skip') }}" class="mt-3">
+            <form method="post" action="{{ route('logout') }}" class="mt-3 text-center">
                 @csrf
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-outline-secondary" style="border-radius: 30px;">Continuar sin cambiar ahora</button>
-                </div>
+                <button type="submit" class="btn btn-link text-muted small">Cerrar sesión</button>
             </form>
         </div>
     </div>
