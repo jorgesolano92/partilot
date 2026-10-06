@@ -1226,8 +1226,12 @@ class ParticipationController extends Controller
             $importeJugado = (float) ($set->played_amount ?? 0);
             $donativo = (float) ($set->donation_amount ?? 0);
             $importeTotal = round($importeJugado + $donativo, 2);
+            // sale_date/sale_time se guardan en hora local de la aplicación: se envían con su desfase real.
             $saleDateTime = $p->sale_date
-                ? $p->sale_date->format('Y-m-d') . 'T' . ($p->sale_time ? (is_object($p->sale_time) ? $p->sale_time->format('H:i:s') : substr((string) $p->sale_time, 0, 8)) : '00:00:00') . '.000000Z'
+                ? \Carbon\Carbon::parse(
+                    $p->sale_date->format('Y-m-d') . ' ' . ($p->sale_time ? (is_object($p->sale_time) ? $p->sale_time->format('H:i:s') : substr((string) $p->sale_time, 0, 8)) : '00:00:00'),
+                    config('app.timezone')
+                )->toIso8601String()
                 : $p->updated_at->toIso8601String();
 
             // Obtener snapshot_path del design format
