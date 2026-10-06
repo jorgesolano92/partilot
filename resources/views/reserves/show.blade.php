@@ -73,6 +73,14 @@
                                 </h4>
                                 <small><i>Información del sorteo asociado</i></small>
                                 <br>
+                                @php $reserveLottery = $reserve->lottery ?? null; @endphp
+                                <div class="d-flex align-items-center gap-3 mt-3 mb-2">
+                                    @include('partials.lottery_image', ['lotteryImageModel' => $reserveLottery, 'lotteryImageSize' => 96])
+                                    <div>
+                                        <div class="fw-semibold">{{ $reserveLottery->name ?? 'Sin sorteo' }}</div>
+                                        <small class="text-muted">{{ $reserveLottery->description ?? '' }}</small>
+                                    </div>
+                                </div>
                                 <div class="row show-content">
                                     <div class="col-3 offset-2">
                                         <div class="form-group mt-2 mb-3">
@@ -169,6 +177,25 @@
                                                 <label class="label-control">Cantidad de décimos</label>
                                                 <div class="input-group input-group-merge group-form">
                                                     <input class="form-control" type="number" value="{{$reserve->reservation_tickets}}" readonly style="border-radius: 30px;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="form-group mt-2 mb-3">
+                                                <label class="label-control">Fecha límite</label>
+                                                <div class="input-group input-group-merge group-form">
+                                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+                                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
+                                                    </div>
+                                                    <input class="form-control" readonly type="text" value="{{ $reserve->expiration_date ? \Carbon\Carbon::parse($reserve->expiration_date)->format('d/m/Y') : 'No definida' }}" style="border-radius: 0 30px 30px 0;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="form-group mt-2 mb-3">
+                                                <label class="label-control">Total</label>
+                                                <div class="input-group input-group-merge group-form">
+                                                    <input class="form-control" type="text" value="{{ number_format((float)($reserve->total_amount ?? 0), 2, ',', '.') }} €" readonly style="border-radius: 30px;">
                                                 </div>
                                             </div>
                                         </div>

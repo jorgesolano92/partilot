@@ -42,6 +42,9 @@
                     @if(session('error'))
                         <div class="alert alert-danger">{{ session('error') }}</div>
                     @endif
+                    @if(session('warning'))
+                        <div class="alert alert-warning">{{ session('warning') }}</div>
+                    @endif
 
             		<h4 class="header-title">
 
@@ -142,9 +145,12 @@
 	                    				if ($statusValue === null || $statusValue === -1) {
 	                    					$statusText = 'Pendiente';
 	                    					$statusClass = 'bg-secondary';
-	                    				} elseif ($statusValue == 1) {
+	                    				} elseif ((int) $statusValue === 1) {
 	                    					$statusText = 'Activo';
 	                    					$statusClass = 'bg-success';
+	                    				} elseif ((int) $statusValue === 3) {
+	                    					$statusText = 'Bloqueado';
+	                    					$statusClass = 'bg-warning';
 	                    				} else {
 	                    					$statusText = 'Inactivo';
 	                    					$statusClass = 'bg-danger';
@@ -188,15 +194,11 @@
 			                    				<div class="row">
 			                    					
 				                    				<div class="col-1">
-				                    						
-					                    				<div class="photo-preview-3" style="background-image: url({{url('images/'.$administration->image)}});">
-					                    					
-					                    					@if($administration->image)
-
-					                    					@else
+				                    						@php $adminLogoUrl = $administration->logoPublicUrl(); @endphp
+					                    				<div class="photo-preview-3 logo-round"@if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;"@endif>
+					                    					@unless($adminLogoUrl)
 					                    						<i class="ri-account-circle-fill"></i>
-					                    					@endif
-
+					                    					@endunless
 					                    				</div>
 					                    				
 					                    				<div style="clear: both;"></div>
@@ -206,7 +208,7 @@
 
 			                    						<h4 class="mt-3 mb-0">{{$administration->name ?? 'Sin nombre'}}</h4>
 
-			                    						<small>@if($administration->manager?->user?->isPanelAccount())Acceso al panel @elseif($administration->manager?->user){{ $administration->manager?->user?->name }} {{ $administration->manager?->user?->last_name }}@else Sin gestor principal @endif</small> <br>
+			                    						<small>@if($administration->manager?->hasContactData()){{ $administration->manager->resolvedContactFullName() }}@else Sin gestor principal @endif</small> <br>
 			                    						
 			                    					</div>
 			                    				</div>
@@ -220,7 +222,7 @@
 			                    			<div>
 			                    				<div class="row">
 			                    					
-			                    					<div class="col-4">
+			                    					<div class="col-3">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nombre comercial</label>
 
@@ -234,7 +236,7 @@
 							                                </div>
 						                    			</div>
 			                    					</div>
-			                    					<div class="col-3">
+			                    					<div class="col-2">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nº Receptor</label>
 
@@ -244,11 +246,24 @@
 							                                        <img src="{{url('assets/form-groups/admin/2.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{$administration->receiving ?? ''}}" class="form-control" type="number" placeholder="000000" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{$administration->receiving ?? ''}}" class="form-control" type="text" placeholder="00000" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 						                    		</div>
-			                    					
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-2 mb-3">
+			                    							<label class="label-control">Nº Administración</label>
+
+							                    			<div class="input-group input-group-merge group-form">
+
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/2.svg')}}" alt="">
+							                                    </div>
+
+							                                    <input readonly="" value="{{$administration->admin_number ?? ''}}" class="form-control" type="text" placeholder="—" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+						                    		</div>
 			                    					<div class="col-5">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nombre Autónomo / Sociedad</label>
@@ -319,12 +334,12 @@
 							                                        <img src="{{url('assets/form-groups/admin/7.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{$administration->postal_code ?? ''}}" class="form-control" type="number" placeholder="C.P." style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{$administration->postal_code ?? ''}}" class="form-control" type="text" placeholder="C.P." style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
 
-			                    					<div class="col-4">
+			                    					<div class="col-5">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Dirección</label>
 
@@ -354,7 +369,7 @@
 						                    			</div>
 			                    					</div>
 
-			                    					<div class="col-4">
+			                    					<div class="col-3">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Teléfono</label>
 
@@ -375,7 +390,7 @@
 			                    				<div class="row mt-3">
 			                    					<div class="col-12">
 			                    						<h4 class="mb-0 mt-1">Acceso al panel web</h4>
-			                    						<small class="text-muted">Usuario fijo (no se puede cambiar). El correo con el enlace se envía al email de contacto de la administración.</small>
+			                    						<small class="text-muted">Formato: Nº Receptor + 3 últimos del Nº Administración (si no hay nº administración, solo el receptor). Si se completa el Nº Administración después del alta, el usuario se regenera al guardar. El correo con el enlace se envía al email de contacto de la administración.</small>
 			                    					</div>
 			                    					<div class="col-md-4 mt-2">
 			                    						<label class="label-control">Usuario de acceso</label>
@@ -387,12 +402,47 @@
 			                    						</div>
 			                    					</div>
 			                    					<div class="col-md-8 mt-2 d-flex align-items-end">
-			                    						<form method="post" action="{{ route('administrations.send-panel-access', $administration) }}" class="d-inline" onsubmit="return confirm('¿Enviar correo con usuario y enlace para establecer contraseña?');">
+			                    						@php
+			                    							$panelAccessEmail = trim((string) ($administration->email ?? ''));
+			                    							$panelAccessEmailValid = $panelAccessEmail !== '' && filter_var($panelAccessEmail, FILTER_VALIDATE_EMAIL);
+			                    						@endphp
+			                    						<button type="button"
+			                    							class="btn btn-dark"
+			                    							style="border-radius: 30px;"
+			                    							@if(! $panelAccessEmailValid) disabled title="La administración no tiene un email válido" @endif
+			                    							data-bs-toggle="modal"
+			                    							data-bs-target="#partilot-send-access-modal">
+			                    							<i class="ri-mail-send-line"></i> Enviar correo de acceso al panel
+			                    						</button>
+			                    						@unless($panelAccessEmailValid)
+			                    							<small class="text-danger d-block mt-1">No se puede enviar: el email de la administración está vacío o no es válido.</small>
+			                    						@endunless
+			                    						<form method="post" action="{{ route('administrations.send-panel-access', $administration) }}" class="d-none" id="send-panel-access-form">
 			                    							@csrf
-			                    							<button type="submit" class="btn btn-dark" style="border-radius: 30px;">
-			                    								<i class="ri-mail-send-line"></i> Enviar correo de acceso al panel
-			                    							</button>
 			                    						</form>
+			                    						<div class="modal fade" id="partilot-send-access-modal" tabindex="-1" aria-hidden="true">
+			                    							<div class="modal-dialog modal-dialog-centered">
+			                    								<div class="modal-content" style="border-radius: 16px;">
+			                    									<div class="modal-header border-0">
+			                    										<h5 class="modal-title">Confirmar envío de acceso</h5>
+			                    										<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+			                    									</div>
+			                    									<div class="modal-body">
+			                    										<p class="mb-2">Se enviará el correo de acceso al panel a:</p>
+			                    										<p class="fw-bold mb-0">{{ $panelAccessEmail ?: '—' }}</p>
+			                    									</div>
+			                    									<div class="modal-footer border-0">
+			                    										<button type="button" class="btn btn-light" data-bs-dismiss="modal" style="border-radius: 30px;">Cancelar</button>
+			                    										<button type="button" class="btn btn-dark" id="btn-confirm-send-panel-access" style="border-radius: 30px;">Confirmar envío</button>
+			                    									</div>
+			                    								</div>
+			                    							</div>
+			                    						</div>
+			                    						<script>
+			                    						document.getElementById('btn-confirm-send-panel-access')?.addEventListener('click', function () {
+			                    							document.getElementById('send-panel-access-form')?.submit();
+			                    						});
+			                    						</script>
 			                    						<a href="{{ route('administrations.edit', $administration->id) }}" class="btn btn-light ms-2" style="border: 1px solid silver; border-radius: 30px;">Cambiar contraseña del panel</a>
 			                    					</div>
 			                    				</div>
@@ -466,14 +516,20 @@
 
 			                    			</div>
 
+			                    			@include('admins.partials.billing_payment_card')
+
+			                    			@if(auth()->user()?->isSuperAdmin())
+			                    				@include('admins.partials.contract_card')
+			                    			@endif
+
 			                    		</div>
                     				</div>
 
                     				<div class="tab-pane fade" id="datos_contacto">
                     					<div class="form-card bs" style="min-height: 658px;">
-			                    			@php $adminPrimaryManagerUser = $administration->manager?->user; @endphp
+			                    			@php $adminPrimaryManager = $administration->manager; @endphp
 
-			                    			@if(!$adminPrimaryManagerUser)
+			                    			@if(!$adminPrimaryManager || !$adminPrimaryManager->hasContactData())
 			                    				<div class="alert alert-warning mb-3">No hay gestor principal asignado o el usuario fue eliminado. Use <strong>Editar</strong> arriba para registrar un gestor.</div>
 			                    			@endif
 
@@ -484,7 +540,7 @@
 			                    				<img src="{{url('assets/form-groups/edit.svg')}}" alt="">
 			                    				Editar</a>
 			                    			</h4>
-			                    			<small><i>Todos los campos son obligatorios</i></small>
+			                    			<small><i>Persona de contacto operativo de la plataforma. El contrato SaaS se firma en nombre de la administración titular (pestaña Datos administración).</i></small>
 			                    			<div style="clear: both;"></div>
 
 			                    			<div class="form-group mt-2 mb-3 admin-box">
@@ -494,8 +550,8 @@
 			                    						
 					                    				<div class="photo-preview-2">
 					                    					
-					                    					@if($adminPrimaryManagerUser && $adminPrimaryManagerUser->image)
-					                    						<img src="{{ url('manager/'.$adminPrimaryManagerUser->image) }}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
+					                    					@if($adminPrimaryManager->resolvedContactImage())
+					                    						<img src="{{ url('manager/'.$adminPrimaryManager->resolvedContactImage()) }}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
 					                    					@else
 					                    						<i class="ri-account-circle-fill"></i>
 					                    					@endif
@@ -509,7 +565,7 @@
 
 			                    						<h4 class="mt-0 mb-0">{{$administration->name ?? 'Sin nombre'}}</h4>
 
-			                    						<small>{{ $adminPrimaryManagerUser?->name ?? '' }} {{ $adminPrimaryManagerUser?->last_name ?? '' }}</small> <br>
+			                    						<small>{{ $adminPrimaryManager->resolvedContactFullName() }}</small> <br>
 
 			                    						<i style="position: relative; top: 3px; font-size: 16px; color: #333" class="ri-computer-line"></i> {{$administration->receiving ?? ''}}
 			                    						
@@ -552,7 +608,7 @@
 							                                      	<img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $adminPrimaryManagerUser?->name ?? '' }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $adminPrimaryManager->contactField('name') ?? '' }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -566,7 +622,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $adminPrimaryManagerUser?->last_name ?? '' }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $adminPrimaryManager->contactField('last_name') ?? '' }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -581,7 +637,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $adminPrimaryManagerUser?->last_name2 ?? '' }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $adminPrimaryManager->contactField('last_name2') ?? '' }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -596,7 +652,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $adminPrimaryManagerUser?->nif_cif ?? '' }}" class="form-control" type="text" placeholder="12345678A" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $adminPrimaryManager->contactField('nif_cif') ?? '' }}" class="form-control" type="text" placeholder="12345678A" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -611,7 +667,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $adminPrimaryManagerUser?->birthday?->format('Y-m-d') ?? '' }}" class="form-control" type="text" placeholder="1985-03-15" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $adminPrimaryManager->resolvedContactBirthdayInput() }}" class="form-control" type="text" placeholder="1985-03-15" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -626,7 +682,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/9.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $adminPrimaryManagerUser?->email ?? '' }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $adminPrimaryManager->resolvedContactEmail() }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -641,7 +697,7 @@
 							                                        <img src="{{url('assets/form-groups/admin/10.svg')}}" alt="">
 							                                    </div>
 
-							                                    <input readonly="" value="{{ $adminPrimaryManagerUser?->phone ?? '' }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
+							                                    <input readonly="" value="{{ $adminPrimaryManager->contactField('phone') ?? '' }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
@@ -664,7 +720,7 @@
 
 						                    			<div class="input-group input-group-merge group-form" style="border: none">
 
-						                                    <textarea readonly="" class="form-control" placeholder="Añade tu comentario" name="" id="" rows="6">{{ $adminPrimaryManagerUser?->comment ?? '' }}</textarea>
+						                                    <textarea readonly="" class="form-control" placeholder="Añade tu comentario" name="" id="" rows="6">{{ $adminPrimaryManager->contactField('comment') ?? '' }}</textarea>
 						                                </div>
 					                    			</div>
 
@@ -675,7 +731,6 @@
 			                    				</div>
 
 			                    			</div>
-			                    			
 
 			                    		</div>
                     				</div>
@@ -813,8 +868,9 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.location.hash === '#configuracion_api') {
-        var tabEl = document.querySelector('[data-bs-target="#configuracion_api"]');
+    const hash = window.location.hash;
+    if (hash === '#configuracion_api' || hash === '#datos_contacto') {
+        var tabEl = document.querySelector('[data-bs-target="' + hash + '"]');
         if (tabEl) {
             bootstrap.Tab.getOrCreateInstance(tabEl).show();
         }
@@ -870,10 +926,20 @@ document.getElementById('admin-toggle-status') && document.getElementById('admin
 			badge.textContent = data.status_text;
 			badge.className = 'badge badge-lg bg-' + data.status_class + ' mt-2';
 		} else {
-			alert('Error al cambiar el estado');
+			if (typeof window.partilotNotify === 'function') {
+				window.partilotNotify('error', 'No se pudo cambiar el estado', 'Error');
+			} else if (typeof PNotify !== 'undefined') {
+				new PNotify({ title: 'Error', text: 'No se pudo cambiar el estado', type: 'error', addclass: 'partilot-notify' });
+			}
 		}
 	})
-	.catch(function() { alert('Error al cambiar el estado'); })
+	.catch(function() {
+		if (typeof window.partilotNotify === 'function') {
+			window.partilotNotify('error', 'No se pudo cambiar el estado', 'Error');
+		} else if (typeof PNotify !== 'undefined') {
+			new PNotify({ title: 'Error', text: 'No se pudo cambiar el estado', type: 'error', addclass: 'partilot-notify' });
+		}
+	})
 	.finally(function() { btn.disabled = false; });
 });
 

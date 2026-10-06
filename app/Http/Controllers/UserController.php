@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Rules\ValidCalendarDate;
 use App\Models\Seller;
 use App\Models\Manager;
 use App\Http\Controllers\ParticipationController;
@@ -15,18 +16,32 @@ use Illuminate\Support\Facades\Log;
 class UserController extends Controller
 {
     /**
-     * Solo super_admin y administración pueden acceder al módulo de usuarios.
+     * Solo super_admin puede acceder al módulo de usuarios.
      */
     private function authorizeUsersModule(): void
     {
         $auth = auth()->user();
-        if (! $auth || ! ($auth->isSuperAdmin() || $auth->isAdministration())) {
-            abort(403, 'No autorizado.');
+        if (! $auth || ! $auth->isSuperAdmin()) {
+            abort(403, 'El módulo de usuarios solo está disponible para el superadministrador de Partilot.');
         }
+    }
+
+    private function existingEmailMessage(string $email): string
+    {
+        $existing = $email !== '' ? User::where('email', $email)->first() : null;
+        if ($existing && $existing->managers()->exists()) {
+            return 'Este usuario ya fue registrado automáticamente al dar de alta la entidad o administración como gestor. Revise su correo o solicite el reenvío de credenciales desde la ficha correspondiente.';
+        }
+        if ($existing && $existing->sellers()->exists()) {
+            return 'Este email ya pertenece a un vendedor registrado en Partilot.';
+        }
+
+        return 'Ya existe un usuario registrado con este email.';
     }
 
     /**
      * Perfil administración (no superadmin): solo usuarios de su red (gestores/vendedores).
+     * @deprecated La administración ya no accede al módulo de usuarios.
      */
     private function authorizeUserVisibleToAdministration(User $user): void
     {
@@ -45,7 +60,10 @@ class UserController extends Controller
     {
         $this->authorizeUsersModule();
 
-        $query = User::query()->whereNull('panel_account_type')->orderBy('name');
+        $query = User::query()
+            ->whereNull('panel_account_type')
+            ->excludingAdministrationContactRecords()
+            ->orderByDesc('created_at');
         $auth = auth()->user();
         if ($auth && $auth->isAdministration() && ! $auth->isSuperAdmin()) {
             $query->forAdministrationScopedViewer($auth);
@@ -75,12 +93,14 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument, 'unique:users'],
-            'birthday' => ['required', 'date', new \App\Rules\MinimumAge(18)],
+            'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument, new \App\Rules\UserNif],
+            'birthday' => ValidCalendarDate::birthday(),
             'email' => 'required|email|unique:users',
             'phone' => 'required|string|max:20',
             'password' => 'required|string|min:8',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ], [
+            'email.unique' => $this->existingEmailMessage((string) $request->input('email')),
         ]);
 
         try {
@@ -192,8 +212,8 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument, 'unique:users,nif_cif,' . $user->id],
-            'birthday' => ['required', 'date', new \App\Rules\MinimumAge(18)],
+            'nif_cif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument, new \App\Rules\UserNif($user->id)],
+            'birthday' => ValidCalendarDate::birthday(),
             'email' => 'required|email|unique:users,email,' . $user->id,
             'phone' => 'required|string|max:20',
             'password' => 'nullable|string|min:8',
@@ -304,21 +324,15 @@ class UserController extends Controller
     {
         $this->authorizeUsersModule();
 
-        $query = User::query()->whereNull('panel_account_type');
+        $query = User::query()
+            ->whereNull('panel_account_type')
+            ->excludingAdministrationContactRecords();
         $auth = auth()->user();
         if ($auth && $auth->isAdministration() && ! $auth->isSuperAdmin()) {
             $query->forAdministrationScopedViewer($auth);
         }
 
         // Aplicar filtros
-        if ($request->filled('province')) {
-            $query->where('province', $request->province);
-        }
-
-        if ($request->filled('city')) {
-            $query->where('city', $request->city);
-        }
-
         if ($request->filled('entity')) {
             // Filtrar por entidad a través de vendedores vinculados
             $query->whereHas('sellers', function($q) use ($request) {
@@ -331,18 +345,6 @@ class UserController extends Controller
         }
 
         return datatables($query)
-            ->addColumn('province', function($user) {
-                // Obtener provincia desde vendedores vinculados
-                $seller = $user->sellers()->first();
-                $entity = $seller?->getPrimaryEntity();
-                return $entity?->province ?? 'Sin provincia';
-            })
-            ->addColumn('city', function($user) {
-                // Obtener ciudad desde vendedores vinculados
-                $seller = $user->sellers()->first();
-                $entity = $seller?->getPrimaryEntity();
-                return $entity?->city ?? 'Sin localidad';
-            })
             ->addColumn('pending_amount', function($user) {
                 // Calcular importe pendiente (implementar lógica según necesidades)
                 return 0.00;

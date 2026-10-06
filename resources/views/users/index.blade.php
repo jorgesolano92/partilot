@@ -61,8 +61,6 @@
                                     <th>Usuario</th>
                                     <th>Email</th>
                                     <th>Teléfono</th>
-                                    <th>Provincia</th>
-                                    <th>Localidad</th>
                                     <th>Importe Pend.</th>
                                     <th>Estado</th>
                                     <th class="no-filter">Acciones</th>
@@ -77,8 +75,6 @@
                                         <td>{{ $user->name ?? 'N/A' }} {{ $user->last_name ?? '' }} {{ $user->last_name2 ?? '' }}</td>
                                         <td>{{ $user->email ?? 'N/A' }}</td>
                                         <td>{{ $user->phone ?? 'N/A' }}</td>
-                                        <td>N/A</td>
-                                        <td>N/A</td>
                                         <td>0,00€</td>
                                         <td>
                                             <span class="badge bg-{{ $user->status ? 'success' : 'danger' }}">

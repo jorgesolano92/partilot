@@ -55,6 +55,9 @@
                 </div>
             @endif
             <p class="small text-muted">Revise sus datos. Puede modificarlos, excepto <strong>DNI/NIF</strong> y <strong>email</strong>.</p>
+            @if(!empty($invitation))
+                @include('partials.role-invitation-legal', ['invitation' => $invitation])
+            @endif
             <form method="post" action="{{ route('entity-managers.confirm-accept.store', ['token' => $token]) }}">
                 @csrf
                 <div class="row">
@@ -120,7 +123,7 @@
                 <div class="mb-3 form-check">
                     <input type="checkbox" class="form-check-input" id="terms_accepted" name="terms_accepted" value="1" {{ old('terms_accepted') ? 'checked' : '' }} required>
                     <label class="form-check-label" for="terms_accepted">
-                        He leído y acepto las <a href="#" target="_blank" rel="noopener noreferrer">condiciones de uso</a>.
+                        He leído y acepto las <a href="{{ route('legal.terminos-y-condiciones') }}" target="_blank" rel="noopener">condiciones de uso</a>.
                     </label>
                 </div>
                 <div class="d-grid gap-2">

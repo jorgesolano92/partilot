@@ -58,7 +58,7 @@
                                         <b>Décimo</b><br>
                                         <label style="border-radius: 30px; width: 150px; background-color: #333;" class="btn btn-md btn-dark mt-2">
                                             <small>Subir Imágen</small>
-                                            <input type="file" id="imagenInput" name="image" style="display: none;" accept="image/*">
+                                            <input type="file" id="imagenInput" name="image" style="display: none;" accept="image/jpeg,image/png,image/gif,image/webp">
                                         </label>
                                         @if($lottery->image)
                                         <a href="#" class="btn btn-md mt-2" onclick="event.preventDefault(); document.getElementById('delete-image-form').submit();" style="border-radius: 30px; width: 150px; background-color: transparent; color: #333;"><small>Eliminar Imágen</small></a>
@@ -207,7 +207,7 @@
                                                 <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                     <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
                                                 </div>
-                                                <input class="form-control" type="date" id="deadline_date" name="deadline_date" value="{{ old('deadline_date', $lottery->deadline_date->format('Y-m-d')) }}" style="border-radius: 0 30px 30px 0;" max="">
+                                                <input class="form-control" type="date" id="deadline_date" name="deadline_date" value="{{ old('deadline_date', $lottery->deadline_date?->format('Y-m-d')) }}" style="border-radius: 0 30px 30px 0;" max="">
                                             </div>
                                         </div>
                                     </div>
@@ -219,8 +219,26 @@
                                                 <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                     <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
                                                 </div>
-                                                <input class="form-control" type="time" name="draw_time" value="{{ old('draw_time', $lottery->draw_time->format('H:i')) }}" style="border-radius: 0 30px 30px 0;">
+                                                <input class="form-control" type="time" name="deadline_time" value="{{ old('deadline_time', $lottery->deadline_time ? \Carbon\Carbon::parse($lottery->deadline_time)->format('H:i') : $lottery->deadlineTimeLabel()) }}" style="border-radius: 0 30px 30px 0;">
                                             </div>
+                                            @error('deadline_time')
+                                                <small class="text-danger">{{ $message }}</small>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="col-2">
+                                        <div class="form-group mt-2 mb-3">
+                                            <label class="label-control">Hora Sorteo</label>
+                                            <div class="input-group input-group-merge group-form">
+                                                <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+                                                    <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
+                                                </div>
+                                                <input class="form-control" type="time" name="draw_time" value="{{ old('draw_time', $lottery->draw_time ? \Carbon\Carbon::parse($lottery->draw_time)->format('H:i') : '') }}" style="border-radius: 0 30px 30px 0;">
+                                            </div>
+                                            @error('draw_time')
+                                                <small class="text-danger">{{ $message }}</small>
+                                            @enderror
                                         </div>
                                     </div>
                                 </div>
@@ -255,7 +273,6 @@
                                             </select>
                                         </div>
                                     </div> --}}
-                                </div>
                                 <br>
                             </div>
                         </div>
@@ -296,12 +313,13 @@
 <script>
     document.getElementById('imagenInput').addEventListener('change', function(event) {
         const archivo = event.target.files[0];
+        if (archivo && !partilotImageUpload.check(event.target, 2048)) return;
         if (archivo) {
             const lector = new FileReader();
             lector.onload = function(e) {
                 $('.photo-preview').css('background-image', 'url(' + e.target.result + ')');
                 // Guardar en localStorage para persistencia
-                localStorage.setItem('image_lottery_edit_{{ $lottery->id }}', e.target.result);
+                partilotImageUpload.store('image_lottery_edit_{{ $lottery->id }}', e.target.result);
             }
             lector.readAsDataURL(archivo);
         } else {

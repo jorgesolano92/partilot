@@ -46,6 +46,17 @@
         </div>
     @endif
 
+    @if(!empty($scrutinyBlocked))
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-warning" role="alert">
+                    <i class="ri-error-warning-line me-2"></i>
+                    {{ $scrutinyBlockedMessage }}
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="row">
         <div class="col-12">
             <div class="card">
@@ -78,7 +89,7 @@
 
                                                 <div style="width: 150px; height: 80px; border-radius: 8px; background-color: silver; float: left; margin-right: 20px;">
                                                     @if($lottery->image)
-                                                        <img src="{{ url('storage/' . $lottery->image) }}" alt="Sorteo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+                                                        <img src="{{ url('uploads/' . $lottery->image) }}" alt="Sorteo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
                                                     @endif
                                                 </div>
 
@@ -125,11 +136,16 @@
                                                                 $totalParticipations = $decimosInfo['total_participations'] ?? 0;
                                                                 $totalWinning += $totalParticipations;
                                                                 
-                                                                // Calcular premio total
-                                                                $totalDecimos = $decimosInfo['total_decimos'] ?? 0;
                                                                 $premioPorDecimo = $categoryResult['total_prize'];
-                                                                $premioTotal = $premioPorDecimo * $totalDecimos;
-                                                                $totalPrizeAmount += $premioTotal;
+                                                                $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
+                                                                foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                                                                    $importeJugado = $setInfo['importe_jugado'] ?? 0;
+                                                                    $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
+                                                                    if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
+                                                                        $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
+                                                                        $totalPrizeAmount += $premioPorParticipacion * $participacionesVendidas;
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                         
@@ -212,9 +228,16 @@
                                                                 if (isset($scrutinyResultsByEntity[$entity->id])) {
                                                                     foreach ($scrutinyResultsByEntity[$entity->id] as $categoryResult) {
                                                                         $decimosInfo = $categoryResult['decimos_info'] ?? [];
-                                                                        $totalDecimos = $decimosInfo['total_decimos'] ?? 0;
                                                                         $premioPorDecimo = $categoryResult['total_prize'];
-                                                                        $premioTotalEntidad += $premioPorDecimo * $totalDecimos;
+                                                                        $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
+                                                                        foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                                                                            $importeJugado = $setInfo['importe_jugado'] ?? 0;
+                                                                            $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
+                                                                            if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
+                                                                                $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
+                                                                                $premioTotalEntidad += $premioPorParticipacion * $participacionesVendidas;
+                                                                            }
+                                                                        }
                                                                     }
                                                                 }
                                                             @endphp
@@ -239,8 +262,8 @@
                                                                 @if(!empty($setsInfo))
                                                                     @foreach($setsInfo as $setInfo)
                                                                         @php
-                                                                            $decimosDeEsteSet = $setInfo['decimos'] ?? 0;
-                                                                            $premioTotalSet = $premioPorDecimo * $decimosDeEsteSet;
+                                                                            $decimosDeEsteSet = (float) ($setInfo['decimos'] ?? 0);
+                                                                            $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
                                                                             
                                                                             // Calcular premio por participación para este set específico
                                                                             $premioPorParticipacion = 0;
@@ -250,12 +273,16 @@
                                                                                 $porcentajeParticipacion = $importeJugado / $ticketPrice;
                                                                                 $premioPorParticipacion = $premioPorDecimo * $porcentajeParticipacion;
                                                                             }
+
+                                                                            $premioTotalSet = $premioPorParticipacion * $participacionesVendidas;
+                                                                            $decimosLabel = rtrim(rtrim(number_format($decimosDeEsteSet, 2, ',', '.'), '0'), ',');
                                                                         @endphp
                                                                         <tr>
                                                                             <td colspan="4" style="border-bottom: 1px solid #333; background-color: #f8f9fa;">
                                                                                 <div class="d-flex justify-content-between align-items-center">
                                                                                     <div>
-                                                                                        <b>Número: {{ $categoryResult['number_str'] }} - Premiado con {{ number_format($premioPorDecimo, 2) }}€ X {{ $decimosDeEsteSet }} Décimos = {{ number_format($premioTotalSet, 2) }}€</b>
+                                                                                        <b>Número: {{ $categoryResult['number_str'] }} - Premiado con {{ number_format($premioPorDecimo, 2) }}€ X {{ $decimosLabel }} Décimos = {{ number_format($premioTotalSet, 2) }}€</b>
+                                                                                        <small class="text-muted ms-2">({{ $participacionesVendidas }} participaciones)</small>
                                                                                     </div>
                                                                                     <div class="text-end">
                                                                                         <span class="me-2">{{ number_format($premioPorParticipacion, 2) }}€</span>
@@ -317,11 +344,11 @@
 
                                         <div class="col-6 text-start">
                                             <a href="{{route('lottery.results')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2">
-                                                <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Cancelar</span></a>
+                                                <i style="top: 5px; left: 25%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Cancelar</span></a>
                                         </div>
                                         
                                         <div class="col-6 text-end">
-                                            <button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-warning mt-2">Procesar Escrutinio
+                                            <button type="submit" @disabled(!empty($scrutinyBlocked)) style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-warning mt-2" @if(!empty($scrutinyBlocked)) title="{{ $scrutinyBlockedMessage }}" @endif>Procesar Escrutinio
                                                 <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
                                         </div>
 
@@ -367,7 +394,11 @@
 
 <script>
 // Confirmación antes de procesar el escrutinio
-document.querySelector('form').addEventListener('submit', function(e) {
+document.querySelector('form')?.addEventListener('submit', function(e) {
+    @if(!empty($scrutinyBlocked))
+    e.preventDefault();
+    return;
+    @endif
     if (!confirm('¿Está seguro de que desea procesar el escrutinio? Esta acción no se puede deshacer.')) {
         e.preventDefault();
     }

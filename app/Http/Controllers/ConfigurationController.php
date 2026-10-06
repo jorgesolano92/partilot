@@ -21,7 +21,14 @@ use App\Models\Manager;
 use App\Models\Seller;
 use App\Models\User;
 use App\Models\EmailCommunicationLog;
+use App\Models\PartilotBillingSetting;
+use App\Models\BillingDirectDebitOrder;
+use App\Services\AdministrationBillingService;
+use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\ManagerAccountService;
+use App\Services\PanelActivityLogService;
 use App\Support\ContactEmailRegistry;
+use App\Rules\ValidCalendarDate;
 use App\Support\PanelSelectionResolver;
 use Illuminate\Support\Facades\Hash;
 
@@ -154,6 +161,7 @@ class ConfigurationController extends Controller
         $selectedLogManager = null;
         $selectedLogSeller = null;
         $selectedLogUser = null;
+        $logActivityRows = [];
 
         if ($section === 'logs-actividad') {
             $allowedTabs = ['partilot', 'administracion', 'entidades', 'vendedores', 'usuarios'];
@@ -239,6 +247,16 @@ class ConfigurationController extends Controller
                 ->orderBy('name')
                 ->limit(500)
                 ->get(['id', 'name', 'last_name', 'last_name2', 'email', 'phone', 'status']);
+
+            $logActivityRows = app(PanelActivityLogService::class)->rowsForScope(
+                $logTab,
+                $user,
+                $selectedLogAdministration?->id,
+                $selectedLogEntity,
+                $selectedLogManager,
+                $selectedLogSeller,
+                $selectedLogUser,
+            );
         }
 
         if ($section === 'codigos-recarga') {
@@ -439,6 +457,66 @@ class ConfigurationController extends Controller
             $settingsAdministration = Administration::forUser($user)->findOrFail($scopedAdministrationId);
         }
 
+        $showBillingRemittancePanel = false;
+        $billingAdministrations = collect();
+        $billingAdministrationId = null;
+        $billingAdministration = null;
+        $billingPendingCharges = collect();
+        $billingAllCharges = collect();
+        $billingDirectDebitOrders = collect();
+        $billingDirectDebitOrder = null;
+        $billingView = 'charges';
+        $billingChargeStatus = '';
+
+        if (
+            $section === 'facturacion-cobros'
+            && $user?->isSuperAdmin()
+            && ! $configurationEntityScoped
+            && ! $configurationAdministrationScoped
+        ) {
+            $showBillingRemittancePanel = true;
+            $billingAdministrations = Administration::query()
+                ->orderBy('name')
+                ->get();
+
+            $billingView = $request->get('billing_view') === 'order' ? 'order' : 'charges';
+            $billingChargeStatus = (string) $request->get('billing_charge_status', '');
+
+            if ($request->filled('billing_administration_id')) {
+                $billingAdministrationId = (int) $request->get('billing_administration_id');
+            }
+
+            if ($request->filled('billing_order_id')) {
+                $billingDirectDebitOrder = BillingDirectDebitOrder::query()
+                    ->with(['administration', 'charges.entity', 'createdByUser'])
+                    ->find((int) $request->get('billing_order_id'));
+
+                if ($billingDirectDebitOrder) {
+                    $billingAdministrationId = (int) $billingDirectDebitOrder->administration_id;
+                    $billingView = 'order';
+                }
+            }
+
+            if ($billingAdministrationId) {
+                $billingAdministration = $billingAdministrations->firstWhere('id', $billingAdministrationId)
+                    ?? Administration::query()->find($billingAdministrationId);
+
+                if ($billingAdministration) {
+                    $billingService = app(AdministrationBillingService::class);
+                    $billingPendingCharges = $billingService->pendingChargesForAdministration($billingAdministration->id);
+                    $billingAllCharges = $billingService->chargesForAdministration(
+                        $billingAdministration->id,
+                        $billingChargeStatus !== '' ? $billingChargeStatus : null
+                    );
+                    $billingDirectDebitOrders = BillingDirectDebitOrder::query()
+                        ->withCount('charges')
+                        ->where('administration_id', $billingAdministration->id)
+                        ->orderByDesc('id')
+                        ->get();
+                }
+            }
+        }
+
         if ($section === 'logs-emails' && $scopedEntityId) {
             $entityEmailLogs = EmailCommunicationLog::query()
                 ->orderByDesc('created_at')
@@ -457,6 +535,11 @@ class ConfigurationController extends Controller
                 ->filter(fn (EmailCommunicationLog $log) => (int) data_get($log->context, 'entity_id') === (int) $settingsLogEntityId)
                 ->take(200)
                 ->values();
+        }
+
+        $partilotBillingSettings = null;
+        if (in_array($section, ['config-factura-auto', 'datos-partilot'], true)) {
+            $partilotBillingSettings = PartilotBillingSetting::current();
         }
 
         return view('configuration.index', compact(
@@ -495,6 +578,7 @@ class ConfigurationController extends Controller
             'selectedLogManager',
             'selectedLogSeller',
             'selectedLogUser',
+            'logActivityRows',
             'configurationEntityScoped',
             'configurationAdministrationScoped',
             'scopedEntityId',
@@ -505,7 +589,18 @@ class ConfigurationController extends Controller
             'settingsLogEntityId',
             'settingsManagers',
             'settingsPanelUser',
-            'entityEmailLogs'
+            'entityEmailLogs',
+            'partilotBillingSettings',
+            'showBillingRemittancePanel',
+            'billingAdministrations',
+            'billingAdministrationId',
+            'billingAdministration',
+            'billingPendingCharges',
+            'billingAllCharges',
+            'billingDirectDebitOrders',
+            'billingDirectDebitOrder',
+            'billingView',
+            'billingChargeStatus'
         ));
     }
 
@@ -709,6 +804,94 @@ class ConfigurationController extends Controller
             ->with('success', $message);
     }
 
+    public function updatePartilotBilling(Request $request)
+    {
+        if (! $request->user()?->isSuperAdmin()) {
+            abort(403, 'Solo super administrador puede modificar la configuración de facturación PARTILOT.');
+        }
+
+        $data = $request->validate([
+            'company_name' => 'required|string|max:255',
+            'nif_cif' => 'required|string|max:50',
+            'address' => 'required|string|max:255',
+            'postal_code' => 'required|string|max:20',
+            'province' => 'required|string|max:120',
+            'city' => 'required|string|max:120',
+            'phone' => 'required|string|max:50',
+            'email' => 'required|email|max:255',
+            'fee_per_participation_1000' => 'required|numeric|min:0',
+            'fee_per_participation_5000' => 'required|numeric|min:0',
+            'fee_per_participation_10000' => 'required|numeric|min:0',
+            'fee_administration_per_participation' => 'required|numeric|min:0',
+            'payment_management_commission' => 'required|numeric|min:0',
+            'bank_account' => 'required|string|max:80',
+            'sepa_creditor_id' => 'nullable|string|max:35',
+            'stripe_publishable_key' => 'nullable|string|max:255',
+            'stripe_secret_key' => 'nullable|string|max:2000',
+            'stripe_webhook_secret' => 'nullable|string|max:2000',
+        ]);
+
+        $settings = PartilotBillingSetting::current();
+        $settings->fill($data);
+        $settings->save();
+
+        return redirect()->route('configuration.index', ['section' => 'config-factura-auto'])
+            ->with('success', 'Configuración de facturación PARTILOT guardada correctamente.');
+    }
+
+    public function updatePartilotProfile(Request $request)
+    {
+        if (! $request->user()?->isSuperAdmin()) {
+            abort(403, 'Solo super administrador puede modificar los datos PARTILOT.');
+        }
+
+        $data = $request->validate([
+            'company_name' => 'required|string|max:255',
+            'nif_cif' => ['required', 'string', 'max:50', new \App\Rules\SpanishDocument],
+            'address' => 'required|string|max:255',
+            'postal_code' => ['required', 'string', 'max:20'],
+            'province' => 'required|string|max:120',
+            'city' => 'required|string|max:120',
+            'phone' => 'required|string|max:50',
+            'email' => 'required|email|max:255',
+            'access_email' => 'required|email|max:255',
+            'password' => 'nullable|string|min:8|confirmed',
+        ], [
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed' => 'La confirmación de contraseña no coincide.',
+        ]);
+
+        $user = $request->user();
+
+        if (strcasecmp((string) $user->email, (string) $data['access_email']) !== 0
+            && ContactEmailRegistry::isTaken($data['access_email'], $user->id)) {
+            return back()
+                ->withErrors(['access_email' => 'Este correo ya está en uso por otra cuenta.'])
+                ->withInput();
+        }
+
+        $settings = PartilotBillingSetting::current();
+        $settings->update([
+            'company_name' => $data['company_name'],
+            'nif_cif' => $data['nif_cif'],
+            'address' => $data['address'],
+            'postal_code' => $data['postal_code'],
+            'province' => $data['province'],
+            'city' => $data['city'],
+            'phone' => $data['phone'],
+            'email' => $data['email'],
+        ]);
+
+        $userUpdates = ['email' => $data['access_email']];
+        if ($request->filled('password')) {
+            $userUpdates['password'] = Hash::make($data['password']);
+        }
+        $user->update($userUpdates);
+
+        return redirect()->route('configuration.index', ['section' => 'datos-partilot'])
+            ->with('success', 'Datos PARTILOT guardados correctamente.');
+    }
+
     public function updatePrintShopPanelAccess(Request $request)
     {
         if (! $request->user()?->isSuperAdmin()) {
@@ -729,7 +912,9 @@ class ConfigurationController extends Controller
         unset($data['print_configuration_id']);
 
         try {
-            $user = app(\App\Services\PrintShopPanelUserService::class)->upsertPanelUser($config, $data);
+            $result = app(\App\Services\PrintShopPanelUserService::class)->upsertPanelUser($config, $data);
+            $user = $result['user'];
+            $plainPassword = $result['plain_password'] ?? null;
         } catch (\InvalidArgumentException $e) {
             return redirect()->route('configuration.index', [
                 'section' => 'imprenta',
@@ -737,10 +922,23 @@ class ConfigurationController extends Controller
             ])->with('error', $e->getMessage());
         }
 
+        try {
+            app(\App\Services\CommunicationEmailService::class)->sendPrintShopWelcome(
+                $config,
+                $user,
+                $plainPassword,
+            );
+        } catch (\Throwable $e) {
+            return redirect()->route('configuration.index', [
+                'section' => 'imprenta',
+                'print_config_id' => $config->id,
+            ])->with('warning', 'Acceso guardado, pero no se pudo enviar el correo de bienvenida: '.$e->getMessage());
+        }
+
         return redirect()->route('configuration.index', [
             'section' => 'imprenta',
             'print_config_id' => $config->id,
-        ])->with('success', 'Acceso al panel de imprenta actualizado. Usuario: '.($user->panel_login_username ?? '—'));
+        ])->with('success', 'Acceso al panel de imprenta actualizado y correo enviado a '.$user->email.'. Usuario: '.($user->panel_login_username ?? '—'));
     }
 
     public function updatePrintOrderStatus(Request $request, PrintOrder $printOrder)
@@ -754,7 +952,8 @@ class ConfigurationController extends Controller
         }
 
         $data = $request->validate([
-            'target_status' => 'required|string|in:pendiente_revision,en_produccion,enviada,rechazada',
+            'target_status' => 'required|string|in:pendiente_revision,aceptada,en_produccion,enviada,rechazada',
+            'rejection_reason' => 'nullable|required_if:target_status,rechazada|string|min:5|max:2000',
         ]);
 
         $target = $data['target_status'];
@@ -767,10 +966,37 @@ class ConfigurationController extends Controller
 
         $from = (string) $printOrder->status;
         $printOrder->status = $target;
+        if ($target === PrintOrder::STATUS_ACCEPTED && ! $printOrder->accepted_at) {
+            $printOrder->accepted_at = now();
+            $printOrder->rejection_reason = null;
+        }
+        if ($target === PrintOrder::STATUS_REJECTED) {
+            $printOrder->rejection_reason = trim((string) ($data['rejection_reason'] ?? '')) ?: null;
+        }
         if ($target === PrintOrder::STATUS_SENT && ! $printOrder->sent_at) {
             $printOrder->sent_at = now();
         }
         $printOrder->save();
+        if ($target === PrintOrder::STATUS_ACCEPTED) {
+            try {
+                app(\App\Services\CommunicationEmailService::class)
+                    ->sendPrintOrderPaymentRequestToPayer($printOrder->fresh());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'No se pudo enviar solicitud de pago del pedido '.$printOrder->id.': '.$e->getMessage()
+                );
+            }
+        }
+        if ($target === PrintOrder::STATUS_REJECTED) {
+            try {
+                app(\App\Services\CommunicationEmailService::class)
+                    ->sendPrintOrderRejectedToClient($printOrder->fresh());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'No se pudo enviar aviso de rechazo del pedido '.$printOrder->id.': '.$e->getMessage()
+                );
+            }
+        }
         $this->logPrintOrderStatusAudit(
             printOrder: $printOrder,
             action: 'status_change',
@@ -910,6 +1136,15 @@ class ConfigurationController extends Controller
                 ->with('error', 'No hay peticiones de cobro para generar la orden SEPA.');
         }
 
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        foreach ($collections as $col) {
+            $solvency = $prizePaymentService->validateCollectionForSepaExport($col);
+            if (! $solvency['allowed']) {
+                return redirect()->route('configuration.index', ['section' => 'ordenes-pago-entidades', 'step' => 3, 'entity_id' => $entity->id])
+                    ->with('error', $solvency['message']);
+            }
+        }
+
         $administration = $entity->administration;
         $debtorName = $administration ? $administration->name : $entity->name;
         $debtorNif = $administration ? $administration->nif_cif : $entity->nif_cif ?? null;
@@ -1021,7 +1256,7 @@ class ConfigurationController extends Controller
         $validated = $request->validate([
             'entity_id' => 'required|exists:entities,id',
             'administration_id' => 'nullable|exists:administrations,id',
-            'execution_date' => 'required|date|after_or_equal:today',
+            'execution_date' => ValidCalendarDate::onOrAfterToday(),
             'debtor_name' => 'required|string|max:255',
             'debtor_nif_cif' => ['nullable', 'string', 'max:50', new \App\Rules\SpanishDocument],
             'debtor_iban' => ['required', 'string', 'max:22', 'regex:/^[0-9]{22}$/'],
@@ -1054,6 +1289,22 @@ class ConfigurationController extends Controller
             $v = \Validator::make(['iban' => $creditorIban], ['iban' => [new \App\Rules\SpanishIban]]);
             if ($v->fails()) {
                 return back()->withErrors(["beneficiaries.{$index}.creditor_iban" => 'El IBAN del beneficiario no es válido.'])->withInput();
+            }
+        }
+
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        foreach ($validated['beneficiaries'] as $beneficiary) {
+            $collectionId = ! empty($beneficiary['collection_id']) ? (int) $beneficiary['collection_id'] : null;
+            if (! $collectionId) {
+                continue;
+            }
+            $col = ParticipationCollection::with(['items.participation.set.reserve', 'items.participation.entity'])
+                ->find($collectionId);
+            if ($col) {
+                $solvency = $prizePaymentService->validateCollectionForSepaExport($col);
+                if (! $solvency['allowed']) {
+                    return back()->withInput()->withErrors(['error' => $solvency['message']]);
+                }
             }
         }
 
@@ -1225,20 +1476,21 @@ class ConfigurationController extends Controller
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['nullable', 'string', 'max:20', 'unique:users,nif_cif'.($userId ? ','.$userId : '')],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\UserNif($userId)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:20',
             'comment' => 'nullable|string|max:1000',
         ]);
 
         if (! $managerUser) {
-            $managerUser = new User;
-            $managerUser->name = $validated['name'].' '.$validated['last_name'];
-            $managerUser->email = $validated['email'];
-            $managerUser->password = User::ENTITY_MANAGER_LEGACY_DEFAULT_PASSWORD;
-            $managerUser->role = User::ROLE_ENTITY;
-            $managerUser->save();
+            $managerUser = app(ManagerAccountService::class)->createUser([
+                'name' => $validated['name'],
+                'last_name' => $validated['last_name'],
+                'last_name2' => $validated['last_name2'],
+                'email' => $validated['email'],
+                'role' => User::ROLE_ENTITY,
+            ], 'configuración de entidad');
             $manager->update(['user_id' => $managerUser->id]);
         }
 

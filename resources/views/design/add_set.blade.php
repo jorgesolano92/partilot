@@ -131,16 +131,27 @@
                                                     @php
                                                         $sl = isset($setLocksBySetId[$set->id]) ? $setLocksBySetId[$set->id] : ['locked' => false];
                                                         $rowLocked = !empty($sl['locked']);
+                                                        $avail = $setAvailabilityBySetId[$set->id] ?? [
+                                                            'available_for_new_design' => (int) $set->total_participations,
+                                                            'has_design' => false,
+                                                        ];
+                                                        $availableForNew = (int) ($avail['available_for_new_design'] ?? 0);
+                                                        $hasDesign = !empty($avail['has_design']);
+                                                        $rowTitle = $rowLocked
+                                                            ? 'Participaciones comprometidas: no podrás iniciar un diseño nuevo, pero sí reutilizar un diseño existente.'
+                                                            : ($hasDesign && $availableForNew === 0
+                                                                ? 'Este set ya tiene un diseño con participaciones generadas. Puedes continuar editándolo.'
+                                                                : '');
                                                     @endphp
                     							<tr class="selectable-row" data-set-locked="{{ $rowLocked ? '1' : '0' }}" style="cursor: pointer;{{ $rowLocked ? 'opacity:0.85;' : '' }}"
-                                                    title="{{ $rowLocked ? 'Participaciones comprometidas: no podrás iniciar un diseño nuevo, pero sí reutilizar un diseño existente.' : '' }}">
+                                                    title="{{ $rowTitle }}">
                     								<td>#SP{{str_pad($set->id, 4, '0', STR_PAD_LEFT)}}</td>
                     								<td>{{$set->set_name}}</td>
                     								<td>{{number_format($set->played_amount, 2)}}€</td>
                     								<td>{{number_format($set->donation_amount, 2)}}€</td>
                     								<td>{{number_format($set->total_amount, 2)}}€</td>
                     								<td>{{$set->physical_participations}}</td>
-                    								<td>{{$set->total_participations}}</td>
+                    								<td>{{ $availableForNew }}</td>
                     								<td>
                     									@if(($set->physical_participations ?? 0) == 0)
                     										<span class="badge bg-primary">Digital</span>
@@ -153,8 +164,12 @@
                                                     <td>
                                                         @if($rowLocked)
                                                             <span class="badge bg-secondary rounded-pill">Bloqueado</span>
-                                                        @else
+                                                        @elseif($hasDesign && $availableForNew === 0)
+                                                            <span class="badge bg-info text-dark rounded-pill">Con diseño</span>
+                                                        @elseif($availableForNew > 0)
                                                             <span class="badge bg-light text-muted border rounded-pill">Libre</span>
+                                                        @else
+                                                            <span class="badge bg-warning text-dark rounded-pill">Sin disponibilidad</span>
                                                         @endif
                                                     </td>
                     								<td class="d-none">

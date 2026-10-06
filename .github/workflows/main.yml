@@ -2,7 +2,7 @@ name: Laravel CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [feat/entity-billing-switches]
 
 jobs:
   build:
@@ -18,14 +18,30 @@ jobs:
           # ${{secrets.USER}}
           password: "T^t#hJqQEhD4sBy1V^#n"
           # ${{secrets.CLAVESSH}}
+          script_stop: true
+          command_timeout: 30m
           script: |
+            set -e
             cd /var/www/vhosts/partilot.es/panel.partilot.es/
-            git pull origin main --no-rebase
-            composer install
+            git fetch origin
+            git checkout feat/entity-billing-switches
+            # Deploy idempotente: evita fallos si el working tree quedó sucio (composer, caches, etc.)
+            git reset --hard origin/feat/entity-billing-switches
+            export COMPOSER_ALLOW_SUPERUSER=1
+            composer install --no-interaction --prefer-dist --optimize-autoloader
             php artisan cache:clear
             php artisan config:clear
             php artisan route:clear
             php artisan view:clear
+            # Reiniciar workers sin matar la sesión SSH del deploy.
+            # Evitar: pkill -f (mata el script remoto) y bash -lc '... &' (no sale y cuelga Actions).
+            QUEUE_USER="partilot.es_unprrxqizxs"
+            for pid in $(pgrep -u "$QUEUE_USER" -f 'php .*/artisan queue:work' || true); do
+              kill "$pid" 2>/dev/null || true
+            done
+            sleep 1
+            sudo -u "$QUEUE_USER" -H sh -c 'cd /var/www/vhosts/partilot.es/panel.partilot.es && nohup php artisan queue:work --queue=pdf,default --timeout=0 --tries=1 >/dev/null 2>&1 & nohup php artisan queue:work --queue=pdf,default --timeout=0 --tries=1 >/dev/null 2>&1 & exit 0'
+            echo "DEPLOY_OK $(git rev-parse --short HEAD)"
             # php artisan migrate
             # php artisan vendor:publish --provider="Tymon\JWTAuth\Providers\LaravelServiceProvider"
             # php artisan jwt:secret

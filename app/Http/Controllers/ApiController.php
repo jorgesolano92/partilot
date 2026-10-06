@@ -8,18 +8,722 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use App\Models\Administration;
 use App\Models\Manager;
+use App\Models\Seller;
 use App\Models\User;
 use App\Models\Entity;
 use Illuminate\Support\Facades\Hash;
 use Exception;
 use App\Support\ParticipationTicketReference;
+use App\Support\PanelPassword;
+use App\Models\Set;
+use App\Services\ParticipationPublicCheckService;
+use App\Services\CommunicationEmailService;
 
 class ApiController extends Controller
 {
-    private const DEFAULT_PANEL_PASSWORD = '12345678';
 
     public function test()
     {
+        Schema::table('pending_entity_manager_invitations', function (Blueprint $table) {
+            if (! Schema::hasColumn('pending_entity_manager_invitations', 'rejected_at')) {
+                $table->timestamp('rejected_at')->nullable()->after('confirmation_sent_at');
+            }
+        });
+        return "ok1";
+        Schema::table('entities', function (Blueprint $table) {
+            if (! Schema::hasColumn('entities', 'client_type')) {
+                $table->string('client_type', 32)->default('legal_entity')->after('comments');
+            }
+            if (! Schema::hasColumn('entities', 'signer_name')) {
+                $table->string('signer_name', 255)->nullable()->after('client_type');
+            }
+            if (! Schema::hasColumn('entities', 'signer_last_name')) {
+                $table->string('signer_last_name', 255)->nullable()->after('signer_name');
+            }
+            if (! Schema::hasColumn('entities', 'signer_last_name2')) {
+                $table->string('signer_last_name2', 255)->nullable()->after('signer_last_name');
+            }
+            if (! Schema::hasColumn('entities', 'signer_nif')) {
+                $table->string('signer_nif', 20)->nullable()->after('signer_last_name2');
+            }
+            if (! Schema::hasColumn('entities', 'signer_birthday')) {
+                $table->date('signer_birthday')->nullable()->after('signer_nif');
+            }
+            if (! Schema::hasColumn('entities', 'signer_is_primary_manager')) {
+                $table->boolean('signer_is_primary_manager')->default(true)->after('signer_birthday');
+            }
+        });
+        Schema::table('entities', function (Blueprint $table) {
+            if (! Schema::hasColumn('entities', 'signer_email')) {
+                $after = Schema::hasColumn('entities', 'signer_nif') ? 'signer_nif' : 'signer_last_name2';
+                $table->string('signer_email', 255)->nullable()->after($after);
+            }
+        });
+        return "ok";
+        Schema::table('print_orders', function (Blueprint $table) {
+            $table->timestamp('accepted_at')->nullable()->after('sent_at');
+            $table->text('rejection_reason')->nullable()->after('notes');
+        });
+        return "ok";
+        // Schema::create('password_reset_tokens', function (Blueprint $table) {
+        //     $table->string('email')->primary();
+        //     $table->string('token');
+        //     $table->timestamp('created_at')->nullable();
+        // });
+        // return "ok";
+        Schema::table('design_formats', function (Blueprint $table) {
+            $table->timestamp('participation_export_locked_at')->nullable()->after('approval_rejection_reason');
+        });
+        return "ok";
+        // Schema::table('design_formats', function (Blueprint $table) {
+        //     $table->decimal('cut_lines', 8, 2)->nullable()->after('identation');
+        // });
+        // return "ok";
+        Schema::table('email_communication_logs', function (Blueprint $table) {
+            $table->text('encrypted_secrets')->nullable()->after('mail_payload');
+        });
+        return "ok";
+        Schema::table('lotteries', function (Blueprint $table) {
+            $table->time('deadline_time')->nullable()->after('deadline_date');
+        });
+        return "ok";
+        Schema::create('participation_assignment_proposals', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('seller_id')->constrained('sellers')->cascadeOnDelete();
+            $table->foreignId('entity_id')->nullable()->constrained('entities')->nullOnDelete();
+            $table->foreignId('lottery_id')->nullable()->constrained('lotteries')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->json('participation_ids');
+            $table->unsignedInteger('participation_count');
+            $table->string('token', 64)->unique();
+            $table->string('status', 20)->default('pending'); // pending, accepted, rejected, expired
+            $table->timestamp('expires_at');
+            $table->timestamp('responded_at')->nullable();
+            $table->timestamps();
+
+            $table->index(['seller_id', 'status']);
+            $table->index(['status', 'expires_at']);
+        });
+        
+        Schema::table('entities', function (Blueprint $table) {
+            $table->string('contract_status', 32)->default('pending')->after('stripe_customer_id');
+            $table->string('contract_reference', 32)->nullable()->after('contract_status');
+            $table->string('contract_version', 32)->default('marco_v5')->after('contract_reference');
+            $table->string('contract_token', 80)->nullable()->after('contract_version');
+            $table->timestamp('contract_sent_at')->nullable()->after('contract_token');
+            $table->timestamp('contract_signed_at')->nullable()->after('contract_sent_at');
+            $table->unsignedBigInteger('contract_signed_by_user_id')->nullable()->after('contract_signed_at');
+            $table->string('contract_signer_name', 255)->nullable()->after('contract_signed_by_user_id');
+            $table->string('contract_signer_nif', 32)->nullable()->after('contract_signer_name');
+            $table->string('contract_pdf_path', 500)->nullable()->after('contract_signer_nif');
+        });
+
+        if (Schema::hasTable('entities')) {
+            DB::table('entities')->update([
+                'contract_status' => 'signed',
+                'contract_signed_at' => now(),
+            ]);
+        }
+        return "ok";
+        Schema::table('pending_entity_manager_invitations', function (Blueprint $table) {
+            if (! Schema::hasColumn('pending_entity_manager_invitations', 'confirmation_token')) {
+                $table->string('confirmation_token', 64)->nullable()->unique()->after('permission_payments');
+            }
+            if (! Schema::hasColumn('pending_entity_manager_invitations', 'confirmation_sent_at')) {
+                $table->timestamp('confirmation_sent_at')->nullable()->after('confirmation_token');
+            }
+        });
+        
+        Schema::table('users', function (Blueprint $table) {
+            if (! Schema::hasColumn('users', 'must_change_password')) {
+                $table->boolean('must_change_password')->default(false)->after('password');
+            }
+        });
+
+        Schema::table('managers', function (Blueprint $table) {
+            if (! Schema::hasColumn('managers', 'user_created_for_invitation')) {
+                $table->boolean('user_created_for_invitation')->default(false)->after('requires_password_setup');
+            }
+        });
+
+        Schema::table('entities', function (Blueprint $table) {
+            $table->boolean('is_non_profit')->default(true)->after('comments');
+        });
+
+        return "ok";
+        Schema::table('managers', function (Blueprint $table) {
+            $table->string('contact_email', 255)->nullable()->after('user_id');
+        });
+
+        Schema::table('managers', function (Blueprint $table) {
+            if (! Schema::hasColumn('managers', 'contact_name')) {
+                $table->string('contact_name')->nullable()->after('contact_email');
+            }
+            if (! Schema::hasColumn('managers', 'contact_last_name')) {
+                $table->string('contact_last_name')->nullable()->after('contact_name');
+            }
+            if (! Schema::hasColumn('managers', 'contact_last_name2')) {
+                $table->string('contact_last_name2')->nullable()->after('contact_last_name');
+            }
+            if (! Schema::hasColumn('managers', 'contact_nif_cif')) {
+                $table->string('contact_nif_cif', 20)->nullable()->after('contact_last_name2');
+            }
+            if (! Schema::hasColumn('managers', 'contact_birthday')) {
+                $table->date('contact_birthday')->nullable()->after('contact_nif_cif');
+            }
+            if (! Schema::hasColumn('managers', 'contact_phone')) {
+                $table->string('contact_phone', 20)->nullable()->after('contact_birthday');
+            }
+            if (! Schema::hasColumn('managers', 'contact_comment')) {
+                $table->text('contact_comment')->nullable()->after('contact_phone');
+            }
+            if (! Schema::hasColumn('managers', 'contact_image')) {
+                $table->string('contact_image')->nullable()->after('contact_comment');
+            }
+        });
+
+        $foreignKeys = DB::select(
+            "SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'managers'
+              AND COLUMN_NAME = 'user_id'
+              AND REFERENCED_TABLE_NAME IS NOT NULL"
+        );
+
+        foreach ($foreignKeys as $foreignKey) {
+            Schema::table('managers', function (Blueprint $table) use ($foreignKey) {
+                $table->dropForeign($foreignKey->CONSTRAINT_NAME);
+            });
+        }
+
+        // Referencias huérfanas (usuario borrado) impiden recrear la FK.
+        DB::table('managers')
+            ->whereNotNull('user_id')
+            ->whereNotIn('user_id', User::query()->select('id'))
+            ->update(['user_id' => null]);
+
+        $primaryAdminManagers = Manager::query()
+            ->whereNotNull('administration_id')
+            ->whereNull('entity_id')
+            ->where('is_primary', true)
+            ->whereNotNull('user_id')
+            ->with('user')
+            ->get();
+
+        foreach ($primaryAdminManagers as $manager) {
+            $user = $manager->user;
+            if (! $user || $user->isPanelAccount()) {
+                continue;
+            }
+
+            $manager->update([
+                'contact_email' => $manager->contact_email ?: $user->email,
+                'contact_name' => $user->name,
+                'contact_last_name' => $user->last_name,
+                'contact_last_name2' => $user->last_name2,
+                'contact_nif_cif' => $user->nif_cif,
+                'contact_birthday' => $user->birthday,
+                'contact_phone' => $user->phone,
+                'contact_comment' => $user->comment,
+                'contact_image' => $user->image,
+                'user_id' => null,
+            ]);
+
+            $otherManagers = Manager::query()->where('user_id', $user->id)->exists();
+            $hasSellers = Seller::query()->where('user_id', $user->id)->exists();
+
+            if (! $otherManagers && ! $hasSellers) {
+                $user->delete();
+            }
+        }
+
+        Schema::table('managers', function (Blueprint $table) {
+            $table->unsignedBigInteger('user_id')->nullable()->change();
+        });
+
+        $hasUserForeign = DB::selectOne(
+            "SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'managers'
+              AND COLUMN_NAME = 'user_id'
+              AND REFERENCED_TABLE_NAME = 'users'
+            LIMIT 1"
+        );
+
+        if (! $hasUserForeign) {
+            Schema::table('managers', function (Blueprint $table) {
+                $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+            });
+        }
+
+        $foreignKeys = DB::select(
+            "SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'managers'
+              AND COLUMN_NAME = 'user_id'
+              AND REFERENCED_TABLE_NAME IS NOT NULL"
+        );
+
+        foreach ($foreignKeys as $foreignKey) {
+            Schema::table('managers', function (Blueprint $table) use ($foreignKey) {
+                $table->dropForeign($foreignKey->CONSTRAINT_NAME);
+            });
+        }
+
+        DB::statement(
+            'UPDATE managers m
+             LEFT JOIN users u ON u.id = m.user_id
+             SET m.user_id = NULL
+             WHERE m.user_id IS NOT NULL AND u.id IS NULL'
+        );
+
+        if (Schema::hasColumn('managers', 'user_id')) {
+            Schema::table('managers', function (Blueprint $table) {
+                $table->unsignedBigInteger('user_id')->nullable()->change();
+            });
+        }
+
+        $hasUserForeign = DB::selectOne(
+            "SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'managers'
+              AND COLUMN_NAME = 'user_id'
+              AND REFERENCED_TABLE_NAME = 'users'
+            LIMIT 1"
+        );
+
+        if (! $hasUserForeign && Schema::hasColumn('managers', 'user_id')) {
+            Schema::table('managers', function (Blueprint $table) {
+                $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+            });
+        }
+
+        return "ok";
+
+        Schema::table('administrations', function (Blueprint $table) {
+            $table->string('contract_status', 32)->default('pending')->after('billing_sepa_mandate_signed_at');
+            $table->string('contract_reference', 32)->nullable()->after('contract_status');
+            $table->string('contract_version', 32)->default('saas_v1')->after('contract_reference');
+            $table->string('contract_token', 80)->nullable()->after('contract_version');
+            $table->timestamp('contract_sent_at')->nullable()->after('contract_token');
+            $table->timestamp('contract_signed_at')->nullable()->after('contract_sent_at');
+            $table->unsignedBigInteger('contract_signed_by_user_id')->nullable()->after('contract_signed_at');
+            $table->string('contract_signer_name', 255)->nullable()->after('contract_signed_by_user_id');
+            $table->string('contract_signer_nif', 32)->nullable()->after('contract_signer_name');
+            $table->string('contract_pdf_path', 500)->nullable()->after('contract_signer_nif');
+        });
+
+        // Administraciones ya existentes: no bloquear operativa actual.
+        if (Schema::hasTable('administrations')) {
+            DB::table('administrations')->update([
+                'contract_status' => 'signed',
+                'contract_signed_at' => now(),
+            ]);
+        }
+
+        return "ok";
+        
+        Schema::table('phone_verification_codes', function (Blueprint $table) {
+            $table->unsignedTinyInteger('failed_attempts')->default(0)->after('code_hash');
+            $table->timestamp('locked_until')->nullable()->after('failed_attempts');
+        });
+
+        $seen = [];
+
+        DB::table('users')
+            ->select('id', 'email')
+            ->orderBy('id')
+            ->chunkById(200, function ($users) use (&$seen) {
+                foreach ($users as $user) {
+                    $normalized = strtolower(trim((string) $user->email));
+                    if ($normalized === '' || isset($seen[$normalized])) {
+                        continue;
+                    }
+
+                    $seen[$normalized] = true;
+
+                    if ($normalized !== $user->email) {
+                        DB::table('users')->where('id', $user->id)->update(['email' => $normalized]);
+                    }
+                }
+            });
+
+        Schema::create('user_consents', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('type', 64);
+            $table->string('version', 32)->nullable();
+            $table->string('text_hash', 64)->nullable();
+            $table->string('ip', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->json('context')->nullable();
+            $table->timestamp('accepted_at');
+            $table->timestamps();
+
+            $table->index(['user_id', 'type']);
+            $table->index('accepted_at');
+        });
+
+        Schema::create('administration_audit_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('administration_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('field', 64);
+            $table->text('old_value')->nullable();
+            $table->text('new_value')->nullable();
+            $table->string('ip', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('manager_permission_audits', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('manager_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('field', 64);
+            $table->string('old_value', 255)->nullable();
+            $table->string('new_value', 255)->nullable();
+            $table->string('ip', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('payment_operation_audit_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('operation_type', 64);
+            $table->decimal('amount', 12, 2)->nullable();
+            $table->foreignId('entity_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('administration_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('reference_type', 64)->nullable();
+            $table->unsignedBigInteger('reference_id')->nullable();
+            $table->string('ip_address', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->json('context')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('legal_acceptances', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('action', 64);
+            $table->string('result', 32)->default('ACEPTADO');
+            $table->string('version', 32)->nullable();
+            $table->string('text_hash', 64)->nullable();
+            $table->foreignId('entity_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('lottery_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('administration_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('channel', 32)->nullable();
+            $table->string('ip_address', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->json('context')->nullable();
+            $table->timestamp('accepted_at');
+            $table->timestamp('created_at')->useCurrent();
+        });
+
+        Schema::create('cookie_consents', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('visitor_key', 64)->nullable();
+            $table->boolean('cookies_tecnicas')->default(true);
+            $table->boolean('cookies_analiticas')->default(false);
+            $table->string('choice', 32);
+            $table->string('channel', 32)->nullable();
+            $table->string('ip_address', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->timestamp('accepted_at');
+            $table->timestamp('created_at')->useCurrent();
+        });
+
+        Schema::table('scrutiny_detailed_results', function (Blueprint $table) {
+            $table->decimal('total_decimos', 10, 2)->default(0)->change();
+        });
+
+        return "ok";
+        Schema::table('sets', function (Blueprint $table) {
+            $table->string('management_fee_status', 32)->nullable()->change();
+        });
+        
+        Schema::table('design_formats', function (Blueprint $table) {
+            $table->string('design_name', 120)->nullable()->after('set_id');
+            $table->boolean('back_skipped')->default(false)->after('back_html');
+        });
+
+        return "ok";
+
+        Schema::table('pending_digital_sales', function (Blueprint $table) {
+            $table->string('buyer_phone', 20)->nullable()->after('email');
+            $table->string('notify_channel', 20)->nullable()->after('buyer_phone');
+        });
+        
+        // Schema::table('participation_collection_items', function (Blueprint $table) {
+        //     if (! Schema::hasColumn('participation_collection_items', 'entity_id')) {
+        //         $table->foreignId('entity_id')->nullable()->after('participation_id')
+        //             ->constrained('entities')->nullOnDelete();
+        //     }
+        //     if (! Schema::hasColumn('participation_collection_items', 'amount')) {
+        //         $table->decimal('amount', 12, 2)->nullable()->after('entity_id');
+        //     }
+        // });
+        
+        // if (! Schema::hasTable('entity_lottery_prize_settings')) {
+        //     Schema::create('entity_lottery_prize_settings', function (Blueprint $table) {
+        //         $table->id();
+        //         $table->unsignedBigInteger('entity_id');
+        //         $table->unsignedBigInteger('lottery_id');
+        //         $table->string('prize_payment_mode', 20)->nullable();
+        //         $table->timestamp('mode_locked_at')->nullable();
+        //         $table->unsignedBigInteger('mode_locked_by_user_id')->nullable();
+        //         $table->boolean('has_sold_digital_participations')->default(false);
+        //         $table->decimal('funds_required_amount', 12, 2)->default(0);
+        //         $table->decimal('funds_deposited_amount', 12, 2)->default(0);
+        //         $table->string('funds_status', 20)->default('not_required');
+        //         $table->timestamp('funds_confirmed_at')->nullable();
+        //         $table->unsignedBigInteger('funds_confirmed_by_user_id')->nullable();
+        //         $table->string('contract_status', 20)->default('not_required');
+        //         $table->timestamp('contract_signed_at')->nullable();
+        //         $table->boolean('online_payments_enabled')->default(false);
+        //         $table->boolean('presencial_payments_enabled')->default(false);
+        //         $table->text('blocked_user_message')->nullable();
+        //         $table->text('unlocked_user_message')->nullable();
+        //         $table->text('presencial_contact_text')->nullable();
+        //         $table->string('presencial_contact_address')->nullable();
+        //         $table->string('presencial_contact_city')->nullable();
+        //         $table->string('presencial_contact_province')->nullable();
+        //         $table->string('presencial_contact_schedule')->nullable();
+        //         $table->string('presencial_contact_phone')->nullable();
+        //         $table->string('presencial_contact_email')->nullable();
+        //         $table->text('presencial_contact_notes')->nullable();
+        //         $table->timestamps();
+
+        //         $table->unique(['entity_id', 'lottery_id'], 'elps_entity_lottery_unique');
+
+        //         $table->foreign('entity_id', 'elps_entity_fk')
+        //             ->references('id')->on('entities')->cascadeOnDelete();
+        //         $table->foreign('lottery_id', 'elps_lottery_fk')
+        //             ->references('id')->on('lotteries')->cascadeOnDelete();
+        //         $table->foreign('mode_locked_by_user_id', 'elps_mode_locked_by_fk')
+        //             ->references('id')->on('users')->nullOnDelete();
+        //         $table->foreign('funds_confirmed_by_user_id', 'elps_funds_confirmed_by_fk')
+        //             ->references('id')->on('users')->nullOnDelete();
+        //     });
+        // }
+
+        // if (! Schema::hasTable('entity_lottery_prize_activation_logs')) {
+        //     Schema::create('entity_lottery_prize_activation_logs', function (Blueprint $table) {
+        //         $table->id();
+        //         $table->unsignedBigInteger('entity_lottery_prize_setting_id');
+        //         $table->string('event', 80);
+        //         $table->json('payload')->nullable();
+        //         $table->unsignedBigInteger('user_id')->nullable();
+        //         $table->timestamp('created_at')->useCurrent();
+
+        //         $table->foreign('entity_lottery_prize_setting_id', 'elpal_setting_fk')
+        //             ->references('id')->on('entity_lottery_prize_settings')->cascadeOnDelete();
+        //         $table->foreign('user_id', 'elpal_user_fk')
+        //             ->references('id')->on('users')->nullOnDelete();
+        //     });
+        // }
+
+        // Schema::table('entity_lottery_prize_settings', function (Blueprint $table) {
+        //     if (! Schema::hasColumn('entity_lottery_prize_settings', 'contract_token')) {
+        //         $table->string('contract_token', 80)->nullable()->after('contract_signed_at');
+        //     }
+        //     if (! Schema::hasColumn('entity_lottery_prize_settings', 'contract_sent_at')) {
+        //         $table->timestamp('contract_sent_at')->nullable()->after('contract_token');
+        //     }
+        //     if (! Schema::hasColumn('entity_lottery_prize_settings', 'contract_signed_by_user_id')) {
+        //         $table->unsignedBigInteger('contract_signed_by_user_id')->nullable()->after('contract_sent_at');
+        //         $table->foreign('contract_signed_by_user_id', 'elps_contract_signed_by_fk')
+        //             ->references('id')->on('users')->nullOnDelete();
+        //     }
+        //     if (! Schema::hasColumn('entity_lottery_prize_settings', 'contract_signer_name')) {
+        //         $table->string('contract_signer_name')->nullable()->after('contract_signed_by_user_id');
+        //     }
+        // });
+
+        // if (Schema::hasTable('entity_lottery_prize_settings') && ! Schema::hasColumn('entity_lottery_prize_settings', 'online_payer')) {
+        //     Schema::table('entity_lottery_prize_settings', function (Blueprint $table) {
+        //         $table->string('online_payer', 20)->nullable()->after('prize_payment_mode');
+        //     });
+        // }
+
+        // if (Schema::hasTable('participations') && ! Schema::hasColumn('participations', 'wallet_mode')) {
+        //     Schema::table('participations', function (Blueprint $table) {
+        //         $table->string('wallet_mode', 20)->nullable()->after('buyer_name');
+        //     });
+        // }
+
+        // if (Schema::hasTable('lotteries') && ! Schema::hasColumn('lotteries', 'digitalization_closed_at')) {
+        //     Schema::table('lotteries', function (Blueprint $table) {
+        //         $table->timestamp('digitalization_closed_at')->nullable()->after('deadline_date');
+        //     });
+        // }
+
+        // Schema::create('billing_direct_debit_orders', function (Blueprint $table) {
+        //     $table->id();
+        //     $table->foreignId('administration_id')->constrained('administrations')->cascadeOnDelete();
+        //     $table->string('message_id', 35)->unique();
+        //     $table->string('payment_info_id', 35);
+        //     $table->dateTime('creation_date');
+        //     $table->date('collection_date');
+        //     $table->unsignedInteger('number_of_transactions')->default(0);
+        //     $table->decimal('control_sum', 12, 2)->default(0);
+        //     $table->string('creditor_name');
+        //     $table->string('creditor_nif_cif', 20)->nullable();
+        //     $table->string('creditor_iban', 34);
+        //     $table->string('creditor_scheme_id', 35)->nullable();
+        //     $table->string('debtor_name');
+        //     $table->string('debtor_nif_cif', 20)->nullable();
+        //     $table->string('debtor_iban', 34);
+        //     $table->string('debtor_mandate_id', 35);
+        //     $table->date('debtor_mandate_signed_at');
+        //     $table->string('sequence_type', 4)->default('RCUR');
+        //     $table->string('xml_filename')->nullable();
+        //     $table->string('status', 20)->default('draft');
+        //     $table->text('notes')->nullable();
+        //     $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+        //     $table->timestamp('exported_at')->nullable();
+        //     $table->timestamp('collected_at')->nullable();
+        //     $table->timestamps();
+
+        //     $table->index(['administration_id', 'status']);
+        // });
+
+        // Schema::create('billing_charges', function (Blueprint $table) {
+        //     $table->id();
+        //     $table->foreignId('administration_id')->nullable()->constrained('administrations')->nullOnDelete();
+        //     $table->foreignId('entity_id')->nullable()->constrained('entities')->nullOnDelete();
+        //     $table->foreignId('set_id')->nullable()->constrained('sets')->nullOnDelete();
+        //     $table->string('payer_type', 20);
+        //     $table->string('concept', 30);
+        //     $table->string('source_type', 30);
+        //     $table->unsignedBigInteger('source_id');
+        //     $table->decimal('amount', 10, 2);
+        //     $table->string('currency', 3)->default('EUR');
+        //     $table->string('description')->nullable();
+        //     $table->string('status', 20)->default('pending');
+        //     $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+        //     $table->timestamp('collected_at')->nullable();
+        //     $table->timestamps();
+
+        //     $table->index(['administration_id', 'status']);
+        //     $table->index(['set_id', 'concept', 'status']);
+        //     $table->index(['source_type', 'source_id']);
+        // });
+
+        // Schema::table('billing_charges', function (Blueprint $table) {
+        //     $table->foreignId('billing_direct_debit_order_id')->nullable()->after('collected_at')->constrained('billing_direct_debit_orders')->nullOnDelete();
+        // });
+        
+        // Schema::table('print_orders', function (Blueprint $table) {
+        //     $table->foreignId('billing_charge_id')->nullable()->after('paid_at')->constrained('billing_charges')->nullOnDelete();
+        // });
+
+        // Schema::table('sets', function (Blueprint $table) {
+        //     $table->string('management_fee_status', 20)->nullable()->after('status');
+        //     $table->decimal('management_fee_amount', 10, 2)->nullable()->after('management_fee_status');
+        //     $table->decimal('management_fee_unit_price', 8, 4)->nullable()->after('management_fee_amount');
+        //     $table->unsignedInteger('management_fee_participation_count')->nullable()->after('management_fee_unit_price');
+        //     $table->string('management_fee_payer', 20)->nullable()->after('management_fee_participation_count');
+        //     $table->timestamp('management_fee_paid_at')->nullable()->after('management_fee_payer');
+        //     $table->foreignId('management_fee_paid_by_user_id')->nullable()->after('management_fee_paid_at')->constrained('users')->nullOnDelete();
+        // });
+
+        // Schema::table('sets', function (Blueprint $table) {
+        //     $table->string('management_fee_stripe_payment_intent_id')->nullable()->after('management_fee_paid_by_user_id');
+        //     $table->string('management_fee_payment_provider', 20)->nullable()->after('management_fee_stripe_payment_intent_id');
+        // });
+
+        // Schema::table('entities', function (Blueprint $table) {
+        //     $table->boolean('entity_pays_management_fee')->default(false)->after('billing_iban');
+        //     $table->boolean('entity_pays_print_fee')->default(false)->after('entity_pays_management_fee');
+        // });
+
+        // Schema::table('entities', function (Blueprint $table) {
+        //     $table->string('stripe_customer_id')->nullable()->after('entity_pays_print_fee');
+        // });
+
+        // Schema::table('administrations', function (Blueprint $table) {
+        //     $table->string('stripe_customer_id')->nullable()->after('prepago_integration_enabled');
+        // });
+
+        // Schema::table('administrations', function (Blueprint $table) {
+        //     $table->string('billing_payment_mode', 20)->default('card')->after('stripe_customer_id');
+        //     $table->string('billing_remittance_frequency', 20)->nullable()->after('billing_payment_mode');
+        // });
+
+        // Schema::table('administrations', function (Blueprint $table) {
+        //     $table->string('billing_sepa_mandate_id', 35)->nullable()->after('billing_remittance_frequency');
+        //     $table->date('billing_sepa_mandate_signed_at')->nullable()->after('billing_sepa_mandate_id');
+        // });
+
+        // Schema::create('partilot_billing_settings', function (Blueprint $table) {
+        //     $table->id();
+        //     $table->string('company_name')->nullable();
+        //     $table->string('nif_cif', 50)->nullable();
+        //     $table->string('address')->nullable();
+        //     $table->string('postal_code', 20)->nullable();
+        //     $table->string('province', 120)->nullable();
+        //     $table->string('city', 120)->nullable();
+        //     $table->string('phone', 50)->nullable();
+        //     $table->string('email')->nullable();
+        //     $table->decimal('fee_per_participation_1000', 8, 4)->default(0.05);
+        //     $table->decimal('fee_per_participation_5000', 8, 4)->default(0.04);
+        //     $table->decimal('fee_per_participation_10000', 8, 4)->default(0.03);
+        //     $table->decimal('fee_administration_per_participation', 8, 4)->default(0.03);
+        //     $table->decimal('payment_management_commission', 8, 4)->default(0.03);
+        //     $table->string('bank_account', 80)->nullable();
+        //     $table->timestamps();
+        // });
+
+        // Schema::table('partilot_billing_settings', function (Blueprint $table) {
+        //     $table->string('stripe_publishable_key')->nullable()->after('bank_account');
+        //     $table->text('stripe_secret_key')->nullable()->after('stripe_publishable_key');
+        //     $table->text('stripe_webhook_secret')->nullable()->after('stripe_secret_key');
+        // });
+
+        // DB::table('partilot_billing_settings')->insert([
+        //     'company_name' => 'El Búho Lotero',
+        //     'nif_cif' => '16600600A',
+        //     'address' => 'Avd. Club Deportivo 28',
+        //     'postal_code' => '26007',
+        //     'province' => 'La Rioja',
+        //     'city' => 'Logroño',
+        //     'phone' => '941 900 900',
+        //     'email' => 'administracion@ejemplo.es',
+        //     'fee_per_participation_1000' => 0.05,
+        //     'fee_per_participation_5000' => 0.04,
+        //     'fee_per_participation_10000' => 0.03,
+        //     'fee_administration_per_participation' => 0.03,
+        //     'payment_management_commission' => 0.03,
+        //     'bank_account' => '1234 - 1234 - 1234 - 12 - 1234567890',
+        //     'created_at' => now(),
+        //     'updated_at' => now(),
+        // ]);
+
+        // Schema::table('partilot_billing_settings', function (Blueprint $table) {
+        //     $table->string('sepa_creditor_id', 35)->nullable()->after('bank_account');
+        // });
+
+        // Schema::table('sets', function (Blueprint $table) {
+        //     $table->foreignId('management_fee_billing_charge_id')->nullable()->after('management_fee_payment_provider')->constrained('billing_charges')->nullOnDelete();
+        // });
+
+        // Schema::table('design_formats', function (Blueprint $table) {
+        //     $table->string('designer_type', 20)->nullable()->after('snapshot_path');
+        //     $table->string('approval_status', 30)->nullable()->after('designer_type');
+        //     $table->timestamp('submitted_for_approval_at')->nullable()->after('approval_status');
+        //     $table->timestamp('approval_decided_at')->nullable()->after('submitted_for_approval_at');
+        //     $table->foreignId('approved_by_user_id')->nullable()->after('approval_decided_at')->constrained('users')->nullOnDelete();
+        //     $table->text('approval_rejection_reason')->nullable()->after('approved_by_user_id');
+        // });
+
         Schema::create('lottery_deadline_admin_decisions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
@@ -1002,7 +1706,7 @@ class ApiController extends Controller
             $user = User::create([
                 'name' => $displayName,
                 'email' => $email,
-                'password' => Hash::make(self::DEFAULT_PANEL_PASSWORD),
+                'password' => Hash::make(PanelPassword::generate()),
                 'nif_cif' => $adm->nif_cif,
                 'phone' => $adm->phone,
                 'role' => User::ROLE_ADMINISTRATION,
@@ -1075,7 +1779,7 @@ class ApiController extends Controller
             $user = User::create([
                 'name' => $displayName,
                 'email' => $email,
-                'password' => Hash::make(self::DEFAULT_PANEL_PASSWORD),
+                'password' => Hash::make(PanelPassword::generate()),
                 'nif_cif' => $entity->nif_cif,
                 'phone' => $entity->phone,
                 'role' => User::ROLE_ENTITY,
@@ -1340,6 +2044,13 @@ class ApiController extends Controller
             ], 400);
         }
 
+        if ($authError = ParticipationTicketReference::authenticationError($ref, $r->query('sig'))) {
+            return response()->json([
+                'success' => false,
+                'message' => $authError,
+            ], 400);
+        }
+
         // Buscar el set que contenga el ticket con la referencia 'r' igual a $ref
         $set = \App\Models\Set::whereNotNull('tickets')->with(['reserve.lottery'])->get()->first(function($set) use ($ref) {
             if (!is_array($set->tickets)) return false;
@@ -1370,173 +2081,87 @@ class ApiController extends Controller
 
     public function showParticipationTicket(Request $request)
     {
+        $result = app(ParticipationPublicCheckService::class)->check(
+            $request->query('ref'),
+            is_string($request->query('sig')) ? $request->query('sig') : null
+        );
 
-        // Redirigir a la nueva URL externa manteniendo el parámetro ref
-        // if ($request->has('ref')) {
-        //     $ref = $request->query('ref');
-        //     $redirectUrl = 'https://web.elbuholotero.es/loteria-empresas-parti.php?ref=' . urlencode($ref);
-        //     return redirect($redirectUrl);
-        // }
-        
-        // // Si no hay ref, redirigir sin parámetro
-        // return redirect('https://web.elbuholotero.es/loteria-empresas-parti.php');
-        
-        $ticket = null;
-        $error = null;
-        $prizeInfo = null;
-        
-        if ($request->has('ref')) {
-            $ref = $request->query('ref');
-            
-            // Buscar el set que contiene la referencia en tickets
-            $set = \App\Models\Set::whereNotNull('tickets')
-                ->with(['reserve.lottery', 'reserve.entity'])
-                ->get()
-                ->first(function($set) use ($ref) {
-                    if (!is_array($set->tickets)) return false;
-                    foreach ($set->tickets as $ticket) {
-                        if (isset($ticket['r']) && $ticket['r'] == $ref) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
-            
-            if (!$set) {
-                $error = 'No se encontró ninguna participación con esa referencia.';
-            } else {
-                // Encontrar el número de participación correspondiente a la referencia
-                $participationNumber = null;
-                foreach ($set->tickets as $ticket) {
-                    if (isset($ticket['r']) && $ticket['r'] == $ref) {
-                        $participationNumber = $ticket['n'];
-                            break;
-                        }
-                }
-                
-                /*\Log::info("Set Tickets: " . json_encode($set->tickets));
-                \Log::info("Looking for ref: " . $ref);
-                \Log::info("Found participation number: " . ($participationNumber ?? 'NULL'));*/
-                
-                // Buscar la participación por set_id y participation_number
-                $participation = \App\Models\Participation::where('set_id', $set->id)
-                    ->where('participation_number', $participationNumber)
-                    ->first();
-
-                    // return $participation;
-                
-                if (!$participation) {
-                    $error = 'No se encontró la participación correspondiente a esa referencia.';
-                } else if ($participation->status !== 'vendida' && $participation->status !== 'pagada') {
-                    \Log::info("Participation Status: " . $participation->status);
-                    $error = 'Esta participación no está asignada.';
-                } else {
-                    \Log::info("Participation Status: " . $participation->status . " (OK)");
-                    $reserve = $set->reserve;
-                    $lottery = $reserve->lottery;
-                    
-                    // Obtener los números ganadores desde reservation_numbers
-                    $reservedNumbers = $reserve->reservation_numbers ?? [];
-                    
-                    // Manejar todos los números reservados como posibles ganadores
-                    $winningNumbers = [];
-                    
-                    // Si reservation_numbers tiene solo 1 número, todas las participaciones
-                    // del set tienen el mismo número ganador
-                    if (count($reservedNumbers) == 1) {
-                        $winningNumbers = $reservedNumbers;
-                    } else {
-                        // Si hay múltiples números, usar todos los números reservados
-                        $winningNumbers = $reservedNumbers;
-                    }
-                    
-                    /*\Log::info("Reserved Numbers: " . json_encode($reservedNumbers));
-                    \Log::info("Participation Number: " . $participationNumber);
-                    \Log::info("Winning Number Index: " . ($participationNumber - 1));
-                    \Log::info("Reserved Numbers Count: " . count($reservedNumbers));
-                    \Log::info("Winning Number: " . ($winningNumber ?? 'NULL'));*/
-                
-                // Debug: Log de información
-                /*\Log::info("=== DEBUG PARTICIPATION TICKET ===");
-                \Log::info("Winning Number: " . ($winningNumber ?? 'NULL'));
-                \Log::info("Set ID: " . $set->id);
-                \Log::info("Participation Number: " . $participationNumber);*/
-                
-                // Buscar en los resultados del escrutinio guardado para todos los números ganadores
-                $scrutinyResults = [];
-                $totalPrizeAmount = 0;
-                $allWinningCategories = [];
-                
-                if (!empty($winningNumbers)) {
-                    $scrutinyResults = DB::table('scrutiny_detailed_results')
-                        ->join('administration_lottery_scrutinies', 'scrutiny_detailed_results.scrutiny_id', '=', 'administration_lottery_scrutinies.id')
-                        ->whereIn('scrutiny_detailed_results.winning_number', $winningNumbers)
-                        ->where('scrutiny_detailed_results.set_id', $set->id)
-                        ->where('administration_lottery_scrutinies.is_scrutinized', true) // Buscar en escrutinios procesados, no solo guardados
-                        ->select('scrutiny_detailed_results.*')
-                        ->get();
-                    
-                    \Log::info("Scrutiny Results Found: " . $scrutinyResults->count());
-                    
-                    // Calcular premio total y categorías ganadoras
-                    foreach ($scrutinyResults as $result) {
-                        $totalPrizeAmount += $result->premio_por_participacion;
-                        $categories = json_decode($result->winning_categories, true);
-                        if (is_array($categories)) {
-                            // Construir estructura correcta para la vista
-                            foreach ($categories as $category) {
-                                if (is_array($category) && isset($category['categoria']) && isset($category['premio_decimo'])) {
-                                    $allWinningCategories[] = $category;
-                                } elseif (is_string($category) && !empty(trim($category))) {
-                                    // Si es solo un string, crear estructura básica
-                                    $allWinningCategories[] = [
-                                        'categoria' => $category,
-                                        'premio_decimo' => $result->premio_por_decimo ?? 0
-                                    ];
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                if ($scrutinyResults->count() > 0) {
-                    // Usar datos del escrutinio guardado
-                    $prizeInfo = [
-                        'has_won' => true,
-                        'prize_category' => 'Premio del Escrutinio',
-                        'prize_amount' => $totalPrizeAmount,
-                        'matching_numbers' => $winningNumbers,
-                        'winning_categories' => $allWinningCategories,
-                        'scrutiny_results_count' => $scrutinyResults->count()
-                    ];
-                } else {
-                    // No hay premio en el escrutinio guardado
-                    $prizeInfo = [
-                        'has_won' => false,
-                        'prize_category' => null,
-                        'prize_amount' => 0,
-                        'matching_numbers' => $winningNumbers,
-                        'winning_categories' => []
-                    ];
-                }
-                
-                $ticket = [
-                    'data' => [
-                        'participation_code' => $participation->display_participation_code,
-                        'participation_number' => $ref, // La referencia original buscada (000100061758806276046)
-                        'numbers' => $reservedNumbers,
-                        'winning_numbers' => $winningNumbers
-                    ],
-                    'set' => $set,
-                    'reserve' => $reserve,
-                    'lottery' => $lottery,
-                    'prize_info' => $prizeInfo
-                ];
-                }
-            }
+        if ($request->wantsJson() || $request->query('format') === 'json') {
+            return response()->json($result);
         }
-        
+
+        $ticket = $result['ticket'];
+        $error = $result['error'];
+
         return view('social.participation-ticket', compact('ticket', 'error'));
+    }
+
+    /**
+     * Imagen / previsualización pública de la participación leída por QR.
+     */
+    public function showParticipationCheckImage(Request $request)
+    {
+        $service = app(ParticipationPublicCheckService::class);
+        $result = $service->check(
+            $request->query('ref'),
+            is_string($request->query('sig')) ? $request->query('sig') : null
+        );
+
+        if (! $result['success'] || empty($result['ticket']['set']['id'])) {
+            abort(404, $result['error'] ?? 'Participación no encontrada.');
+        }
+
+        $set = Set::with(['reserve.lottery', 'reserve.entity', 'designFormats'])->find($result['ticket']['set']['id']);
+        if (! $set) {
+            abort(404);
+        }
+
+        $design = $service->resolveDesignForSet($set);
+        $snapshotPath = $service->resolveSnapshotAbsolutePath($design);
+        if ($snapshotPath) {
+            $mime = mime_content_type($snapshotPath) ?: 'image/png';
+
+            return response()->file($snapshotPath, [
+                'Content-Type' => $mime,
+                'Cache-Control' => 'public, max-age=300',
+            ]);
+        }
+
+        if (! $design || empty($design->participation_html)) {
+            abort(404, 'No hay previsualización disponible para esta participación.');
+        }
+
+        $designController = app(DesignController::class);
+        $html = $designController->ensureAbsoluteUrlsInHtml($design->participation_html ?? '');
+        $html = $designController->insetBackgroundWithinMargins(
+            $html,
+            (float) ($design->identation ?? 2.5),
+            'containment-wrapper2',
+            'design-participation-bg'
+        );
+
+        return view('social.participation-check-preview', [
+            'design' => $design,
+            'set' => $set,
+            'ticket' => $result['ticket'],
+            'html' => $html,
+            'reservation_numbers' => $result['ticket']['reserve']['reservation_numbers'] ?? [],
+        ]);
+    }
+
+    /**
+     * API JSON para el VPS partilot.es (comprobación pública sin auth).
+     */
+    public function publicParticipationCheckJson(Request $request)
+    {
+        $result = app(ParticipationPublicCheckService::class)->check(
+            $request->query('ref'),
+            is_string($request->query('sig')) ? $request->query('sig') : null
+        );
+
+        return response()
+            ->json($result)
+            ->header('Cache-Control', $result['success'] ? 'public, max-age=60' : 'no-store');
     }
 
     /**
@@ -1729,9 +2354,9 @@ class ApiController extends Controller
                     if ($countBlocking > 0) {
                         $canDelete = false;
                         $message = 'No se puede eliminar el set: hay participaciones asignadas o vendidas. Debe realizar la devolución de todas ellas antes de poder eliminar el set.';
-                    } elseif ($set->designFormats()->count() > 0) {
+                    } elseif ($set->hasRealDesignWork()) {
                         $canDelete = false;
-                        $message = 'El set no se puede borrar porque tiene diseños asociados.';
+                        $message = 'El set no se puede borrar porque tiene un diseño en curso o ya trabajado. Elimine o vacíe el diseño primero.';
                     }
                 }
                 break;
@@ -1803,8 +2428,12 @@ class ApiController extends Controller
         return response()->json(['can_delete' => $canDelete, 'message' => $message]);
     }
 
-    public function deleteItem($type, $id)
+    public function deleteItem(Request $request, $type, $id)
     {
+        $deletionReason = app(CommunicationEmailService::class)->normalizeDeletionReason(
+            $request->input('deletion_reason')
+        );
+
         switch ($type) {
             case 'set': {
                 $set = \App\Models\Set::find($id);
@@ -1820,12 +2449,46 @@ class ApiController extends Controller
                         'message' => 'No se puede eliminar el set: hay participaciones asignadas o vendidas. Debe realizar la devolución de todas ellas antes de poder eliminar el set.'
                     ], 422);
                 }
+                if ($set->hasRealDesignWork()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'El set no se puede borrar porque tiene un diseño en curso o ya trabajado.',
+                    ], 422);
+                }
+                // Placeholders vacíos del editor no deben impedir el borrado.
+                $set->purgeEmptyDesignFormats();
+                \App\Models\Participation::where('set_id', $set->id)->delete();
+
+                try {
+                    app(CommunicationEmailService::class)->sendSetDeletedToEntityManager($set, $deletionReason);
+                } catch (\Throwable $e) {
+                    \Log::warning('Fallo enviando email set eliminado: ' . $e->getMessage());
+                }
+
                 $set->delete();
                 break;
             }
-            case 'reserve':
-                \App\Models\Reserve::find($id)->delete();
+            case 'reserve': {
+                $reserve = \App\Models\Reserve::find($id);
+                if (! $reserve) {
+                    return response()->json(['success' => false, 'message' => 'Reserva no encontrada.'], 404);
+                }
+                if ($reserve->sets()->count() > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La reserva no se puede borrar porque tiene sets asociados.',
+                    ], 422);
+                }
+
+                try {
+                    app(CommunicationEmailService::class)->sendReserveDeletedToEntityManager($reserve, $deletionReason);
+                } catch (\Throwable $e) {
+                    \Log::warning('Fallo enviando email reserva eliminada: ' . $e->getMessage());
+                }
+
+                $reserve->delete();
                 break;
+            }
             case 'lottery': {
                 $lottery = \App\Models\Lottery::find($id);
                 if (!$lottery) {

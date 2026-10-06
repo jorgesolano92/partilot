@@ -251,7 +251,7 @@
 	                                                    <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
 	                                                </div>
 
-	                                                <input class="form-control" id="played_amount" name="played_amount" type="number" step="0.01" placeholder="6.00€" style="border-radius: 0 30px 30px 0;" max="{{ $reserve->reservation_amount ?? 0 }}" required value="{{ old('played_amount') }}">
+	                                                <input class="form-control decimal-input" id="played_amount" name="played_amount" type="text" inputmode="decimal" autocomplete="off" placeholder="6,00€" style="border-radius: 0 30px 30px 0;" required value="{{ old('played_amount') }}">
 	                                            </div>
 	                                        </div>
 	                                    </div>
@@ -266,7 +266,7 @@
 	                                                    <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
 	                                                </div>
 
-	                                                <input class="form-control" id="donation_amount" name="donation_amount" type="number" step="0.01" placeholder="6.00€" style="border-radius: 0 30px 30px 0;" value="{{ old('donation_amount') }}">
+	                                                <input class="form-control decimal-input" id="donation_amount" name="donation_amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0,50€" style="border-radius: 0 30px 30px 0;" value="{{ old('donation_amount') }}">
 	                                            </div>
 	                                        </div>
 	                                    </div>
@@ -296,8 +296,9 @@
 	                                                    <img src="{{url('assets/form-groups/admin/20.svg')}}" alt="">
 	                                                </div>
 
-	                                                <input class="form-control" id="total_participations" name="total_participations" type="number" placeholder="0" style="border-radius: 0 30px 30px 0;" required value="{{ old('total_participations') }}">
+	                                                <input class="form-control" id="total_participations" name="total_participations" type="number" min="1" step="1" placeholder="0" style="border-radius: 0 30px 30px 0;" required value="{{ old('total_participations') }}">
 	                                            </div>
+	                                            <small class="text-muted d-block" id="total_participations_hint"></small>
 	                                        </div>
 	                                    </div>
 
@@ -327,7 +328,7 @@
 	                                                    <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 	                                                </div>
 
-	                                                <input class="form-control" name="deadline_date" type="date" value="{{ old('deadline_date', '2025/07/06') }}" style="border-radius: 0 30px 30px 0;">
+	                                                <input class="form-control" name="deadline_date" type="date" value="{{ old('deadline_date') }}" style="border-radius: 0 30px 30px 0;">
 	                                            </div>
 	                                        </div>
 	                                    </div>
@@ -393,10 +394,59 @@
 
 <script>
 
+// Acepta "0,50", "0.50" y "1.234,56"; devuelve NaN si el formato es ambiguo o inválido.
+function parseDecimalInput(raw) {
+    var s = String(raw == null ? '' : raw).trim().replace(/\s|€/g, '');
+    if (s === '') return NaN;
+    if (s.indexOf(',') !== -1 && s.indexOf('.') !== -1) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+        s = s.replace(',', '.');
+    }
+    return /^\d+(\.\d{1,2})?$/.test(s) ? parseFloat(s) : NaN;
+}
+
+function decimalFieldValue(selector) {
+    var v = parseDecimalInput($(selector).val());
+    return isNaN(v) ? 0 : v;
+}
+
+const SET_AVAILABLE_AMOUNT = {{ json_encode((float) ($availableAmount ?? 0)) }};
+const SET_MAX_PLAYED = {{ json_encode((float) ($reserve->reservation_amount ?? 0)) }};
+
+function playedPerParticipation() {
+    const reservedNumbers = @json($reserve->reservation_numbers ?? []);
+    const numbersCount = reservedNumbers.length;
+    const playedAmount = decimalFieldValue('#played_amount');
+    return numbersCount <= 1 ? playedAmount : (playedAmount * numbersCount);
+}
+
+// Máximo de participaciones que caben en el saldo libre de la reserva con el importe jugado actual.
+function updateMaxParticipations() {
+    const perParticipation = playedPerParticipation();
+    const $total = $('#total_participations');
+    const $hint = $('#total_participations_hint');
+    if (perParticipation <= 0) {
+        $total.removeAttr('max');
+        $hint.removeClass('text-danger').addClass('text-muted').text('');
+        return;
+    }
+    const maxParticipations = Math.floor((SET_AVAILABLE_AMOUNT + 0.0001) / perParticipation);
+    $total.attr('max', maxParticipations);
+    const current = parseInt($total.val(), 10) || 0;
+    if (current > maxParticipations) {
+        $hint.removeClass('text-muted').addClass('text-danger')
+            .text('Máximo ' + maxParticipations + ' participaciones con el saldo disponible de la reserva.');
+    } else {
+        $hint.removeClass('text-danger').addClass('text-muted')
+            .text('Máximo: ' + maxParticipations + ' participaciones.');
+    }
+}
+
 // Función para calcular el Importe Total Participación
 function calculateTotalParticipationAmount() {
-    const playedAmount = parseFloat($('#played_amount').val()) || 0;
-    const donationAmount = parseFloat($('#donation_amount').val()) || 0;
+    const playedAmount = decimalFieldValue('#played_amount');
+    const donationAmount = decimalFieldValue('#donation_amount');
     
     // Obtener la cantidad de números reservados
     const reservedNumbers = @json($reserve->reservation_numbers ?? []);
@@ -418,10 +468,10 @@ function calculateTotalParticipationAmount() {
 // Función para calcular el Importe Total
 function calculateTotalAmount() {
     const totalParticipations = parseInt($('#total_participations').val()) || 0;
-    const playedAmount = parseFloat($('#played_amount').val()) || 0;
-    const totalAmount = totalParticipations * playedAmount;
-    
+    const totalAmount = totalParticipations * playedPerParticipation();
+
     $('#total_amount').val(totalAmount.toFixed(2));
+    updateMaxParticipations();
 }
 
 // Función para calcular participaciones digitales cuando cambian las físicas
@@ -454,10 +504,13 @@ function calculatePhysicalParticipations() {
 
 // Event listeners para los cálculos automáticos
 $(document).ready(function() {
-    
+    calculateTotalParticipationAmount();
+    calculateTotalAmount();
+
     // Calcular Importe Total Participación cuando cambian Importe Jugado o Importe Donativo
     $('#played_amount, #donation_amount').on('input', function() {
         calculateTotalParticipationAmount();
+        calculateTotalAmount();
     });
     
     // Calcular Importe Total cuando cambian Participaciones Totales o Importe Jugado
@@ -496,15 +549,31 @@ $(document).ready(function() {
     
     // Validación de Importe Jugado (Número) antes de enviar
     $('form').on('submit', function(e) {
-        var maxPlayed = parseFloat({{ $reserve->total_amount ?? 0 }});
-        var playedAmount = parseFloat($('#played_amount').val()) || 0;
-        if (playedAmount > maxPlayed) {
-            alert('El Importe Jugado (Número) no puede ser mayor al precio del décimo (' + maxPlayed.toFixed(2) + ' €)');
+        var playedParsed = parseDecimalInput($('#played_amount').val());
+        if (isNaN(playedParsed) || playedParsed <= 0) {
+            alert('Indica un Importe Jugado válido (por ejemplo 2,00).');
             e.preventDefault();
             return false;
         }
+        var donationRaw = ($('#donation_amount').val() || '').trim();
+        var donationParsed = donationRaw === '' ? 0 : parseDecimalInput(donationRaw);
+        if (isNaN(donationParsed)) {
+            alert('El Importe Donativo no tiene un formato válido (por ejemplo 0,50).');
+            e.preventDefault();
+            return false;
+        }
+        var maxPlayed = SET_MAX_PLAYED;
+        var playedAmount = playedParsed;
+        if (playedAmount > maxPlayed) {
+            alert('El Importe Jugado (Número) no puede ser mayor al importe por número de la reserva (' + maxPlayed.toFixed(2) + ' €)');
+            e.preventDefault();
+            return false;
+        }
+        // Enviar siempre con punto decimal para que el servidor reciba el mismo valor que se ve en pantalla.
+        $('#played_amount').val(playedParsed.toFixed(2));
+        $('#donation_amount').val(donationParsed.toFixed(2));
         // Validación de importe total existente
-        var maxAmount = parseFloat({{ $availableAmount ?? 0 }});
+        var maxAmount = SET_AVAILABLE_AMOUNT;
         var totalAmount = parseFloat($('#total_amount').val()) || 0;
         if (totalAmount > maxAmount) {
             alert('El importe total supera el disponible para esta reserva (máx: ' + maxAmount.toFixed(2) + ' €)');

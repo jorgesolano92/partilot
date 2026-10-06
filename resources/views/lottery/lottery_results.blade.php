@@ -57,7 +57,7 @@
 
             						<h4 class="mt-0 mb-0">{{ session('selected_administration.name', 'Administración no seleccionada') }}</h4>
 
-            						<small>{{ session('selected_administration.manager.name', 'Gestor no asignado') }}</small> <br>
+            						<small>{{ session('selected_administration')?->manager?->resolvedContactFullName() ?: 'Gestor no asignado' }}</small> <br>
 
             						<i style="position: relative; top: 3px; font-size: 16px; color: #333" class="ri-computer-line"></i> {{ session('selected_administration.receiving', 'N/A') }}
             						
@@ -228,13 +228,15 @@
 
                         <br>
 
-                        <a href="{{url('lottery_types?table=1')}}" style="border-radius: 30px; width: 180px; top: -12px; left: -12px; position: relative;" class="btn btn-md btn-dark">
+                        <div class="d-flex flex-wrap align-items-center gap-2 lottery-list-actions">
+                        <a href="{{url('lottery_types?table=1')}}" style="border-radius: 30px; width: 180px; background-color: #1f2430;" class="btn btn-md btn-dark">
                             <img src="{{url('icons_/tipos_sorteos.svg')}}" alt="" width="18px" style="position: relative; top: -1px;">
                          Tipos de Sorteo</a>
 
-                         <a href="{{url('lottery/administrations')}}" style="border-radius: 30px; width: 180px; top: -12px; left: -12px; position: relative; background-color: #e78307;" class="btn btn-md btn-light">
+                         <a href="{{url('lottery/administrations')}}" style="border-radius: 30px; width: 180px; background-color: #e78307;" class="btn btn-md btn-light">
                             <img src="{{url('assets/form-groups/results.svg')}}" alt="" width="18px" style="position: relative; top: -1px;">
                          Lista Resultados</a>
+                        </div>
 
                     </div>
                     

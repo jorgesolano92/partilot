@@ -1,0 +1,19 @@
+/**
+ * Fuentes del editor de diseño (CKEditor iframe + lienzo).
+ * Ruta relativa desde /assets/css/ → /Asgonlae.ttf (funciona en subcarpeta XAMPP).
+ */
+@font-face {
+    font-family: 'Asgonlae';
+    font-style: normal;
+    font-weight: normal;
+    src: url('../../Asgonlae.ttf') format('truetype');
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Asgonlae';
+    font-style: normal;
+    font-weight: bold;
+    src: url('../../Asgonlae.ttf') format('truetype');
+    font-display: swap;
+}

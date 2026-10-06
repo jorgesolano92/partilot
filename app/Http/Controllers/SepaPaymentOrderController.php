@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use App\Rules\ValidCalendarDate;
 
 class SepaPaymentOrderController extends Controller
 {
@@ -52,7 +53,7 @@ class SepaPaymentOrderController extends Controller
     {
         $validated = $request->validate([
             'administration_id' => 'nullable|exists:administrations,id',
-            'execution_date' => 'required|date|after_or_equal:today',
+            'execution_date' => ValidCalendarDate::onOrAfterToday(),
             'debtor_name' => 'required|string|max:255',
             'debtor_nif_cif' => ['nullable', 'string', 'max:50', new \App\Rules\SpanishDocument],
             'debtor_iban' => ['required', 'string', 'max:22', 'regex:/^[0-9]{22}$/'],

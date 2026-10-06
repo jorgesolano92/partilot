@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.partilot.app",
+      "sha256_cert_fingerprints": [
+        "24:56:7C:B7:2C:08:D1:54:34:72:ED:D5:C3:29:57:E2:2E:4D:A8:C4:5B:8D:F4:98:F8:EB:FA:DC:F2:28:1B:4D"
+      ]
+    }
+  }
+]

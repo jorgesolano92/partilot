@@ -5,6 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Manager;
 use App\Models\User;
+use App\Models\Administration;
+use App\Services\ManagerAccountService;
+use App\Services\AdministrationManagerContactService;
+use App\Support\ContactEmailRegistry;
+use App\Support\FormRedirectNotify;
+use App\Rules\ValidCalendarDate;
+use Illuminate\Support\Facades\Validator;
 
 class ManagerController extends Controller
 {
@@ -13,7 +20,7 @@ class ManagerController extends Controller
      */
     public function edit($id)
     {
-        $manager = Manager::with('user')->findOrFail($id);
+        $manager = Manager::with(['user', 'entity'])->findOrFail($id);
         if ($manager->user && $manager->user->isPanelAccount()) {
             return redirect()->back()
                 ->with('error', 'La cuenta de acceso al panel no se edita como gestor; use la ficha de administración o entidad.');
@@ -27,80 +34,160 @@ class ManagerController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // return $request->all();
-        $manager = Manager::findOrFail($id);
-        
-        // Buscar usuario primero para excluirlo de la validación unique si existe
-        $user = User::where('email', $request->email)->first();
-        $userId = $user ? $user->id : null;
-        
-        $request->validate([
+        $manager = Manager::with('user')->findOrFail($id);
+
+        if ($manager->user && $manager->user->isPanelAccount()) {
+            return redirect()->back()
+                ->with('error', 'La cuenta de acceso al panel no se edita como gestor; use la ficha de administración o entidad.');
+        }
+
+        $user = $manager->user;
+        $userId = $user?->id;
+
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['nullable', 'string', 'max:20', 'unique:users,nif_cif' . ($userId ? ',' . $userId : '')],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'nif_cif' => [
+                'nullable',
+                'string',
+                'max:20',
+                new \App\Rules\SpanishDocument,
+                new \App\Rules\ManagerContactNif(
+                    $manager->administration_id ? (int) $manager->administration_id : null,
+                    $manager->entity_id ? (int) $manager->entity_id : null,
+                    $userId,
+                    $manager->administration_id ? (int) $manager->id : null,
+                ),
+            ],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:20',
             'comment' => 'nullable|string|max:1000',
-            // 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
-        if (!$user) {
-            $user = new User;
-            $user->name = $request->name . ' ' . $request->last_name;
-            $user->email = $request->email;
-            $user->password = User::ENTITY_MANAGER_LEGACY_DEFAULT_PASSWORD;
-            $user->role = User::ROLE_ENTITY;
-            $user->save();
+
+        $validator->after(function ($v) use ($manager, $request, $userId) {
+            $managerEmail = ContactEmailRegistry::normalize((string) $request->input('email'));
+            if ($managerEmail === '') {
+                return;
+            }
+
+            if ($manager->administration_id) {
+                $administration = Administration::query()->find($manager->administration_id);
+                if ($administration) {
+                    $error = app(AdministrationManagerContactService::class)
+                        ->contactEmailValidationError($managerEmail, $administration);
+                    if ($error) {
+                        $v->errors()->add('email', $error);
+                    }
+                }
+
+                return;
+            }
+
+            if (ContactEmailRegistry::isTaken(
+                $managerEmail,
+                $userId,
+                null,
+                $manager->entity_id ? (int) $manager->entity_id : null,
+            )) {
+                $v->errors()->add('email', 'Este correo ya está en uso en otra cuenta.');
+            }
+        });
+
+        if ($validator->fails()) {
+            return FormRedirectNotify::withErrors(
+                $this->managerFormRedirect($manager),
+                $validator
+            );
         }
 
-        // Actualizar datos del usuario
-        $user->update([
-            'name' => $request->name,
-            'last_name' => $request->last_name,
-            'last_name2' => $request->last_name2,
-            'nif_cif' => $request->nif_cif,
-            'birthday' => $request->birthday,
-            'phone' => $request->phone,
-            'comment' => $request->comment,
-            'role' => User::ROLE_ENTITY,
-        ]);
+        $managerEmail = trim((string) $request->input('email'));
 
-        // Manejo de imagen del manager
-        if ($request->hasFile('image')) {
-            // Eliminar imagen anterior si existe
-            if ($user->image && file_exists(public_path('manager/' . $user->image))) {
-                unlink(public_path('manager/' . $user->image));
+        if ($manager->administration_id) {
+            $administration = Administration::query()->findOrFail($manager->administration_id);
+            $contactService = app(AdministrationManagerContactService::class);
+
+            $contactService->persistPrimaryContact($administration, [
+                'name' => $request->name,
+                'last_name' => $request->last_name,
+                'last_name2' => $request->last_name2,
+                'email' => $managerEmail,
+                'nif_cif' => $request->nif_cif ?: null,
+                'birthday' => $request->birthday ?: null,
+                'phone' => $request->phone ?: null,
+                'comment' => $request->comment ?: null,
+            ], $manager);
+
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $filename = $file->hashName();
+                $file->move(public_path('manager'), $filename);
+                $contactService->updateContactImage($manager->fresh(), $filename);
             }
-            
+
+            return redirect()
+                ->route('administrations.show', $manager->administration_id)
+                ->withFragment('datos_contacto')
+                ->with('success', 'Gestor actualizado correctamente.');
+        }
+
+        $resolvedUser = $user;
+
+        if (! $resolvedUser) {
+            $resolvedUser = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [ContactEmailRegistry::normalize($managerEmail)])->first();
+            if ($resolvedUser && $resolvedUser->isPanelAccount()) {
+                return FormRedirectNotify::withErrors($this->managerFormRedirect($manager), [
+                    'email' => 'Ese email corresponde a una cuenta de acceso al panel.',
+                ]);
+            }
+        }
+
+        $role = User::ROLE_ENTITY;
+
+        if (! $resolvedUser) {
+            $resolvedUser = app(ManagerAccountService::class)->createUser([
+                'name' => $request->name,
+                'last_name' => $request->last_name,
+                'last_name2' => $request->last_name2,
+                'email' => $managerEmail,
+                'role' => $role,
+                'status' => true,
+                'phone' => $request->phone ?: null,
+                'nif_cif' => $request->nif_cif ?: null,
+                'birthday' => $request->birthday ?: null,
+                'comment' => $request->comment ?: null,
+            ], 'gestor de entidad');
+        } else {
+            $resolvedUser->update([
+                'name' => $request->name,
+                'last_name' => $request->last_name,
+                'last_name2' => $request->last_name2,
+                'email' => $managerEmail,
+                'nif_cif' => $request->nif_cif,
+                'birthday' => $request->birthday,
+                'phone' => $request->phone,
+                'comment' => $request->comment,
+                'role' => $role,
+            ]);
+        }
+
+        if ($request->hasFile('image')) {
+            if ($resolvedUser->image && file_exists(public_path('manager/'.$resolvedUser->image))) {
+                unlink(public_path('manager/'.$resolvedUser->image));
+            }
+
             $file = $request->file('image');
             $filename = $file->hashName();
             $file->move(public_path('manager'), $filename);
-            $user->update(['image' => $filename]);
+            $resolvedUser->update(['image' => $filename]);
         }
 
-        // Actualizar la relación manager-entity
-        $manager->update(['user_id' => $user->id]);
+        if ((int) $manager->user_id !== (int) $resolvedUser->id) {
+            $manager->update(['user_id' => $resolvedUser->id]);
+        }
 
-        /*// Redirección según el origen
-        if ($request->has('origin') && $request->origin === 'entities') {
-            // Buscar la entidad asociada a este manager
-            $entity = $manager->entity;
-            if ($entity) {
-                return redirect()->route('entities.show', $entity->id)
-                    ->with('success', 'Gestor actualizado correctamente.');
-            }
-        } else {
-            // Buscar la administración asociada a este manager a través de la entidad
-            $entity = $manager->entity;
-            if ($entity && $entity->administration) {
-                return redirect()->route('administrations.show', $entity->administration->id)
-                    ->with('success', 'Gestor actualizado correctamente.');
-            }
-        }*/
-        
-        return redirect()->back()
-            ->with('success', 'Gestor actualizado correctamente.');
+        return redirect()->back()->with('success', 'Gestor actualizado correctamente.');
     }
 
     /**
@@ -125,5 +212,18 @@ class ManagerController extends Controller
 
         return redirect()->back()
             ->with('success', 'Gestor eliminado exitosamente.');
+    }
+
+    private function managerFormRedirect(Manager $manager)
+    {
+        if ($manager->administration_id) {
+            return redirect()->route('administrations.edit-manager', $manager->administration_id);
+        }
+
+        if ($manager->entity_id) {
+            return redirect()->route('entities.edit-manager', $manager->entity_id);
+        }
+
+        return redirect()->back();
     }
 } 

@@ -17,6 +17,7 @@ class DesignFormat extends Model
         'entity_id',
         'lottery_id',
         'set_id',
+        'design_name',
         'format',
         'page',
         'rows',
@@ -27,6 +28,7 @@ class DesignFormat extends Model
         'margin_left',
         'margin_top',
         'identation',
+        'cut_lines',
         'matrix_box',
         'page_rigth',
         'page_bottom',
@@ -46,10 +48,18 @@ class DesignFormat extends Model
         'margin_custom',
         'cover_html',
         'back_html',
+        'back_skipped',
         'backgrounds',
         'margins',
         'output',
         'snapshot_path',
+        'designer_type',
+        'approval_status',
+        'submitted_for_approval_at',
+        'approval_decided_at',
+        'approved_by_user_id',
+        'approval_rejection_reason',
+        'participation_export_locked_at',
     ];
 
     protected $casts = [
@@ -58,7 +68,40 @@ class DesignFormat extends Model
         'backgrounds' => 'array',
         'output' => 'array',
         'margins' => 'array',
+        'back_skipped' => 'boolean',
+        'submitted_for_approval_at' => 'datetime',
+        'approval_decided_at' => 'datetime',
+        'participation_export_locked_at' => 'datetime',
     ];
+
+    /**
+     * Márgenes / sangres por defecto al crear un diseño nuevo.
+     *
+     * @return array<string, mixed>
+     */
+    public static function defaultLayoutAttributes(): array
+    {
+        return [
+            'margins' => [
+                'up' => 1,
+                'right' => 1,
+                'left' => 1,
+                'top' => 1,
+            ],
+            'margin_up' => 1,
+            'margin_right' => 1,
+            'margin_left' => 1,
+            'margin_top' => 1,
+            'identation' => 0,
+            'cut_lines' => 2.5,
+            'matrix_box' => 40,
+            'margin_custom' => 1,
+            'horizontal_space' => 0,
+            'vertical_space' => 0,
+            'page_rigth' => 0,
+            'page_bottom' => 0,
+        ];
+    }
 
     public function entity()
     {
@@ -73,6 +116,15 @@ class DesignFormat extends Model
     public function set()
     {
         return $this->belongsTo(Set::class);
+    }
+
+    public function hasBackDesign(): bool
+    {
+        if ($this->back_skipped) {
+            return false;
+        }
+
+        return ! empty(trim(strip_tags((string) ($this->back_html ?? ''))));
     }
 
     public function participations()
@@ -196,30 +248,13 @@ class DesignFormat extends Model
                 // Insertar en lotes de 100 para mejor rendimiento (más pequeño para debugging)
                 if (count($participationsToCreate) >= 100) {
                     try {
-                        // Verificar si hay códigos duplicados antes de insertar
-                        $codesToInsert = array_column($participationsToCreate, 'participation_code');
-                        $existingCodes = Participation::whereIn('participation_code', $codesToInsert)
-                            ->where('design_format_id', $this->id)
-                            ->pluck('participation_code')->toArray();
-                        
-                        if (!empty($existingCodes)) {
-                            \Log::warning('Códigos de participación ya existen para este design format: ' . implode(', ', $existingCodes));
-                            // Eliminar solo las participaciones existentes de este design format con estos códigos
-                            Participation::whereIn('participation_code', $existingCodes)
-                                ->where('design_format_id', $this->id)
-                                ->delete();
-                            \Log::info('Eliminadas participaciones duplicadas de este design format');
-                        }
-                        
-                        // Usar insert en lugar de upsert para evitar conflictos de duplicados
+                        $this->clearParticipationNumberConflictsBeforeInsert($participationsToCreate);
+
                         $result = Participation::insert($participationsToCreate);
                         $insertedCount = count($participationsToCreate);
                         $totalCreated += $insertedCount;
                         \Log::info('Insertado lote de ' . $insertedCount . ' participaciones. Total creadas: ' . $totalCreated);
-                        
-                        // Crear logs para las participaciones insertadas
-                        $this->createActivityLogsForBatch($participationsToCreate);
-                        
+
                         $participationsToCreate = [];
                     } catch (\Exception $e) {
                         \Log::error('Error al insertar lote de participaciones: ' . $e->getMessage());
@@ -232,29 +267,12 @@ class DesignFormat extends Model
             // Insertar las participaciones restantes
             if (!empty($participationsToCreate)) {
                 try {
-                    // Verificar si hay códigos duplicados antes de insertar
-                    $codesToInsert = array_column($participationsToCreate, 'participation_code');
-                    $existingCodes = Participation::whereIn('participation_code', $codesToInsert)
-                        ->where('design_format_id', $this->id)
-                        ->pluck('participation_code')->toArray();
-                    
-                    if (!empty($existingCodes)) {
-                        \Log::warning('Códigos de participación ya existen en lote final para este design format: ' . implode(', ', $existingCodes));
-                        // Eliminar solo las participaciones existentes de este design format con estos códigos
-                        Participation::whereIn('participation_code', $existingCodes)
-                            ->where('design_format_id', $this->id)
-                            ->delete();
-                        \Log::info('Eliminadas participaciones duplicadas del lote final de este design format');
-                    }
-                    
-                    // Usar insert en lugar de upsert para evitar conflictos de duplicados
+                    $this->clearParticipationNumberConflictsBeforeInsert($participationsToCreate);
+
                     $result = Participation::insert($participationsToCreate);
                     $insertedCount = count($participationsToCreate);
                     $totalCreated += $insertedCount;
                     \Log::info('Insertado lote final de ' . $insertedCount . ' participaciones. Total creadas: ' . $totalCreated);
-                    
-                    // Crear logs para las participaciones insertadas
-                    $this->createActivityLogsForBatch($participationsToCreate);
                 } catch (\Exception $e) {
                     \Log::error('Error al insertar lote final de participaciones: ' . $e->getMessage());
                     \Log::error('Datos del lote final: ' . json_encode($participationsToCreate));
@@ -282,66 +300,6 @@ class DesignFormat extends Model
     }
 
     /**
-     * Crear logs de actividad para un lote de participaciones insertadas
-     */
-    private function createActivityLogsForBatch($participationsData)
-    {
-        try {
-            $logsToCreate = [];
-            $now = now();
-            
-            foreach ($participationsData as $participationData) {
-                // Obtener el ID de la participación recién creada por su código
-                $participation = Participation::where('participation_code', $participationData['participation_code'])
-                    ->where('design_format_id', $this->id)
-                    ->first();
-                
-                if ($participation) {
-                    $logsToCreate[] = [
-                        'participation_id' => $participation->id,
-                        'activity_type' => 'created',
-                        'user_id' => auth()->id(),
-                        'seller_id' => null,
-                        'entity_id' => $this->entity_id,
-                        'old_status' => null,
-                        'new_status' => 'disponible',
-                        'old_seller_id' => null,
-                        'new_seller_id' => null,
-                        'description' => "Participación #{$participationData['participation_number']} creada",
-                        'metadata' => json_encode([
-                            'participation_code' => $participationData['participation_code'],
-                            'book_number' => $participationData['book_number'],
-                            'set_id' => $this->set_id,
-                            'design_format_id' => $this->id,
-                        ]),
-                        'ip_address' => request()->ip(),
-                        'user_agent' => request()->userAgent(),
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
-                
-                // Insertar logs en lotes de 100
-                if (count($logsToCreate) >= 100) {
-                    DB::table('participation_activity_logs')->insert($logsToCreate);
-                    \Log::info('Insertados ' . count($logsToCreate) . ' logs de actividad');
-                    $logsToCreate = [];
-                }
-            }
-            
-            // Insertar logs restantes
-            if (!empty($logsToCreate)) {
-                DB::table('participation_activity_logs')->insert($logsToCreate);
-                \Log::info('Insertados ' . count($logsToCreate) . ' logs de actividad (lote final)');
-            }
-            
-        } catch (\Exception $e) {
-            \Log::error('Error al crear logs de actividad: ' . $e->getMessage());
-            // No lanzar excepción para no interrumpir la creación de participaciones
-        }
-    }
-
-    /**
      * Actualizar participaciones existentes
      */
     public function updateParticipations()
@@ -351,6 +309,46 @@ class DesignFormat extends Model
         
         // Generar nuevas participaciones
         return $this->generateParticipations();
+    }
+
+    /**
+     * Evita violar participations_set_id_participation_number_unique antes de insertar.
+     *
+     * @param  array<int, array<string, mixed>>  $participationsToCreate
+     */
+    private function clearParticipationNumberConflictsBeforeInsert(array $participationsToCreate): void
+    {
+        $setId = (int) $this->set_id;
+        $numbers = array_values(array_unique(array_map('intval', array_column($participationsToCreate, 'participation_number'))));
+        if ($numbers === []) {
+            return;
+        }
+
+        $foreignQuery = Participation::query()
+            ->where('set_id', $setId)
+            ->whereIn('participation_number', $numbers)
+            ->where(function ($q) {
+                $q->where('design_format_id', '!=', $this->id)
+                    ->orWhereNull('design_format_id');
+            });
+
+        $hasBlocked = (clone $foreignQuery)
+            ->where(function ($q) {
+                $q->whereNotNull('seller_id')
+                    ->orWhereIn('status', ['vendida', 'reservada', 'pagada', 'perdida']);
+            })
+            ->exists();
+
+        if ($hasBlocked) {
+            throw new \RuntimeException(
+                'No se pueden generar participaciones: el set ya tiene participaciones comprometidas en otro diseño.'
+            );
+        }
+
+        $deleted = (clone $foreignQuery)->delete();
+        if ($deleted > 0) {
+            \Log::info("Eliminadas {$deleted} participaciones huérfanas/de otro diseño antes de insertar para DesignFormat ID {$this->id}");
+        }
     }
 
     /**
@@ -523,5 +521,69 @@ class DesignFormat extends Model
             'set_number' => $setNumber,
             'book_number' => $bookNumber,
         ];
+    }
+
+    /** Normaliza participaciones por talonario (1–1000, como en el editor de formato). */
+    public static function normalizeCoverParticipationsPerBook(mixed $raw): int
+    {
+        $value = (int) $raw;
+
+        return max(1, min(1000, $value > 0 ? $value : 50));
+    }
+
+    /**
+     * Recalcula book_number sin borrar/recrear participaciones (saveQuietly en output).
+     */
+    public function reassignBookNumbers(int $perBook): int
+    {
+        $perBook = max(1, $perBook);
+        $set = $this->set;
+        if (! $set) {
+            return 0;
+        }
+
+        $range = $set->getParticipationNumberRange();
+        $globalStart = (int) ($range['start'] ?? 1);
+
+        $participations = Participation::query()
+            ->where('design_format_id', $this->id)
+            ->where('status', '!=', 'anulada')
+            ->orderBy('participation_number')
+            ->get(['id', 'participation_number', 'book_number']);
+
+        if ($participations->isEmpty()) {
+            return 0;
+        }
+
+        $updated = 0;
+        foreach ($participations as $participation) {
+            $localIndex = (int) $participation->participation_number - $globalStart + 1;
+            $bookNumber = (int) ceil($localIndex / $perBook);
+            if ((int) $participation->book_number !== $bookNumber) {
+                Participation::whereKey($participation->id)->update(['book_number' => $bookNumber]);
+                $updated++;
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Persiste participations_per_book, regenera taco_qrs y actualiza book_number en bloque.
+     */
+    public function syncCoverTacoConfig(int $perBook): void
+    {
+        $perBook = self::normalizeCoverParticipationsPerBook($perBook);
+        $output = is_array($this->output) ? $this->output : [];
+        $output['participations_per_book'] = $perBook;
+
+        if ($this->set_id) {
+            $output = self::mergeTacoQrsIntoOutput((int) $this->set_id, $output);
+        }
+
+        $this->output = $output;
+        // saveQuietly: no dispara updateParticipations al cambiar output.
+        $this->saveQuietly();
+        $this->reassignBookNumbers($perBook);
     }
 }

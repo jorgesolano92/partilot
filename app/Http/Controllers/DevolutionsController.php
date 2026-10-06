@@ -12,6 +12,7 @@ use App\Models\Set;
 use App\Models\Devolution;
 use App\Models\DevolutionDetail;
 use App\Models\DevolutionPayment;
+use App\Models\EntityLotteryPrizeSetting;
 use App\Mail\DevolutionReturnedToAdministrationMail;
 use App\Mail\DevolutionReturnedToEntityManagerMail;
 use App\Jobs\ProcessDevolutionDeleteTask;
@@ -19,7 +20,10 @@ use App\Jobs\ProcessDevolutionTask;
 use App\Models\BackgroundTask;
 use App\Services\CommunicationEmailService;
 use App\Services\BackgroundTaskService;
+use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\LegalAcceptanceService;
 use App\Services\SellerLiquidationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -31,11 +35,7 @@ class DevolutionsController extends Controller
      */
     private static function pricePerParticipationSet(Set $set): float
     {
-        $total = $set->total_participation_amountplayed ?? null;
-        if ($total !== null && (float) $total > 0) {
-            return (float) $total;
-        }
-        return (float) (($set->played_amount ?? 0) + ($set->donation_amount ?? 0));
+        return $set->pricePerParticipation();
     }
 
     /**
@@ -303,14 +303,28 @@ class DevolutionsController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         if ($redirect = $this->redirectUnlessDevolutionsWebAccess()) {
             return $redirect;
         }
 
+        $entityFilterIdRaw = $request->query('entity_id');
+        $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
+            ? (int) $entityFilterIdRaw
+            : null;
+
         $query = Devolution::with(['entity', 'lottery', 'seller', 'user', 'payments'])
             ->forUser(auth()->user());
+
+        if ($entityFilterId !== null) {
+            if (! auth()->user()->canManageEntityDevolutions($entityFilterId)) {
+                abort(403, 'No tienes permisos para gestionar devoluciones de esta entidad.');
+            }
+
+            $query->where('entity_id', $entityFilterId);
+        }
+
         $this->scopeDevolutionsToManagedEntities($query);
         $devolutions = $query
             ->orderBy('devolution_date', 'desc')
@@ -365,6 +379,10 @@ class DevolutionsController extends Controller
         // Solo ejecutar en síncrono cuando se fuerce explícitamente.
         $runInBackground = !$forceSync;
         if ($runInBackground) {
+            if ($resp = $this->validateAdministrationLiquidationLegalRequirements($request)) {
+                return $resp;
+            }
+
             $payload = $request->all();
             unset($payload['background']);
             $payload['force_sync'] = true;
@@ -424,9 +442,29 @@ class DevolutionsController extends Controller
                 'liquidacion.pagos.*.amount' => 'required_with:liquidacion.pagos.*|numeric',
                 'liquidacion.special_prize' => 'nullable|array',
                 'liquidacion.special_prize.assignments' => 'nullable|array',
+                'prize_payment_mode' => 'nullable|in:presencial,online',
+                'online_payer' => 'nullable|in:partilot,entity',
+                'confirmacion_liquidacion_definitiva' => 'nullable|string|max:255',
             ]);
 
             $soloDevolucion = !empty($data['solo_devolucion']);
+            $tipoDevolucionEarly = (string) $request->input('tipo_devolucion', 'administracion');
+            $requiresPrizePaymentMode = ! $soloDevolucion && $tipoDevolucionEarly !== 'vendedor';
+
+            if ($requiresPrizePaymentMode && empty($data['prize_payment_mode'])) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Debes seleccionar la modalidad de pago de premios (presencial u online) antes de liquidar.',
+                ], 422);
+            }
+
+            if ($resp = $this->validateDefinitiveLiquidationPhrase($request, $requiresPrizePaymentMode)) {
+                DB::rollBack();
+
+                return $resp;
+            }
 
             if ($soloDevolucion) {
                 $devolver = $data['liquidacion']['devolver'] ?? $data['participations'] ?? [];
@@ -986,6 +1024,36 @@ class DevolutionsController extends Controller
                         'payment_date' => $now
                     ]);
                 }
+            }
+
+            if ($requiresPrizePaymentMode && ! empty($data['prize_payment_mode'])) {
+                $onlinePayer = ($data['prize_payment_mode'] ?? '') === 'online'
+                    ? ($data['online_payer'] ?? EntityLotteryPrizeSetting::PAYER_PARTILOT)
+                    : null;
+
+                app(EntityLotteryPrizePaymentService::class)->lockModeFromDevolution(
+                    (int) $data['entity_id'],
+                    (int) $data['lottery_id'],
+                    (string) $data['prize_payment_mode'],
+                    (int) $userId,
+                    $onlinePayer
+                );
+
+                $entity = Entity::find($data['entity_id']);
+                app(LegalAcceptanceService::class)->recordDefinitiveLiquidationConfirmation(
+                    auth()->user(),
+                    $request,
+                    [
+                        'entity_id' => (int) $data['entity_id'],
+                        'lottery_id' => (int) $data['lottery_id'],
+                        'devolution_id' => $devolution->id,
+                        'gestor_responsable_id' => $userId,
+                        'texto_confirmacion' => trim((string) $request->input('confirmacion_liquidacion_definitiva', '')),
+                        'participaciones_devueltas' => $totalParticipations,
+                        'importe_total' => $totalLiquidation,
+                    ],
+                    $entity?->administration_id ? (int) $entity->administration_id : null
+                );
             }
 
             DB::commit();
@@ -1916,11 +1984,12 @@ class DevolutionsController extends Controller
         }
 
         // Solo se pueden devolver participaciones asignadas o disponibles (nunca vendidas ni pagadas)
+        $returnableStatuses = Participation::returnableDevolutionStatuses();
         if (isset($data['seller_id'])) {
             $query->where('participations.seller_id', $data['seller_id'])
-                  ->whereIn('participations.status', ['asignada', 'disponible']);
+                  ->whereIn('participations.status', $returnableStatuses);
         } else {
-            $query->whereIn('participations.status', ['asignada', 'disponible']);
+            $query->whereIn('participations.status', $returnableStatuses);
         }
 
         // EXCLUIR ANULADAS
@@ -1987,15 +2056,23 @@ class DevolutionsController extends Controller
         $participation = Participation::forUser(auth()->user())
             ->where('set_id', $set->id)
             ->where('participation_number', $participationNumber)
-            ->whereIn('status', ['disponible', 'asignada', 'vendida'])
+            ->whereIn('status', Participation::returnableDevolutionStatuses())
             ->where('status', '!=', 'anulada')
             ->first();
 
-        if (!$participation) {
+        if (! $participation) {
+            $blocked = Participation::forUser(auth()->user())
+                ->where('set_id', $set->id)
+                ->where('participation_number', $participationNumber)
+                ->whereIn('status', ['vendida', 'pagada', 'reserva_venta_digital'])
+                ->exists();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Esa participación no está disponible para devolución.',
-                'participations' => []
+                'message' => $blocked
+                    ? 'No se pueden devolver participaciones ya vendidas o pagadas.'
+                    : 'Esa participación no está disponible para devolución.',
+                'participations' => [],
             ], 422);
         }
 
@@ -2904,19 +2981,67 @@ class DevolutionsController extends Controller
             return null;
         }
 
-        $pending = app(SellerLiquidationService::class)
-            ->sumPendingLiquidationForEntityLottery($entityId, $lotteryId);
+        $liquidationService = app(SellerLiquidationService::class);
+        $pending = $liquidationService->sumPendingLiquidationForEntityLottery($entityId, $lotteryId);
 
         if ($pending <= 0) {
             return null;
         }
 
+        $breakdown = $liquidationService->pendingBreakdownForEntityLottery($entityId, $lotteryId);
+        $soloDevolucion = filter_var($request->input('solo_devolucion', false), FILTER_VALIDATE_BOOLEAN);
+        $physicalInHand = $soloDevolucion ? 0 : array_sum(array_column($breakdown, 'physical_in_hand'));
+
+        $message = 'Hay vendedores con liquidación pendiente para este sorteo ('.number_format($pending, 2, ',', '.').' €).';
+        if ($physicalInHand > 0) {
+            $message .= ' Tienen aún '.$physicalInHand.' papeleta(s) física(s) en mano que, si continúas, pasarán a considerarse vendidas.';
+        }
+        $message .= ' Puedes continuar, pero conviene que liquiden antes.';
+
         return response()->json([
             'success' => false,
             'requires_confirmation' => true,
             'warning_code' => 'seller_liquidation_pending',
-            'message' => 'Hay vendedores con liquidación pendiente para este sorteo ('.number_format($pending, 2, ',', '.').' €). Puedes continuar, pero conviene que liquiden antes.',
+            'message' => $message,
             'seller_pending_amount' => round($pending, 2),
+            'physical_in_hand_total' => $physicalInHand,
+            'sellers' => $breakdown,
         ], 409);
+    }
+
+    protected function validateAdministrationLiquidationLegalRequirements(Request $request): ?JsonResponse
+    {
+        $soloDevolucion = filter_var($request->input('solo_devolucion', false), FILTER_VALIDATE_BOOLEAN);
+        $tipo = (string) $request->input('tipo_devolucion', 'administracion');
+        if ($tipo === 'anulacion' || $tipo === 'vendedor' || $soloDevolucion) {
+            return null;
+        }
+
+        if (empty($request->input('prize_payment_mode'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes seleccionar la modalidad de pago de premios (presencial u online) antes de liquidar.',
+            ], 422);
+        }
+
+        return $this->validateDefinitiveLiquidationPhrase($request, true);
+    }
+
+    protected function validateDefinitiveLiquidationPhrase(Request $request, bool $required): ?JsonResponse
+    {
+        if (! $required) {
+            return null;
+        }
+
+        $expected = (string) config('legal_prizes.definitive_liquidation.confirmation_phrase', 'CONFIRMO LIQUIDACIÓN');
+        $text = trim((string) $request->input('confirmacion_liquidacion_definitiva', ''));
+        if ($text !== $expected) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes escribir exactamente «'.$expected.'» para confirmar la liquidación definitiva.',
+            ], 422);
+        }
+
+        return null;
     }
 }

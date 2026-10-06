@@ -465,7 +465,7 @@
             @endif
         </i></small>
 
-        <ul class="nav nav-tabs mt-3">
+        <ul class="nav nav-tabs config-inline-tabs mt-3">
             <li class="nav-item">
                 <a class="nav-link {{ $activeCollectionTab === 'pending' ? 'active' : '' }}"
                    href="{{ url('/configuration?section=ordenes-pago-entidades&step=3&entity_id=' . $entity->id . '&tab=pending') }}">

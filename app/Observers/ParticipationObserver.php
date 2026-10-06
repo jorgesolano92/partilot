@@ -73,6 +73,23 @@ class ParticipationObserver
             return; // Evitar registros duplicados
         }
 
+        // Reserva de venta digital: el vendedor de la app queda reflejado en la participación
+        if ($statusChanged && $newStatus === 'reserva_venta_digital') {
+            $sellerId = $newSellerId ?? $participation->seller_id;
+            ParticipationActivityLog::log($participation->id, 'status_changed', [
+                'entity_id' => $participation->entity_id,
+                'seller_id' => $sellerId,
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus,
+                'description' => $sellerId
+                    ? "Venta digital reservada por el vendedor ID: {$sellerId}"
+                    : "Estado cambiado de '{$oldStatus}' a '{$newStatus}'",
+                'metadata' => $changes,
+            ]);
+
+            return;
+        }
+
         // Caso 1: Asignación a vendedor (status cambia a 'asignada' y se asigna vendedor)
         if ($statusChanged && $newStatus === 'asignada' && $sellerChanged && $newSellerId !== null && $oldSellerId === null) {
             ParticipationActivityLog::log($participation->id, 'assigned', [

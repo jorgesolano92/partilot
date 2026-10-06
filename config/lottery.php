@@ -20,7 +20,8 @@ return [
     |
     | LOTTERY_AUTO_DEADLINE_CLOSURE_ENABLED=false (default) → no ejecuta en cron; usar
     |   php artisan sipart:lottery-deadline-closure --ignore-disabled para pruebas.
-    | LOTTERY_ENFORCE_DRAW_DATE_RULES=false → sigue permitiendo operar sorteos pasados en panel;
+    | LOTTERY_ENFORCE_DRAW_DATE_RULES=false → sigue permitiendo operar sorteos pasados en panel
+    |   y digitalizar / vincular en cartera fuera del plazo (deadline_date);
     |   el cierre solo mira la fecha límite efectiva, no bloquea por draw_date.
     */
     'auto_deadline_closure' => [
@@ -42,4 +43,35 @@ return [
             FILTER_VALIDATE_BOOLEAN
         ),
     ],
+
+    /*
+    | Tope de décimos por operación de reserva (0 = sin límite).
+    | NEW-F3-04 — configurable vía LOTTERY_MAX_RESERVATION_TICKETS.
+    */
+    'max_reservation_tickets' => max(0, (int) env('LOTTERY_MAX_RESERVATION_TICKETS', 0)),
+
+    /*
+    | Firma HMAC en URLs QR de participación (SEC-008).
+    | require_signature=false + allow_legacy_unsigned=true → QRs impresos sin &sig= siguen válidos.
+    | En producción endurecida: PARTICIPATION_QR_REQUIRE_HMAC=true
+    */
+    'participation_qr_hmac' => [
+        'require_signature' => filter_var(
+            env('PARTICIPATION_QR_REQUIRE_HMAC', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'allow_legacy_unsigned' => filter_var(
+            env('PARTICIPATION_QR_LEGACY_UNSIGNED', true),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+    ],
+
+    /*
+    | URL base embebida en códigos QR impresos (comprobación pública fuera del panel).
+    | Solo afecta a la generación de QR; la app extrae el parámetro ref de la URL.
+    */
+    'participation_qr_public_url' => rtrim(
+        env('PARTICIPATION_QR_PUBLIC_URL', 'https://partilot.es'),
+        '/'
+    ),
 ];

@@ -379,12 +379,7 @@ class LotteryDeadlineClosureService
 
     private function pricePerParticipationSet(Set $set): float
     {
-        $total = $set->total_participation_amount ?? null;
-        if ($total !== null && (float) $total > 0) {
-            return (float) $total;
-        }
-
-        return (float) (($set->played_amount ?? 0) + ($set->donation_amount ?? 0));
+        return $set->pricePerParticipation();
     }
 
     private function requiresSpecialPrizeSettlement(Lottery $lottery): bool

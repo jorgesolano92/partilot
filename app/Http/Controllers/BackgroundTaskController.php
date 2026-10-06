@@ -108,6 +108,13 @@ class BackgroundTaskController extends Controller
             $query->where('requested_by_user_id', $user->id);
         }
 
+        if ($request->boolean('active')) {
+            $query->whereIn('status', [
+                BackgroundTask::STATUS_PENDING,
+                BackgroundTask::STATUS_RUNNING,
+            ]);
+        }
+
         $tasks = $query->limit($limit)->get()->map(fn (BackgroundTask $task) => $this->presentTask($task));
 
         return response()->json([

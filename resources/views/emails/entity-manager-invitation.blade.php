@@ -1,25 +1,48 @@
 @extends('emails.layouts.base')
 
-@php($title = 'Invitación Gestor - Partilot')
-@php($heading = 'Invitación de gestor')
+@php
+    $roleType = $manager->pending_primary || $manager->is_primary ? 'gestor_responsable' : 'gestor';
+    $role = config("legal_roles.{$roleType}", []);
+    $adminName = $entity->administration->name ?? 'Tu administración';
+    $isResponsible = $manager->pending_primary || $manager->is_primary;
+@endphp
+@php($title = 'Invitación - Partilot')
+@php($heading = $isResponsible ? 'Designación como Gestor Responsable' : 'Invitación como Gestor')
 
 @section('content')
 <p>Hola {{ $managerUser->name ?? 'Gestor' }},</p>
-@if($manager->is_primary)
-<p>Has sido designado/a como <strong>gestor responsable</strong> de la entidad <strong>{{ $entity->name }}</strong> en Partilot.</p>
+@if($isResponsible)
+<p><strong>{{ $adminName }}</strong> te ha designado <strong>Gestor Responsable</strong> de la entidad <strong>{{ $entity->name }}</strong> en PARTILOT.</p>
+<p>El contrato marco ya ha sido firmado por el representante autorizado. Para activar la entidad debes <strong>aceptar el cargo de Gestor Responsable</strong>.</p>
 @else
-<p>Has sido invitado como gestor de la entidad <strong>{{ $entity->name }}</strong> en Partilot.</p>
+<p>Te han invitado a colaborar como <strong>Gestor</strong> en la entidad <strong>{{ $entity->name }}</strong> en PARTILOT.</p>
+@endif
+@if(!empty($role['summary_bullets']))
+<ul>
+    @foreach($role['summary_bullets'] as $bullet)
+        <li>{{ $bullet }}</li>
+    @endforeach
+</ul>
 @endif
 <div class="info-box">
-    @if($manager->requires_password_setup)
-        <p>Para activar tu acceso al panel, abre el enlace <strong>Aceptar</strong>, confirma la solicitud y <strong>define tu contraseña</strong> de acceso al panel como gestor.</p>
+    @if(!empty($setPasswordUrl))
+        <p><strong>Email de acceso al panel:</strong> {{ $managerUser->email }}</p>
+        <p>Cree su contraseña desde este enlace personal (de un solo uso): <a href="{{ $setPasswordUrl }}">Crear mi contraseña</a></p>
+        <p>Además, debe <strong>aceptar o rechazar</strong> la invitación como gestor usando los botones de abajo.</p>
     @else
-        <p>Para activar tu acceso al panel, abre el enlace <strong>Aceptar</strong> y confirma la solicitud.</p>
+        <p>Para activar tu acceso como gestor, abre el enlace y <strong>confirma o rechaza</strong> la solicitud. No necesitas definir una nueva contraseña: usa la de tu cuenta existente.</p>
     @endif
 </div>
 <p style="text-align:center; margin: 24px 0;">
-    <a href="{{ $acceptUrl }}" style="display:inline-block;padding:10px 18px;background:#198754;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;margin-right:8px;">{{ $manager->requires_password_setup ? 'Aceptar y definir contraseña' : 'Aceptar' }}</a>
-    <a href="{{ $rejectUrl }}" style="display:inline-block;padding:10px 18px;background:#dc3545;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Rechazar solicitud</a>
+    <a href="{{ $acceptUrl }}" style="display:inline-block;padding:10px 18px;background:#198754;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;margin-right:8px;">Ver detalles y aceptar</a>
+    <a href="{{ $rejectUrl }}" style="display:inline-block;padding:10px 18px;background:#dc3545;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Rechazar</a>
 </p>
+@if($isResponsible)
+<p style="font-size: 13px; color:#555; background:#f8f9fa; padding:12px; border-radius:8px;">
+    <strong>Aviso:</strong> cuando aceptes el cargo, se enviará a la entidad el correo con el
+    <strong>acceso a la plataforma</strong> (usuario y contraseña del panel). Este correo de invitación
+    no es el acceso de la entidad.
+</p>
+@endif
 <p style="font-size: 13px; color:#666;">Si no reconoces esta invitación, puedes rechazarla o ignorar este correo.</p>
 @endsection

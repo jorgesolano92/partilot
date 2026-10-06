@@ -8,6 +8,8 @@ use App\Models\Administration;
 use App\Models\Entity;
 use App\Models\Reserve;
 use App\Models\AdministrationLotteryScrutiny;
+use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\Scrutiny\LotteryPrizeCalculator;
 use App\Models\ScrutinyEntityResult;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -77,7 +79,22 @@ class LotteryScrutinyController extends Controller
         $scrutinyData = $this->prepareScrutinyData($lottery, $entitiesWithReserves, $scrutinyResults);
         $scrutinyData = $this->enrichScrutinyDataWithCategoryResults($scrutinyData, $scrutinyResultsByEntity);
 
-        return view('lottery.scrutiny', compact('lottery', 'administration', 'entitiesWithReserves', 'scrutinyData', 'scrutinyResults', 'scrutinyResultsByEntity'));
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        $entitiesPendingDevolution = $prizePaymentService->entitiesPendingAdminDevolutionClosure($administrationId, $lotteryId);
+        $scrutinyBlocked = $entitiesPendingDevolution->isNotEmpty();
+        $scrutinyBlockedMessage = $prizePaymentService->administrationScrutinyBlockedMessage($administrationId, $lotteryId);
+
+        return view('lottery.scrutiny', compact(
+            'lottery',
+            'administration',
+            'entitiesWithReserves',
+            'scrutinyData',
+            'scrutinyResults',
+            'scrutinyResultsByEntity',
+            'entitiesPendingDevolution',
+            'scrutinyBlocked',
+            'scrutinyBlockedMessage'
+        ));
     }
 
     /**
@@ -98,90 +115,22 @@ class LotteryScrutinyController extends Controller
                 ->with('error', 'Este sorteo aún no tiene resultados');
         }
 
+        $prizePaymentService = app(EntityLotteryPrizePaymentService::class);
+        $blockedMessage = $prizePaymentService->administrationScrutinyBlockedMessage($administrationId, $lotteryId);
+        if ($blockedMessage !== null) {
+            return redirect()->route('lottery.scrutiny', $lotteryId)
+                ->with('error', $blockedMessage);
+        }
+
         try {
             DB::beginTransaction();
 
-            // Obtener entidades con reservas para este sorteo
-        $entitiesWithReserves = Entity::forUser(auth()->user())
-            ->where('administration_id', $administrationId)
-                ->whereHas('reserves', function ($query) use ($lottery) {
-                    $query->where('lottery_id', $lottery->id)
-                          ->where('status', 1);
-                })
-                ->with(['reserves' => function ($query) use ($lottery) {
-                    $query->where('lottery_id', $lottery->id)
-                          ->where('status', 1);
-                }])
-                ->get();
-
-            $reservedNumbers = $this->getReservedNumbersForAdministration($administrationId, $lotteryId);
-            $scrutinyResults = $this->calculateCategoryScrutiny($lottery, $reservedNumbers);
-            $scrutinyResultsByEntity = $this->organizeResultsByEntity($scrutinyResults, $entitiesWithReserves, $lotteryId);
-
-            $scrutinyData = $this->prepareScrutinyData($lottery, $entitiesWithReserves, $scrutinyResults);
-            $scrutinyData = $this->enrichScrutinyDataWithCategoryResults($scrutinyData, $scrutinyResultsByEntity);
-
-            // Calcular totales correctos desde los resultados por categoría
-            $totalWinning = 0;
-            $totalNonWinning = 0;
-            $totalPrizeAmount = 0;
-            $totalAsignadas = 0;
-            
-            // Sumar participaciones ganadoras desde los resultados por categoría
-            foreach($scrutinyResultsByEntity as $entityId => $entityResults) {
-                foreach($entityResults as $categoryResult) {
-                    $decimosInfo = $categoryResult['decimos_info'] ?? [];
-                    $totalParticipations = $decimosInfo['total_participations'] ?? 0;
-                    $totalWinning += $totalParticipations;
-                    
-                    // Calcular premio total
-                    $totalDecimos = $decimosInfo['total_decimos'] ?? 0;
-                    $premioPorDecimo = $categoryResult['total_prize'];
-                    $premioTotal = $premioPorDecimo * $totalDecimos;
-                    $totalPrizeAmount += $premioTotal;
-                }
-            }
-            
-            // Obtener total de participaciones asignadas de TODAS las entidades
-            $totalAsignadas = \App\Models\Participation::whereHas('set.reserve', function($query) use ($lotteryId) {
-                    $query->where('lottery_id', $lotteryId);
-                })
-                ->whereHas('entity', function($query) use ($administrationId) {
-                    $query->where('administration_id', $administrationId);
-                })
-                ->soldForScrutiny()
-                ->count();
-            
-            // Participaciones no ganadoras = total asignadas - ganadoras
-            $totalNonWinning = $totalAsignadas - $totalWinning;
-
-            // Obtener el total de premios de TODOS los escrutinios guardados para este sorteo
-            $totalAllScrutinies = DB::table('scrutiny_detailed_results')
-                ->join('administration_lottery_scrutinies', 'scrutiny_detailed_results.scrutiny_id', '=', 'administration_lottery_scrutinies.id')
-                ->where('administration_lottery_scrutinies.lottery_id', $lotteryId)
-                ->where('administration_lottery_scrutinies.is_saved', true)
-                ->sum('scrutiny_detailed_results.premio_total');
-
-            // Crear o actualizar el escrutinio de la administración
-            $scrutiny = AdministrationLotteryScrutiny::updateOrCreate([
-                'administration_id' => $administrationId,
-                'lottery_id' => $lotteryId
-            ], [
-                'lottery_result_id' => $lottery->result->id,
+            $this->runScrutiny($lottery, (int) $administrationId, [
                 'scrutiny_date' => now(),
                 'is_scrutinized' => true,
                 'scrutinized_by' => Auth::id(),
                 'comments' => $request->input('comments'),
-                'scrutiny_summary' => [
-                    'total_entities' => count($entitiesWithReserves),
-                    'total_winning_participations' => $totalWinning,
-                    'total_non_winning_participations' => $totalNonWinning,
-                    'total_prize_amount' => $totalAllScrutinies + $totalPrizeAmount
-                ]
             ]);
-
-            // Guardar resultados detallados por entidad
-            $this->saveDetailedScrutinyResults($scrutiny, $scrutinyResultsByEntity, $lottery);
 
             DB::commit();
 
@@ -196,6 +145,89 @@ class LotteryScrutinyController extends Controller
                 ->with('error', 'Error al procesar el escrutinio: ' . $e->getMessage())
                 ->withInput();
         }
+    }
+
+    /**
+     * Calcula el escrutinio de una administración y regenera sus resultados detallados.
+     * Debe llamarse dentro de una transacción.
+     */
+    public function runScrutiny(Lottery $lottery, int $administrationId, array $attributes = []): AdministrationLotteryScrutiny
+    {
+        $lotteryId = $lottery->id;
+
+        $entitiesWithReserves = Entity::forUser(auth()->user())
+            ->where('administration_id', $administrationId)
+            ->whereHas('reserves', function ($query) use ($lottery) {
+                $query->where('lottery_id', $lottery->id)
+                      ->where('status', 1);
+            })
+            ->with(['reserves' => function ($query) use ($lottery) {
+                $query->where('lottery_id', $lottery->id)
+                      ->where('status', 1);
+            }])
+            ->get();
+
+        $reservedNumbers = $this->getReservedNumbersForAdministration($administrationId, $lotteryId);
+        $scrutinyResults = $this->calculateCategoryScrutiny($lottery, $reservedNumbers);
+        $scrutinyResultsByEntity = $this->organizeResultsByEntity($scrutinyResults, $entitiesWithReserves, $lotteryId);
+
+        // Calcular totales correctos desde los resultados por categoría
+        $totalWinning = 0;
+        $totalPrizeAmount = 0;
+
+        foreach ($scrutinyResultsByEntity as $entityId => $entityResults) {
+            foreach ($entityResults as $categoryResult) {
+                $decimosInfo = $categoryResult['decimos_info'] ?? [];
+                $totalWinning += $decimosInfo['total_participations'] ?? 0;
+
+                $premioPorDecimo = $categoryResult['total_prize'];
+                $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
+                foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                    $importeJugado = $setInfo['importe_jugado'] ?? 0;
+                    $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
+                    if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
+                        $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
+                        $totalPrizeAmount += $premioPorParticipacion * $participacionesVendidas;
+                    }
+                }
+            }
+        }
+
+        // Obtener total de participaciones asignadas de TODAS las entidades
+        $totalAsignadas = \App\Models\Participation::whereHas('set.reserve', function ($query) use ($lotteryId) {
+                $query->where('lottery_id', $lotteryId);
+            })
+            ->whereHas('entity', function ($query) use ($administrationId) {
+                $query->where('administration_id', $administrationId);
+            })
+            ->soldForScrutiny()
+            ->count();
+
+        // Total de premios de los escrutinios guardados del resto de administraciones para este sorteo
+        $totalOtherScrutinies = DB::table('scrutiny_detailed_results')
+            ->join('administration_lottery_scrutinies', 'scrutiny_detailed_results.scrutiny_id', '=', 'administration_lottery_scrutinies.id')
+            ->where('administration_lottery_scrutinies.lottery_id', $lotteryId)
+            ->where('administration_lottery_scrutinies.administration_id', '!=', $administrationId)
+            ->where('administration_lottery_scrutinies.is_saved', true)
+            ->sum('scrutiny_detailed_results.premio_total');
+
+        $scrutiny = AdministrationLotteryScrutiny::updateOrCreate([
+            'administration_id' => $administrationId,
+            'lottery_id' => $lotteryId
+        ], array_merge([
+            'lottery_result_id' => $lottery->result->id,
+            'scrutiny_summary' => [
+                'total_entities' => count($entitiesWithReserves),
+                'total_winning_participations' => $totalWinning,
+                'total_non_winning_participations' => $totalAsignadas - $totalWinning,
+                'total_prize_amount' => $totalOtherScrutinies + $totalPrizeAmount
+            ]
+        ], $attributes));
+
+        DB::table('scrutiny_detailed_results')->where('scrutiny_id', $scrutiny->id)->delete();
+        $this->saveDetailedScrutinyResults($scrutiny, $scrutinyResultsByEntity, $lottery);
+
+        return $scrutiny;
     }
 
     /**
@@ -230,145 +262,6 @@ class LotteryScrutinyController extends Controller
         $scrutiny->save();
 
         return view('lottery.scrutiny_results', compact('lottery', 'administration', 'scrutiny'));
-    }
-
-    /**
-     * Verificar premios de una participación usando las nuevas categorías
-     */
-    private function checkParticipationPrizes($participation, $lottery, $lotteryResult)
-    {
-        $typeIdentifier = $lottery->getLotteryTypeIdentifier();
-        $categories = config('lotteryCategories');
-        $reservedNumbers = $participation->set->reserve->reservation_numbers ?? [];
-        
-        $totalPrize = 0;
-        $winningCategories = [];
-        
-        foreach ($reservedNumbers as $number) {
-            foreach ($categories as $category) {
-                $prizeAmount = $category['importe_por_tipo'][$typeIdentifier] ?? 0;
-                
-                if ($prizeAmount > 0) {
-                    $won = $this->checkCategoryWin($number, $category, $lotteryResult);
-                    
-                    if ($won) {
-                        // Calcular premio proporcional a la participación
-                        $participationPrize = $this->calculateParticipationPrize(
-                            $prizeAmount, 
-                            $participation,
-                            $participation->set->total_participations
-                        );
-                        
-                        $totalPrize += $participationPrize;
-                        $winningCategories[] = [
-                            'categoria' => $category['nombre_categoria'],
-                            'key' => $category['key_categoria'],
-                            'numero' => $number,
-                            'premio_serie' => $prizeAmount,
-                            'premio_participacion' => $participationPrize
-                        ];
-                    }
-                }
-            }
-        }
-        
-        return [
-            'total_prize' => $totalPrize,
-            'categories' => $winningCategories,
-            'has_won' => $totalPrize > 0
-        ];
-    }
-
-    /**
-     * Verificar si un número gana en una categoría específica
-     */
-    private function checkCategoryWin($number, $category, $lotteryResult)
-    {
-        $key = $category['key_categoria'];
-        $numberStr = str_pad($number, 5, '0', STR_PAD_LEFT);
-        
-        switch ($key) {
-            case 'primerPremio':
-                return isset($lotteryResult->primerPremio['decimo']) && 
-                       $lotteryResult->primerPremio['decimo'] == $numberStr;
-                       
-            case 'segundoPremio':
-                return isset($lotteryResult->segundoPremio['decimo']) && 
-                       $lotteryResult->segundoPremio['decimo'] == $numberStr;
-                       
-            case 'tercerosPremios':
-                if (isset($lotteryResult->tercerosPremios)) {
-                    foreach ($lotteryResult->tercerosPremios as $premio) {
-                        if ($premio['decimo'] == $numberStr) return true;
-                    }
-                }
-                return false;
-                
-            case 'anteriorPrimerPremio':
-                if (isset($lotteryResult->primerPremio['decimo'])) {
-                    $primerPremio = $lotteryResult->primerPremio['decimo'];
-                    $anterior = str_pad((intval($primerPremio) - 1), 5, '0', STR_PAD_LEFT);
-                    return $numberStr == $anterior;
-                }
-                return false;
-                
-            case 'posteriorPrimerPremio':
-                if (isset($lotteryResult->primerPremio['decimo'])) {
-                    $primerPremio = $lotteryResult->primerPremio['decimo'];
-                    $posterior = str_pad((intval($primerPremio) + 1), 5, '0', STR_PAD_LEFT);
-                    return $numberStr == $posterior;
-                }
-                return false;
-                
-            case 'extraccionesDeTresCifras':
-                $lastThree = substr($numberStr, -3);
-                if (isset($lotteryResult->extraccionesDeTresCifras)) {
-                    foreach ($lotteryResult->extraccionesDeTresCifras as $extraccion) {
-                        if ($extraccion['decimo'] == $lastThree) return true;
-                    }
-                }
-                return false;
-                
-            case 'extraccionesDeDosCifras':
-                $lastTwo = substr($numberStr, -2);
-                if (isset($lotteryResult->extraccionesDeDosCifras)) {
-                    foreach ($lotteryResult->extraccionesDeDosCifras as $extraccion) {
-                        if ($extraccion['decimo'] == $lastTwo) return true;
-                    }
-                }
-                return false;
-                
-            case 'reintegros':
-                $lastOne = substr($numberStr, -1);
-                if (isset($lotteryResult->reintegros)) {
-                    foreach ($lotteryResult->reintegros as $reintegro) {
-                        if ($reintegro['decimo'] == $lastOne) return true;
-                    }
-                }
-                return false;
-                
-            case 'centenasPrimerPremio':
-                if (isset($lotteryResult->primerPremio['decimo'])) {
-                    $primerPremio = $lotteryResult->primerPremio['decimo'];
-                    $centenaPremio = substr($primerPremio, 0, 3);
-                    $centenaNumero = substr($numberStr, 0, 3);
-                    return $centenaNumero == $centenaPremio && $numberStr != $primerPremio;
-                }
-                return false;
-                
-            // Añadir más casos según sea necesario...
-            default:
-                return false;
-        }
-    }
-
-    /**
-     * Calcular el premio proporcional para una participación
-     */
-    private function calculateParticipationPrize($prizeAmountPerSerie, $participation, $totalParticipations)
-    {
-        // El premio se divide proporcionalmente entre todas las participaciones del set
-        return $prizeAmountPerSerie / $totalParticipations;
     }
 
     /**
@@ -827,478 +720,37 @@ class LotteryScrutinyController extends Controller
     }
 
     /**
-     * Calcular escrutinio por categoría para números individuales
+     * Calcular escrutinio por categoría para números individuales (premios al décimo)
      */
     private function calculateCategoryScrutiny($lottery, $reservedNumbers)
     {
+        $calculator = app(LotteryPrizeCalculator::class);
         $lotteryResult = $lottery->result;
         $typeIdentifier = $lottery->getLotteryTypeIdentifier();
-        $categories = config('lotteryCategories');
-        
+
         $results = [];
-        
         foreach ($reservedNumbers as $number) {
-            $numberStr = str_pad($number, 5, '0', STR_PAD_LEFT);
-            
-            // Reutilizar la lógica del ScrutinyController pero adaptada para premios por décimo
-            $prizeInfo = $this->calculateNumberPrizesForDecimo($numberStr, $lotteryResult, $typeIdentifier, $categories);
-            
-            if ($prizeInfo['total_prize'] > 0) {
+            $calculation = $calculator->calculate($number, $lotteryResult, $typeIdentifier);
+
+            if ($calculation['total_prize'] > 0) {
                 $results[] = [
                     'number' => $number,
-                    'number_str' => $numberStr,
-                    'total_prize' => $prizeInfo['total_prize'],
-                    'categories' => $prizeInfo['prizes']
+                    'number_str' => $calculation['number'],
+                    'total_prize' => $calculation['total_prize'] / 10,
+                    'categories' => array_map(fn ($prize) => [
+                        'categoria' => $prize['name'],
+                        'premio_decimo' => $prize['amount'] / 10,
+                        'key' => $prize['key'],
+                    ], $calculation['prizes']),
                 ];
             }
         }
-        
-        // Ordenar por premio total descendente
-        usort($results, function($a, $b) {
+
+        usort($results, function ($a, $b) {
             return $b['total_prize'] <=> $a['total_prize'];
         });
-        
+
         return $results;
-    }
-
-    /**
-     * Calcular premios para un número específico (adaptado del ScrutinyController para premios por décimo)
-     */
-    private function calculateNumberPrizesForDecimo($number, $lotteryResult, $typeIdentifier, $categories)
-    {
-        $prizeInfo = [
-            'number' => $number,
-            'total_prize' => 0,
-            'prizes' => []
-        ];
-
-        // 1. Verificar premios principales (NO acumulan entre sí)
-        $this->checkMainPrizesForDecimo($number, $lotteryResult, $typeIdentifier, $categories, $prizeInfo);
-        
-        // 2. Verificar premios derivados (SÍ acumulan)
-        $this->checkDerivedPrizesForDecimo($number, $lotteryResult, $typeIdentifier, $categories, $prizeInfo);
-        
-        // 3. Verificar extracciones
-        $this->checkExtractionsForDecimo($number, $lotteryResult, $typeIdentifier, $categories, $prizeInfo);
-        
-        // 4. Verificar reintegros
-        $this->checkReintegrosForDecimo($number, $lotteryResult, $typeIdentifier, $categories, $prizeInfo);
-        
-        // 5. Verificar pedreas (solo para sorteos de Navidad)
-        $this->checkPedreasForDecimo($number, $lotteryResult, $typeIdentifier, $categories, $prizeInfo);
-
-        return $prizeInfo;
-    }
-
-    /**
-     * Verificar premios principales (adaptado para premios por décimo)
-     */
-    private function checkMainPrizesForDecimo($number, $lotteryResult, $typeIdentifier, $categories, &$prizeInfo)
-    {
-        $mainPrizes = [
-            'primer_premio' => $lotteryResult->primer_premio,
-            'segundo_premio' => $lotteryResult->segundo_premio,
-            'terceros_premios' => $lotteryResult->terceros_premios ?? [],
-            'cuartos_premios' => $lotteryResult->cuartos_premios ?? [],
-            'quintos_premios' => $lotteryResult->quintos_premios ?? []
-        ];
-
-        foreach ($mainPrizes as $prizeType => $prizeData) {
-            if (!$prizeData) continue;
-
-            $isArray = is_array($prizeData) && isset($prizeData[0]);
-            
-            if ($isArray) {
-                // Múltiples premios (terceros, cuartos, quintos)
-                foreach ($prizeData as $premio) {
-                    if (isset($premio['decimo']) && $this->compareNumbers($number, $premio['decimo'])) {
-                        $prizeAmount = $this->getPrizeAmountForDecimo($prizeType, $typeIdentifier, $categories);
-                        $prizeInfo['total_prize'] += $prizeAmount;
-                        $prizeInfo['prizes'][] = [
-                            'categoria' => $this->getCategoryName($prizeType),
-                            'premio_decimo' => $prizeAmount,
-                            'key' => $this->getCategoryKey($prizeType)
-                        ];
-                        return; // Solo puede ganar un premio principal
-                    }
-                }
-            } else {
-                // Premio único (primer, segundo)
-                if (isset($prizeData['decimo']) && $this->compareNumbers($number, $prizeData['decimo'])) {
-                    $prizeAmount = $this->getPrizeAmountForDecimo($prizeType, $typeIdentifier, $categories);
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => $this->getCategoryName($prizeType),
-                        'premio_decimo' => $prizeAmount,
-                        'key' => $this->getCategoryKey($prizeType)
-                    ];
-                    return; // Solo puede ganar un premio principal
-                }
-            }
-        }
-    }
-
-    /**
-     * Verificar premios derivados (adaptado para premios por décimo)
-     */
-    private function checkDerivedPrizesForDecimo($number, $lotteryResult, $typeIdentifier, $categories, &$prizeInfo)
-    {
-        // Centenas del primer premio
-        if ($lotteryResult->primer_premio && isset($lotteryResult->primer_premio['decimo'])) {
-            $primerPremio = $lotteryResult->primer_premio['decimo'];
-            if ($this->isInCentena($number, $primerPremio) && !$this->compareNumbers($number, $primerPremio)) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('centenasPrimerPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => 'Centenas del Primer Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'centenasPrimerPremio'
-                    ];
-                }
-            }
-        }
-
-        // Anterior y posterior al primer premio
-        if ($lotteryResult->primer_premio && isset($lotteryResult->primer_premio['decimo'])) {
-            $primerPremio = $lotteryResult->primer_premio['decimo'];
-            $primerPremioInt = intval($primerPremio);
-            $numberInt = intval($number);
-            
-            if ($numberInt === $primerPremioInt - 1) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('anteriorPrimerPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => 'Anterior al Primer Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'anteriorPrimerPremio'
-                    ];
-                }
-            }
-            
-            if ($numberInt === $primerPremioInt + 1) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('posteriorPrimerPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => 'Posterior al Primer Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'posteriorPrimerPremio'
-                    ];
-                }
-            }
-        }
-
-        // Anterior y posterior al segundo premio
-        if ($lotteryResult->segundo_premio && isset($lotteryResult->segundo_premio['decimo'])) {
-            $segundoPremio = $lotteryResult->segundo_premio['decimo'];
-            $segundoPremioInt = intval($segundoPremio);
-            $numberInt = intval($number);
-            
-            if ($numberInt === $segundoPremioInt - 1) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('anteriorSegundoPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => 'Anterior al Segundo Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'anteriorSegundoPremio'
-                    ];
-                }
-            }
-            
-            if ($numberInt === $segundoPremioInt + 1) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('posteriorSegundoPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => 'Posterior al Segundo Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'posteriorSegundoPremio'
-                    ];
-                }
-            }
-        }
-
-        // Aproximaciones (2, 3, 4 últimas cifras)
-        $this->checkApproximationsForDecimo($number, $lotteryResult, $typeIdentifier, $categories, $prizeInfo);
-    }
-
-    /**
-     * Verificar aproximaciones (adaptado para premios por décimo)
-     */
-    private function checkApproximationsForDecimo($number, $lotteryResult, $typeIdentifier, $categories, &$prizeInfo)
-    {
-        // 2 últimas cifras del primer premio
-        if ($lotteryResult->primer_premio && isset($lotteryResult->primer_premio['decimo'])) {
-            $primerPremio = $lotteryResult->primer_premio['decimo'];
-            if (substr($number, -2) === substr($primerPremio, -2) && !$this->compareNumbers($number, $primerPremio)) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('dosUltimasCifrasPrimerPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => '2 Últimas Cifras del Primer Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'dosUltimasCifrasPrimerPremio'
-                    ];
-                }
-            }
-        }
-
-        // 3 últimas cifras del primer premio
-        if ($lotteryResult->primer_premio && isset($lotteryResult->primer_premio['decimo'])) {
-            $primerPremio = $lotteryResult->primer_premio['decimo'];
-            if (substr($number, -3) === substr($primerPremio, -3) && !$this->compareNumbers($number, $primerPremio)) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('tresUltimasCifrasPrimerPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => '3 Últimas Cifras del Primer Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'tresUltimasCifrasPrimerPremio'
-                    ];
-                }
-            }
-        }
-
-        // 1 última cifra del primer premio
-        if ($lotteryResult->primer_premio && isset($lotteryResult->primer_premio['decimo'])) {
-            $primerPremio = $lotteryResult->primer_premio['decimo'];
-            if (substr($number, -1) === substr($primerPremio, -1) && !$this->compareNumbers($number, $primerPremio)) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('ultimaCifraPrimerPremio', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => 'Última Cifra del Primer Premio',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'ultimaCifraPrimerPremio'
-                    ];
-                }
-            }
-        }
-    }
-
-    /**
-     * Verificar extracciones (adaptado para premios por décimo)
-     */
-    private function checkExtractionsForDecimo($number, $lotteryResult, $typeIdentifier, $categories, &$prizeInfo)
-    {
-        // Extracciones de 4 cifras
-        if ($lotteryResult->extracciones_cuatro_cifras) {
-            foreach ($lotteryResult->extracciones_cuatro_cifras as $extraccion) {
-                if (isset($extraccion['decimo']) && substr($number, -4) === $extraccion['decimo']) {
-                    $prizeAmount = $this->getPrizeAmountForDecimo('extraccionesDeCuatroCifras', $typeIdentifier, $categories);
-                    if ($prizeAmount > 0) {
-                        $prizeInfo['total_prize'] += $prizeAmount;
-                        $prizeInfo['prizes'][] = [
-                            'categoria' => 'Extracción de 4 Cifras',
-                            'premio_decimo' => $prizeAmount,
-                            'key' => 'extraccionesDeCuatroCifras'
-                        ];
-                    }
-                    break; // Solo sumar una vez por número
-                }
-            }
-        }
-
-        // Extracciones de 3 cifras
-        if ($lotteryResult->extracciones_tres_cifras) {
-            foreach ($lotteryResult->extracciones_tres_cifras as $extraccion) {
-                if (isset($extraccion['decimo']) && substr($number, -3) === $extraccion['decimo']) {
-                    $prizeAmount = $this->getPrizeAmountForDecimo('extraccionesDeTresCifras', $typeIdentifier, $categories);
-                    if ($prizeAmount > 0) {
-                        $prizeInfo['total_prize'] += $prizeAmount;
-                        $prizeInfo['prizes'][] = [
-                            'categoria' => 'Extracción de 3 Cifras',
-                            'premio_decimo' => $prizeAmount,
-                            'key' => 'extraccionesDeTresCifras'
-                        ];
-                    }
-                    break; // Solo sumar una vez por número
-                }
-            }
-        }
-
-        // Extracciones de 2 cifras
-        if ($lotteryResult->extracciones_dos_cifras) {
-            foreach ($lotteryResult->extracciones_dos_cifras as $extraccion) {
-                if (isset($extraccion['decimo']) && substr($number, -2) === $extraccion['decimo']) {
-                    $prizeAmount = $this->getPrizeAmountForDecimo('extraccionesDeDosCifras', $typeIdentifier, $categories);
-                    if ($prizeAmount > 0) {
-                        $prizeInfo['total_prize'] += $prizeAmount;
-                        $prizeInfo['prizes'][] = [
-                            'categoria' => 'Extracción de 2 Cifras',
-                            'premio_decimo' => $prizeAmount,
-                            'key' => 'extraccionesDeDosCifras'
-                        ];
-                    }
-                    break; // Solo sumar una vez por número
-                }
-            }
-        }
-    }
-
-    /**
-     * Verificar reintegros (adaptado para premios por décimo)
-     */
-    private function checkReintegrosForDecimo($number, $lotteryResult, $typeIdentifier, $categories, &$prizeInfo)
-    {
-        if ($lotteryResult->reintegros) {
-            $lastDigit = substr($number, -1);
-            
-            // Verificar si el número es el PRIMER PREMIO (no debe sumar reintegro)
-            $isFirstPrize = $this->isFirstPrizeNumber($number, $lotteryResult);
-            
-            if (!$isFirstPrize) {
-                // Verificar si ya tiene premio de "Última Cifra del Primer Premio"
-                $hasUltimaCifra = false;
-                foreach ($prizeInfo['prizes'] as $prize) {
-                    if ($prize['categoria'] === 'Última Cifra del Primer Premio') {
-                        $hasUltimaCifra = true;
-                        break;
-                    }
-                }
-                
-                // Solo sumar reintegro si NO tiene ya premio de última cifra
-                if (!$hasUltimaCifra) {
-                    // Verificar si coincide con ALGÚN reintegro (solo sumar una vez)
-                    $hasReintegro = false;
-                    foreach ($lotteryResult->reintegros as $reintegro) {
-                        if (isset($reintegro['decimo']) && $reintegro['decimo'] === $lastDigit) {
-                            $hasReintegro = true;
-                            break; // Solo necesitamos saber si coincide, no cuántas veces
-                        }
-                    }
-                    
-                    if ($hasReintegro) {
-                        $prizeAmount = $this->getPrizeAmountForDecimo('reintegros', $typeIdentifier, $categories);
-                        if ($prizeAmount > 0) {
-                            $prizeInfo['total_prize'] += $prizeAmount;
-                            $prizeInfo['prizes'][] = [
-                                'categoria' => 'Reintegro',
-                                'premio_decimo' => $prizeAmount,
-                                'key' => 'reintegros'
-                            ];
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Verificar pedreas (adaptado para premios por décimo)
-     */
-    private function checkPedreasForDecimo($number, $lotteryResult, $typeIdentifier, $categories, &$prizeInfo)
-    {
-        // Solo verificar pedreas si existen en el resultado
-        if (!$lotteryResult->pedreas || !is_array($lotteryResult->pedreas)) {
-            return;
-        }
-        
-        foreach ($lotteryResult->pedreas as $pedrea) {
-            if (isset($pedrea['decimo']) && $this->compareNumbers($number, $pedrea['decimo'])) {
-                $prizeAmount = $this->getPrizeAmountForDecimo('pedrea', $typeIdentifier, $categories);
-                if ($prizeAmount > 0) {
-                    $prizeInfo['total_prize'] += $prizeAmount;
-                    $prizeInfo['prizes'][] = [
-                        'categoria' => 'Pedrea',
-                        'premio_decimo' => $prizeAmount,
-                        'key' => 'pedrea'
-                    ];
-                }
-                break; // Solo sumar una vez por número
-            }
-        }
-    }
-
-    /**
-     * Obtener importe del premio por décimo desde la configuración
-     */
-    private function getPrizeAmountForDecimo($categoryKey, $typeIdentifier, $categories)
-    {
-        // Mapear claves de snake_case a camelCase
-        $keyMapping = [
-            'primer_premio' => 'primerPremio',
-            'segundo_premio' => 'segundoPremio',
-            'terceros_premios' => 'tercerosPremios',
-            'cuartos_premios' => 'cuartosPremios',
-            'quintos_premios' => 'quintosPremios',
-            'anteriorPrimerPremio' => 'anteriorPrimerPremio',
-            'posteriorPrimerPremio' => 'posteriorPrimerPremio',
-            'anteriorSegundoPremio' => 'anteriorSegundoPremio',
-            'posteriorSegundoPremio' => 'posteriorSegundoPremio',
-            'centenasPrimerPremio' => 'centenasPrimerPremio',
-            'centenasSegundoPremio' => 'centenasSegundoPremio',
-            'dosUltimasCifrasPrimerPremio' => 'dosUltimasCifrasPrimerPremio',
-            'tresUltimasCifrasPrimerPremio' => 'tresUltimasCifrasPrimerPremio',
-            'ultimaCifraPrimerPremio' => 'ultimaCifraPrimerPremio',
-            'extraccionesDeCuatroCifras' => 'extraccionesDeCuatroCifras',
-            'extraccionesDeTresCifras' => 'extraccionesDeTresCifras',
-            'extraccionesDeDosCifras' => 'extraccionesDeDosCifras',
-            'reintegros' => 'reintegros',
-            'pedrea' => 'pedrea'
-        ];
-        
-        $mappedKey = $keyMapping[$categoryKey] ?? $categoryKey;
-        
-        foreach ($categories as $category) {
-            if ($category['key_categoria'] === $mappedKey) {
-                $amount = $category['importe_por_tipo'][$typeIdentifier] ?? 0;
-                
-                // Para el escrutinio por categoría, el premio es por décimo (no por serie)
-                // Dividir entre 10 porque el premio de la serie se divide entre 10 décimos
-                return $amount / 10;
-            }
-        }
-        
-        return 0;
-    }
-
-    /**
-     * Obtener clave de la categoría
-     */
-    private function getCategoryKey($categoryKey)
-    {
-        $keys = [
-            'primer_premio' => 'primerPremio',
-            'segundo_premio' => 'segundoPremio',
-            'terceros_premios' => 'tercerosPremios',
-            'cuartos_premios' => 'cuartosPremios',
-            'quintos_premios' => 'quintosPremios'
-        ];
-        
-        return $keys[$categoryKey] ?? $categoryKey;
-    }
-
-    /**
-     * Verificar si un número está en la centena de otro
-     */
-    private function isInCentena($number, $referenceNumber)
-    {
-        $numberInt = intval($number);
-        $referenceInt = intval($referenceNumber);
-        
-        $centenaStart = intval($referenceInt / 100) * 100;
-        $centenaEnd = $centenaStart + 99;
-        
-        return $numberInt >= $centenaStart && $numberInt <= $centenaEnd;
-    }
-
-    /**
-     * Verificar si un número es el PRIMER PREMIO (no debe sumar reintegro)
-     */
-    private function isFirstPrizeNumber($number, $lotteryResult)
-    {
-        // Solo verificar primer premio
-        if ($lotteryResult->primer_premio && isset($lotteryResult->primer_premio['decimo'])) {
-            if ($this->compareNumbers($number, $lotteryResult->primer_premio['decimo'])) {
-                return true;
-            }
-        }
-        
-        return false;
     }
 
     /**
@@ -1306,27 +758,7 @@ class LotteryScrutinyController extends Controller
      */
     private function compareNumbers($number1, $number2)
     {
-        // Normalizar ambos números a formato de 5 dígitos
-        $normalized1 = str_pad($number1, 5, '0', STR_PAD_LEFT);
-        $normalized2 = str_pad($number2, 5, '0', STR_PAD_LEFT);
-        
-        return $normalized1 === $normalized2;
-    }
-
-    /**
-     * Obtener nombre de la categoría
-     */
-    private function getCategoryName($categoryKey)
-    {
-        $names = [
-            'primer_premio' => 'Primer Premio',
-            'segundo_premio' => 'Segundo Premio',
-            'terceros_premios' => 'Tercer Premio',
-            'cuartos_premios' => 'Cuarto Premio',
-            'quintos_premios' => 'Quinto Premio'
-        ];
-        
-        return $names[$categoryKey] ?? $categoryKey;
+        return str_pad($number1, 5, '0', STR_PAD_LEFT) === str_pad($number2, 5, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -1352,35 +784,73 @@ class LotteryScrutinyController extends Controller
         foreach ($entitiesWithReserves as $entity) {
             $entityResults = [];
             $entityNumbers = $numbersByEntity[$entity->id] ?? [];
-            $totalEntityPrize = 0; // Suma total de premios de todos los números de esta entidad
-            
-            foreach ($scrutinyResults as $result) {
-                if (in_array($result['number'], $entityNumbers)) {
-                    // Calcular décimos para este número específico por cada set individual
-                    $decimosInfo = $this->calculateDecimosForNumberBySets($result['number'], $entity, $lotteryId);
-                    
-                    // Calcular el premio total para este número
-                    $premioPorDecimo = $result['total_prize'];
-                    $totalDecimos = $decimosInfo['total_decimos'] ?? 0;
-                    $premioTotalNumero = $premioPorDecimo * $totalDecimos;
-                    $totalEntityPrize += $premioTotalNumero;
-                    
-                    $result['decimos_info'] = $decimosInfo;
-                    $result['premio_total_numero'] = $premioTotalNumero;
-                    $entityResults[] = $result;
+            $totalEntityPrize = 0;
+
+            foreach ($scrutinyResults as $scrutinyResult) {
+                if (! $this->numberBelongsToEntityReserve($scrutinyResult['number'], $entityNumbers)) {
+                    continue;
                 }
+
+                $decimosInfo = $this->calculateDecimosForNumberBySets($scrutinyResult['number'], $entity, $lotteryId);
+
+                $premioPorDecimo = $scrutinyResult['total_prize'];
+                $premioTotalNumero = 0;
+                foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                    $importeJugado = $setInfo['importe_jugado'] ?? 0;
+                    $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
+                    $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
+                    if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
+                        $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
+                        $premioTotalNumero += $premioPorParticipacion * $participacionesVendidas;
+                    }
+                }
+                $totalEntityPrize += $premioTotalNumero;
+
+                // Copia explícita: no reutilizar el array de $scrutinyResults por referencia
+                $entityResults[] = array_merge($scrutinyResult, [
+                    'decimos_info' => $decimosInfo,
+                    'premio_total_numero' => $premioTotalNumero,
+                    'premio_total_entidad' => $totalEntityPrize,
+                ]);
             }
-            
-            if (!empty($entityResults)) {
-                // Agregar el premio total de la entidad a cada resultado
-                foreach ($entityResults as &$result) {
-                    $result['premio_total_entidad'] = $totalEntityPrize;
+
+            if (! empty($entityResults)) {
+                foreach ($entityResults as $index => $entityResult) {
+                    $entityResults[$index]['premio_total_entidad'] = $totalEntityPrize;
                 }
                 $resultsByEntity[$entity->id] = $entityResults;
             }
         }
-        
+
         return $resultsByEntity;
+    }
+
+    /**
+     * Comprueba si un número premiado pertenece a la reserva de la entidad.
+     */
+    private function numberBelongsToEntityReserve($number, array $entityNumbers): bool
+    {
+        foreach ($entityNumbers as $entityNumber) {
+            if ($this->compareNumbers((string) $number, (string) $entityNumber)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Índice de un número en una lista de reserva (comparación normalizada).
+     */
+    private function findNumberIndexInList($number, array $numbers): int|false
+    {
+        foreach ($numbers as $index => $candidate) {
+            if ($this->compareNumbers((string) $number, (string) $candidate)) {
+                return (int) $index;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1406,8 +876,7 @@ class LotteryScrutinyController extends Controller
             \Log::info("Números en reserva: " . json_encode($reserve->reservation_numbers));
             
             if ($reserve->reservation_numbers) {
-                // Buscar el índice del número en esta reserva
-                $numberIndex = array_search($number, $reserve->reservation_numbers);
+                $numberIndex = $this->findNumberIndexInList($number, $reserve->reservation_numbers);
                 \Log::info("Índice del número {$number} en reserva: " . ($numberIndex !== false ? $numberIndex : 'NO ENCONTRADO'));
                 
                 if ($numberIndex !== false) {
@@ -1424,7 +893,13 @@ class LotteryScrutinyController extends Controller
                         // Si la reserva tiene solo un número, todas las participaciones del set tienen ese número
                         // Si la reserva tiene múltiples números, filtrar por el número específico
                         $participations = Participation::where('set_id', $set->id)
-                            ->soldForScrutiny();
+                            ->soldForScrutiny()
+                            ->where(function ($query) use ($entity) {
+                                $query->where('entity_id', $entity->id)
+                                    ->orWhereHas('set', function ($setQuery) use ($entity) {
+                                        $setQuery->where('entity_id', $entity->id);
+                                    });
+                            });
                         
                         // Si la reserva tiene múltiples números, necesitamos filtrar por participación específica
                         if (count($reserve->reservation_numbers) > 1) {
@@ -1433,13 +908,11 @@ class LotteryScrutinyController extends Controller
                         }
                         // Si la reserva tiene un solo número, todas las participaciones del set tienen ese número
                         
-                        $participations = $participations->get();
+                        $participacionesVendidas = (clone $participations)->count();
+                        \Log::info("Participaciones vendidas para número {$number} en set {$set->id}: {$participacionesVendidas}");
                         
-                        $participationsVendidas = $participations->count();
-                        \Log::info("Participaciones vendidas para número {$number} en set {$set->id}: {$participationsVendidas}");
-                        
-                        if ($participationsVendidas > 0) {
-                            $totalParticipations += $participationsVendidas;
+                        if ($participacionesVendidas > 0) {
+                            $totalParticipations += $participacionesVendidas;
                             
                             // Obtener el precio real de la participación (played_amount del set)
                             $pricePerParticipation = $set->played_amount ?? 0;
@@ -1447,22 +920,22 @@ class LotteryScrutinyController extends Controller
                             $donationAmount = $set->donation_amount ?? 0;
                             $importeJugado = $pricePerParticipation; // No restar el donativo
                             
-                            \Log::info("Set {$set->id}: {$participationsVendidas} participaciones vendidas, Precio Real: {$pricePerParticipation}, Donativo: {$donationAmount}, Importe Jugado: {$importeJugado}");
+                            \Log::info("Set {$set->id}: {$participacionesVendidas} participaciones vendidas, Precio Real: {$pricePerParticipation}, Donativo: {$donationAmount}, Importe Jugado: {$importeJugado}");
                             
                             if ($importeJugado > 0 && $ticketPrice > 0) {
                                 $participacionesPorDecimo = $ticketPrice / $importeJugado;
-                                $decimosDeEsteSet = $participationsVendidas / $participacionesPorDecimo; // Usar participaciones del set actual, no total
-                                $decimosRedondeados = round($decimosDeEsteSet); // Redondear correctamente
-                                $totalDecimos += $decimosRedondeados;
+                                $decimosDeEsteSet = ceil(($participacionesVendidas / $participacionesPorDecimo) * 100) / 100;
+                                $totalDecimos += $decimosDeEsteSet;
                                 
                                 $setsInfo[] = [
                                     'set_id' => $set->id,
-                                    'participations_vendidas' => $participationsVendidas,
+                                    'participations_vendidas' => $participacionesVendidas,
                                     'importe_jugado' => $importeJugado,
-                                    'decimos' => $decimosRedondeados // Usar décimos redondeados
+                                    'participaciones_por_decimo' => $participacionesPorDecimo,
+                                    'decimos' => $decimosDeEsteSet
                                 ];
                                 
-                                \Log::info("Set {$set->id}: {$participationsVendidas} participaciones, {$participacionesPorDecimo} por décimo, {$decimosDeEsteSet} décimos (redondeados: {$decimosRedondeados})");
+                                \Log::info("Set {$set->id}: {$participacionesVendidas} participaciones, {$participacionesPorDecimo} por décimo, {$decimosDeEsteSet} décimos");
                             } else {
                                 \Log::info("Set {$set->id}: No se puede calcular - Importe jugado: {$importeJugado}, Precio décimo: {$ticketPrice}");
                             }
@@ -1482,7 +955,7 @@ class LotteryScrutinyController extends Controller
         
         return [
             'total_participations' => $totalParticipations,
-            'total_decimos' => round($totalDecimos),
+            'total_decimos' => $totalDecimos,
             'ticket_price' => $ticketPrice,
             'sets_info' => $setsInfo
         ];
@@ -1526,6 +999,8 @@ class LotteryScrutinyController extends Controller
                 'saved_by' => Auth::id()
             ]);
 
+            app(EntityLotteryPrizePaymentService::class)->syncAfterScrutinySaved($scrutiny);
+
             return redirect()->route('lottery.show-administration-scrutiny', [$lotteryId, $administrationId])
                 ->with('success', 'Escrutinio guardado exitosamente');
 
@@ -1560,10 +1035,8 @@ class LotteryScrutinyController extends Controller
                             $premioPorParticipacion = $premioPorDecimo * $porcentajeParticipacion;
                         }
 
-                        // Debug: Log de información del set
-                        \Log::info("Set Info: " . json_encode($setInfo));
-                        \Log::info("Decimos from setInfo: " . ($setInfo['decimos'] ?? 'NULL'));
-                        \Log::info("Participations vendidas from setInfo: " . ($setInfo['participations_vendidas'] ?? 'NULL'));
+                        $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
+                        $premioTotalSet = round($premioPorParticipacion * $participacionesVendidas, 2);
 
                         // Guardar un registro por cada set
                         DB::table('scrutiny_detailed_results')->insert([
@@ -1573,9 +1046,9 @@ class LotteryScrutinyController extends Controller
                             'set_id' => $setInfo['set_id'],
                             'premio_por_decimo' => $premioPorDecimo,
                             'premio_por_participacion' => $premioPorParticipacion,
-                            'total_decimos' => $setInfo['decimos'] ?? 0,
-                            'total_participations' => $setInfo['participations_vendidas'] ?? 0,
-                            'premio_total' => $premioPorDecimo * ($setInfo['decimos'] ?? 0),
+                            'total_decimos' => ceil((float) ($setInfo['decimos'] ?? 0) * 100) / 100,
+                            'total_participations' => $participacionesVendidas,
+                            'premio_total' => $premioTotalSet,
                             'winning_categories' => json_encode($categoryResult['categories']),
                             'created_at' => now(),
                             'updated_at' => now()
@@ -1611,7 +1084,7 @@ class LotteryScrutinyController extends Controller
                         'set_id' => $firstSet ? $firstSet->id : null,
                         'premio_por_decimo' => $premioPorDecimo,
                         'premio_por_participacion' => $premioPorDecimo, // Usar premio por décimo como fallback
-                        'total_decimos' => $totalDecimos,
+                        'total_decimos' => ceil((float) $totalDecimos * 100) / 100,
                         'total_participations' => $decimosInfo['total_participations'] ?? 0,
                         'premio_total' => $premioTotal,
                         'winning_categories' => json_encode($categoryResult['categories']),

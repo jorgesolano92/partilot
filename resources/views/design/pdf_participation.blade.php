@@ -1,6 +1,29 @@
 @php
     $use_prebuilt_cells = $use_prebuilt_cells ?? false;
     $pdfDocumentTitle = $pdfDocumentTitle ?? 'Participación PDF';
+    $cols = max(1, (int) ($cols ?? 1));
+    $rows = max(1, (int) ($rows ?? 1));
+    $designPdfFonts = true;
+    /** @var \App\Support\ParticipationPdfLayout|null $layout */
+    $layout = $layout ?? null;
+
+    if ($layout) {
+        $sheetW = $layout->sheetWidthMm;
+        $sheetH = $layout->sheetHeightMm;
+        $trimW = $layout->trimWidthMm;
+        $trimH = $layout->trimHeightMm;
+        $guideColor = sprintf('#%02x%02x%02x', $layout->guideColorR, $layout->guideColorG, $layout->guideColorB);
+        $guideWeight = max(0.1, $layout->guideLineWidthMm);
+        $drawCropMarks = $layout->drawCropMarks;
+    } else {
+        $sheetW = null;
+        $sheetH = null;
+        $trimW = null;
+        $trimH = null;
+        $guideColor = '#9333ea';
+        $guideWeight = 0.12;
+        $drawCropMarks = false;
+    }
 @endphp
 <!DOCTYPE html>
 <html>
@@ -8,78 +31,71 @@
     <meta charset="utf-8">
     <title>{{ $pdfDocumentTitle }}</title>
     <style>
-        @page {
-            margin:8mm 10mm;
+        @@page {
+            margin: 0;
         }
-        {{-- *,
-        *::before,
-        *::after {
-            box-sizing: border-box !important;
-        } --}}
 
-        .h1, .h2, .h3, .h4, .h5, .h6, h1, h2, h3, h4, h5, h6 {
-            margin: 10px 0 !important;
+        body {
+            margin: 0;
+            padding: 0;
         }
-        .h1, .h2, .h3, .h4, .h5, .h6, h1, h2, h3, h4, h5, h6 {
-            font-family: "Cerebri Sans,sans-serif";
-            font-weight: 500;
-            line-height: 1.1;
-        }
-        .h6, h6 {
-            font-size: .75rem !important;
-        }
-        p {
-            margin-top: 0;
-            margin-bottom: 0;
-        }
+
+        @include('design.partials.design_canvas_styles')
+
         [id*="containment-wrapper"] {
             position: relative;
-            background-size: cover !important;
-            background-repeat: no-repeat !important;
-            background-position: center center !important;
+            width: unset !important;
         }
-        * {font-family: Cerebri sans,sans-serif}
+
+        #design-participation-bg {
+            overflow: hidden !important;
+        }
+        #design-participation-bg > img.design-pdf-bg-img {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: calc(100% - 5mm) !important;
+            border: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+            z-index: 0 !important;
+        }
+
+        .format-box .elements,
         .elements {
             width: 200px;
-            border: 1px solid transparent;
             position: absolute !important;
             z-index: 1000;
+            border: 1px solid transparent;
+            box-sizing: content-box !important;
+            overflow: hidden !important;
         }
-        .ck.ck-balloon-panel.ck-balloon-panel_toolbar_west.ck-balloon-panel_visible.ck-toolbar-container {
-            z-index: 9999;
-        }
-        .elements.text:hover,.elements.text:focus {
-            /*border: 1px dotted #c8c8c8;*/
-        }
-        .elements.qr {
-            padding: 3px;
-            border-radius: 8px;
-            background-color: #fff;
-        }
+
         .elements.images {
-            height: auto !important;
+            overflow: hidden !important;
+        }
+        .elements.images > span {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            line-height: 0 !important;
         }
         .elements.images img {
-            max-width: 100% !important;
-            max-height: 100% !important;
-            height: auto !important;
-            width: auto !important;
-            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
         }
-        a[disabled] {
-            color: currentColor;
-            cursor: not-allowed;
-            opacity: 0.5;
-            text-decoration: none;
-            pointer-events: none;
-        }
-        .cke_notifications_area {
-            display: none !important;
-        }
-        /* Optimizaciones para QR codes */
+
         .qr-code {
             image-rendering: -webkit-optimize-contrast;
-            image-rendering: -moz-crisp-edges;
             image-rendering: crisp-edges;
             image-rendering: pixelated;
         }
@@ -87,33 +103,60 @@
         .format-box {
             padding: 0 !important;
             margin: 0 !important;
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
         }
 
-        [id*="containment-wrapper"] {
-            width: unset !important;
-        }	
+        .margen-izquierdo,
+        .margen-arriba,
+        .margen-derecho,
+        .margen-abajo,
+        .caja-matriz,
+        button {
+            display: none !important;
+        }
 
-        .margen-izquierdo,.margen-arriba,.margen-derecho,.margen-abajo,.caja-matriz, button {
-            display: none;
+        .participation-page {
+            position: relative;
+            overflow: hidden;
         }
-        /* @if($use_prebuilt_cells)
-        .participation-box .format-box,
-        .participation-box [id*="containment-wrapper"] {
-            padding: 0 !important;
-            margin: 0 !important;
-            box-sizing: border-box !important;
-            width: 100% !important;
-            max-width: 100% !important;
+
+        @if($layout)
+        .participation-page {
+            width: {{ $sheetW }}mm;
+            height: {{ $sheetH }}mm;
+            overflow: visible;
         }
-        .participation-box .h1, .participation-box .h2, .participation-box .h3,
-        .participation-box .h4, .participation-box .h5, .participation-box .h6,
-        .participation-box h1, .participation-box h2, .participation-box h3,
-        .participation-box h4, .participation-box h5, .participation-box h6 {
-            margin: 0 !important;
+        .participation-trim {
+            position: absolute;
+            overflow: hidden;
+            z-index: 20;
+            background: #ffffff;
         }
-        @endif */
-        
-        /* Aquí puedes pegar estilos de Bootstrap en el futuro si lo necesitas */
+        .participation-trim .format-box {
+            border: none !important;
+            outline: none !important;
+        }
+        .crop-mark {
+            position: absolute;
+            background: {{ $guideColor }};
+            z-index: 1;
+            pointer-events: none;
+        }
+        @else
+        .participation-page::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+        .participation-box {
+            width: {{ 100 / $cols }}%;
+            float: left;
+            overflow: hidden;
+            page-break-inside: avoid;
+        }
+        @endif
     </style>
 </head>
 <body>
@@ -124,7 +167,29 @@
 @endif
 @foreach($pages as $pageIndex => $page)
     <div class="participation-page" style="@if($pageIndex < count($pages) - 1) page-break-after: always; @endif">
+        {{-- Grilla debajo: el arte tapa; solo se ven los stubs que sobresalen --}}
+        @if($layout && $drawCropMarks)
+            @foreach($layout->cutGridSegments() as $segment)
+                @php
+                    $isHorizontal = abs($segment['y1'] - $segment['y2']) < 0.01;
+                    $x1 = min($segment['x1'], $segment['x2']);
+                    $y1 = min($segment['y1'], $segment['y2']);
+                    if ($isHorizontal) {
+                        $markW = abs($segment['x2'] - $segment['x1']);
+                        $markH = max(0.1, $guideWeight);
+                    } else {
+                        $markW = max(0.1, $guideWeight);
+                        $markH = abs($segment['y2'] - $segment['y1']);
+                    }
+                @endphp
+                <div class="crop-mark" style="left:{{ $x1 }}mm;top:{{ $y1 }}mm;width:{{ $markW }}mm;height:{{ $markH }}mm;"></div>
+            @endforeach
+        @endif
         @for($i = 0; $i < count($page); $i++)
+            @php
+                $col = $i % $cols;
+                $row = intdiv($i, $cols);
+            @endphp
             @if($use_prebuilt_cells)
                 @php $html = $page[$i]; @endphp
             @else
@@ -132,22 +197,34 @@
                     $ticket = $page[$i];
                     $html = $participation_html;
                     $html = str_replace(['00000000000000000000', '1/0001'], [$ticket['r'], '1/'.str_pad($ticket['n'], 4,'0',STR_PAD_LEFT)], $html);
-                    $qrCodeBase64 = $qrCodes[$ticket['r']] ?? '';
-                    $html = str_replace(
-                        '<span class="ui-draggable-handle"></span>',
-                        '<img src="' . $qrCodeBase64 . '" class="qr-code" style="width: 60px; height: 60px; display: block;" alt="QR Code" />',
-                        $html
-                    );
+                    $qrSrc = $qrCodes[$ticket['r']] ?? '';
+                    if ($qrSrc !== '') {
+                        $html = app(\App\Http\Controllers\DesignController::class)
+                            ->injectTicketQrIntoParticipationHtml($html, $qrSrc);
+                    }
                 @endphp
             @endif
-            <div class="participation-box" style="width: {{ 100/$cols }}%; float: left;">
-                {!! $html !!}
-            </div>
-            @if(($i+1) % $cols == 0)
+            @if($layout)
+                @php
+                    $trimLeft = $layout->trimOriginX($col);
+                    $trimTop = $layout->trimOriginY($row);
+                @endphp
+                <div class="participation-trim" style="left:{{ $trimLeft }}mm;top:{{ $trimTop }}mm;width:{{ $trimW }}mm;height:{{ $trimH }}mm;">
+                    {!! $html !!}
+                </div>
+            @else
+                <div class="participation-box">
+                    {!! $html !!}
+                </div>
+            @endif
+            @if(!$layout && ($i + 1) % $cols == 0)
                 <div style="clear: both;"></div>
             @endif
         @endfor
+        @if(!$layout)
+            <div style="clear: both;"></div>
+        @endif
     </div>
 @endforeach
 </body>
-</html> 
+</html>

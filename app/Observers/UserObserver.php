@@ -8,6 +8,7 @@ use App\Models\Manager;
 use App\Models\PendingEntityManagerInvitation;
 use App\Models\Seller;
 use App\Models\User;
+use App\Services\AppInboxNotificationService;
 use App\Services\CommunicationEmailService;
 use App\Services\PendingDigitalSaleService;
 use Illuminate\Support\Facades\Log;
@@ -59,6 +60,18 @@ class UserObserver
                 ]);
 
                 Log::info("Vendedor {$seller->id} vinculado automáticamente al usuario {$user->id}");
+
+                if ((int) $seller->status === Seller::STATUS_PENDING) {
+                    $seller->load('entities');
+                    $entityId = (int) ($seller->entities->first()?->id ?? 0);
+                    if ($entityId > 0) {
+                        try {
+                            app(AppInboxNotificationService::class)->notifySellerInvitation($seller, $entityId);
+                        } catch (\Throwable $notifyEx) {
+                            Log::warning('Inbox invitación vendedor tras registro: '.$notifyEx->getMessage());
+                        }
+                    }
+                }
             } catch (\Exception $e) {
                 Log::error("Error al vincular vendedor {$seller->id} al usuario {$user->id}: ".$e->getMessage());
             }

@@ -27,7 +27,7 @@
 
                     @php
                         $administrations = App\Models\Administration::forUser(auth()->user())
-                            ->with(['manager.user'])
+                            ->with(['manager'])
                             ->orderBy('created_at', 'desc')
                             ->get();
                     @endphp
@@ -74,9 +74,9 @@
 	                                <td>{{$admins->receiving}}</td>
 	                                <td>{{$admins->province}}</td>
 	                                <td>{{$admins->city}}</td>
-	                                <td>
-                                        @if($admins->manager?->user)
-                                            {{ trim($admins->manager->user->name.' '.$admins->manager->user->last_name) }}
+                                    <td>
+                                        @if($admins->manager?->hasContactData())
+                                            {{ $admins->manager->resolvedContactFullName() }}
                                         @else
                                             <span class="text-muted">Sin gestor principal</span>
                                         @endif
@@ -89,9 +89,12 @@
                                             if ($statusValue === null || $statusValue === -1) {
                                                 $statusText = 'Pendiente';
                                                 $statusClass = 'bg-secondary';
-                                            } elseif ($statusValue == 1) {
+                                            } elseif ((int) $statusValue === 1) {
                                                 $statusText = 'Activo';
                                                 $statusClass = 'bg-success';
+                                            } elseif ((int) $statusValue === 3) {
+                                                $statusText = 'Bloqueado';
+                                                $statusClass = 'bg-warning';
                                             } else {
                                                 $statusText = 'Inactivo';
                                                 $statusClass = 'bg-danger';
@@ -100,11 +103,11 @@
                                         <label class="badge {{ $statusClass }}">{{ $statusText }}</label>
                                     </td>
 	                                <td class="no-click" style="cursor: default;">
-	                                	<a class="btn btn-sm btn-light"><img src="{{url('icons_/entidades.svg')}}" alt="" width="12"></a>
-	                                	<a class="btn btn-sm btn-light"><img src="{{url('icons_/sorteos.svg')}}" alt="" width="12"></a>
-	                                	<a class="btn btn-sm btn-light"><img src="{{url('icons_/reservas.svg')}}" alt="" width="12"></a>
-	                                	<a class="btn btn-sm btn-light"><img src="{{url('icons_/participaciones.svg')}}" alt="" width="12"></a>
-	                                	<button class="btn btn-sm btn-danger delete-btn" data-id="{{$admins->id}}" data-name="{{$admins->name}}"><i class="ri-delete-bin-6-line"></i></button>
+	                                	<a href="{{ route('entities.index', ['administration_id' => $admins->id]) }}" class="btn btn-sm btn-light" title="Ver entidades de esta administración" onclick="event.stopPropagation();"><img src="{{url('icons_/entidades.svg')}}" alt="" width="12"></a>
+	                                	<a href="{{ route('lottery.results', ['administration_id' => $admins->id]) }}" class="btn btn-sm btn-light" title="Ver resultados de sorteos de esta administración" onclick="event.stopPropagation();"><img src="{{url('icons_/sorteos.svg')}}" alt="" width="12"></a>
+	                                	<a href="{{ route('reserves.index', ['administration_id' => $admins->id]) }}" class="btn btn-sm btn-light" title="Ver reservas de esta administración" onclick="event.stopPropagation();"><img src="{{url('icons_/reservas.svg')}}" alt="" width="12"></a>
+	                                	<a href="{{ route('sets.index', ['administration_id' => $admins->id]) }}" class="btn btn-sm btn-light" title="Ver sets de esta administración" onclick="event.stopPropagation();"><img src="{{url('icons_/participaciones.svg')}}" alt="" width="12"></a>
+	                                	<button type="button" class="btn btn-sm btn-danger delete-btn" data-id="{{$admins->id}}" data-name="{{$admins->name}}" title="Eliminar administración"><i class="ri-delete-bin-6-line"></i></button>
 	                                </td>
 	                            </tr>
                                 @endforeach

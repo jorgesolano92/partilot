@@ -1,0 +1,191 @@
+CONTRATO MARCO DE PRESTACIÓN DE SERVICIOS
+ENTRE PARTILOT, S.L.U. Y LA ENTIDAD
+En Logroño, en la fecha de aceptación electrónica que se indica en el Anexo I
+REUNIDOS
+De una parte, PARTILOT, SOCIEDAD LIMITADA UNIPERSONAL (en adelante, «PARTILOT»), con NIF B26681551 y domicilio social en Calle Lope de Vega, 5, 1º B, 26007 Logroño (La Rioja), inscrita en el Registro Mercantil de La Rioja, Hoja LO-21703, Inscripción 1, representada en este acto por su Administrador Único.
+De otra parte, la persona identificada en el Anexo I del presente contrato, que interviene en este acto conforme a la modalidad de contratación indicada en dicho Anexo: en representación de la entidad identificada en el mismo (en adelante, «la Entidad»), en su condición de Firmante Autorizado, si resulta de aplicación el Caso A regulado en la Cláusula 3; o en nombre propio, en su condición de Organizador, si resulta de aplicación el Caso B regulado en la Cláusula 4.
+Ambas partes se reconocen mutuamente la capacidad legal necesaria para suscribir el presente contrato y, a tal efecto,
+EXPONEN
+I. Que PARTILOT es titular y opera una plataforma tecnológica de gestión integral de participaciones de lotería (en adelante, «la Plataforma»), que presta servicios de software como servicio (SaaS) a Puntos de Venta Autorizados, Entidades, Vendedores y Usuarios Finales.
+II. Que la Entidad ha sido incorporada a la Plataforma por el Punto de Venta Autorizado con el que opera, identificado en el Anexo I, y desea hacer uso de los servicios de PARTILOT para la gestión de sus participaciones de lotería.
+III. Que el Firmante Autorizado declara contar con capacidad legal suficiente para representar a la Entidad y suscribir el presente contrato en su nombre, o bien, en su caso, actuar en nombre propio como Organizador.
+IV. Que ambas partes desean regular mediante el presente contrato los derechos, obligaciones y responsabilidades derivados del uso de la Plataforma.
+En su virtud, las partes suscriben el presente contrato con arreglo a las siguientes
+CLÁUSULAS
+CLÁUSULA 1 — MODALIDAD DE CONTRATACIÓN: ENTIDAD U ORGANIZADOR
+El sistema determina automáticamente cuál de las dos modalidades siguientes resulta de aplicación al presente contrato, a partir de los datos introducidos por el Punto de Venta Autorizado en el momento del alta del cliente en la Plataforma. La modalidad aplicable al presente contrato queda identificada en el Anexo I.
+Caso A — Cliente con personalidad jurídica propia (la Entidad)
+El cliente es un club, asociación, empresa u organismo con personalidad jurídica propia (en adelante, «la Entidad»). En este caso intervienen necesariamente dos personas físicas, que pueden coincidir o no en una misma persona:
+El Firmante Autorizado: la persona con capacidad legal de representación de la Entidad, que suscribe el presente contrato en su nombre.
+El Gestor Responsable: la persona designada por el Firmante Autorizado para ejercer la gestión operativa del día a día de la Entidad en la Plataforma (asignación de Vendedores, recaudación, liquidación), que puede ser el propio Firmante Autorizado u otra persona distinta.
+El régimen completo de esta modalidad se regula en la Cláusula 3.
+Caso B — Cliente sin personalidad jurídica propia (el Organizador)
+El cliente es una persona física que organiza una iniciativa puntual de venta de participaciones sin que exista detrás una entidad con personalidad jurídica propia (a título de ejemplo, un viaje de estudios o un grupo informal). En este caso no existen dos roles distintos: una única persona física (en adelante, «el Organizador») suscribe el presente contrato en nombre propio y asume simultáneamente todas las funciones que en el Caso A corresponderían al Firmante Autorizado y al Gestor Responsable.
+El régimen completo de esta modalidad se regula en la Cláusula 4.
+Todas las cláusulas del presente contrato que se refieran a «la Entidad» resultan igualmente de aplicación al Organizador cuando el contrato se suscriba conforme al Caso B, entendiéndose hechas al Organizador todas las referencias al Firmante Autorizado y al Gestor Responsable, salvo en aquellos puntos en que expresamente se indique lo contrario por no resultar aplicables a una persona física que actúa en nombre propio.
+CLÁUSULA 2 — OBJETO
+El presente contrato tiene por objeto regular el acceso y uso de la Plataforma PARTILOT por parte de la Entidad o del Organizador, en la modalidad de software como servicio, que comprende:
+El acceso al panel de gestión y a la aplicación móvil de PARTILOT, con las funcionalidades propias de los roles habilitados según la modalidad de contratación.
+La gestión de los Sets de participaciones asignados por el Punto de Venta Autorizado, incluyendo su asignación a Vendedores, el seguimiento de ventas y la liquidación.
+La posibilidad de solicitar la activación del espacio web propio, conforme a la Cláusula 10.
+La posibilidad de contratar el servicio opcional de gestión técnica de pagos de premios, conforme a la Cláusula 11.
+El acceso a las herramientas de soporte técnico y documentación de usuario disponibles en la Plataforma.
+PARTILOT actúa en todo momento como proveedor tecnológico. No interviene en las relaciones comerciales derivadas de la venta de participaciones, ni asume responsabilidad alguna sobre las obligaciones derivadas de la comercialización de lotería.
+CLÁUSULA 3 — RÉGIMEN DEL CASO A: FIRMANTE AUTORIZADO Y GESTOR RESPONSABLE
+3.1  El presente contrato debe ser aceptado por el Firmante Autorizado de la Entidad, es decir, por la persona física con capacidad legal de representación de esta conforme a sus estatutos o normas de gobierno (representante legal, presidente, administrador o apoderado). El Firmante Autorizado declara, bajo su exclusiva responsabilidad personal y, en su caso, penal, contar con poder suficiente para vincular contractualmente a la Entidad.
+3.2  La Entidad queda en todo caso obligada frente a PARTILOT por los actos de quien haya aceptado el presente contrato invocando dicha representación, con independencia de que la declaración de poderes resultase posteriormente falsa o insuficiente, sin perjuicio de las acciones que la Entidad pueda ejercitar internamente contra el firmante en tal caso, y sin perjuicio de la responsabilidad penal que, conforme al artículo 31 bis del Código Penal, pudiera corresponder a la propia Entidad por los delitos cometidos en su nombre y en su beneficio.
+3.3  En el mismo acto de aceptación del presente contrato, el Firmante Autorizado designa a la persona que ejercerá como Gestor Responsable de la Entidad en la Plataforma, que podrá ser él mismo u otra persona distinta. Si el Firmante Autorizado se designa a sí mismo, la aceptación del presente contrato implica automáticamente la aceptación del cargo de Gestor Responsable. Si designa a un tercero, este deberá aceptar expresamente el cargo mediante el procedimiento habilitado en la Plataforma; hasta que dicha aceptación se produzca, la Entidad permanecerá en estado pendiente y no podrá operar. Si el tercero designado deniega el cargo o no responde en el plazo habilitado, el Firmante Autorizado podrá designar a otra persona en su lugar.
+3.4  El Gestor Responsable ejerce la gestión operativa de la Entidad en la Plataforma —asignación de Vendedores, recaudación, liquidación— sin que dicha designación implique delegación de la representación legal de la Entidad ni faculte para modificar o resolver el presente contrato. La ejecución de la liquidación definitiva por el Gestor Responsable no requiere autorización adicional del Firmante Autorizado, al tratarse de un acto de gestión operativa ordinaria.
+3.5  Para sustituir al Gestor Responsable en activo, el Firmante Autorizado designará a un sustituto que deberá aceptar expresamente el cargo. El relevo solo se produce tras dicha aceptación; hasta ese momento el anterior conserva su cargo y todas sus responsabilidades. Este cargo no puede quedar vacante en ningún momento.
+3.6  El Firmante Autorizado que deje de ostentar la representación legal de la Entidad deberá ser sustituido mediante la aceptación de un nuevo contrato por quien le suceda en dicha representación, sin que ello afecte a la validez de las operaciones realizadas hasta ese momento ni a los Acuerdos Específicos de Mandato de Pago en curso. Esta Cláusula 3.6 no resulta de aplicación cuando el contrato se rige por el Caso B, conforme a la Cláusula 4.
+CLÁUSULA 4 — RÉGIMEN DEL CASO B: EL ORGANIZADOR
+4.1  Cuando no exista una Entidad con personalidad jurídica propia detrás de la iniciativa de venta de participaciones, la persona física que la organiza suscribe el presente contrato como Organizador, en nombre propio, asumiendo simultáneamente las funciones que en el Caso A corresponden al Firmante Autorizado y al Gestor Responsable. No existe en este caso posibilidad de designar a una persona distinta para la gestión operativa: el Organizador es, a todos los efectos, la única persona vinculada al presente contrato.
+4.2  Con carácter previo a la aceptación del contrato, el Organizador realiza la siguiente declaración expresa, presentada de forma destacada e independiente del resto del proceso de aceptación: «Declaro que actúo en nombre propio y no en representación de ninguna entidad, y asumo personal e ilimitadamente las obligaciones derivadas de este contrato.»
+4.3  El Organizador responde personal e ilimitadamente, con su propio patrimonio, de todas las obligaciones derivadas del presente contrato, al no existir una persona jurídica que limite dicha responsabilidad. Esta circunstancia es distinta de la propia del Caso A, en el que es la Entidad, y no el Firmante Autorizado a título personal, quien queda obligada frente a PARTILOT.
+4.4  Si el Organizador desea transformar la iniciativa en una Entidad con personalidad jurídica propia, deberá suscribir un nuevo contrato conforme al Caso A, quedando extinguidas las obligaciones futuras derivadas del presente contrato desde la fecha de aceptación del nuevo, sin perjuicio de las ya generadas con anterioridad.
+CLÁUSULA 5 — ALTA, ACCESO Y VINCULACIÓN CON EL PUNTO DE VENTA AUTORIZADO
+5.1  El registro inicial de la Entidad u Organizador en la Plataforma es realizado por el Punto de Venta Autorizado con el que opera. No es posible darse de alta directamente sin estar vinculado a un Punto de Venta Autorizado registrado en la Plataforma.
+5.2  En el Caso A, la Entidad no queda operativa, no pudiendo ejercer ninguna de las funciones propias de su rol en la Plataforma, hasta que concurran de forma acumulativa la aceptación del presente contrato por el Firmante Autorizado y la aceptación del cargo de Gestor Responsable, conforme a la Cláusula 3. En el Caso B, el Organizador queda operativo en el momento mismo de la aceptación del contrato, al no existir un segundo acto de aceptación pendiente.
+5.3  Si se cambia de Punto de Venta Autorizado, el nuevo deberá dar de alta a la Entidad u Organizador en su propia base de datos dentro de la Plataforma. En ese momento, deberá aceptarse de nuevo el presente contrato, que sustituirá al anterior en lo que respecta a la nueva relación.
+CLÁUSULA 6 — DURACIÓN Y VIGENCIA
+6.1  El presente contrato entra en vigor en el momento de su aceptación y tiene vigencia indefinida, manteniéndose en vigor mientras exista cualquier tipo de relación activa con la Plataforma.
+6.2  La mera inactividad no extingue el presente contrato. Si se vuelve a operar tras un período de inactividad, el contrato continúa siendo de aplicación sin necesidad de nueva aceptación, salvo que en el Caso A se haya producido un cambio de Firmante Autorizado conforme a la Cláusula 3.6.
+CLÁUSULA 7 — BAJA DE LA ENTIDAD EN LA PLATAFORMA
+7.1  La Entidad no puede solicitar su propia baja de forma unilateral a través del Gestor Responsable. La baja únicamente puede ser ejecutada por el Punto de Venta Autorizado con el que opera, a través de su panel de gestión, o solicitada por el Firmante Autorizado directamente a PARTILOT.
+7.2  La baja únicamente podrá ejecutarse cuando concurran simultáneamente: inexistencia de sorteos activos vinculados a la Entidad; inexistencia de participaciones asignadas a Vendedores pendientes de liquidar; inexistencia de premios pendientes de cobro por Usuarios Finales; e inexistencia de deuda pendiente de la Entidad con PARTILOT.
+7.3  Si alguna de las condiciones anteriores no se cumple, la solicitud de baja quedará en estado pendiente hasta su satisfacción.
+CLÁUSULA 8 — DESLINDE DE RESPONSABILIDAD SOBRE LA RELACIÓN OPERATIVA CON EL PUNTO DE VENTA AUTORIZADO
+8.1  El presente contrato regula exclusivamente el acceso y uso por la Entidad de la Plataforma como herramienta tecnológica. Los procesos operativos que la Entidad realice a través de la Plataforma en su relación con el Punto de Venta Autorizado —incluyendo, sin carácter limitativo, la reserva de números y cantidades de lotería, el diseño de las participaciones, y el proceso de devolución y liquidación— constituyen una relación jurídica y operativa exclusivamente entre el Punto de Venta Autorizado y la Entidad, de la que PARTILOT no es parte.
+8.2  PARTILOT actúa en dichos procesos como proveedor de una herramienta técnica neutral que registra, documenta y da soporte a las decisiones e instrucciones introducidas por el Punto de Venta Autorizado y la Entidad, sin intervenir en su contenido, corrección, adecuación o conveniencia. En consecuencia, PARTILOT no asume responsabilidad alguna por errores, discrepancias, defectos o incumplimientos derivados de dichos procesos, incluyendo entre otros: reservas de números o cantidades incorrectas, diseños de participaciones con errores, o devoluciones y liquidaciones incorrectas entre el Punto de Venta Autorizado y la Entidad, con independencia de que dichos errores se hayan producido en el uso de la Plataforma.
+8.3  En particular, y sin perjuicio de la generalidad de lo dispuesto en los apartados anteriores, el pago del importe de la lotería adquirida por la Entidad, la devolución de las participaciones no vendidas y el cumplimiento de los términos económicos de la liquidación acordada entre el Punto de Venta Autorizado y la Entidad son obligaciones que la Entidad asume frente al Punto de Venta Autorizado, no frente a PARTILOT. PARTILOT no es acreedora de dichas obligaciones, no interviene en su exigencia ni cumplimiento, y su eventual incumplimiento por la Entidad no genera responsabilidad ni obligación alguna para PARTILOT, sin perjuicio de las consecuencias que dicho incumplimiento pueda tener conforme al Marco Legal Integral en la relación entre el Punto de Venta Autorizado y la Entidad, ajena en todo caso a PARTILOT.
+CLÁUSULA 9 — CONDICIONES ECONÓMICAS Y FACTURACIÓN
+9.1  El uso de la Plataforma para la generación de Sets de participaciones está sujeto al pago de una cuota de gestión conforme a las tarifas vigentes en la Plataforma en el momento de la generación de cada Set.
+9.2  Para cada Set de participaciones, la Plataforma permite configurar si la cuota de gestión corre a cargo de la Entidad o del Punto de Venta Autorizado, quedando dicha configuración registrada de forma individual para cada Set. Cuando la cuota corra a cargo de la Entidad, PARTILOT le facturará directamente.
+9.3  Cuando participaciones generadas y abonadas no sean vendidas y sean debidamente declaradas en el cierre del ciclo, PARTILOT generará un saldo de servicio conforme a lo establecido en el Marco Legal Integral de la Plataforma. Dicho saldo no es reembolsable en efectivo, debe utilizarse dentro de la Plataforma y caduca a los quince (15) meses desde su generación.
+9.4  Todos los importes se entienden sin Impuesto sobre el Valor Añadido. Las facturas estarán disponibles en el panel de la Entidad.
+9.5  El impago de cualquier cuota devengada y vencida a cargo de la Entidad facultará a PARTILOT para suspender su acceso a la Plataforma, previa notificación con un mínimo de diez (10) días hábiles.
+CLÁUSULA 10 — ESPACIO WEB DE LA ENTIDAD
+10.1  La Entidad podrá disponer de un espacio web propio dentro de la Plataforma para la venta de participaciones digitales a sus socios, afiliados o colaboradores. Este servicio es opcional y requiere solicitud expresa a PARTILOT.
+10.2  La Entidad es responsable exclusiva del contenido que publique en su espacio web. PARTILOT no asume responsabilidad alguna por dicho contenido ni por las reclamaciones que pudieran derivarse del mismo.
+10.3  Los importes recaudados mediante la venta de participaciones digitales a través del espacio web de la Entidad corresponden en todo momento a la Entidad, actuando PARTILOT exclusivamente como pasarela técnica de cobro sin comisión sobre ventas.
+CLÁUSULA 11 — SERVICIO OPCIONAL DE GESTIÓN TÉCNICA DE PAGOS DE PREMIOS
+11.1  La Entidad podrá contratar el servicio opcional de gestión técnica de pagos de premios, mediante el cual PARTILOT ejecuta, por cuenta y en nombre de la Entidad, el pago de los premios menores correspondientes a las participaciones premiadas de cada sorteo. PARTILOT gestiona exclusivamente premios cuyo importe individual no supera el umbral fiscal que obliga a practicar retención de IRPF. Los premios que superen dicho umbral deberán ser cobrados directamente por la Entidad.
+11.2  La contratación de este servicio para cada sorteo con premios requiere la suscripción de un Acuerdo Específico de Mandato de Pago, formalizado de forma independiente al presente contrato. Dicho Acuerdo deberá ser firmado por el Firmante Autorizado, sin perjuicio de que este pueda delegar expresamente dicha facultad en el Gestor Responsable mediante declaración específica realizada al designarlo o con posterioridad. El presente contrato no autoriza por sí solo a PARTILOT a gestionar el pago de premios.
+11.3  El Acuerdo Específico de Mandato de Pago vincula a la Entidad con independencia de los cambios que puedan producirse en la persona que ostente el cargo de Gestor Responsable durante su vigencia.
+11.4  Los fondos depositados por la Entidad para el pago de premios son y permanecen en todo momento propiedad de la Entidad. PARTILOT actúa exclusivamente como gestor técnico de pago por encargo documentado, sin adquirir en ningún momento la titularidad de dichos fondos.
+11.5  Antes de la celebración de cada sorteo, y en cualquier caso antes de que se produzca el primer resultado premiado, la Entidad deberá elegir la modalidad de pago de premios aplicable a dicho sorteo: Modalidad A, pago a través de la Plataforma, o Modalidad B, pago presencial por la Entidad. La elección se realiza una única vez por sorteo, con carácter previo a su celebración, y es exclusiva para dicho sorteo.
+11.6  Cuando la Entidad opte por la Modalidad B, las participaciones digitales premiadas, al carecer de soporte físico presentable presencialmente, solo podrán ser cobradas por sus titulares a través de la Plataforma, para lo cual la Entidad estará obligada a ingresar el importe correspondiente. Hasta dicho ingreso, las participaciones digitales premiadas permanecerán bloqueadas.
+11.7  Si la Entidad no ingresa el importe correspondiente a las participaciones digitales premiadas antes del vencimiento del plazo legal de cobro de tres (3) meses desde la fecha del sorteo, dichas participaciones caducarán automáticamente, sin que PARTILOT asuma responsabilidad económica alguna.
+CLÁUSULA 12 — OBLIGACIONES DE LA ENTIDAD
+La Entidad, a través de su Firmante Autorizado, Gestor Responsable y demás usuarios con rol en la Plataforma, se compromete frente a PARTILOT a:
+Proporcionar información veraz, completa y actualizada en el proceso de alta y durante toda la vigencia del contrato.
+Custodiar con la máxima diligencia las credenciales de acceso de todos los usuarios vinculados a la Entidad.
+Utilizar la Plataforma exclusivamente para los fines previstos en el presente contrato y en el Marco Legal Integral.
+Garantizar que los Vendedores que designe verifican la mayoría de edad de los compradores de participaciones.
+Custodiar con la máxima diligencia los archivos digitales de participaciones físicas que descargue, evitando su reimpresión o reproducción más allá de lo estrictamente necesario, asumiendo la responsabilidad íntegra de cualquier duplicación conforme al Marco Legal Integral.
+Abonar puntualmente a PARTILOT las cuotas de gestión que le correspondan conforme a la Cláusula 9.
+Las obligaciones anteriores son las únicas que la Entidad asume frente a PARTILOT en virtud del presente contrato. Cualquier compromiso económico u operativo de la Entidad frente al Punto de Venta Autorizado —incluyendo, entre otros, el pago de la lotería adquirida, la devolución de las participaciones no vendidas, o el cumplimiento de los términos de la liquidación pactada entre ambos— es ajeno al presente contrato y a PARTILOT, que no es parte de dicha relación ni acreedora de tales obligaciones, conforme al deslinde establecido en la Cláusula 8. PARTILOT no asume función alguna de supervisión, exigencia ni garantía del cumplimiento por la Entidad de sus compromisos frente al Punto de Venta Autorizado.
+CLÁUSULA 13 — RESPONSABILIDAD SOBRE CONTENIDOS Y DISEÑOS CREADOS EN LA PLATAFORMA
+13.1  PARTILOT pone a disposición de la Entidad herramientas de diseño, proporcionando con carácter general una plantilla orientativa que incluye los datos técnicos mínimos del Set. Más allá de dicha plantilla, el diseño, los textos, las imágenes y cualquier otro contenido son de libre elección de la Entidad, que asume plena responsabilidad sobre el resultado si la modifica o sustituye.
+13.2  PARTILOT actúa en este contexto como proveedor técnico de herramientas de diseño, sin supervisar, revisar ni moderar previamente ningún contenido creado por la Entidad. La responsabilidad sobre la legalidad, veracidad, adecuación y respeto a los derechos de terceros de todos los contenidos creados recae íntegra y exclusivamente en la Entidad.
+13.3  Queda expresamente prohibido incluir en los diseños o en el espacio web de la Entidad: obras protegidas por derechos de propiedad intelectual o industrial sin autorización; imágenes de personas físicas sin su consentimiento; contenidos engañosos o falsos; contenidos que vulneren el honor, la intimidad o la imagen de terceros; y contenidos contrarios al orden público, la normativa de publicidad o de protección de consumidores.
+13.4  La Entidad garantiza que los contenidos que cree cumplen con la normativa vigente y que cuenta con todas las autorizaciones necesarias. En caso contrario, asumirá íntegramente la responsabilidad frente a PARTILOT y frente a cualquier tercero afectado.
+13.5  PARTILOT se reserva el derecho a retirar o bloquear cualquier contenido manifiestamente ilegal del que tenga conocimiento, sin que ello implique obligación general de supervisión.
+CLÁUSULA 14 — LIMITACIÓN DE RESPONSABILIDAD
+14.1  PARTILOT no garantiza la disponibilidad ininterrumpida de la Plataforma. Su responsabilidad frente a la Entidad por cualquier causa quedará limitada al importe total abonado por esta en concepto de cuotas de gestión durante los doce (12) meses anteriores al evento causante del daño, quedando excluidos los daños indirectos, el lucro cesante y los daños consecuenciales.
+14.2  PARTILOT quedará exonerada de responsabilidad por causas de fuerza mayor conforme al artículo 1105 del Código Civil.
+14.3  La Entidad responderá íntegramente frente a PARTILOT y frente a terceros por los daños ocasionados como consecuencia del incumplimiento de sus obligaciones contractuales, del uso ilícito de la Plataforma o de las actuaciones de sus Gestores y Vendedores.
+CLÁUSULA 15 — PROTECCIÓN DE DATOS
+15.1  El tratamiento de datos personales se rige por el Reglamento (UE) 2016/679, la Ley Orgánica 3/2018 y el Acuerdo de Tratamiento de Datos que forma parte del Marco Legal Integral de la Plataforma.
+15.2  La Entidad actúa como responsable del tratamiento respecto a los datos de sus Vendedores y Usuarios Finales. PARTILOT actúa como encargada del tratamiento, conforme a las instrucciones de la Entidad.
+15.3  Los Gestores, Gestores Responsables y Vendedores con acceso operativo a datos de terceros son individualmente responsables del uso que hagan de dichos datos.
+CLÁUSULA 16 — PROPIEDAD INTELECTUAL Y CONFIDENCIALIDAD
+16.1  Todos los derechos de propiedad intelectual e industrial sobre la Plataforma son titularidad exclusiva de PARTILOT o de sus licenciantes. El presente contrato no supone la cesión de ninguno de estos derechos.
+16.2  Ambas partes se comprometen a mantener en estricta confidencialidad la información técnica, comercial y operativa de la otra parte, durante la vigencia del contrato y los cinco (5) años posteriores a su extinción.
+CLÁUSULA 17 — MODIFICACIÓN DEL SERVICIO Y DE LAS CONDICIONES
+17.1  PARTILOT podrá modificar las funcionalidades de la Plataforma y las tarifas del servicio, notificando los cambios con un mínimo de treinta (30) días de antelación.
+17.2  PARTILOT podrá discontinuar el servicio con un preaviso mínimo de noventa (90) días, procediendo conforme a lo establecido en el Marco Legal Integral.
+CLÁUSULA 18 — COMUNICACIONES
+Las comunicaciones entre las partes se realizarán preferentemente a través de la Plataforma y por correo electrónico a las direcciones registradas del Firmante Autorizado y del Gestor Responsable, teniendo las enviadas a la última dirección registrada plena validez jurídica.
+CLÁUSULA 19 — ACEPTACIÓN ELECTRÓNICA
+La aceptación del presente contrato mediante el procedimiento de firma electrónica habilitado en la Plataforma queda registrada con identificación del firmante, marca temporal y dirección IP, conforme al Reglamento (UE) nº 910/2014 y la Ley 6/2020, de 11 de noviembre. El sistema generará un documento del presente contrato con la aceptación registrada, disponible en el panel de la Entidad y remitido al correo electrónico del Firmante Autorizado.
+CLÁUSULA 20 — LEGISLACIÓN APLICABLE Y JURISDICCIÓN
+20.1  El presente contrato se rige íntegramente por la legislación española.
+20.2  Para la resolución de cualquier controversia, las partes se someten a los Juzgados y Tribunales de Logroño, con renuncia expresa a cualquier otro fuero.
+20.3  Con carácter previo al ejercicio de cualquier acción judicial, las partes intentarán resolver la controversia de forma amistosa durante un plazo de treinta (30) días desde la notificación por escrito del desacuerdo.
+ANEXO I — IDENTIFICACIÓN DE LAS PARTES Y CONDICIONES INICIALES
+El presente Anexo forma parte integrante del contrato y se completa con los datos registrados en la Plataforma en el momento de la aceptación.
+Modalidad de contratación
+Modalidad aplicable a este contrato
+[CASO A — Entidad con personalidad jurídica / CASO B — Organizador sin personalidad jurídica]
+Datos de PARTILOT
+Razón social
+PARTILOT, SOCIEDAD LIMITADA UNIPERSONAL
+NIF
+B26681551
+Domicilio fiscal
+Calle Lope de Vega, 5, 1º B, 26007 Logroño (La Rioja)
+Registro Mercantil
+Registro Mercantil de La Rioja, Hoja LO-21703, Inscripción 1
+Email legal
+[EMAIL LEGAL]
+Email de soporte
+[EMAIL SOPORTE]
+Datos de la Entidad (o del Organizador, en su caso)
+Tipo
+[Entidad con personalidad jurídica / Organizador sin personalidad jurídica]
+Nombre de la Entidad / Organizador
+[NOMBRE]
+CIF / NIF
+[CIF/NIF]
+Domicilio
+[DIRECCIÓN COMPLETA]
+Email de contacto
+[EMAIL]
+Teléfono
+[TELÉFONO]
+Punto de Venta Autorizado vinculado
+[NOMBRE Y CÓDIGO]
+Datos del Firmante Autorizado
+Nombre y apellidos
+[NOMBRE Y APELLIDOS]
+DNI / NIE
+[DNI/NIE]
+Cargo / capacidad de representación
+[CARGO — o «Organizador» en su caso]
+Email registrado
+[EMAIL]
+Fecha de aceptación
+[Generado automáticamente por el sistema]
+Marca temporal (timestamp)
+[Generado automáticamente por el sistema]
+Dirección IP
+[Generada automáticamente por el sistema]
+Datos del Gestor Responsable designado
+Nombre y apellidos
+[NOMBRE Y APELLIDOS — o «mismo que el Firmante Autorizado»]
+DNI / NIE
+[DNI/NIE]
+Email registrado
+[EMAIL]
+Fecha de aceptación del cargo
+[Generado automáticamente por el sistema]
+Configuración inicial
+Espacio web de la Entidad
+No activado. Activable previa solicitud a PARTILOT.
+Cuota de gestión por defecto a cargo de
+[Entidad / Punto de Venta Autorizado — configurable por Set]
+Servicio de gestión de pagos de premios
+No contratado. Requiere Acuerdo Específico de Mandato de Pago cuando el sorteo tenga premios.
+Facultad de firma del Mandato de Pago delegada en el Gestor Responsable
+[Sí / No]
+Ambas partes declaran que los datos anteriores son correctos y completos.
+Por PARTILOT
+Nombre y apellidos: ______________________
+Cargo: ______________________
+Fecha: ______________________
+Por el Firmante Autorizado
+Nombre y apellidos: ______________________
+Cargo: ______________________
+Fecha: ______________________
+© PARTILOT, S.L.U. — Contrato Marco de Prestación de Servicios con la Entidad — Versión 4.0

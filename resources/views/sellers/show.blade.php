@@ -168,7 +168,13 @@
                 <div class="page-title-right">
                     <ol class="breadcrumb m-0">
                         <li class="breadcrumb-item"><a href="{{ route('sellers.index') }}">Vendedores/Asignación</a></li>
-                        <li class="breadcrumb-item active">Ver Vendedor</li>
+                        <li class="breadcrumb-item active">
+                            @if(!empty($hideSellerPersonalData))
+                                #VE{{ str_pad($seller->id, 4, '0', STR_PAD_LEFT) }}
+                            @else
+                                Ver Vendedor
+                            @endif
+                        </li>
                     </ol>
                 </div>
                 <h4 class="page-title">Vendedores/Asignación</h4>
@@ -182,7 +188,11 @@
                 <div class="card-body">
 
                     <h4 class="header-title">
-                        Detalles del Vendedor
+                        @if(!empty($hideSellerPersonalData))
+                            Vendedor #VE{{ str_pad($seller->id, 4, '0', STR_PAD_LEFT) }}
+                        @else
+                            Detalles del Vendedor
+                        @endif
                     </h4>
 
                     <br>
@@ -462,6 +472,7 @@
                                             </div>
 
                                             <div class="row show-content">
+                                                @if(empty($hideSellerNif))
                                                 <div class="col-md-3">
                                                     <div class="form-group mt-2 mb-3">
                                                         <label class="label-control">NIF/CIF</label>
@@ -473,6 +484,7 @@
                                                         </div>
                                                     </div>
                                                 </div>
+                                                @endif
                                                 <div class="col-md-3">
                                                     <div class="form-group mt-2 mb-3">
                                                         <label class="label-control">F. Nacimiento</label>
@@ -522,6 +534,7 @@
                                                             @endif
                                                         </div>
                                                         <span class="badge {{ $seller->status_class }} mt-2" id="seller-status-badge" style="display: none;">{{ $seller->status_text }}</span>
+                                                        <small class="text-muted d-block mt-1" id="seller-status-help" style="padding-left: 12px;">{{ $seller->status_help }}</small>
                                                     </div>
                                                 </div>
                                             </div>
@@ -536,6 +549,7 @@
                                                             </div>
                                                             <input class="form-control" type="text" value="{{ $seller->status_text }}" readonly style="border-radius: 0 30px 30px 0;">
                                                         </div>
+                                                        <small class="text-muted d-block mt-1" style="padding-left: 12px;">{{ $seller->status_help }}</small>
                                                     </div>
                                                 </div>
                                             </div>
@@ -835,10 +849,20 @@
                                                         <small>Asigna Participaciones</small>
                                         
                                                         <br>
-                                        
+
+                                                        @if((int) $seller->status !== \App\Models\Seller::STATUS_ACTIVE)
+                                                        <p class="text-muted small mt-2 mb-0" style="max-width: 340px;">
+                                                            <i class="ri-lock-line"></i>
+                                                            No se pueden asignar participaciones: el vendedor está «{{ $seller->status_text }}». {{ $seller->status_help }}
+                                                        </p>
+                                                        <button type="button" disabled style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2" title="{{ $seller->status_help }}">
+                                                            <i style="position: relative; top: 2px;" class="ri-add-line"></i> Asignar
+                                                        </button>
+                                                        @else
                                                         <button id="btn-iniciar-asignacion" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2">
                                                             <i style="position: relative; top: 2px;" class="ri-add-line"></i> Asignar
                                                         </button>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -960,7 +984,7 @@
                                                             <div class="card-header">Liquidación Actual</div>
                                                             <div class="card-body">
                                                                 <p><strong>Total Pagado:</strong> <span id="settlement-total-paid" class="text-success fw-bold">0.00€</span></p>
-                                                                <p><strong>Participaciones Liquidadas:</strong> <span id="settlement-liquidated-participations">0</span></p>
+                                                                <p><strong>Participaciones cubiertas por lo pagado:</strong> <span id="settlement-liquidated-participations">0</span></p>
                                                                 <p><strong>Pendiente por Liquidar:</strong> <span id="settlement-pending-amount" class="text-warning fw-bold">0.00€</span></p>
                                                                 <p><strong>Participaciones Pendientes:</strong> <span id="settlement-pending-participations">0</span></p>
                                                             </div>
@@ -1227,8 +1251,8 @@ function initDatatable()
         "language": {
           url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
         },
-        "pageLength": 10,
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+        "pageLength": 20,
+        "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
         "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
                '<"row"<"col-sm-12"tr>>' +
                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
@@ -1261,8 +1285,8 @@ function initDatatable()
         "language": {
           url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
         },
-        "pageLength": 10,
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+        "pageLength": 20,
+        "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
         "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
                '<"row"<"col-sm-12"tr>>' +
                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
@@ -1954,6 +1978,9 @@ function initDatatable()
           success: function(response) {
             if (response.success) {
               if (response.queued) {
+                if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                  window.partilotWatchBackgroundTask(response.task_uuid);
+                }
                 try {
                   sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                     title: 'Asignación en segundo plano',
@@ -1963,7 +1990,7 @@ function initDatatable()
                 } catch (e) {}
                 window.location.reload();
               } else {
-                mostrarMensaje('Asignaciones guardadas correctamente', 'success');
+                mostrarMensaje(response.message || 'Asignaciones guardadas correctamente', 'success');
                 
                 // Limpiar el array temporal y recargar las participaciones existentes
                 participacionesAsignadas = [];
@@ -2034,8 +2061,8 @@ function initDatatable()
          "language": {
            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
          },
-         "pageLength": 10,
-         "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+         "pageLength": 20,
+         "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
          "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
                 '<"row"<"col-sm-12"tr>>' +
                 '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
@@ -2427,7 +2454,7 @@ function initDatatable()
                   </td>
                   <td>${participation.participation_code}</td>
                   <td><label class="badge ${statusClass}">${statusLabel}</label></td>
-                  <td>{{ $seller->name ?? 'N/A' }}</td>
+                  <td>@if(!empty($hideSellerPersonalData))#VE{{ str_pad($seller->id, 4, '0', STR_PAD_LEFT) }}@else{{ $seller->name ?? 'N/A' }}@endif</td>
                   <td>${saleDate}</td>
                   <td>${saleTime}</td>
                   <td>
@@ -2554,9 +2581,12 @@ function initDatatable()
                       $('#settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '€');
                       $('#settlement-total-amount').text(totalAmount.toFixed(2) + '€');
                       $('#settlement-total-paid').text(totalPaid.toFixed(2) + '€');
-                      $('#settlement-liquidated-participations').text(liquidatedParticipations.toFixed(2));
+                      // La liquidación es en dinero: se muestran participaciones enteras cubiertas por lo pagado.
+                      const totalParticipationsCount = parseInt(summary.total_participations, 10) || 0;
+                      const coveredParticipations = Math.min(totalParticipationsCount, Math.floor(liquidatedParticipations + 1e-6));
+                      $('#settlement-liquidated-participations').text(coveredParticipations);
                       $('#settlement-pending-amount').text(pendingAmount.toFixed(2) + '€');
-                      $('#settlement-pending-participations').text(pendingParticipations.toFixed(2));
+                      $('#settlement-pending-participations').text(Math.max(0, totalParticipationsCount - coveredParticipations));
                       $('#settlement-pendiente-display').text(pendingAmount.toFixed(2) + '€');
                       
                       console.log('Datos actualizados en la vista');
@@ -2630,6 +2660,17 @@ function initDatatable()
               return;
           }
 
+          const pendienteActual = parseFloat($('#settlement-pending-amount').text().replace('€', '').replace(',', '.')) || 0;
+          const totalPagos = pagos.reduce((sum, p) => sum + p.amount, 0);
+          if (pendienteActual <= 0.009) {
+              mostrarMensaje('No queda importe pendiente de liquidar para este vendedor en este sorteo.', 'warning');
+              return;
+          }
+          if (totalPagos > pendienteActual + 0.009) {
+              mostrarMensaje('El importe a liquidar (' + totalPagos.toFixed(2) + '€) supera el pendiente (' + pendienteActual.toFixed(2) + '€).', 'warning');
+              return;
+          }
+
           // Deshabilitar botón
           $(this).prop('disabled', true).text('Procesando...');
 
@@ -2660,7 +2701,8 @@ function initDatatable()
               },
               error: function(xhr, status, error) {
                   console.error('Error:', error);
-                  mostrarMensaje('Error al registrar la liquidación', 'error');
+                  const serverMessage = xhr.responseJSON && xhr.responseJSON.message;
+                  mostrarMensaje(serverMessage || 'Error al registrar la liquidación', xhr.status === 422 ? 'warning' : 'error');
               },
               complete: function() {
                   $('#btn-registrar-liquidacion').prop('disabled', false).html('<i class="ri-add-line"></i> Registrar Liquidación');
@@ -2681,7 +2723,7 @@ function initDatatable()
               },
               success: function(response) {
                   if (response.success && response.settlements.length > 0) {
-                      let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Participaciones Liquidadas</th><th>Monto Pagado</th><th>Métodos de Pago</th></tr></thead><tbody>';
+                      let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Importe pagado</th><th>Pendiente tras el pago</th><th>Métodos de Pago</th></tr></thead><tbody>';
                       
                       response.settlements.forEach(settlement => {
                           // Validar y formatear fecha de liquidación
@@ -2707,14 +2749,14 @@ function initDatatable()
                               metodos.push(`${icono} ${paymentAmount.toFixed(2)}€`);
                           });
                           
-                          const calculatedParts = parseFloat(settlement.calculated_participations) || 0;
                           const paidAmount = parseFloat(settlement.paid_amount) || 0;
+                          const pendingAfter = Math.max(0, parseFloat(settlement.pending_amount) || 0);
                           
                           html += `
                               <tr>
                                   <td>${fecha}</td>
-                                  <td>${calculatedParts.toFixed(2)}</td>
                                   <td class="fw-bold text-success">${paidAmount.toFixed(2)}€</td>
+                                  <td>${pendingAfter.toFixed(2)}€</td>
                                   <td>${metodos.join(', ')}</td>
                               </tr>
                           `;
@@ -2756,6 +2798,8 @@ function initDatatable()
               input.value = data.status_text;
               badge.textContent = data.status_text;
               badge.className = 'badge ' + data.status_class + ' mt-2';
+              var help = document.getElementById('seller-status-help');
+              if (help && data.status_help) help.textContent = data.status_help;
           } else {
               alert(data.message || 'Error al cambiar el estado');
           }

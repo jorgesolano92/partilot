@@ -25,6 +25,24 @@
             <div class="card">
                 <div class="card-body">
 
+                    @include('partials.administration-list-filter-banner', [
+                        'filterAdministration' => $filterAdministration ?? null,
+                        'clearFilterUrl' => route('reserves.index', array_filter([
+                            'entity_id' => $entityFilterId ?? null,
+                        ])),
+                    ])
+
+                    @if(!empty($filterEntity))
+                        <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span>
+                                Filtrando por entidad: <strong>{{ $filterEntity->name }}</strong>
+                            </span>
+                            <a href="{{ route('reserves.index', array_filter([
+                                'administration_id' => $filterAdministration->id ?? null,
+                            ])) }}" class="btn btn-sm btn-light">Quitar filtro</a>
+                        </div>
+                    @endif
+
                     <div class="{{$reserves->count() > 0 ? '' : 'd-none'}}">
                         <h4 class="header-title">
 
@@ -34,7 +52,7 @@
                                 <input type="text" class="form-control" placeholder="Status">
                             </div>
 
-                            <a href="{{url('reserves/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                            <a href="{{ route('reserves.create', array_filter(['entity_id' => $entityFilterId ?? null])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
 
                         </h4>
 
@@ -89,7 +107,7 @@
                                     <td>{{ $reserve->reservation_tickets ?? 0 }}</td>
                                     <td><b>{{ number_format($totalReserva, 2) }} €</b></td>
                                     <td class="no-click" style="cursor: default;">
-                                        <a class="btn btn-sm btn-light"><img src="{{url('icons_/participations.svg')}}" alt="" width="12"></a>
+                                        <a class="btn btn-sm btn-light" title="Sets de participaciones" href="{{ route('sets.index', ['reserve_id' => $reserve->id]) }}"><img src="{{url('icons_/participations.svg')}}" alt="" width="12"></a>
                                         <a href="{{url('reserves/edit', $reserve->id)}}" class="btn btn-sm btn-light"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
                                         <button class="btn btn-sm btn-danger delete-btn" data-id="{{$reserve->id}}" data-name="reserva #{{$reserve->id}}"><i class="ri-delete-bin-6-line"></i></button>
                                     </td>
@@ -115,7 +133,7 @@
 
                                 <br>
 
-                                <a href="{{url('reserves/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                <a href="{{ route('reserves.create', array_filter(['entity_id' => $entityFilterId ?? null])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
                             </div>
 
                         </div>
@@ -258,6 +276,8 @@
     e.stopPropagation(); // Evitar que se active el clic de la fila
     var id = $(this).data('id');
     var name = $(this).data('name');
+    $('#delete-reason').val('');
+    $('#delete-warning').addClass('d-none');
     $('#delete-modal').modal('show');
     $('#delete-item-name').text(name);
     $('#confirm-delete').data('id', id).data('type', 'reserve');
@@ -275,6 +295,11 @@
       </div>
       <div class="modal-body">
         <p>¿Estás seguro de que quieres eliminar <strong id="delete-item-name"></strong>?</p>
+        <div class="mb-3">
+          <label for="delete-reason" class="form-label">Motivo</label>
+          <textarea id="delete-reason" class="form-control" rows="3" maxlength="2000" placeholder="Ej.: Cambio de número por orden de la entidad"></textarea>
+          <small class="text-muted">Este motivo se incluirá en el email al gestor de la entidad. No se guarda en el sistema.</small>
+        </div>
         <div id="delete-warning" class="alert alert-warning d-none" role="alert">
           <strong>Advertencia:</strong> <span id="delete-message"></span>
         </div>
@@ -319,6 +344,9 @@ function deleteItem(type, id) {
   $.ajax({
     url: '/api/delete/' + type + '/' + id,
     method: 'DELETE',
+    data: {
+      deletion_reason: $('#delete-reason').val()
+    },
     headers: {
       'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
     },

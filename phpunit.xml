@@ -11,6 +11,10 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="PrizePayment">
+            <directory>tests/Feature/PrizePayment</directory>
+            <file>tests/Unit/EntityLotteryPrizePaymentServiceTest.php</file>
+        </testsuite>
     </testsuites>
     <source>
         <include>

@@ -10,6 +10,12 @@ class ParticipationCollectionItem extends Model
     protected $fillable = [
         'collection_id',
         'participation_id',
+        'entity_id',
+        'amount',
+    ];
+
+    protected $casts = [
+        'amount' => 'decimal:2',
     ];
 
     public function collection(): BelongsTo
@@ -20,5 +26,10 @@ class ParticipationCollectionItem extends Model
     public function participation(): BelongsTo
     {
         return $this->belongsTo(Participation::class);
+    }
+
+    public function entity(): BelongsTo
+    {
+        return $this->belongsTo(Entity::class);
     }
 }

@@ -9,6 +9,16 @@ class Participation extends Model
 {
     use HasFactory;
 
+    public const WALLET_MODE_DIGITAL = 'digital';
+
+    public const WALLET_MODE_STORAGE = 'storage';
+
+    /** Estados permitidos en devoluciones (nunca vendida, pagada ni reserva digital pendiente). */
+    public static function returnableDevolutionStatuses(): array
+    {
+        return ['disponible', 'asignada'];
+    }
+
     protected $fillable = [
         'entity_id',
         'set_id',
@@ -23,6 +33,7 @@ class Participation extends Model
         'sale_amount',
         'payment_method',
         'buyer_name',
+        'wallet_mode',
         'buyer_phone',
         'buyer_email',
         'buyer_nif',
@@ -85,6 +96,38 @@ class Participation extends Model
         $key = trim((string) ($this->buyer_name ?? ''));
 
         return $key !== '' && ctype_digit($key);
+    }
+
+    public function isWalletStorage(): bool
+    {
+        return $this->wallet_mode === self::WALLET_MODE_STORAGE;
+    }
+
+    public function isWalletDigital(): bool
+    {
+        return $this->wallet_mode === self::WALLET_MODE_DIGITAL
+            || ($this->buyerNameIsWalletUserId() && $this->wallet_mode === null);
+    }
+
+    /**
+     * Participaciones que deben cobrarse online (nativas 1D/ o físicas digitalizadas en cartera).
+     */
+    public function requiresOnlinePrizeCollection(): bool
+    {
+        $code = (string) ($this->participation_code ?? '');
+
+        if (str_starts_with($code, '1D/')) {
+            return true;
+        }
+
+        $this->loadMissing('set');
+
+        if (($this->set?->digital_participations ?? 0) > 0
+            && (int) ($this->set?->physical_participations ?? 0) <= 0) {
+            return true;
+        }
+
+        return $this->wallet_mode === self::WALLET_MODE_DIGITAL;
     }
 
     public function returnedBy()
@@ -311,6 +354,30 @@ class Participation extends Model
     public function markAsLost()
     {
         $this->update(['status' => 'perdida']);
+    }
+
+    /**
+     * En BD los digitales se guardan como 1D/00001; en UI se muestran sin la D (1/00001).
+     */
+    public function isStoredAsDigitalCode(): bool
+    {
+        return str_starts_with((string) ($this->participation_code ?? ''), '1D/');
+    }
+
+    /**
+     * Participaciones físicas requieren aceptación de recibo antes de asignar al vendedor.
+     */
+    public function requiresAssignmentReceipt(): bool
+    {
+        if ($this->isStoredAsDigitalCode()) {
+            return false;
+        }
+
+        if ($this->isWalletDigital()) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

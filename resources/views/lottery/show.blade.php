@@ -44,10 +44,12 @@
 
                                 <h4 class="mb-0 mt-1">
                                     Datos del Sorteo
+                                    @if($lotteryAccess['canEditLotteryFull'] ?? false)
                                     <a href="{{ route('lotteries.edit', $lottery->id) }}" class="btn btn-light float-end" style="border: 1px solid silver; border-radius: 30px;">
                                         <img src="{{url('assets/form-groups/edit.svg')}}" alt="">
                                         Editar
                                     </a>
+                                    @endif
                                 </h4>
                                 <small><i>Información detallada del sorteo</i></small>
 
@@ -146,7 +148,7 @@
                                                 <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                     <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
                                                 </div>
-                                                <input class="form-control" type="text" value="{{ \Carbon\Carbon::parse($lottery->draw_time)->format('H:i') }}h" style="border-radius: 0 30px 30px 0;" readonly>
+                                                <input class="form-control" type="text" value="{{ $lottery->deadlineTimeLabel() }}h" style="border-radius: 0 30px 30px 0;" readonly>
                                             </div>
                                         </div>
                                     </div>

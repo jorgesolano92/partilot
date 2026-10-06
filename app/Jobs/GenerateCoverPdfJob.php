@@ -34,16 +34,14 @@ class GenerateCoverPdfJob implements ShouldQueue
         $design = DesignFormat::findOrFail($this->designId);
         $controller = app(DesignController::class);
 
+        Storage::makeDirectory('generated_pdfs');
+        $final_path = storage_path('app/generated_pdfs/'.$this->jobId.'.pdf');
         try {
-            $items = $controller->buildCoverHtmlItems($design);
+            $controller->writeCoverPdfToFile($design, $final_path);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             \Log::error('GenerateCoverPdfJob #'.$this->designId.': '.$e->getMessage());
             throw $e;
         }
-
-        Storage::makeDirectory('generated_pdfs');
-        $final_path = storage_path('app/generated_pdfs/'.$this->jobId.'.pdf');
-        $controller->saveGridPdfFacadeToPath($design, $items, $final_path, 'Portadas PDF');
 
         GeneratedPdfCatalog::writeMeta(
             $this->jobId,

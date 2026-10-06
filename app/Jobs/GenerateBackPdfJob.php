@@ -43,16 +43,14 @@ class GenerateBackPdfJob implements ShouldQueue
         $design = DesignFormat::findOrFail($this->designId);
         $controller = app(DesignController::class);
 
+        Storage::makeDirectory('generated_pdfs');
+        $final_path = storage_path('app/generated_pdfs/'.$this->jobId.'.pdf');
         try {
-            $items = $controller->buildBackHtmlItems($design, $this->copies, $this->exactCount);
+            $controller->writeBackPdfToFile($design, $final_path, $this->copies, $this->exactCount);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             \Log::error('GenerateBackPdfJob #'.$this->designId.': '.$e->getMessage());
             throw $e;
         }
-
-        Storage::makeDirectory('generated_pdfs');
-        $final_path = storage_path('app/generated_pdfs/'.$this->jobId.'.pdf');
-        $controller->saveGridPdfFacadeToPath($design, $items, $final_path, 'Traseras PDF');
 
         GeneratedPdfCatalog::writeMeta(
             $this->jobId,

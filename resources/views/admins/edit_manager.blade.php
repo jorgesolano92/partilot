@@ -37,31 +37,19 @@
 
                     @php
                         $primaryManager = $administration->manager;
-                        $primaryManagerUser = $primaryManager?->user;
                     @endphp
-
-                    @if(session('info'))
-                        <div class="alert alert-info">{{ session('info') }}</div>
-                    @endif
-
-                    @if(session('success'))
-                        <div class="alert alert-success">{{ session('success') }}</div>
-                    @endif
-
-                    @if($errors->any())
-                        <div class="alert alert-danger">
-                            <ul class="mb-0">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-                        </div>
-                    @endif
 
                     @php
                         $adminStatusValue = $administration->status;
                         if ($adminStatusValue === null || $adminStatusValue === -1) {
                             $adminStatusText = 'Pendiente';
                             $adminStatusClass = 'bg-secondary';
-                        } elseif ($adminStatusValue == 1) {
+                        } elseif ((int) $adminStatusValue === 1) {
                             $adminStatusText = 'Activo';
                             $adminStatusClass = 'bg-success';
+                        } elseif ((int) $adminStatusValue === 3) {
+                            $adminStatusText = 'Bloqueado';
+                            $adminStatusClass = 'bg-warning';
                         } else {
                             $adminStatusText = 'Inactivo';
                             $adminStatusClass = 'bg-danger';
@@ -124,12 +112,12 @@
 
                     	<div class="col-md-9">
 
-                    @if(!$primaryManager || !$primaryManagerUser)
+                    @if(!$primaryManager || !$primaryManager->hasContactData())
                         <form action="{{ route('administrations.assign-primary-manager', $administration->id) }}" method="POST" class="assign-primary-admin-manager">
                             @csrf
                             <div class="form-card bs" style="min-height: 658px;">
                                 <h4 class="mb-0 mt-1">Datos del gestor principal</h4>
-                                <small><i>Complete los campos obligatorios. El correo del gestor debe ser distinto al de acceso al panel ({{ $administration->email }}).</i></small>
+                                <small><i>Complete los campos obligatorios. El gestor es solo contacto y puede usar el mismo correo que el acceso al panel u otro email ya existente en usuarios.</i></small>
 
                                 <div class="alert alert-warning mt-2 mb-0">
                                     No hay gestor principal asignado (p. ej. usuario eliminado). Registre uno nuevo con los datos siguientes.
@@ -138,8 +126,11 @@
                                 <div class="form-group mt-3 mb-3 admin-box">
                                     <div class="row">
                                         <div class="col-1">
-                                            <div class="photo-preview-2">
-                                                <i class="ri-account-circle-fill"></i>
+                                            @php $adminLogoUrl = $administration->logoPublicUrl(); @endphp
+                                            <div class="photo-preview-2 logo-round"@if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;"@endif>
+                                                @unless($adminLogoUrl)
+                                                    <i class="ri-account-circle-fill"></i>
+                                                @endunless
                                             </div>
                                             <div style="clear: both;"></div>
                                         </div>
@@ -218,7 +209,7 @@
                                                     <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
                                                         <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
                                                     </div>
-                                                    <input class="form-control" type="date" name="birthday" value="{{ old('birthday') }}" style="border-radius: 0 30px 30px 0;">
+                                                    <input class="form-control" type="date" name="birthday" value="{{ old('birthday') }}" min="1900-01-01" max="{{ now()->toDateString() }}" style="border-radius: 0 30px 30px 0;">
                                                 </div>
                                             </div>
                                         </div>
@@ -282,15 +273,11 @@
 
                     				<div class="row">
                     					<div class="col-1">
-                    						
-		                    				<div class="photo-preview-2">
-		                    					
-		                    				@if(!empty($primaryManagerUser->image))
-		                    						<img src="{{url('manager/'.$primaryManagerUser->image)}}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
-		                    					@else
+                    						@php $adminLogoUrl = $administration->logoPublicUrl(); @endphp
+		                    				<div class="photo-preview-2 logo-round"@if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;"@endif>
+		                    					@unless($adminLogoUrl)
 		                    						<i class="ri-account-circle-fill"></i>
-		                    					@endif
-
+		                    					@endunless
 		                    				</div>
 		                    				
 		                    				<div style="clear: both;"></div>
@@ -300,7 +287,7 @@
 
                     						<h4 class="mt-0 mb-0">{{ $administration->name ?? 'Sin nombre' }}</h4>
 
-                    						<small>{{ $primaryManagerUser->name ?? '' }} {{ $primaryManagerUser->last_name ?? '' }}</small> <br>
+                    						<small>{{ $primaryManager->resolvedContactFullName() }}</small> <br>
 
                     						<i style="position: relative; top: 3px; font-size: 16px; color: #333" class="ri-computer-line"></i> {{ $administration->postal_code ?? '' }}
                     						
@@ -343,7 +330,7 @@
 				                                      	<img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="name" value="{{ $primaryManagerUser->name ?? '' }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="name" value="{{ old('name', $primaryManager->contactField('name') ?? '') }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -357,7 +344,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="last_name" value="{{ $primaryManagerUser->last_name ?? '' }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="last_name" value="{{ old('last_name', $primaryManager->contactField('last_name') ?? '') }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -372,7 +359,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="last_name2" value="{{ $primaryManagerUser->last_name2 ?? '' }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="last_name2" value="{{ old('last_name2', $primaryManager->contactField('last_name2') ?? '') }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -387,7 +374,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="nif_cif" id="admin-edit-manager-nif-cif" value="{{ $primaryManagerUser->nif_cif ?? '' }}" class="form-control" type="text" placeholder="B26262626" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="nif_cif" id="admin-edit-manager-nif-cif" value="{{ old('nif_cif', $primaryManager->contactField('nif_cif') ?? '') }}" class="form-control" type="text" placeholder="B26262626" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -402,7 +389,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="birthday" value="{{ $primaryManagerUser->birthday?->format('Y-m-d') ?? '' }}" class="form-control" type="date" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="birthday" value="{{ old('birthday', $primaryManager->resolvedContactBirthdayInput()) }}" class="form-control" type="date" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -417,7 +404,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/9.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="email" value="{{ $primaryManagerUser->email ?? '' }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="email" value="{{ old('email', $primaryManager?->resolvedContactEmail() ?? '') }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -432,7 +419,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/10.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="phone" value="{{ $primaryManagerUser->phone ?? '' }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="phone" value="{{ old('phone', $primaryManager->contactField('phone') ?? '') }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -449,25 +436,18 @@
                     			<small><i>Puedes añadir un comentario si necesitas añadir información adicional <br> sobre el gestor. Puedes añadir comentarios mas tarde.</i></small>
 
                     			<div class="row">
-                    				
                     				<div class="col-8">
-                    					
                     					<div class="form-group mt-2">
 			                    			<label class="label-control">Comentario</label>
-
 			                    			<div class="input-group input-group-merge group-form" style="border: none">
-
-			                                    <textarea name="comment" class="form-control" placeholder="Añade tu comentario" rows="6">{{ $primaryManagerUser->comment ?? '' }}</textarea>
+			                                    <textarea name="comment" class="form-control" placeholder="Añade tu comentario" rows="6">{{ old('comment', $primaryManager->contactField('comment') ?? '') }}</textarea>
 			                                </div>
 		                    			</div>
-
                     				</div>
-
                     				<div class="col-4 text-end">
                     					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative; top: calc(100% - 51px);" class="btn btn-md btn-light mt-2">Guardar
                     						<i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
                     				</div>
-
                     			</div>
 
                     		</div>

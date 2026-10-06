@@ -3,30 +3,60 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\HandlesLotteryDrawDateGuard;
-use App\Models\Reserve;
+use App\Mail\ReserveSavedToEntityManagerMail;
 use App\Models\Entity;
 use App\Models\Lottery;
+use App\Models\Reserve;
+use App\Rules\ValidCalendarDate;
 use App\Services\CommunicationEmailService;
-use App\Mail\ReserveSavedToEntityManagerMail;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class ReserveController extends Controller
 {
-    use HandlesLotteryDrawDateGuard;
     use \App\Http\Controllers\Concerns\AutoSelectsPanelScope;
+    use HandlesLotteryDrawDateGuard;
 
     /**
      * Mostrar lista de reservas
      */
-    public function index()
+    public function index(Request $request)
     {
-        $reserves = Reserve::with(['entity', 'lottery'])
-            ->forUser(auth()->user())
+        $user = auth()->user();
+        $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+        $entityFilterIdRaw = $request->query('entity_id');
+        $entityFilterId = $entityFilterIdRaw !== null && $entityFilterIdRaw !== ''
+            ? (int) $entityFilterIdRaw
+            : null;
+
+        if ($entityFilterId !== null && ! $user->canAccessEntity((int) $entityFilterId)) {
+            abort(403, 'No tienes permisos para gestionar esta entidad.');
+        }
+
+        $query = Reserve::with(['entity', 'lottery'])
+            ->forUser($user);
+
+        if ($filterAdministration) {
+            $query->whereHas('entity', fn ($q) => $q->where('administration_id', $filterAdministration->id));
+        }
+
+        if ($entityFilterId !== null) {
+            $query->where('entity_id', $entityFilterId);
+        }
+
+        $reserves = $query
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('reserves.index', compact('reserves'));
+        $filterEntity = $entityFilterId !== null
+            ? Entity::forUser($user)->find($entityFilterId)
+            : null;
+
+        return view('reserves.index', compact(
+            'reserves',
+            'filterAdministration',
+            'entityFilterId',
+            'filterEntity'
+        ));
     }
 
     /**
@@ -38,10 +68,41 @@ class ReserveController extends Controller
             return $this->showLotterySelectionAfterEntity($request, $entity);
         }
 
+        $entityFromQuery = $this->resolveEntityFromQuery($request);
+        if ($entityFromQuery) {
+            return $this->showLotterySelectionAfterEntity($request, $entityFromQuery);
+        }
+
         $entities = Entity::with(['administration', 'manager'])
             ->forUser(auth()->user())
             ->get();
+
         return view('reserves.add', compact('entities'));
+    }
+
+    /**
+     * Entidad explícita vía ?entity_id= (acceso directo / filtro del listado).
+     */
+    private function resolveEntityFromQuery(Request $request): ?Entity
+    {
+        $entityIdRaw = $request->query('entity_id');
+        if ($entityIdRaw === null || $entityIdRaw === '') {
+            return null;
+        }
+
+        $entity = Entity::with(['administration', 'manager'])
+            ->forUser($request->user())
+            ->find((int) $entityIdRaw);
+
+        if (! $entity) {
+            return null;
+        }
+
+        if ((int) $entity->status !== 1) {
+            return null;
+        }
+
+        return $entity;
     }
 
     /**
@@ -50,7 +111,7 @@ class ReserveController extends Controller
     public function store_entity(Request $request)
     {
         $request->validate([
-            'entity_id' => 'required|integer|exists:entities,id'
+            'entity_id' => 'required|integer|exists:entities,id',
         ]);
 
         $entity = Entity::with(['administration', 'manager'])
@@ -87,7 +148,7 @@ class ReserveController extends Controller
     public function store_entity_ajax(Request $request)
     {
         $request->validate([
-            'entity_id' => 'required|integer|exists:entities,id'
+            'entity_id' => 'required|integer|exists:entities,id',
         ]);
 
         $entity = Entity::with(['administration', 'manager'])
@@ -110,11 +171,11 @@ class ReserveController extends Controller
     public function store_lottery(Request $request)
     {
         $request->validate([
-            'lottery_id' => 'required|integer|exists:lotteries,id'
+            'lottery_id' => 'required|integer|exists:lotteries,id',
         ]);
 
         $entityId = $request->session()->get('selected_entity_id');
-        if (!$entityId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return redirect()->route('reserves.create')
                 ->with('error', 'Debe seleccionar una entidad válida antes de elegir el sorteo.');
         }
@@ -136,14 +197,14 @@ class ReserveController extends Controller
     public function store_lottery_ajax(Request $request)
     {
         $request->validate([
-            'lottery_id' => 'required|integer|exists:lotteries,id'
+            'lottery_id' => 'required|integer|exists:lotteries,id',
         ]);
 
         $entityId = $request->session()->get('selected_entity_id');
-        if (!$entityId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Debe seleccionar una entidad válida antes de elegir el sorteo.'
+                'message' => 'Debe seleccionar una entidad válida antes de elegir el sorteo.',
             ], 422);
         }
 
@@ -159,19 +220,17 @@ class ReserveController extends Controller
 
     /**
      * Validar que la suma de décimos reservados para cada número no exceda el máximo permitido
-     * @param array $reservationNumbers
-     * @param int $lotteryId
-     * @param int $reservationTickets
-     * @param int|null $excludeReserveId (opcional, para edición)
+     *
+     * @param  int|null  $excludeReserveId  (opcional, para edición)
      * @return array ['success' => bool, 'messages' => array]
      */
     private function validateReservationTickets(array $reservationNumbers, int $lotteryId, int $reservationTickets, $excludeReserveId = null)
     {
         $lottery = \App\Models\Lottery::with('lotteryType')->find($lotteryId);
-        if (!$lottery || !$lottery->lotteryType) {
+        if (! $lottery || ! $lottery->lotteryType) {
             return [
                 'success' => false,
-                'messages' => ['No se encontró el sorteo o su tipo.']
+                'messages' => ['No se encontró el sorteo o su tipo.'],
             ];
         }
         $series = $lottery->lotteryType->series;
@@ -192,10 +251,27 @@ class ReserveController extends Controller
                 $messages[] = "El número $number solo tiene $disponibles décimos disponibles para reservar en este sorteo.";
             }
         }
+
         return [
             'success' => count($messages) === 0,
-            'messages' => $messages
+            'messages' => $messages,
         ];
+    }
+
+    /**
+     * @return array{success: bool, messages: string[]}
+     */
+    private function validateReservationTicketCap(int $reservationTickets): array
+    {
+        $maxTickets = (int) config('lottery.max_reservation_tickets', 0);
+        if ($maxTickets > 0 && $reservationTickets > $maxTickets) {
+            return [
+                'success' => false,
+                'messages' => ["El máximo de décimos por reserva es {$maxTickets}."],
+            ];
+        }
+
+        return ['success' => true, 'messages' => []];
     }
 
     /**
@@ -207,12 +283,12 @@ class ReserveController extends Controller
             'reservation_numbers' => 'required|array|min:1',
             'reservation_numbers.*' => 'required|string|max:10',
             'reservation_amount' => 'required|numeric|min:0',
-            'reservation_tickets' => 'required|integer|min:1'
+            'reservation_tickets' => 'required|integer|min:1',
         ]);
         $entityId = $request->session()->get('selected_entity_id');
         $lotteryId = $request->session()->get('selected_lottery_id');
 
-        if (!$entityId || !$lotteryId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! $lotteryId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return redirect()->route('reserves.create')
                 ->with('error', 'Error: No se encontraron los datos de entidad o sorteo');
         }
@@ -232,12 +308,16 @@ class ReserveController extends Controller
             $validated['reservation_amount'] = round($ticketsFromAmount * $ticketPrice, 2);
             $validated['reservation_tickets'] = $ticketsFromAmount;
         }
+        $capValidation = $this->validateReservationTicketCap((int) $validated['reservation_tickets']);
+        if (! $capValidation['success']) {
+            return redirect()->back()->withErrors($capValidation['messages'])->withInput();
+        }
         // Mantener datos actualizados en sesión para la interfaz
         $request->session()->put('selected_entity', $entity);
         $request->session()->put('selected_lottery', $lottery);
         // Validar décimos disponibles
         $validation = $this->validateReservationTickets($validated['reservation_numbers'], $lottery->id, $validated['reservation_tickets']);
-        if (!$validation['success']) {
+        if (! $validation['success']) {
             return redirect()->back()->withErrors($validation['messages'])->withInput();
         }
         // Total de la reserva = importe por número × cantidad de números
@@ -252,7 +332,7 @@ class ReserveController extends Controller
             'total_tickets' => $totalTickets,
             'status' => 1, // pending
             'reservation_date' => now(),
-            'expiration_date' => now()->addDays(7) // 7 días por defecto
+            'expiration_date' => now()->addDays(7), // 7 días por defecto
         ]);
 
         $reserve = Reserve::create($reserveData);
@@ -261,7 +341,7 @@ class ReserveController extends Controller
         // al guardar la reserva.
         try {
             $entityManagerUser = $entity->manager?->user;
-            if ($entityManagerUser && !empty($entityManagerUser->email)) {
+            if ($entityManagerUser && ! empty($entityManagerUser->email)) {
                 app(CommunicationEmailService::class)->sendAndLog(
                     recipientEmail: (string) $entityManagerUser->email,
                     recipientRole: 'gestor_entidad',
@@ -275,7 +355,7 @@ class ReserveController extends Controller
             }
         } catch (\Throwable $e) {
             // No bloquear creación de la reserva si falla el email
-            \Log::warning('Fallo enviando email reserva a gestor entidad: ' . $e->getMessage());
+            \Log::warning('Fallo enviando email reserva a gestor entidad: '.$e->getMessage());
         }
 
         // Limpiar sesión
@@ -290,11 +370,12 @@ class ReserveController extends Controller
      */
     public function show(Reserve $reserve)
     {
-        if (!auth()->user()->canAccessEntity($reserve->entity_id)) {
+        if (! auth()->user()->canAccessEntity($reserve->entity_id)) {
             abort(403, 'No tienes permisos para ver esta reserva.');
         }
 
         $reserve->load(['entity', 'lottery']);
+
         return view('reserves.show', compact('reserve'));
     }
 
@@ -303,13 +384,16 @@ class ReserveController extends Controller
      */
     public function edit(Reserve $reserve)
     {
-        if (!auth()->user()->canAccessEntity($reserve->entity_id)) {
+        if (! auth()->user()->canAccessEntity($reserve->entity_id)) {
             abort(403, 'No tienes permisos para editar esta reserva.');
         }
 
         $entities = Entity::forUser(auth()->user())->get();
         $lotteries = Lottery::all();
-        return view('reserves.edit', compact('reserve', 'entities', 'lotteries'));
+        $setsUsedAmount = $reserve->usedAmountInSets();
+        $minTotalAmount = $setsUsedAmount;
+
+        return view('reserves.edit', compact('reserve', 'entities', 'lotteries', 'setsUsedAmount', 'minTotalAmount'));
     }
 
     /**
@@ -317,21 +401,27 @@ class ReserveController extends Controller
      */
     public function update(Request $request, Reserve $reserve)
     {
-        if (!auth()->user()->canAccessEntity($reserve->entity_id)) {
+        if (! auth()->user()->canAccessEntity($reserve->entity_id)) {
             abort(403, 'No tienes permisos para actualizar esta reserva.');
         }
 
         $reserve->loadMissing('lottery');
-        if ($response = $this->redirectIfLotteryDrawDateBlocked($reserve->lottery)) {
+        if ($response = $this->redirectIfReserveLotteryBlocked($reserve)) {
             return $response;
         }
 
         $validated = $request->validate([
-            'reservation_numbers' => 'required|array|min:1',
-            'reservation_numbers.*' => 'required|string|max:10',
             'reservation_amount' => 'required|numeric|min:0',
-            'reservation_tickets' => 'required|integer|min:1'
+            'reservation_tickets' => 'required|integer|min:1',
+            'expiration_date' => ValidCalendarDate::rules(true),
         ]);
+
+        $reservationNumbers = is_array($reserve->reservation_numbers) ? $reserve->reservation_numbers : [];
+        $numNumbers = count($reservationNumbers);
+        if ($numNumbers < 1) {
+            return redirect()->back()->withErrors(['reservation_amount' => 'La reserva no tiene números válidos.'])->withInput();
+        }
+
         // Importe debe ser múltiplo del precio del décimo; siempre redondear al alza
         $ticketPrice = (float) $reserve->lottery->ticket_price;
         if ($ticketPrice > 0) {
@@ -342,27 +432,59 @@ class ReserveController extends Controller
             $validated['reservation_amount'] = round($ticketsFromAmount * $ticketPrice, 2);
             $validated['reservation_tickets'] = $ticketsFromAmount;
         }
-        // Validar décimos disponibles (excluyendo la reserva actual)
-        $validation = $this->validateReservationTickets($validated['reservation_numbers'], $reserve->lottery_id, $validated['reservation_tickets'], $reserve->id);
-        if (!$validation['success']) {
+        $capValidation = $this->validateReservationTicketCap((int) $validated['reservation_tickets']);
+        if (! $capValidation['success']) {
+            return redirect()->back()->withErrors($capValidation['messages'])->withInput();
+        }
+        // Validar décimos disponibles (excluyendo la reserva actual; números no editables)
+        $validation = $this->validateReservationTickets($reservationNumbers, $reserve->lottery_id, $validated['reservation_tickets'], $reserve->id);
+        if (! $validation['success']) {
             return redirect()->back()->withErrors($validation['messages'])->withInput();
         }
-        // Recalcular total de la reserva = importe por número × cantidad de números
-        $validated['total_tickets'] = count($validated['reservation_numbers']);
-        $validated['total_amount'] = round($validated['total_tickets'] * (float) $validated['reservation_amount'], 2);
+
+        $newTotalAmount = round($numNumbers * (float) $validated['reservation_amount'], 2);
+        $minTotalAmount = $reserve->usedAmountInSets();
+        if ($newTotalAmount < $minTotalAmount) {
+            return redirect()->back()
+                ->withErrors(['reservation_amount' => 'La reserva mínima es '.number_format($minTotalAmount, 2, ',', '.').' €'])
+                ->withInput($request->except('reservation_amount', 'reservation_tickets'));
+        }
+
+        $validated['total_tickets'] = $numNumbers;
+        $validated['total_amount'] = $newTotalAmount;
+        $validated['expiration_date'] = $validated['expiration_date'].' 23:59:59';
+
         $reserve->update($validated);
 
-        return redirect()->route('reserves.show',$reserve->id)
+        return redirect()->route('reserves.show', $reserve->id)
             ->with('success', 'Reserva actualizada exitosamente');
     }
 
     /**
      * Eliminar reserva
      */
-    public function destroy(Reserve $reserve)
+    public function destroy(Request $request, Reserve $reserve)
     {
-        if (!auth()->user()->canAccessEntity($reserve->entity_id)) {
+        if (! auth()->user()->canAccessEntity($reserve->entity_id)) {
             abort(403, 'No tienes permisos para eliminar esta reserva.');
+        }
+
+        if ($response = $this->redirectIfReserveLotteryBlocked($reserve)) {
+            return $response;
+        }
+
+        if ($reserve->sets()->exists()) {
+            return redirect()->back()
+                ->with('error', 'La reserva no se puede borrar porque tiene sets asociados.');
+        }
+
+        try {
+            app(CommunicationEmailService::class)->sendReserveDeletedToEntityManager(
+                $reserve,
+                $request->input('deletion_reason')
+            );
+        } catch (\Throwable $e) {
+            \Log::warning('Fallo enviando email reserva eliminada: '.$e->getMessage());
         }
 
         $reserve->delete();
@@ -376,15 +498,19 @@ class ReserveController extends Controller
      */
     public function changeStatus(Request $request, Reserve $reserve)
     {
-        if (!auth()->user()->canAccessEntity($reserve->entity_id)) {
+        if (! auth()->user()->canAccessEntity($reserve->entity_id)) {
             abort(403, 'No tienes permisos para actualizar esta reserva.');
         }
 
+        if ($response = $this->redirectIfReserveLotteryBlocked($reserve)) {
+            return $response;
+        }
+
         $request->validate([
-            'status' => 'required|in:0,1,2,3'
+            'status' => 'required|in:0,1,2,3',
         ]);
 
-        $reserve->update(['status' => (int)$request->status]);
+        $reserve->update(['status' => (int) $request->status]);
 
         return redirect()->back()
             ->with('success', 'Estado de la reserva actualizado');
@@ -396,10 +522,10 @@ class ReserveController extends Controller
     public function getLotteriesByEntity(Request $request)
     {
         $request->validate([
-            'entity_id' => 'required|integer|exists:entities,id'
+            'entity_id' => 'required|integer|exists:entities,id',
         ]);
 
-        if (!auth()->user()->canAccessEntity((int) $request->entity_id)) {
+        if (! auth()->user()->canAccessEntity((int) $request->entity_id)) {
             return response()->json([], 403);
         }
 
@@ -419,7 +545,7 @@ class ReserveController extends Controller
         $entityId = $request->session()->get('selected_entity_id');
         $lotteryId = $request->session()->get('selected_lottery_id');
 
-        if (!$entityId || !$lotteryId || !auth()->user()->canAccessEntity((int) $entityId)) {
+        if (! $entityId || ! $lotteryId || ! auth()->user()->canAccessEntity((int) $entityId)) {
             return redirect()->route('reserves.create')->with('error', 'Debe seleccionar entidad y sorteo primero.');
         }
 

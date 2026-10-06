@@ -88,42 +88,27 @@
         <div class="content">
             <p>Hola,</p>
             
-            <p>Has recibido una solicitud para convertirte en <strong>vendedor</strong> en la plataforma Partilot.</p>
+            <p><strong>{{ $seller->entities->first()->name ?? 'Una entidad' }}</strong> te invita a colaborar como <strong>vendedor</strong> en la plataforma Partilot.</p>
             
             <div class="info-box">
-                <p><strong>Detalles de la solicitud:</strong></p>
+                <p><strong>Antes de aceptar, lee las responsabilidades del cargo:</strong></p>
                 <ul>
-                    <li><strong>Email:</strong> {{ $seller->email }}</li>
-                    @if($seller->name)
-                    <li><strong>Nombre:</strong> {{ $seller->name }} {{ $seller->last_name ?? '' }}</li>
-                    @endif
-                    <li><strong>Tipo:</strong> {{ $seller->seller_type === 'partilot' ? 'Vendedor Partilot' : 'Vendedor Externo' }}</li>
+                    @foreach(config('legal_roles.vendedor.summary_bullets', []) as $bullet)
+                        <li>{{ $bullet }}</li>
+                    @endforeach
                 </ul>
             </div>
             
-            <p>Para completar el proceso, necesitas <strong>aceptar o rechazar</strong> esta solicitud haciendo clic en uno de los botones siguientes:</p>
+            <p>Para completar el proceso, necesitas <strong>aceptar o rechazar</strong> esta solicitud:</p>
         </div>
         
         <div class="buttons">
-            <a href="{{ $acceptUrl }}" class="btn btn-accept">✅ Aceptar Solicitud</a>
-            <a href="{{ $rejectUrl }}" class="btn btn-reject">❌ Rechazar Solicitud</a>
+            <a href="{{ $acceptUrl }}" class="btn btn-accept">Ver invitación y decidir</a>
+            <a href="{{ $rejectUrl }}" class="btn btn-reject">Rechazar</a>
         </div>
         
         <div class="content">
-            <p><strong>¿Qué sucede si aceptas?</strong></p>
-            <ul>
-                <li>Tu cuenta de vendedor se activará</li>
-                <li>Aparecerás en el listado de vendedores</li>
-                <li>Podrás comenzar a gestionar participaciones</li>
-            </ul>
-            
-            <p><strong>¿Qué sucede si rechazas?</strong></p>
-            <ul>
-                <li>La solicitud será cancelada</li>
-                <li>No se creará ninguna cuenta de vendedor</li>
-            </ul>
-            
-            <p><em>Si no realizaste esta solicitud, puedes ignorar este correo o rechazarla directamente.</em></p>
+            <p><em>Si no reconoces esta invitación, puedes ignorar este correo o rechazarla directamente.</em></p>
         </div>
         
         <div class="footer">

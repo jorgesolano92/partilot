@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\LotteryDrawDateBlockedException;
+use App\Models\AdministrationLotteryScrutiny;
 use App\Models\Lottery;
 use App\Models\Reserve;
 use App\Models\Set;
@@ -64,6 +65,68 @@ class LotteryDrawDateGuardService
         return $this->blockedMessage($lottery);
     }
 
+    public function mutationDeniedMessageForReserve(?Reserve $reserve): ?string
+    {
+        if (! $this->isEnforcementEnabled()) {
+            return null;
+        }
+
+        $reserve?->loadMissing(['lottery', 'entity']);
+
+        if ($message = $this->mutationDeniedMessage($reserve?->lottery)) {
+            return $message;
+        }
+
+        if ($this->hasCompletedScrutiny($reserve?->lottery, $reserve?->entity?->administration_id)) {
+            return $this->scrutinyBlockedMessage($reserve?->lottery);
+        }
+
+        return null;
+    }
+
+    public function mutationDeniedMessageForSet(?Set $set): ?string
+    {
+        if (! $this->isEnforcementEnabled()) {
+            return null;
+        }
+
+        $set?->loadMissing(['reserve.lottery', 'entity']);
+
+        if ($message = $this->mutationDeniedMessage($set?->reserve?->lottery)) {
+            return $message;
+        }
+
+        if ($this->hasCompletedScrutiny($set?->reserve?->lottery, $set?->entity?->administration_id)) {
+            return $this->scrutinyBlockedMessage($set?->reserve?->lottery);
+        }
+
+        return null;
+    }
+
+    public function hasCompletedScrutiny(?Lottery $lottery, ?int $administrationId): bool
+    {
+        if (! $lottery || ! $administrationId) {
+            return false;
+        }
+
+        return AdministrationLotteryScrutiny::query()
+            ->where('administration_id', $administrationId)
+            ->where('lottery_id', $lottery->id)
+            ->where('is_scrutinized', true)
+            ->exists();
+    }
+
+    public function scrutinyBlockedMessage(?Lottery $lottery = null): string
+    {
+        if ($lottery?->draw_date) {
+            return 'No se puede modificar: el escrutinio del sorteo del '
+                .$lottery->draw_date->format('d/m/Y')
+                .' ya está completado.';
+        }
+
+        return 'No se puede modificar: el escrutinio de este sorteo ya está completado.';
+    }
+
     public function assertMutationAllowed(?Lottery $lottery): void
     {
         $message = $this->mutationDeniedMessage($lottery);
@@ -74,14 +137,18 @@ class LotteryDrawDateGuardService
 
     public function assertMutationAllowedForReserve(?Reserve $reserve): void
     {
-        $reserve?->loadMissing('lottery');
-        $this->assertMutationAllowed($reserve?->lottery);
+        $message = $this->mutationDeniedMessageForReserve($reserve);
+        if ($message !== null) {
+            throw new LotteryDrawDateBlockedException($message);
+        }
     }
 
     public function assertMutationAllowedForSet(?Set $set): void
     {
-        $set?->loadMissing('reserve.lottery');
-        $this->assertMutationAllowed($set?->reserve?->lottery);
+        $message = $this->mutationDeniedMessageForSet($set);
+        if ($message !== null) {
+            throw new LotteryDrawDateBlockedException($message);
+        }
     }
 
     public function applyOpenForOperationsScope(Builder $query): Builder

@@ -4,6 +4,28 @@
 
 @section('content')
 
+<style>
+.notification-wizard-card {
+    min-height: 658px;
+    display: flex;
+    flex-direction: column;
+}
+.notification-wizard-card > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.notification-wizard-body {
+    flex: 1 1 auto;
+}
+.notification-wizard-actions {
+    margin-top: auto;
+    padding-top: 1.25rem;
+    text-align: right;
+}
+</style>
+
 <!-- Start Content-->
 <div class="container-fluid">
     
@@ -80,7 +102,22 @@
                                 
                             </div>
 
-                            <!-- Mostrar entidades seleccionadas -->
+                            @if(!empty($recipientSummary))
+                            <div class="mt-3">
+                                <h6>Destinatarios:</h6>
+                                <small class="text-muted">{{ $recipientSummary }}</small>
+                            </div>
+                            @endif
+
+                            @if(($pushScope ?? '') === 'administration' && !empty($administration))
+                            <div class="mt-3">
+                                <h6>Administración:</h6>
+                                <div class="card mb-2" style="padding: 10px;">
+                                    <h6 class="mb-0">{{ $administration->name }}</h6>
+                                </div>
+                            </div>
+                            @endif
+
                             @if($selectedEntities && count($selectedEntities) > 0)
                             <div class="mt-3">
                                 <h6>Entidades seleccionadas:</h6>
@@ -106,9 +143,10 @@
                                 <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                         </div>
                         <div class="col-md-9">
-                            <div class="form-card bs" style="min-height: 658px;">
+                            <div class="form-card bs notification-wizard-card">
                                 <form action="{{ route('notifications.store') }}" method="POST">
                                     @csrf
+                                    <div class="notification-wizard-body">
                                     <h4 class="mb-0 mt-1">
                                         Mensaje
                                     </h4>
@@ -134,12 +172,11 @@
                                             </div>
                                         </div>
                                     </div>
+                                    </div>
 
-                                    <div class="row">
-                                        <div class="col-12 text-end">
-                                            <button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2">Enviar
-                                                <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-send-plane-line"></i></button>
-                                        </div>
+                                    <div class="notification-wizard-actions">
+                                        <button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light">Enviar
+                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-send-plane-line"></i></button>
                                     </div>
                                 </form>
                             </div>

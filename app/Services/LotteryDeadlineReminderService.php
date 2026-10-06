@@ -18,6 +18,9 @@ class LotteryDeadlineReminderService
 {
     public const REMINDER_DAYS = [3, 2, 1, 0];
 
+    /** @var array<string, Collection<int, array<string, mixed>>> */
+    private array $cachedReminderContexts = [];
+
     public function __construct(
         private SellerLiquidationService $sellerLiquidationService
     ) {}
@@ -62,19 +65,35 @@ class LotteryDeadlineReminderService
     /**
      * @return Collection<int, array<string, mixed>>
      */
-    public function collectReminderContexts(?Carbon $today = null): Collection
+    /**
+     * @param  array<int, int>|null  $entityIds  Limitar a estas entidades (null = todas)
+     */
+    public function collectReminderContexts(?Carbon $today = null, ?array $entityIds = null): Collection
     {
         $today = ($today ?? now())->copy()->startOfDay();
+        $cacheKey = $today->toDateString().'|'.($entityIds === null ? '*' : implode(',', collect($entityIds)->map(fn ($id) => (int) $id)->unique()->sort()->all()));
+
+        if (isset($this->cachedReminderContexts[$cacheKey])) {
+            return $this->cachedReminderContexts[$cacheKey];
+        }
+
         $contexts = collect();
 
+        if ($entityIds === []) {
+            return $this->cachedReminderContexts[$cacheKey] = $contexts;
+        }
+
+        // El plazo efectivo nunca es posterior al del sorteo: los sorteos con plazo vencido no pueden generar avisos.
         $lotteries = Lottery::query()
             ->where('status', 1)
             ->whereNotNull('deadline_date')
+            ->whereDate('deadline_date', '>=', $today->toDateString())
             ->get();
 
         foreach ($lotteries as $lottery) {
             $entities = Entity::query()
                 ->where('status', 1)
+                ->when($entityIds !== null, fn ($query) => $query->whereIn('id', $entityIds))
                 ->whereHas('reserves', function ($query) use ($lottery) {
                     $query->where('lottery_id', $lottery->id)->where('status', 1);
                 })
@@ -116,7 +135,7 @@ class LotteryDeadlineReminderService
             }
         }
 
-        return $contexts->sortBy([
+        return $this->cachedReminderContexts[$cacheKey] = $contexts->sortBy([
             ['days_before', 'asc'],
             ['entity_name', 'asc'],
         ])->values();
@@ -194,7 +213,7 @@ class LotteryDeadlineReminderService
 
         $today = now()->startOfDay();
 
-        return $this->collectReminderContexts($today)
+        return $this->collectReminderContexts($today, $user->isSuperAdmin() ? null : $accessibleEntityIds)
             ->filter(function (array $context) use ($accessibleEntityIds, $user, $today) {
                 if (! in_array((int) $context['entity_id'], $accessibleEntityIds, true)) {
                     return false;
@@ -245,7 +264,7 @@ class LotteryDeadlineReminderService
 
         $today = now()->startOfDay();
 
-        return $this->collectReminderContexts($today)
+        return $this->collectReminderContexts($today, $accessibleEntityIds)
             ->filter(fn (array $context) => (int) $context['days_before'] === 0)
             ->filter(fn (array $context) => in_array((int) $context['entity_id'], $accessibleEntityIds, true))
             ->filter(fn (array $context) => ! LotteryDeadlineAdminDecision::hasDecision(

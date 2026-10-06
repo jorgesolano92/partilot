@@ -1,0 +1,709 @@
+PARTILOT
+Plataforma de Gestión de Participaciones de Lotería
+
+MAPA DE COMUNICACIONES
+Emails y notificaciones push — cuándo, a quién y qué texto
+Para el equipo de desarrollo, producto y operaciones
+
+📋  CÓMO LEER ESTE DOCUMENTO
+Cada comunicación tiene una tarjeta con el borde izquierdo de color según el canal:
+Borde AZUL → solo email.  Borde VERDE AZULADO → solo push.  Borde MORADO → email + push.
+Los textos entre [CORCHETES] se sustituyen automáticamente con los datos reales del contexto.
+Las comunicaciones marcadas con 👆 REQUIERE ACCIÓN tienen un botón o enlace de acción dentro.
+Los asuntos de email y títulos de push son orientativos — el equipo de producto puede ajustarlos.
+
+📧  Solo email
+🔔  Solo push
+📧🔔  Email + push
+
+👤  REGISTRO Y ACCESO
+
+R1   EMAIL 
+⚡  Cuándo: Usuario completa el registro y acepta las condiciones
+👤  Para: El usuario que acaba de registrarse
+
+📧  EMAIL
+Asunto: Bienvenido a PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  Tu cuenta en PARTILOT está lista. Ya puedes acceder a la plataforma.  En PARTILOT gestionarás tus participaciones de lotería de forma fácil y segura.  [ACCEDER A PARTILOT →]  Si no has creado esta cuenta, ignora este email.  © PARTILOT — [EMAIL LEGAL]
+
+📌  Nota: Email de servicio. No requiere consentimiento de marketing. Se envía siempre.
+
+R2   EMAIL 
+⚡  Cuándo: Usuario solicita recuperar contraseña
+👤  Para: El usuario que ha solicitado el cambio
+
+📧  EMAIL
+Asunto: Recupera tu contraseña de PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.  [RESTABLECER CONTRASEÑA →]  Este enlace es válido durante 2 horas. Si no has solicitado este cambio, ignora este email y tu contraseña seguirá siendo la misma.  © PARTILOT
+
+📌  Nota: El enlace de recuperación debe caducar en 2 horas. No reutilizable.
+
+R3   EMAIL 
+⚡  Cuándo: Intento de acceso desde un dispositivo nuevo (si se implementa verificación 2FA)
+👤  Para: El usuario cuya cuenta se está intentando acceder
+
+📧  EMAIL
+Asunto: Nuevo acceso a tu cuenta de PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  Se ha accedido a tu cuenta desde un dispositivo nuevo:  Fecha: [FECHA Y HORA] Dispositivo: [DISPOSITIVO] Ubicación aproximada: [PAÍS]  Si has sido tú, puedes ignorar este email. Si no has sido tú, cambia tu contraseña inmediatamente: [CAMBIAR CONTRASEÑA →]  © PARTILOT
+
+📌  Nota: Opcional pero recomendado para seguridad. Solo si se implementa 2FA o detección de dispositivo nuevo.
+
+🏪  ALTA Y GESTIÓN DE LA ADMINISTRACIÓN
+
+A1   EMAIL   REQUIERE ACCIÓN 
+⚡  Cuándo: PARTILOT envía el contrato SaaS a la Administración para su firma
+👤  Para: El representante de la Administración de Lotería
+
+📧  EMAIL
+Asunto: Contrato de servicios PARTILOT — pendiente de firma
+Cuerpo: 
+Hola [NOMBRE],  Adjunto encontrarás el Contrato de Prestación de Servicios de PARTILOT para la Administración [NOMBRE ADMINISTRACIÓN].  Para completar el alta, debes firmarlo digitalmente:  [FIRMAR CONTRATO →]  Una vez firmado, recibirás una copia y podrás activar tus credenciales de acceso.  Si tienes cualquier duda, contacta con nosotros en [EMAIL LEGAL].  © PARTILOT
+
+👆  Acción del usuario: El enlace lleva al proceso de firma digital (eFirma Go o click registrado).
+
+📌  Nota: Este email lo genera PARTILOT manualmente o el sistema al crear el alta de la Administración.
+
+A2   EMAIL 
+⚡  Cuándo: Administración firma el contrato y activa sus credenciales
+👤  Para: El representante de la Administración de Lotería
+
+📧  EMAIL
+Asunto: Acceso activado — Bienvenido a PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  El contrato ha sido firmado correctamente. Tu acceso como Administración de Lotería en PARTILOT está activado.  Adjunto encontrarás una copia del contrato firmado para tus archivos.  Código de administración: [CÓDIGO SELAE]  [ACCEDER AL PANEL →]  © PARTILOT
+
+📌  Nota: Adjuntar el PDF del contrato firmado. Guardar también en el panel de la Administración.
+
+A3   EMAIL 
+⚡  Cuándo: La Administración da de alta a una nueva Entidad
+👤  Para: El email de contacto de la Entidad
+
+📧  EMAIL
+Asunto: [NOMBRE ADMINISTRACIÓN] te ha dado de alta en PARTILOT
+Cuerpo: 
+Hola,  [NOMBRE ADMINISTRACIÓN] ha dado de alta a [NOMBRE ENTIDAD] en la plataforma PARTILOT.  El siguiente paso es designar a vuestro Gestor Responsable. La persona designada recibirá un email para completar el proceso.  Si tienes preguntas, contacta directamente con [NOMBRE ADMINISTRACIÓN] o con nosotros en [EMAIL LEGAL].  © PARTILOT
+
+📌  Nota: Email informativo para la Entidad. No requiere acción en este momento.
+
+🧑‍💼  ASIGNACIÓN Y GESTIÓN DE ROLES
+
+G1   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: La Administración designa a un usuario como Gestor Responsable de una Entidad
+👤  Para: El usuario designado como Gestor Responsable
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Tienes una solicitud pendiente en PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  [NOMBRE ADMINISTRACIÓN] te ha designado Gestor Responsable de [NOMBRE ENTIDAD] en PARTILOT.  Este cargo implica responsabilidades importantes. Léelas antes de aceptar:  [VER DETALLES Y ACEPTAR →]  Si no deseas aceptar este cargo, también puedes rechazarlo desde el enlace anterior.  © PARTILOT
+Título: Solicitud pendiente — Gestor Responsable
+Texto: 
+[NOMBRE ADMINISTRACIÓN] te ha designado Gestor Responsable de [NOMBRE ENTIDAD]. Pulsa para ver los detalles y aceptar o rechazar.
+
+👆  Acción del usuario: El enlace y la notificación llevan a la pantalla P3 donde puede aceptar o rechazar el cargo.
+
+📌  Nota: Bloqueante: el usuario no puede operar hasta que decide. Si lleva más de 48h sin responder, enviar recordatorio G1b.
+
+G1b   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: Han pasado 48h desde G1 sin respuesta del usuario designado como GR
+👤  Para: El usuario designado como Gestor Responsable
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Recordatorio: tienes una solicitud pendiente en PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  Aún tienes una solicitud pendiente de respuesta: [NOMBRE ADMINISTRACIÓN] te ha designado Gestor Responsable de [NOMBRE ENTIDAD].  La Entidad no puede operar hasta que aceptes o rechaces el cargo.  [VER SOLICITUD →]  © PARTILOT
+Título: Recordatorio — Solicitud pendiente
+Texto: 
+Aún tienes una solicitud sin responder de [NOMBRE ENTIDAD]. Pulsa para verla.
+
+👆  Acción del usuario: Llevar a la pantalla P3.
+
+📌  Nota: Enviar solo una vez. Si pasadas otras 48h sigue sin responder, notificar a la Administración.
+
+G2   EMAIL 
+⚡  Cuándo: El Gestor Responsable acepta el cargo
+👤  Para: El Gestor Responsable + la Administración de Lotería
+
+📧  EMAIL
+Asunto: Has aceptado el cargo de Gestor Responsable
+Cuerpo: 
+Hola [NOMBRE],  Has aceptado el cargo de Gestor Responsable de [NOMBRE ENTIDAD] correctamente.  Adjunto encontrarás el Contrato Marco aceptado para tus archivos.  Ya puedes empezar a gestionar la Entidad desde tu panel:  [ACCEDER AL PANEL →]  © PARTILOT
+
+📌  Nota: Enviar también email a la Administración confirmando que el GR ha aceptado. Adjuntar PDF del contrato.
+
+G3   EMAIL 
+⚡  Cuándo: El Gestor Responsable rechaza el cargo
+👤  Para: La Administración de Lotería
+
+📧  EMAIL
+Asunto: [NOMBRE] ha rechazado el cargo de Gestor Responsable
+Cuerpo: 
+Hola,  [NOMBRE] ha rechazado el cargo de Gestor Responsable de [NOMBRE ENTIDAD].  Deberás designar a otra persona para que la Entidad pueda operar.  [DESIGNAR NUEVO GESTOR RESPONSABLE →]  © PARTILOT
+
+📌  Nota: Solo al email de la Administración. No hay push porque la Administración puede no tener la app.
+
+G4   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: El GR invita a un usuario a ser Gestor de la Entidad
+👤  Para: El usuario invitado a ser Gestor
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Invitación para colaborar en PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  [NOMBRE GR] te ha invitado a colaborar como Gestor en [NOMBRE ENTIDAD] en PARTILOT.  Como Gestor podrás ayudar a gestionar las participaciones de la Entidad según las funciones que se te deleguen.  [VER INVITACIÓN Y DECIDIR →]  © PARTILOT
+Título: Invitación de [NOMBRE ENTIDAD]
+Texto: 
+[NOMBRE GR] te invita a colaborar como Gestor en [NOMBRE ENTIDAD]. Pulsa para ver los detalles.
+
+👆  Acción del usuario: Llevar a la pantalla P4 donde puede aceptar o rechazar.
+
+📌  Nota: Si no responde en 48h, enviar recordatorio igual que G1b.
+
+G5   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: El GR o Gestor invita a un usuario a ser Vendedor para un sorteo
+👤  Para: El usuario invitado a ser Vendedor
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Invitación para vender participaciones — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  [NOMBRE ENTIDAD] te invita a vender participaciones del sorteo [NOMBRE SORTEO] ([FECHA SORTEO]).  Antes de aceptar, lee las responsabilidades del cargo:  [VER INVITACIÓN Y DECIDIR →]  © PARTILOT
+Título: Invitación como Vendedor — [NOMBRE SORTEO]
+Texto: 
+[NOMBRE ENTIDAD] te invita a vender participaciones del sorteo [NOMBRE SORTEO]. Pulsa para aceptar o rechazar.
+
+👆  Acción del usuario: Llevar a la pantalla P5 donde puede aceptar o rechazar.
+
+📌  Nota: Incluir nombre y fecha del sorteo en asunto y cuerpo. Si no responde en 24h, recordatorio automático.
+
+🎟  PARTICIPACIONES Y SORTEOS
+
+P1   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: Se asignan participaciones físicas a un Vendedor (recibe el lote)
+👤  Para: El Vendedor que recibe las participaciones
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Se te han asignado participaciones — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  Se te han asignado [NÚMERO] participaciones del sorteo [NOMBRE SORTEO] de [NOMBRE ENTIDAD].  Importante: • Desde el momento en que firmes el recibo, eres responsable de ellas. • Debes verificar que los compradores son mayores de 18 años. • Está prohibido fotocopiar o reproducir las participaciones físicas.  [FIRMAR RECIBO Y VER DETALLES →]  © PARTILOT
+Título: Nuevas participaciones asignadas
+Texto: 
+Se te han asignado [NÚMERO] participaciones del sorteo [NOMBRE SORTEO]. Pulsa para firmar el recibo.
+
+👆  Acción del usuario: El Vendedor puede aceptar la asignación (firmar el recibo) tanto desde el email como desde la notificación push. Ambos llevan a la misma pantalla de confirmación.
+
+📌  Nota: Este es el único caso donde la acción (firmar el recibo) puede hacerse desde el email o desde la push indistintamente.
+
+P2   EMAIL   PUSH 
+⚡  Cuándo: Un Usuario Final compra una participación digital
+👤  Para: El Usuario Final que ha comprado
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Tu participación está confirmada — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  Tu participación en el sorteo [NOMBRE SORTEO] está confirmada.  Detalles: Sorteo: [NOMBRE SORTEO] — [FECHA] Entidad: [NOMBRE ENTIDAD] Número: [NÚMERO PARTICIPACIÓN] Importe jugado: [IMPORTE] €  |  Donativo: [DONATIVO] €  Puedes ver tu participación en tu cartera: [VER MI CARTERA →]  © PARTILOT
+Título: Participación confirmada — [NOMBRE SORTEO]
+Texto: 
+Tu participación en [NOMBRE SORTEO] está en tu cartera. [NÚMERO] — [IMPORTE]€
+
+P3   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: Un Usuario Final recibe una participación por traspaso de otro usuario
+👤  Para: El Usuario Final que recibe el traspaso
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: [NOMBRE REMITENTE] te ha enviado una participación
+Cuerpo: 
+Hola [NOMBRE],  [NOMBRE REMITENTE] te ha enviado una participación del sorteo [NOMBRE SORTEO].  Detalles: Sorteo: [NOMBRE SORTEO] — [FECHA] Número: [NÚMERO PARTICIPACIÓN] Importe jugado: [IMPORTE] €  Acepta el traspaso antes de la fecha del sorteo ([FECHA LÍMITE]):  [ACEPTAR TRASPASO →]  Si no aceptas antes de esa fecha, la participación volverá automáticamente a [NOMBRE REMITENTE].  © PARTILOT
+Título: [NOMBRE] te envía una participación
+Texto: 
+[NOMBRE REMITENTE] te ha enviado una participación del sorteo [NOMBRE SORTEO]. Acepta antes del [FECHA LÍMITE].
+
+👆  Acción del usuario: El usuario puede aceptar el traspaso desde el email o desde la push.
+
+📌  Nota: Si no acepta antes de la fecha del sorteo, el sistema revierte automáticamente y notifica a ambos usuarios (P3b).
+
+P3b   EMAIL   PUSH 
+⚡  Cuándo: Un traspaso caduca sin ser aceptado
+👤  Para: El remitente del traspaso (la participación le vuelve)
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Tu participación ha vuelto a tu cartera
+Cuerpo: 
+Hola [NOMBRE],  [NOMBRE DESTINATARIO] no ha aceptado el traspaso de tu participación del sorteo [NOMBRE SORTEO] antes del plazo.  La participación ha vuelto a tu cartera automáticamente.  [VER MI CARTERA →]  © PARTILOT
+Título: Traspaso no aceptado — participación devuelta
+Texto: 
+El traspaso a [NOMBRE] ha caducado. Tu participación de [NOMBRE SORTEO] está de nuevo en tu cartera.
+
+P4    PUSH 
+⚡  Cuándo: Se acerca la fecha del sorteo (recordatorio 24h antes)
+👤  Para: Todos los Usuarios Finales con participaciones activas en ese sorteo
+
+🔔  NOTIFICACIÓN PUSH
+Título: Mañana es el sorteo — [NOMBRE SORTEO]
+Texto: 
+Tu participación del sorteo [NOMBRE SORTEO] juega mañana [FECHA]. ¡Buena suerte!
+
+📌  Nota: Solo push, no email. Demasiado intrusivo por email para algo que no requiere acción.
+
+🏆  ESCRUTINIO, PREMIOS Y COBRO
+
+E1   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: El escrutinio está disponible para que la Administración lo valide
+👤  Para: La Administración de Lotería
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Escrutinio disponible — [NOMBRE SORTEO]
+Cuerpo: 
+Hola,  El escrutinio del sorteo [NOMBRE SORTEO] ([FECHA]) ya está disponible en tu panel para su validación.  Recuerda que debes revisarlo cuidadosamente antes de confirmar. Una vez confirmado no puede modificarse.  [REVISAR ESCRUTINIO →]  © PARTILOT
+Título: Escrutinio listo para validar
+Texto: 
+El escrutinio de [NOMBRE SORTEO] está disponible. Revísalo y confírmalo desde el panel.
+
+👆  Acción del usuario: Llevar al panel de escrutinio de la Administración.
+
+E2   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: ¡Toca! — Una o más participaciones del sorteo han resultado premiadas
+👤  Para: Cada Usuario Final con participaciones premiadas (un email/push por usuario)
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: 🏆 ¡Tu participación ha resultado premiada! — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  ¡Enhorabuena! Tu participación del sorteo [NOMBRE SORTEO] ha resultado premiada.  Importe del premio: [IMPORTE] € Número: [NÚMERO PARTICIPACIÓN]  Tienes hasta el [FECHA CADUCIDAD] para cobrar tu premio. Elige cómo quieres cobrarlo:  [COBRAR MI PREMIO →]  © PARTILOT
+Título: 🏆 ¡Has ganado! — [NOMBRE SORTEO]
+Texto: 
+Tu participación de [NOMBRE SORTEO] está premiada con [IMPORTE] €. Tienes hasta el [FECHA] para cobrar.
+
+👆  Acción del usuario: Llevar directamente a la pantalla de cobro del premio (P de cobro).
+
+📌  Nota: Uno de los emails más importantes de la plataforma. Asegurarse de que llega. Considerar retry si no se abre en 24h.
+
+E3   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: La Entidad debe firmar el Acuerdo de Mandato (sorteo con premios, modalidad plataforma)
+👤  Para: El Gestor Responsable de la Entidad
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Acción requerida — Acuerdo de Mandato de Pago — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  El sorteo [NOMBRE SORTEO] ha resultado premiado. Para que los participantes puedan cobrar sus premios, debes:  1. Firmar el Acuerdo de Mandato de Pago. 2. Ingresar [IMPORTE TOTAL] € en la cuenta bancaria de PARTILOT.  Plazo límite: [FECHA LÍMITE]  [FIRMAR ACUERDO Y VER INSTRUCCIONES →]  © PARTILOT
+Título: Acción requerida — Premios pendientes
+Texto: 
+El sorteo [NOMBRE SORTEO] tiene premios. Debes firmar el acuerdo e ingresar [IMPORTE] € antes del [FECHA].
+
+👆  Acción del usuario: Llevar al flujo de firma del Acuerdo de Mandato y luego a las instrucciones de ingreso.
+
+📌  Nota: Urgente. Si no actúa en 24h, enviar recordatorio E3b. Si no actúa en 48h, notificar también a la Administración.
+
+E3b   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: Han pasado 24h desde E3 sin que el GR haya firmado el Acuerdo de Mandato
+👤  Para: El Gestor Responsable de la Entidad
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Recordatorio urgente — Premios pendientes de habilitar — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  Los participantes premiados del sorteo [NOMBRE SORTEO] aún no pueden cobrar porque el Acuerdo de Mandato está pendiente de firma.  Plazo límite: [FECHA LÍMITE] — quedan [DÍAS] días.  [FIRMAR AHORA →]  © PARTILOT
+Título: ⚠ Urgente — Premios sin habilitar
+Texto: 
+Quedan [DÍAS] días para que los participantes premiados de [NOMBRE SORTEO] puedan cobrar. Actúa ahora.
+
+👆  Acción del usuario: Llevar al flujo de firma.
+
+📌  Nota: Tono más urgente que E3. Si en 48h sigue sin firmar, notificar a la Administración.
+
+E4   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: PARTILOT valida el ingreso de fondos y habilita el cobro para los usuarios
+👤  Para: El Gestor Responsable + cada Usuario Final premiado
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Cobro habilitado — Los participantes ya pueden cobrar — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  El ingreso de fondos ha sido validado. Los participantes premiados del sorteo [NOMBRE SORTEO] ya pueden cobrar sus premios.  Puedes seguir el estado de los cobros desde tu panel.  [VER PANEL →]  © PARTILOT
+Título: Tu premio ya está disponible
+Texto: 
+Ya puedes cobrar tu premio del sorteo [NOMBRE SORTEO]. Entra en PARTILOT para elegir cómo.
+
+👆  Acción del usuario: Push al usuario lleva a la pantalla de cobro. Email al GR lleva al panel de seguimiento.
+
+📌  Nota: Dos comunicaciones distintas: al GR (email) y a cada usuario premiado (push + email si no abre la push en 2h).
+
+E5   EMAIL   PUSH 
+⚡  Cuándo: Un usuario confirma el cobro de su premio por transferencia bancaria
+👤  Para: El Usuario Final que ha cobrado
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Transferencia en proceso — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  Hemos recibido tu solicitud de cobro por transferencia bancaria.  Importe: [IMPORTE] € Cuenta destino: [IBAN últimos 4 dígitos] Referencia: [REFERENCIA]  La transferencia se procesará en los próximos días hábiles. Recibirás una confirmación cuando se ejecute.  © PARTILOT
+Título: Cobro en proceso
+Texto: 
+Tu cobro de [IMPORTE] € del sorteo [NOMBRE SORTEO] está en proceso.
+
+E6   EMAIL   PUSH 
+⚡  Cuándo: La transferencia bancaria del premio se ha ejecutado correctamente
+👤  Para: El Usuario Final que ha cobrado
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Transferencia realizada — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  Tu premio ha sido transferido.  Importe: [IMPORTE] € Cuenta destino: [IBAN últimos 4 dígitos] Fecha: [FECHA] Referencia: [REFERENCIA]  Puede tardar 1-2 días hábiles en aparecer en tu cuenta según tu banco.  © PARTILOT
+Título: Transferencia realizada — [IMPORTE] €
+Texto: 
+Tu premio de [NOMBRE SORTEO] ha sido transferido. [IMPORTE] € a tu cuenta [IBAN últimos 4].
+
+E7   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: Una transferencia bancaria es rechazada por el banco (IBAN incorrecto u otro motivo)
+👤  Para: El Usuario Final afectado
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Problema con tu cobro — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  La transferencia de tu premio del sorteo [NOMBRE SORTEO] ha sido rechazada por el banco.  Motivo: [MOTIVO DEL RECHAZO]  Tu participación vuelve al estado pendiente. Por favor, revisa tus datos bancarios y vuelve a intentarlo antes del [FECHA CADUCIDAD]:  [CORREGIR DATOS Y REINTENTAR →]  © PARTILOT
+Título: Problema con tu cobro
+Texto: 
+Tu transferencia de [NOMBRE SORTEO] ha sido rechazada. Corrige tus datos antes del [FECHA].
+
+👆  Acción del usuario: Llevar a la pantalla de cobro para que pueda corregir el IBAN e intentarlo de nuevo.
+
+📌  Nota: El plazo de caducidad sigue corriendo. El reintento no reinicia el plazo.
+
+E8   EMAIL   PUSH 
+⚡  Cuándo: Un usuario confirma la donación de su premio
+👤  Para: El Usuario Final que ha donado
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Donación confirmada — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  Tu donación ha sido registrada correctamente.  Importe donado: [IMPORTE] € Entidad destinataria: [NOMBRE ENTIDAD] Fecha: [FECHA]  Gracias por tu contribución a [NOMBRE ENTIDAD].  Si solicitaste un certificado fiscal, la Entidad se pondrá en contacto contigo.  © PARTILOT
+Título: Donación confirmada — [IMPORTE] €
+Texto: 
+Tu donación de [IMPORTE] € a [NOMBRE ENTIDAD] del sorteo [NOMBRE SORTEO] está confirmada.
+
+E9   EMAIL   PUSH   REQUIERE ACCIÓN 
+⚡  Cuándo: Un premio está próximo a caducar (15 días antes del vencimiento)
+👤  Para: El Usuario Final con participaciones premiadas no cobradas
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: ⚠ Tu premio caduca en 15 días — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  Tu premio del sorteo [NOMBRE SORTEO] caduca el [FECHA CADUCIDAD].  Si no cobras antes de esa fecha, perderás el derecho al premio.  Importe: [IMPORTE] €  [COBRAR MI PREMIO AHORA →]  © PARTILOT
+Título: ⚠ Tu premio caduca en 15 días
+Texto: 
+Tu premio de [IMPORTE] € del sorteo [NOMBRE SORTEO] caduca el [FECHA]. Cóbralo antes.
+
+👆  Acción del usuario: Llevar directamente a la pantalla de cobro.
+
+📌  Nota: Importante para reducir sobrantes. Enviar también 3 días antes del vencimiento (E9b).
+
+E10   EMAIL 
+⚡  Cuándo: Un premio caduca por no reclamación (vence el plazo de 3 meses)
+👤  Para: El Usuario Final cuyo premio ha caducado
+
+📧  EMAIL
+Asunto: Tu premio ha caducado — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  El plazo para cobrar tu premio del sorteo [NOMBRE SORTEO] venció el [FECHA].  El importe no reclamado ha sido devuelto a [NOMBRE ENTIDAD] conforme a la normativa aplicable.  Si tienes alguna pregunta, contacta directamente con [NOMBRE ENTIDAD].  © PARTILOT
+
+📌  Nota: Solo email. Es una notificación informativa. No hay acción posible ya.
+
+E11   EMAIL   PUSH 
+⚡  Cuándo: Una participación digital está premiada pero bloqueada por impago de la Entidad (pago presencial sin ingreso)
+👤  Para: El Usuario Final con la participación bloqueada
+
+📧  EMAIL
+🔔  NOTIFICACIÓN PUSH
+Asunto: Tu participación está premiada — cobro pendiente de habilitación
+Cuerpo: 
+Hola [NOMBRE],  ¡Enhorabuena! Tu participación del sorteo [NOMBRE SORTEO] ha resultado premiada con [IMPORTE] €.  El cobro estará disponible en cuanto [NOMBRE ENTIDAD] ingrese los fondos correspondientes. Recibirás una notificación en cuanto puedas cobrar.  Si tienes dudas, contacta directamente con [NOMBRE ENTIDAD].  © PARTILOT
+Título: 🏆 ¡Has ganado! — Cobro pendiente
+Texto: 
+Tu participación de [NOMBRE SORTEO] está premiada. El cobro se habilitará en breve por [NOMBRE ENTIDAD].
+
+📌  Nota: Distinto de E2. Aquí el cobro aún no está disponible. Cuando la Entidad ingrese el dinero, enviar E4 al usuario.
+
+E12   EMAIL 
+⚡  Cuándo: PARTILOT devuelve el sobrante a la Entidad tras el cierre del mandato
+👤  Para: El Gestor Responsable de la Entidad
+
+📧  EMAIL
+Asunto: Liquidación completada — sobrante devuelto — [NOMBRE SORTEO]
+Cuerpo: 
+Hola [NOMBRE],  La gestión de premios del sorteo [NOMBRE SORTEO] ha concluido.  Importe total gestionado: [IMPORTE TOTAL] € Importe distribuido a participantes: [IMPORTE DISTRIBUIDO] € Sobrante devuelto a [NOMBRE ENTIDAD]: [IMPORTE SOBRANTE] € Fecha de devolución: [FECHA] Referencia de transferencia: [REFERENCIA]  Puedes consultar el detalle completo en tu panel.  [VER DETALLE EN EL PANEL →]  © PARTILOT
+
+📌  Nota: Adjuntar o enlazar el detalle de la liquidación en el panel. No se emite informe PDF separado.
+
+⚙  GESTIÓN DE CUENTA Y COMUNICACIONES LEGALES
+
+C1   EMAIL 
+⚡  Cuándo: Un usuario solicita la eliminación de su cuenta
+👤  Para: El usuario que ha solicitado la baja
+
+📧  EMAIL
+Asunto: Solicitud de eliminación de cuenta recibida
+Cuerpo: 
+Hola [NOMBRE],  Hemos recibido tu solicitud de eliminación de cuenta.  Tu cuenta quedará desactivada inmediatamente. Los datos personales se eliminarán en un plazo de 30 días.  Datos que se conservarán por obligación legal (mínimo 5 años): registros de aceptaciones legales y registros de operaciones económicas.  Si has solicitado esto por error, contacta con nosotros en [EMAIL LEGAL] en las próximas 24 horas.  © PARTILOT
+
+C2   EMAIL 
+⚡  Cuándo: Los datos personales del usuario han sido eliminados (30 días después de C1)
+👤  Para: El usuario cuya cuenta ha sido eliminada
+
+📧  EMAIL
+Asunto: Tus datos personales han sido eliminados
+Cuerpo: 
+Hola,  Confirmamos que tus datos personales han sido eliminados de los sistemas de PARTILOT.  De acuerdo con la normativa aplicable, se conservan exclusivamente los registros legales y fiscales obligatorios durante los plazos legalmente exigidos.  Gracias por haber usado PARTILOT.  © PARTILOT — [EMAIL LEGAL]
+
+📌  Nota: Enviar al email que tenía registrado antes de eliminarlo del sistema.
+
+C3   EMAIL 
+⚡  Cuándo: PARTILOT actualiza el Marco Legal o las Condiciones de Uso
+👤  Para: Todos los usuarios registrados activos
+
+📧  EMAIL
+Asunto: Actualización de las Condiciones de Uso de PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  Hemos actualizado nuestras Condiciones de Uso. Los cambios entrarán en vigor el [FECHA, 30 DÍAS DESDE HOY].  Principales cambios: • [RESUMEN CAMBIO 1] • [RESUMEN CAMBIO 2]  [VER CONDICIONES ACTUALIZADAS →]  Si sigues usando PARTILOT después del [FECHA], entendemos que aceptas los cambios.  © PARTILOT
+
+📌  Nota: Obligatorio con 30 días de antelación. No enviar push para esto — demasiado intrusivo para un aviso legal.
+
+C4   EMAIL 
+⚡  Cuándo: Se detecta una brecha de seguridad que afecta a datos de usuarios
+👤  Para: Los usuarios afectados por la brecha
+
+📧  EMAIL
+Asunto: Aviso de seguridad importante — PARTILOT
+Cuerpo: 
+Hola [NOMBRE],  Te informamos de que hemos detectado un incidente de seguridad que puede haber afectado a tus datos.  Qué ha ocurrido: [DESCRIPCIÓN DEL INCIDENTE] Datos que podrían verse afectados: [TIPOS DE DATOS] Qué hemos hecho: [MEDIDAS TOMADAS] Qué puedes hacer tú: [RECOMENDACIONES PARA EL USUARIO]  Si tienes preguntas, contacta con nosotros en [EMAIL PROTECCIÓN DE DATOS].  Lamentamos los inconvenientes causados.  © PARTILOT — [EMAIL PROTECCIÓN DE DATOS]
+
+📌  Nota: Obligación legal: notificar en 72h al afectado si hay riesgo alto. No enviar push para esto.
+
+RESUMEN — TODAS LAS COMUNICACIONES
+
+ID
+Canal
+Disparador
+Para
+Acción
+Asunto / Título push
+R1
+📧
+Usuario se registra
+Usuario
+—
+Bienvenido a PARTILOT
+R2
+📧
+Recuperar contraseña
+Usuario
+Enlace reset
+Recupera tu contraseña
+R3
+📧
+Acceso nuevo dispositivo
+Usuario
+Cambio contraseña
+Nuevo acceso a tu cuenta
+A1
+📧
+Alta Administración — contrato pendiente
+Admin
+Firmar contrato
+Contrato pendiente de firma
+A2
+📧
+Admin firma el contrato
+Admin
+—
+Acceso activado — Bienvenido
+A3
+📧
+Admin da de alta una Entidad
+Entidad
+—
+Te han dado de alta en PARTILOT
+G1
+📧🔔
+GR designado
+Usuario designado
+Aceptar / Rechazar
+Solicitud pendiente — GR
+G1b
+📧🔔
+48h sin respuesta a G1
+Usuario designado
+Aceptar / Rechazar
+Recordatorio: solicitud pendiente
+G2
+📧
+GR acepta el cargo
+GR + Admin
+—
+Has aceptado el cargo de GR
+G3
+📧
+GR rechaza el cargo
+Admin
+Designar nuevo
+[Nombre] ha rechazado el cargo
+G4
+📧🔔
+Invitación a Gestor
+Usuario invitado
+Aceptar / Rechazar
+Invitación para colaborar
+G5
+📧🔔
+Invitación a Vendedor
+Usuario invitado
+Aceptar / Rechazar
+Invitación como Vendedor — [Sorteo]
+P1
+📧🔔
+Asignación de participaciones
+Vendedor
+Firmar recibo
+Participaciones asignadas — [Sorteo]
+P2
+📧🔔
+Compra participación digital
+Usuario Final
+—
+Participación confirmada
+P3
+📧🔔
+Traspaso recibido
+Destinatario
+Aceptar traspaso
+[Nombre] te envía una participación
+P3b
+📧🔔
+Traspaso caduca
+Remitente
+—
+Participación devuelta a tu cartera
+P4
+🔔
+24h antes del sorteo
+UF con participaciones
+—
+Mañana es el sorteo
+E1
+📧🔔
+Escrutinio disponible
+Admin
+Validar escrutinio
+Escrutinio disponible — [Sorteo]
+E2
+📧🔔
+Participación premiada
+UF premiado
+Cobrar premio
+🏆 ¡Tu participación ha resultado premiada!
+E3
+📧🔔
+Premios sin mandato
+GR de Entidad
+Firmar + ingresar
+Acción requerida — Mandato de Pago
+E3b
+📧🔔
+24h sin respuesta a E3
+GR de Entidad
+Firmar + ingresar
+Recordatorio urgente — Premios sin habilitar
+E4
+📧🔔
+Fondos validados
+GR + UF premiados
+Cobrar (UF)
+Cobro habilitado / Tu premio está disponible
+E5
+📧🔔
+Cobro por transferencia confirmado
+UF
+—
+Transferencia en proceso
+E6
+📧🔔
+Transferencia ejecutada
+UF
+—
+Transferencia realizada
+E7
+📧🔔
+Transferencia rechazada
+UF
+Corregir IBAN
+Problema con tu cobro
+E8
+📧🔔
+Donación confirmada
+UF
+—
+Donación confirmada
+E9
+📧🔔
+Premio caduca en 15 días
+UF con premio sin cobrar
+Cobrar ahora
+⚠ Tu premio caduca en 15 días
+E10
+📧
+Premio caducado
+UF
+—
+Tu premio ha caducado
+E11
+📧🔔
+Premio bloqueado (pago presencial)
+UF afectado
+—
+Premio pendiente de habilitación
+E12
+📧
+Sobrante devuelto a Entidad
+GR Entidad
+—
+Liquidación completada — sobrante devuelto
+C1
+📧
+Solicitud de baja de cuenta
+Usuario
+—
+Solicitud de eliminación recibida
+C2
+📧
+Datos eliminados (30 días tras C1)
+Usuario
+—
+Tus datos han sido eliminados
+C3
+📧
+Actualización de condiciones legales
+Todos los usuarios
+—
+Actualización de Condiciones de Uso
+C4
+📧
+Brecha de seguridad
+Usuarios afectados
+—
+Aviso de seguridad importante
+
+© PARTILOT — Mapa de Comunicaciones v1.0
+Para el equipo de desarrollo, producto y operaciones

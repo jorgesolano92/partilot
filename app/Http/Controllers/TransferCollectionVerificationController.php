@@ -3,16 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Models\ParticipationCollection;
+use App\Models\PaymentOperationAuditLog;
+use App\Services\PaymentOperationAuditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class TransferCollectionVerificationController extends Controller
 {
+    public function __construct(
+        private readonly PaymentOperationAuditService $auditService
+    ) {}
+
     public function confirm(string $token)
     {
         $collection = ParticipationCollection::where('confirmation_token', $token)->first();
 
-        if (!$collection || !$collection->isPendingVerification()) {
+        if (! $collection || ! $collection->isPendingVerification()) {
+            $this->auditService->log(
+                operationType: PaymentOperationAuditLog::OP_COLLECTION_FAILED,
+                userId: $collection?->user_id ? (int) $collection->user_id : null,
+                referenceType: 'transfer_token',
+                context: ['reason' => 'invalid_or_used_token'],
+            );
+
             return view('transfer-collection.confirmation-result', [
                 'success' => false,
                 'title' => 'Enlace no válido',
@@ -22,6 +35,15 @@ class TransferCollectionVerificationController extends Controller
 
         if ($collection->isExpired()) {
             $collection->markAsExpired();
+
+            $this->auditService->log(
+                operationType: PaymentOperationAuditLog::OP_COLLECTION_FAILED,
+                userId: (int) $collection->user_id,
+                amount: (float) $collection->importe_total,
+                referenceType: 'participation_collection',
+                referenceId: (int) $collection->id,
+                context: ['reason' => 'expired'],
+            );
 
             return view('transfer-collection.confirmation-result', [
                 'success' => false,
@@ -33,9 +55,18 @@ class TransferCollectionVerificationController extends Controller
         try {
             $collection->confirmVerification();
         } catch (\Throwable $e) {
-            Log::error('Error confirmando cobro por transferencia: ' . $e->getMessage(), [
+            Log::error('Error confirmando cobro por transferencia: '.$e->getMessage(), [
                 'collection_id' => $collection->id,
             ]);
+
+            $this->auditService->log(
+                operationType: PaymentOperationAuditLog::OP_COLLECTION_FAILED,
+                userId: (int) $collection->user_id,
+                amount: (float) $collection->importe_total,
+                referenceType: 'participation_collection',
+                referenceId: (int) $collection->id,
+                context: ['reason' => 'exception', 'message' => $e->getMessage()],
+            );
 
             return view('transfer-collection.confirmation-result', [
                 'success' => false,
@@ -65,6 +96,14 @@ class TransferCollectionVerificationController extends Controller
         }
 
         $collection->cancelVerification();
+
+        $this->auditService->log(
+            operationType: PaymentOperationAuditLog::OP_COLLECTION_CANCELLED,
+            userId: (int) $collection->user_id,
+            amount: (float) $collection->importe_total,
+            referenceType: 'participation_collection',
+            referenceId: (int) $collection->id,
+        );
 
         return view('transfer-collection.confirmation-result', [
             'success' => true,

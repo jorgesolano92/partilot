@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Models\User;
-use App\Rules\MinimumAge;
+use App\Rules\ValidCalendarDate;
 use App\Services\CommunicationEmailService;
 use App\Services\ParticipationGiftService;
 use App\Services\PhoneVerificationService;
+use App\Services\UserConsentService;
+use App\Support\PasswordRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -50,8 +52,8 @@ class GiftRecipientRegistrationController extends Controller
             'last_name' => 'nullable|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
-            'birthday' => ['required', 'date', 'before:today', new MinimumAge(18)],
-            'password' => 'required|string|min:6|confirmed',
+            'birthday' => ValidCalendarDate::birthday(),
+            'password' => PasswordRules::registration(),
             'aceptar_condiciones' => 'required|accepted',
             'sms_code' => [
                 Rule::requiredIf(fn () => $phoneVerification->smsVerificationRequired($request->input('phone'))),
@@ -87,6 +89,13 @@ class GiftRecipientRegistrationController extends Controller
             'role' => User::ROLE_CLIENT,
             'status' => 1,
         ]);
+
+        app(UserConsentService::class)->record(
+            $user,
+            \App\Models\UserConsent::TYPE_REGISTRATION_TERMS,
+            $request,
+            ['source' => 'gift_registration', 'gift_id' => $gift->id]
+        );
 
         $gift->to_user_id = $user->id;
         $gift->save();

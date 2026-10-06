@@ -87,12 +87,11 @@
 
         <!-- App css -->
         <link href="{{url('default')}}/assets/css/app.min.css" rel="stylesheet" type="text/css" />
-        <link href="{{url('assets')}}/css/partilot-ui-fixes.css" rel="stylesheet" type="text/css" />
 
         <!-- Icons css -->
         <link href="{{url('assets')}}/css/icons.min.css" rel="stylesheet" type="text/css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.buttons.css" />
+        <link rel="stylesheet" href="{{ url('assets/libs/pnotify/pnotify.css') }}" />
+        <link rel="stylesheet" href="{{ url('assets/libs/pnotify/pnotify.buttons.css') }}" />
         <style>
             .ui-pnotify {
                 opacity: 1 !important;
@@ -177,16 +176,50 @@
                 border-color: #9eeaf9 !important;
                 opacity: 1 !important;
             }
+            .ui-pnotify .ui-pnotify-container.brighttheme-success,
+            .ui-pnotify.brighttheme-success .ui-pnotify-container {
+                background-color: #c7efe9 !important;
+                color: #0f766e !important;
+                border-color: #8fd7cd !important;
+            }
+            .ui-pnotify .ui-pnotify-container.brighttheme-error,
+            .ui-pnotify.brighttheme-error .ui-pnotify-container {
+                background-color: #f8d7da !important;
+                color: #842029 !important;
+                border-color: #f1aeb5 !important;
+            }
+            .ui-pnotify .ui-pnotify-container.brighttheme-notice,
+            .ui-pnotify.brighttheme-notice .ui-pnotify-container {
+                background-color: #fff3cd !important;
+                color: #7a5a00 !important;
+                border-color: #ffe69c !important;
+            }
+            .ui-pnotify .ui-pnotify-container.brighttheme-info,
+            .ui-pnotify.brighttheme-info .ui-pnotify-container {
+                background-color: #cff4fc !important;
+                color: #055160 !important;
+                border-color: #9eeaf9 !important;
+            }
+            .ui-pnotify .ui-pnotify-title,
+            .ui-pnotify .ui-pnotify-text {
+                color: inherit !important;
+            }
         </style>
 
-        <link rel="stylesheet" href="https://code.jquery.com/ui/1.14.1/themes/base/jquery-ui.css">
+        <link rel="stylesheet" href="{{ url('assets/libs/jquery-ui/themes/base/jquery-ui.css') }}">
 
         <link rel="stylesheet" href="{{url('style.css')}}">
-        <link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/45.2.0/ckeditor5.css" crossorigin>
+        <link rel="stylesheet" href="{{ asset('assets/libs/ckeditor5/ckeditor5.css') }}">
+        {{-- Último CSS de panel: card + footer unidos (gana a theme absolute footer) --}}
+        <link href="{{url('assets')}}/css/partilot-ui-fixes.css?v={{ @filemtime(public_path('assets/css/partilot-ui-fixes.css')) ?: time() }}" rel="stylesheet" type="text/css" />
 
         <style>
             .container-fluid .alert {
                 display: none;
+            }
+
+            .container-fluid .show-alerts .alert {
+                display: block;
             }
             /* Formularios: mantener estilo pill en controles dentro de input-group */
             .content-page .content .group-form .form-control,
@@ -212,12 +245,20 @@
                 border-bottom: 1px solid silver;
                 outline: none;
               }
-            /* Logos redondos: mismo tamaño, imagen como background cover */
+            /* Logos entidad: cuadrado con bordes redondeados; ancho 100% para ajustarse al marco */
             .logo-round {
-                border-radius: 50% !important;
+                border-radius: 12px !important;
                 overflow: hidden;
-                background-size: cover !important;
+                background-size: 100% !important;
                 background-position: center !important;
+                background-repeat: no-repeat !important;
+            }
+            .logo-round > img {
+                width: 100%;
+                height: auto;
+                object-fit: unset;
+                object-position: center;
+                display: block;
             }
             .logo-round-sm {
                 width: 48px;
@@ -354,14 +395,19 @@
                 width: auto;
                 min-height: 48px;
                 height: auto !important;
-                padding: 6px 8px 6px 4px !important;
-                gap: 8px;
+                padding: 6px 10px 6px 4px !important;
+                gap: 6px;
                 border: 0;
                 background: transparent;
-                align-items: flex-start !important;
+                align-items: center !important;
             }
             .navbar-custom .topbar .nav-user img {
                 display: none;
+            }
+            .navbar-custom .topbar .nav-user .partilot-account-menu-text {
+                display: inline-block;
+                line-height: 1.15;
+                min-width: 0;
             }
             .navbar-custom .topbar .nav-user .user-name {
                 display: block;
@@ -380,8 +426,29 @@
                 margin-top: 2px;
                 line-height: 1;
             }
-            .navbar-custom .topbar .nav-user .mdi-chevron-down {
-                display: none;
+            .navbar-custom .topbar .nav-user .mdi-chevron-down,
+            .navbar-custom .topbar .nav-user .partilot-account-menu-caret {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                margin-left: 2px;
+                font-size: 18px;
+                line-height: 1;
+                color: #6c7489;
+                align-self: center;
+            }
+            .navbar-custom .topbar .partilot-account-menu-trigger {
+                border: 1px solid rgba(0,0,0,.12);
+                border-radius: 999px;
+                padding: 4px 10px 4px 4px !important;
+                background: rgba(255,255,255,.65);
+            }
+            .navbar-custom .topbar .partilot-account-menu-trigger:hover,
+            .navbar-custom .topbar .partilot-account-menu-trigger[aria-expanded="true"] {
+                background: #fff;
+                border-color: rgba(0,0,0,.22);
+                box-shadow: 0 1px 4px rgba(0,0,0,.08);
             }
             .navbar-custom .topbar .dropdown-menu {
                 z-index: 1100;
@@ -417,6 +484,58 @@
             }
             .topbar-btn-notifications .nav-link {
                 position: relative;
+            }
+            .topbar-btn-notifications .noti-dot {
+                position: absolute;
+                top: 8px;
+                right: 6px;
+                min-width: 16px;
+                height: 16px;
+                padding: 0 4px;
+                border-radius: 8px;
+                background: #e78307;
+                color: #fff;
+                font-size: 10px;
+                font-weight: 700;
+                line-height: 16px;
+                text-align: center;
+                display: none;
+            }
+            .topbar-btn-notifications .noti-dot.is-visible {
+                display: inline-block;
+            }
+            #panel-inbox-dropdown {
+                width: 320px;
+                max-width: 90vw;
+            }
+            #panel-inbox-dropdown .panel-inbox-list {
+                max-height: 320px;
+                overflow-y: auto;
+            }
+            #panel-inbox-dropdown .panel-inbox-item {
+                display: block;
+                padding: 10px 14px;
+                border-bottom: 1px solid #f0f0f0;
+                text-decoration: none;
+                color: inherit;
+                white-space: normal;
+            }
+            #panel-inbox-dropdown .panel-inbox-item.unread {
+                background: #fff8ef;
+            }
+            #panel-inbox-dropdown .panel-inbox-item .title {
+                font-weight: 700;
+                font-size: 13px;
+                margin-bottom: 2px;
+            }
+            #panel-inbox-dropdown .panel-inbox-item .msg {
+                font-size: 12px;
+                color: #6c757d;
+            }
+            #panel-inbox-dropdown .panel-inbox-item .meta {
+                font-size: 11px;
+                color: #99a;
+                margin-top: 4px;
             }
 
             /* Badges de estado: Activo / Inactivo / Bloqueado */
@@ -497,7 +616,7 @@
                 margin: 3px 0 !important;
             }
 
-            /* Listados: un solo scroll horizontal; sin altura forzada en card */
+            /* Listados: scroll horizontal contenido en el wrapper de DataTables */
             html, body {
                 max-width: 100%;
                 overflow-x: hidden;
@@ -523,47 +642,74 @@
                 min-width: 0;
                 height: auto !important;
             }
-            .content-page .content .container-fluid > .row > [class*="col-"] > .card,
-            .content-page .content .container-fluid form > .row > [class*="col-"] > .card {
-                overflow: visible !important;
-                max-width: 100%;
-                height: auto !important;
-            }
             .content-page .content .container-fluid > .row > [class*="col-"],
             .content-page .content .container-fluid form > .row > [class*="col-"] {
                 min-width: 0;
+            }
+            .content-page .content .container-fluid > .row > [class*="col-"] > .card,
+            .content-page .content .container-fluid form > .row > [class*="col-"] > .card {
+                /* visible: overflow-x:clip fuerza overflow-y:auto y recorta Atrás/Guardar */
+                overflow: visible;
+                max-width: 100%;
+                min-width: 0;
+                height: auto !important;
             }
             .content-page .content .container-fluid > .row > [class*="col-"] > .card > .card-body,
             .content-page .content .container-fluid form > .row > [class*="col-"] > .card > .card-body {
                 max-width: 100%;
                 min-width: 0;
-                overflow: visible !important;
+                overflow: visible;
+            }
+            .content-page .form-card,
+            .content-page .form-card.bs {
+                max-width: 100%;
+                min-width: 0;
+                overflow-x: clip;
+                overflow-y: visible;
             }
             .content-page .table-responsive,
             .content-page .panel-table-scroll {
                 width: 100%;
                 max-width: 100%;
-                overflow: visible !important;
-            }
-            /* Único scroll horizontal del listado */
-            .content-page .card-body > .dataTables_wrapper,
-            .content-page .table-responsive > .dataTables_wrapper {
-                width: 100%;
-                max-width: 100%;
+                min-width: 0;
                 overflow-x: auto;
                 overflow-y: visible;
                 -webkit-overflow-scrolling: touch;
             }
-            .content-page .dataTables_wrapper .dataTables_scroll,
-            .content-page .dataTables_wrapper .dataTables_scrollHead,
+            .content-page .table-responsive:has(> .dataTables_wrapper),
+            .content-page .panel-table-scroll:has(> .dataTables_wrapper) {
+                overflow-x: visible;
+            }
+            /* Cualquier DataTable del panel (no solo hijo directo de .card-body) */
+            .content-page .dataTables_wrapper {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                overflow-x: auto;
+                overflow-y: visible;
+                -webkit-overflow-scrolling: touch;
+            }
+            .content-page .dataTables_wrapper table.dataTable {
+                width: 100% !important;
+                max-width: none;
+            }
+            /* Contención si alguna vista conserva scrollX */
+            .content-page .dataTables_wrapper .dataTables_scroll {
+                width: 100% !important;
+                clear: both;
+            }
+            .content-page .dataTables_wrapper .dataTables_scrollHead {
+                overflow: hidden !important;
+            }
             .content-page .dataTables_wrapper .dataTables_scrollHeadInner,
-            .content-page .dataTables_wrapper .dataTables_scrollBody {
-                overflow: visible !important;
-                max-height: none !important;
-                height: auto !important;
+            .content-page .dataTables_wrapper .dataTables_scrollHeadInner table {
+                width: 100% !important;
             }
             .content-page .dataTables_wrapper .dataTables_scrollBody {
+                width: 100% !important;
                 max-height: none !important;
+                overflow-x: auto !important;
+                overflow-y: visible !important;
             }
             
             @media (max-width: 1200px) {
@@ -579,8 +725,24 @@
                 min-height: calc(100vh - 335px);
                 overflow: unset !important;
             }
-            .content-page .dataTables_wrapper .dataTables_scroll, table.dataTable, .table.dataTable {
-                overflow: auto !important;
+
+            /* Asistentes (selección entidad + Siguiente): la tabla no debe empujar el botón encima */
+            .content-page .form-card.wizard-entity-step {
+                display: flex;
+                flex-direction: column;
+            }
+            .content-page .form-card.wizard-entity-step .wizard-table-scroll {
+                flex: 1 1 auto;
+                min-height: 0;
+                margin-bottom: 1rem;
+            }
+            .content-page .form-card.wizard-entity-step .dataTables_wrapper.dt-bootstrap5 {
+                min-height: 0 !important;
+            }
+            .content-page .form-card.wizard-entity-step .wizard-form-actions {
+                flex-shrink: 0;
+                margin-top: auto;
+                padding-top: 0.75rem;
             }
 
             .content-page .content .container-fluid > .row > [class*="col-"] > .card,
@@ -588,7 +750,121 @@
                 margin-bottom: 0;
             }
 
+            /*
+             * Card + footer unidos (como Administraciones / Sorteos listado).
+             * La fila del card crece hasta el footer; el footer va justo debajo.
+             */
+            .content-page {
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 100vh;
+            }
+
+            .content-page > .content {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+                padding: 0 15px !important;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+                width: 100%;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                min-height: 0 !important;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+            }
+
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card {
+                flex: 1 1 auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 0 !important;
+                min-width: 0 !important;
+                height: auto !important;
+                margin-bottom: 0 !important;
+                border: 1px solid #d9dde8 !important;
+                border-bottom: 0 !important;
+                border-radius: 18px 18px 0 0 !important;
+                box-shadow: none !important;
+                overflow: visible !important;
+            }
+
+            /* No forzar flex-column en todo .card-body: apila botones de listados (Sorteos, etc.) */
+            .content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card > .card-body {
+                flex: 1 1 auto !important;
+                min-height: 0 !important;
+                min-width: 0 !important;
+                padding-bottom: 32px !important;
+                overflow: visible !important;
+            }
+
+            /* Footer unido (también si el DOM lo anida dentro de .content) */
+            #wrapper .content-page > footer.footer,
+            #wrapper .content-page footer.footer,
+            #wrapper .content-page .content > footer.footer {
+                position: relative !important;
+                flex-shrink: 0 !important;
+                bottom: auto !important;
+                left: auto !important;
+                right: auto !important;
+                width: auto !important;
+                height: 60px !important;
+                display: flex !important;
+                align-items: center !important;
+                margin: -1px 27px 24px !important;
+                padding: 0 1.5rem !important;
+                border: 1px solid #d9dde8 !important;
+                border-top: 0 !important;
+                border-radius: 0 0 18px 18px !important;
+                background: #fff !important;
+                box-shadow: none !important;
+            }
+
+            #wrapper .content-page footer.footer > .container-fluid {
+                width: 100%;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+
+            #wrapper .content-page footer.footer .row {
+                align-items: center !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                width: 100%;
+            }
+
+            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page .content {
+                min-height: 0 !important;
+            }
+
+            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
+                margin: -1px 12px 24px !important;
+                border-radius: 0 0 18px 18px !important;
+                box-shadow: none !important;
+            }
+
             .header-title {margin: 0 !important;}
+            .format-box-btn {text-align: center !important;}
+
+            [class^="col"]:has(.dataTable), 
+            [class*=" col"]:has(.dataTable) { 
+            overflow-x: auto !important; 
+            }
         </style>
 
         @yield('styles')
@@ -649,12 +925,6 @@
                         @if(Auth::check() && Auth::user()->isPanelAccount() && Auth::user()->panel_account_type === 'administration')
                             <a href="{{ route('account.my-data') }}" class="btn btn-sm btn-light mb-2">Mis datos</a>
                         @endif
-                        <form method="POST" action="{{ url('logout') }}" class="menu-logout-link">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-                                <i class="fe-log-out me-1"></i> Cerrar sesión
-                            </button>
-                        </form>
                     </div>
 
                     <!--- Menu -->
@@ -686,7 +956,7 @@
                         );
                         $canSeeDesignModules = $canSeeEntityModules && (
                             $isEntityPanelReadOnly
-                            || !$isRestrictedEntityUser
+                            || ! $isRestrictedEntityUser
                             || $currentUser->hasEntityManagerPermission('design')
                         );
 
@@ -697,6 +967,12 @@
                             || ($isRestrictedEntityUser && $currentUser->hasEntityManagerPermission('payments'))
                         );
                         $isPrintShopUser = $currentUser && $currentUser->isPrintShop();
+                        // R3-MEJ-002: menú agrupado por bloques solo para administración de lotería.
+                        $isLotteryAdministrationMenu = $currentUser
+                            && $currentUser->isAdministration()
+                            && ! $currentUser->isSuperAdmin();
+                        // R3-REQ-001: Web Social / Solicitudes solo Partilot (superadmin).
+                        $canSeePartilotSocialModules = $currentUser && $currentUser->isSuperAdmin();
                     @endphp
                     <ul class="menu">
 
@@ -735,6 +1011,10 @@
                             </li>
                         @endif
 
+                        @if($isLotteryAdministrationMenu && ($canSeeEntitiesMenu || $canSeeSellerModules))
+                            <li class="menu-title">Gestión</li>
+                        @endif
+
                         @if($canSeeEntitiesMenu)
                             <li class="menu-item @if (Request::is('entities/*') || Request::is('entities')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('/entities')}}" class="menu-link">
@@ -759,7 +1039,7 @@
                             </li>
                         @endif
 
-                        @if($canSeeAdminModules)
+                        @if($currentUser && $currentUser->isSuperAdmin())
                             <li class="menu-item @if (Request::is('users/*') || Request::is('users')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('/users')}}" class="menu-link">
                                     <span class="menu-icon">
@@ -771,6 +1051,10 @@
                             </li>
                         @endif
 
+                        @if($isLotteryAdministrationMenu && ($canSeeEntityModules || $canSeeAdminModules))
+                            <li class="menu-title">Sorteos</li>
+                        @endif
+
                         @if($canSeeEntityModules)
                             <li class="menu-item @if (Request::is('lottery/*') || Request::is('lottery') || Request::is('lottery_types/*') || Request::is('lottery_types')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('/lottery')}}" class="menu-link">
@@ -778,6 +1062,18 @@
                                         <img src="{{url('icons_')}}/sorteos{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
                                     </span>
                                     <span class="menu-text"> Sorteos </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
+                        @endif
+
+                        @if($canSeeEntityModules)
+                            <li class="menu-item @if (Request::is('reserves/*') || Request::is('reserves')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{url('/reserves')}}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <img src="{{url('icons_')}}/reservas{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
+                                    </span>
+                                    <span class="menu-text"> Reservas </span>
                                     @php $selected = null; @endphp
                                 </a>
                             </li>
@@ -795,16 +1091,8 @@
                             </li>
                         @endif
 
-                        @if($canSeeEntityModules)
-                            <li class="menu-item @if (Request::is('reserves/*') || Request::is('reserves')) menuitem-active @php $selected = 1; @endphp @endif">
-                                <a href="{{url('/reserves')}}" class="menu-link">
-                                    <span class="menu-icon">
-                                        <img src="{{url('icons_')}}/reservas{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
-                                    </span>
-                                    <span class="menu-text"> Reservas </span>
-                                    @php $selected = null; @endphp
-                                </a>
-                            </li>
+                        @if($isLotteryAdministrationMenu && ($canSeeEntityModules || $canSeeDesignModules))
+                            <li class="menu-title">Participaciones</li>
                         @endif
 
                         @if($canSeeEntityModules)
@@ -855,7 +1143,7 @@
                             </li>
                         @endif
 
-                        @if($canSeeEntityModules)
+                        @if($canSeePartilotSocialModules)
                             <li class="menu-item @if (Request::is('social/*') || Request::is('social')) menuitem-active @php $selected = 1; @endphp @endif">
                                 <a href="{{url('social')}}" class="menu-link">
                                     <span class="menu-icon">
@@ -865,27 +1153,33 @@
                                     @php $selected = null; @endphp
                                 </a>
                             </li>
+
+                            <li class="menu-item @if (Request::is('requests/*') || Request::is('requests')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{url('requests')}}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <img src="{{url('icons_')}}/solicitudes{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
+                                    </span>
+                                    <span class="menu-text"> Solicitudes </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
                         @endif
 
-                        <li class="menu-item @if (Request::is('requests/*') || Request::is('requests')) menuitem-active @php $selected = 1; @endphp @endif">
-                            <a href="{{url('requests')}}" class="menu-link">
-                                <span class="menu-icon">
-                                    <img src="{{url('icons_')}}/solicitudes{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
-                                </span>
-                                <span class="menu-text"> Solicitudes </span>
-                                @php $selected = null; @endphp
-                            </a>
-                        </li>
+                        @if($isLotteryAdministrationMenu)
+                            <li class="menu-title">Comunicación</li>
+                        @endif
 
-                        <li class="menu-item @if (Request::is('notifications/*') || Request::is('notifications')) menuitem-active @php $selected = 1; @endphp @endif">
-                            <a href="{{url('notifications')}}" class="menu-link">
-                                <span class="menu-icon">
-                                    <img src="{{url('icons_')}}/comunicados{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
-                                </span>
-                                <span class="menu-text"> Notificaciones </span>
-                                @php $selected = null; @endphp
-                            </a>
-                        </li>
+                        @if(auth()->user()?->isSuperAdmin())
+                            <li class="menu-item @if (Request::is('notifications/*') || Request::is('notifications')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{url('notifications')}}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <img src="{{url('icons_')}}/comunicados{{$selected == 1 ? '_selected' : ''}}.svg" alt="">
+                                    </span>
+                                    <span class="menu-text"> Notificaciones </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
+                        @endif
 
                         <li class="menu-item @if (Request::is('communications/*') || Request::is('communications')) menuitem-active @php $selected = 1; @endphp @endif">
                             <a href="{{url('communications')}}" class="menu-link">
@@ -897,17 +1191,6 @@
                             </a>
                         </li>
 
-                        @if($canSeeSettingsModules)
-                            <li class="menu-item @if (Request::is('configuration/*') || Request::is('configuration')) menuitem-active @php $selected = 1; @endphp @endif">
-                                <a href="{{url('configuration')}}" class="menu-link">
-                                    <span class="menu-icon">
-                                        <i class="fe-settings"></i>
-                                    </span>
-                                    <span class="menu-text"> Ajustes </span>
-                                    @php $selected = null; @endphp
-                                </a>
-                            </li>
-                        @endif
 
                         @endif
 
@@ -950,6 +1233,29 @@
                         </li> --}}
 
                         
+
+                        @if($currentUser && $currentUser->isSuperAdmin())
+                            <li class="menu-item @if (Request::is('prize-payments/*') || Request::is('prize-payments')) menuitem-active @php $selected = 1; @endphp @endif">
+                                <a href="{{ route('prize-payments.index') }}" class="menu-link">
+                                    <span class="menu-icon">
+                                        <i class="ri-money-euro-circle-line" style="font-size: 18px; position: relative; top: 3px;"></i>
+                                    </span>
+                                    <span class="menu-text"> Cobro de premios </span>
+                                    @php $selected = null; @endphp
+                                </a>
+                            </li>
+                        @endif
+
+                        <li class="menu-item mt-3 menu-logout-footer">
+                            <form method="POST" action="{{ url('logout') }}" class="menu-logout-link">
+                                @csrf
+                                <button type="submit" class="menu-link w-100 text-start border-0 bg-transparent" style="color:#dc3545;">
+                                    <span class="menu-icon"><i class="fe-log-out"></i></span>
+                                    <span class="menu-text"> Cerrar sesión </span>
+                                </button>
+                            </form>
+                        </li>
+
                     </ul>
                     <!--- End Menu -->
                     <div class="clearfix"></div>
@@ -1143,12 +1449,31 @@
                                 </div>
                             </li> --}}
 
-                            <!-- Notificaciones (enlace al módulo; contador en futuras iteraciones) -->
+                            <!-- Notificaciones -->
+                            @if(auth()->user()?->isSuperAdmin())
                             <li class="topbar-btn-notifications">
                                 <a class="nav-link waves-effect waves-light" href="{{ route('notifications.index') }}" title="Notificaciones">
                                     <i class="fe-bell font-22"></i>
                                 </a>
                             </li>
+                            @elseif(auth()->check())
+                            <li class="dropdown notification-list topbar-btn-notifications">
+                                <a class="nav-link dropdown-toggle waves-effect waves-light arrow-none" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="Notificaciones" id="panel-inbox-bell">
+                                    <i class="fe-bell font-22"></i>
+                                    <span class="noti-dot" id="panel-inbox-badge">0</span>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end dropdown-menu-animated dropdown-lg p-0" id="panel-inbox-dropdown">
+                                    <div class="p-2 border-bottom d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold">Notificaciones</span>
+                                        <button type="button" class="btn btn-sm btn-link p-0" id="panel-inbox-mark-all">Marcar leídas</button>
+                                    </div>
+                                    <div class="panel-inbox-list" id="panel-inbox-list">
+                                        <div class="p-3 text-muted text-center small">Cargando…</div>
+                                    </div>
+                                    <a href="{{ route('notifications.index') }}" class="d-block text-center p-2 border-top small">Ver todas</a>
+                                </div>
+                            </li>
+                            @endif
 
                             <!-- Light/Dark Mode Toggle Button -->
                             {{-- <li class="d-none d-sm-inline-block">
@@ -1159,7 +1484,7 @@
 
                             <!-- User Dropdown -->
                             <li class="dropdown">
-                                <a class="nav-link dropdown-toggle nav-user me-0 waves-effect waves-light d-flex align-items-center" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
+                                <a class="nav-link dropdown-toggle nav-user me-0 waves-effect waves-light d-flex align-items-center partilot-account-menu-trigger" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" title="Cuenta y opciones" aria-label="Abrir menú de cuenta">
                                     @php $panelHeaderImgTop = Auth::user()?->panelAccountHeaderImageUrl(); @endphp
                                     <img src="{{ $panelHeaderImgTop ?? url('default').'/assets/images/users/user-1.jpg' }}" alt="" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">
                                     @php
@@ -1169,26 +1494,48 @@
                                                 $topbarRole = 'SUPER ADMINISTRADOR';
                                             } elseif (Auth::user()->isAdministration()) {
                                                 $topbarRole = 'ADMINISTRADOR';
-                                            } elseif (Auth::user()->isEntity()) {
+                                            } elseif (Auth::user()->isEntityPanelAccount()) {
                                                 $topbarRole = 'ENTIDAD';
+                                            } elseif (Auth::user()->isEntity()) {
+                                                $topbarRole = Auth::user()->isPrimaryManagerOfActiveEntity()
+                                                    ? 'GESTOR RESPONSABLE'
+                                                    : 'GESTOR';
                                             }
                                         }
                                     @endphp
-                                    @php $topbarContextLabel = Auth::user()?->panelHeaderContextLabel(); @endphp
-                                    <span class="ms-2 d-none d-md-inline-block text-start">
+                                    @php
+                                        $topbarContextLabel = Auth::user()?->panelHeaderContextLabel();
+                                        $topbarDisplayName = trim((Auth::user()->name ?? '').' '.(Auth::user()->last_name ?? ''));
+                                        if ($topbarDisplayName === '') {
+                                            $topbarDisplayName = 'Usuario';
+                                        }
+                                        // Topbar: 3 líneas (contexto + nombre + rol) cuando hay contexto.
+                                        // Desplegable: no duplicar el mismo texto; si coincide, usar email.
+                                        $topbarContextMatchesName = $topbarContextLabel
+                                            && strcasecmp($topbarContextLabel, $topbarDisplayName) === 0;
+                                        $dropdownSecondaryLabel = null;
+                                        if ($topbarContextLabel && ! $topbarContextMatchesName) {
+                                            $dropdownSecondaryLabel = $topbarContextLabel;
+                                        } elseif (Auth::user()?->isAdministrationPanelAccount() && Auth::user()->email) {
+                                            $dropdownSecondaryLabel = Auth::user()->email;
+                                        } elseif (Auth::user()?->isEntityPanelAccount() && Auth::user()->email) {
+                                            $dropdownSecondaryLabel = Auth::user()->email;
+                                        }
+                                    @endphp
+                                    <span class="ms-2 d-none d-md-inline-block text-start partilot-account-menu-text">
                                         @if($topbarContextLabel)
                                             <span class="topbar-user-context d-block" title="{{ $topbarContextLabel }}">{{ $topbarContextLabel }}</span>
                                         @endif
-                                        <span class="user-name">{{ Auth::user()->name ? Auth::user()->name.' '.Auth::user()->last_name : 'Usuario' }}</span>
-                                        <span class="user-role">{{ $topbarRole }}</span>
-                                        <i class="mdi mdi-chevron-down"></i>
+                                        <span class="user-name">{{ $topbarDisplayName }}</span>
+                                        <span class="user-role">{{ $topbarRole }} · Menú</span>
                                     </span>
+                                    <i class="mdi mdi-chevron-down partilot-account-menu-caret" aria-hidden="true"></i>
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-end profile-dropdown ">
                                     <div class="dropdown-header noti-title">
-                                        <h6 class="text-overflow m-0">{{ Auth::user()->name ? Auth::user()->name.' '.Auth::user()->last_name : 'Usuario' }}</h6>
-                                        @if($topbarContextLabel)
-                                            <small class="text-muted">{{ $topbarContextLabel }}</small>
+                                        <h6 class="text-overflow m-0">{{ $topbarDisplayName }}</h6>
+                                        @if($dropdownSecondaryLabel)
+                                            <small class="text-muted">{{ $dropdownSecondaryLabel }}</small>
                                         @endif
                                     </div>
 
@@ -1200,6 +1547,13 @@
                                     <div class="dropdown-divider"></div>
                                     @endif
 
+                                    @if(!empty($canSeeSettingsModules))
+                                    <a href="{{ url('configuration') }}" class="dropdown-item notify-item">
+                                        <i class="fe-settings me-1"></i>
+                                        <span>Ajustes generales</span>
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    @endif
                                     <form method="POST" action="{{ url('logout') }}">
                                         @csrf
                                         <button type="submit" class="dropdown-item notify-item text-danger" style="background: none; border: none; width: 100%; text-align: left;">
@@ -1217,14 +1571,6 @@
 
                 <div class="content">
 
-                    @php
-                        // Consumir flashes para mostrarlos por PNotify (sin alerts HTML).
-                        $flashSuccess = session()->pull('success');
-                        $flashWarning = session()->pull('warning');
-                        $flashError = session()->pull('error');
-                        $flashValidationErrors = $errors->any() ? implode("\n", $errors->all()) : null;
-                    @endphp
-
                     @if(Auth::check() && Auth::user()->isEntityPanelReadOnly())
                         <div class="alert alert-info border-0 rounded-0 mb-0 text-center py-2" role="alert" style="font-size: 0.9rem;">
                             <strong>Modo solo consulta.</strong>
@@ -1238,14 +1584,20 @@
 
                 @if (!request()->is('configuration*'))
                     <!-- Footer Start -->
-                    <footer class="footer">
-                        <div class="container-fluid">
-                            <div class="row">
+                    @php
+                        $isDashboardPanel = request()->routeIs('dashboard');
+                        $footerStyle = $isDashboardPanel
+                            ? 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;'
+                            : 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;';
+                    @endphp
+                    <footer class="footer" style="{{ $footerStyle }}">
+                        <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
+                            <div class="row align-items-center" style="margin:0;width:100%;">
                                 <div class="col-md-6">
                                     <div><script>document.write(new Date().getFullYear())</script> © Partilot - <a href="https://partilot.es/" target="_blank">partilot.es</a></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="d-none d-md-flex gap-4 align-item-center justify-content-md-end footer-links">
+                                    <div class="d-none d-md-flex gap-4 align-items-center justify-content-md-end footer-links">
                                         <a href="javascript: void(0);">About</a>
                                         <a href="javascript: void(0);">Support</a>
                                         <a href="javascript: void(0);">Contact Us</a>
@@ -1730,8 +2082,10 @@
         
         <!-- Vendor js -->
         <script src="{{url('default')}}/assets/js/vendor.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pnotify/3.2.1/pnotify.buttons.js"></script>
+        <script src="{{ url('assets/libs/pnotify/pnotify.js') }}"></script>
+        <script src="{{ url('assets/libs/pnotify/pnotify.buttons.js') }}"></script>
+        <script src="{{ url('js/partilot-ui.js') }}"></script>
+        @include('partials.partilot-flash-notify')
 
         <!-- App js -->
         <script src="{{url('default')}}/assets/js/app.min.js"></script>
@@ -1762,7 +2116,7 @@
         <script src="{{url('assets')}}/libs/pdfmake/build/pdfmake.min.js"></script>
         <script src="{{url('assets')}}/libs/pdfmake/build/vfs_fonts.js"></script>
 
-        <script src="https://code.jquery.com/ui/1.14.1/jquery-ui.js"></script>
+        <script src="{{ url('assets/libs/jquery-ui/jquery-ui.js') }}"></script>
         <!-- third party js ends -->
 
         <!-- Datatables init -->
@@ -1776,14 +2130,20 @@
         <script src="{{url('ckeditor/ckeditor.js')}}"></script>
         <script src="{{url('ckeditor/adapters/jquery.js')}}"></script>
 
-        <!-- Firebase Notifications -->
-        <script src="{{url('js/firebase-notifications.js')}}"></script>
+        <!-- Firebase Notifications (tras banner L2 si aplica) -->
+        @include('partials.partilot-cookie-consent-state')
+        @include('partials.legal-analytics-scripts')
+        <script>
+            window.partilotDeferFirebaseUntilCookieBanner = @json((bool) config('legal.defer_firebase_until_cookie_banner', true));
+        </script>
+        <script src="{{url('js/firebase-notifications.js')}}" defer></script>
 
         <!-- Image Persistence -->
         <script src="{{url('js/image-persistence.js')}}"></script>
 
         <!-- Spanish Document Validator -->
         <script src="{{url('js/spanish-document-validator.js')}}"></script>
+        <script src="{{url('js/partilot-date-input.js')}}"></script>
         
         <!-- Email Validator -->
         <script src="{{url('js/email-validator.js')}}"></script>
@@ -1809,17 +2169,47 @@
                         document.documentElement.classList.remove('partilot-loading');
 
                         if (!preloader) {
+                            window.setTimeout(function () {
+                                if (typeof window.partilotShowPageFlashes === 'function') {
+                                    window.partilotShowPageFlashes();
+                                }
+                            }, 0);
                             return;
                         }
 
                         preloader.classList.add('partilot-preloader--hide');
                         window.setTimeout(function () {
-                            if (preloader.parentNode) {
-                                preloader.parentNode.removeChild(preloader);
-                            }
+                            window.setTimeout(function () {
+                                if (typeof window.partilotShowPageFlashes === 'function') {
+                                    window.partilotShowPageFlashes();
+                                }
+                            }, 0);
                         }, 380);
                     }, delay);
                 }
+
+                window.partilotBeginNavLoading = function () {
+                    document.documentElement.classList.add('partilot-loading');
+                    var preloader = document.getElementById('partilot-preloader');
+                    if (preloader) {
+                        preloader.classList.remove('partilot-preloader--hide');
+                    }
+                };
+
+                document.addEventListener('click', function (event) {
+                    var link = event.target.closest('a.menu-link[href], a.panel-link[href], .left-side-menu a[href]');
+                    if (!link || link.target === '_blank') {
+                        return;
+                    }
+                    var href = link.getAttribute('href');
+                    if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+                        return;
+                    }
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                        return;
+                    }
+                    window.partilotBeginNavLoading();
+                });
 
                 function whenReady() {
                     var loadDone = new Promise(function (resolve) {
@@ -1841,64 +2231,29 @@
                 window.setTimeout(hidePartilotPreloader, MAX_WAIT_MS);
             })();
         </script>
-
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                if (typeof PNotify === 'undefined') return;
-
-                PNotify.prototype.options.styling = 'bootstrap3';
-                PNotify.prototype.options.delay = 5000;
-                PNotify.prototype.options.opacity = 1;
-                PNotify.prototype.options.animate = false;
-                PNotify.prototype.options.stack = {
-                    dir1: 'down',
-                    dir2: 'left',
-                    firstpos1: 90,
-                    firstpos2: 12
-                };
-
-                const notices = [
-                    { type: 'success', text: @json($flashSuccess) },
-                    { type: 'notice', text: @json($flashWarning) },
-                    { type: 'error', text: @json($flashError) },
-                    { type: 'error', text: @json($flashValidationErrors) }
-                ];
-
-                notices.forEach(function (item) {
-                    if (!item.text) return;
-                    if (typeof PNotify.removeAll === 'function') {
-                        PNotify.removeAll();
-                    }
-                    document.querySelectorAll('.ui-pnotify').forEach(function (el) { el.remove(); });
-                    new PNotify({
-                        type: item.type,
-                        addclass: 'partilot-notify' + (item.type === 'error' ? ' partilot-notify-error' : ''),
-                        width: '460px',
-                        text: item.text,
-                        hide: true,
-                        buttons: {
-                            closer: true,
-                            sticker: false,
-                            closer_hover: false
-                        }
-                    });
-                });
-
-                // Fallback: algunos temas no enlazan bien el closer de PNotify con Bootstrap.
-                document.addEventListener('click', function (e) {
-                    const closer = e.target.closest('.ui-pnotify .ui-pnotify-closer');
-                    if (!closer) return;
-                    const notice = closer.closest('.ui-pnotify');
-                    if (notice) {
-                        notice.remove();
-                    }
-                });
-            });
-        </script>
+        @include('partials.panel-legal-acceptance-modal')
         @include('partials.lottery-deadline-reminder-modal')
         @include('partials.lottery-deadline-admin-decision-modal')
+        @include('partials.entity-management-fee-modal')
 
         @auth
+        @if(!empty($panelLegalAcceptanceModal))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var modalEl = document.getElementById('panelLegalAcceptanceModal');
+                if (!modalEl || typeof bootstrap === 'undefined') return;
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+        </script>
+        @elseif(!empty($entityManagementFeeModalAlert))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var modalEl = document.getElementById('entityManagementFeeModal');
+                if (!modalEl || typeof bootstrap === 'undefined') return;
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+        </script>
+        @endif
         @if(!empty($lotteryDeadlineAdminDecisionAlerts))
         <script>
             function showLotteryDeadlineAdminDecisionModalIfAny() {
@@ -1973,42 +2328,60 @@
                 var lotteryId = firstItem.getAttribute('data-lottery-id');
 
                 function postDecision(url, confirmMessage) {
-                    if (!window.confirm(confirmMessage)) return;
-
-                    fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrf,
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            entity_id: parseInt(entityId, 10),
-                            lottery_id: parseInt(lotteryId, 10),
-                            confirm: true
+                    var run = function () {
+                        fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrf,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                entity_id: parseInt(entityId, 10),
+                                lottery_id: parseInt(lotteryId, 10),
+                                confirm: true
+                            })
                         })
-                    })
-                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-                    .then(function (result) {
-                        if (result.ok && result.data.ok) {
-                            bootstrap.Modal.getInstance(adminModalEl).hide();
-                            if (typeof PNotify !== 'undefined') {
-                                new PNotify({
-                                    title: 'Decisión registrada',
-                                    text: result.data.message || '',
-                                    type: 'success',
-                                    addclass: 'partilot-notify'
-                                });
+                        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                        .then(function (result) {
+                            if (result.ok && result.data.ok) {
+                                bootstrap.Modal.getInstance(adminModalEl).hide();
+                                if (typeof window.partilotNotify === 'function') {
+                                    window.partilotNotify('success', result.data.message || 'Decisión registrada.', 'Decisión registrada');
+                                } else if (typeof PNotify !== 'undefined') {
+                                    new PNotify({
+                                        title: 'Decisión registrada',
+                                        text: result.data.message || '',
+                                        type: 'success',
+                                        addclass: 'partilot-notify'
+                                    });
+                                }
                             } else {
-                                alert(result.data.message || 'Decisión registrada.');
+                                if (typeof window.partilotNotify === 'function') {
+                                    window.partilotNotify('error', result.data.message || 'No se pudo registrar la decisión.');
+                                }
                             }
-                        } else {
-                            alert(result.data.message || 'No se pudo registrar la decisión.');
-                        }
-                    })
-                    .catch(function () {
-                        alert('Error de conexión al registrar la decisión.');
-                    });
+                        })
+                        .catch(function () {
+                            if (typeof window.partilotNotify === 'function') {
+                                window.partilotNotify('error', 'Error de conexión al registrar la decisión.');
+                            }
+                        });
+                    };
+
+                    if (typeof window.partilotConfirm === 'function') {
+                        window.partilotConfirm({
+                            title: 'Confirmar decisión',
+                            message: confirmMessage,
+                            confirmText: 'Confirmar',
+                            cancelText: 'Cancelar'
+                        }).then(function (ok) {
+                            if (ok) run();
+                        });
+                        return;
+                    }
+
+                    run();
                 }
 
                 var assumeBtn = document.getElementById('lotteryDeadlineAdminAssumeDebtBtn');
@@ -2034,13 +2407,82 @@
             });
         </script>
         @endif
+        @php
+            $backgroundTasksPollUrl = route('background-tasks.index', ['mine' => 1, 'active' => 1, 'limit' => 20]);
+            $backgroundTasksAckUrl = route('background-tasks.index', ['mine' => 1, 'limit' => 50]);
+            $backgroundTasksShowBaseUrl = url('background-tasks');
+            $devolutionsIndexUrlForBg = route('devolutions.index');
+        @endphp
         <script>
             document.addEventListener('DOMContentLoaded', function () {
-                const pollUrl = @json(route('background-tasks.index', ['mine' => 1, 'limit' => 20]));
-                const devolutionsIndexUrl = @json(route('devolutions.index'));
+                const pollUrl = @json($backgroundTasksPollUrl);
+                const ackUrl = @json($backgroundTasksAckUrl);
+                const taskShowBaseUrl = @json($backgroundTasksShowBaseUrl);
+                const taskShowUrl = function (uuid) {
+                    return taskShowBaseUrl + '/' + encodeURIComponent(uuid);
+                };
+                const devolutionsIndexUrl = @json($devolutionsIndexUrlForBg);
                 const notifiedPrefix = 'background_task_notified_';
                 const PARTILOT_PENDING_NOTIFY_KEY = 'partilot_pending_background_notify';
                 const PARTILOT_BG_JOB_STARTED_KEY = 'partilot_bg_job_started';
+                const PARTILOT_WATCHED_TASKS_KEY = 'partilot_watched_background_tasks';
+
+                window.partilotWatchBackgroundTask = function (uuid) {
+                    if (!uuid) return;
+                    var list = [];
+                    try {
+                        list = JSON.parse(sessionStorage.getItem(PARTILOT_WATCHED_TASKS_KEY) || '[]');
+                    } catch (e) {}
+                    if (!Array.isArray(list)) list = [];
+                    if (list.indexOf(uuid) === -1) {
+                        list.push(uuid);
+                        sessionStorage.setItem(PARTILOT_WATCHED_TASKS_KEY, JSON.stringify(list));
+                    }
+                };
+
+                const getWatchedTaskUuids = function () {
+                    try {
+                        var list = JSON.parse(sessionStorage.getItem(PARTILOT_WATCHED_TASKS_KEY) || '[]');
+                        return Array.isArray(list) ? list.filter(Boolean) : [];
+                    } catch (e) {
+                        return [];
+                    }
+                };
+
+                const unwatchBackgroundTask = function (uuid) {
+                    var list = getWatchedTaskUuids().filter(function (id) { return id !== uuid; });
+                    try {
+                        if (list.length) {
+                            sessionStorage.setItem(PARTILOT_WATCHED_TASKS_KEY, JSON.stringify(list));
+                        } else {
+                            sessionStorage.removeItem(PARTILOT_WATCHED_TASKS_KEY);
+                        }
+                    } catch (e) {}
+                };
+
+                const markTaskNotified = function (task) {
+                    if (!task || !task.uuid || !task.status) return;
+                    localStorage.setItem(notifiedPrefix + task.uuid + '_' + task.status, '1');
+                };
+
+                const acknowledgeHistoricalTasks = function () {
+                    fetch(ackUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    })
+                        .then(function (res) { return res.ok ? res.json() : null; })
+                        .then(function (data) {
+                            var items = Array.isArray(data?.items) ? data.items : [];
+                            items.forEach(function (item) {
+                                if (item.status === 'completed' || item.status === 'failed') {
+                                    markTaskNotified(item);
+                                }
+                            });
+                        })
+                        .catch(function () {});
+                };
 
                 const queuePendingNotify = function (title, text, pnotifyType) {
                     try {
@@ -2131,7 +2573,7 @@
                     if (!task || !task.uuid) return;
                     const notifyKey = notifiedPrefix + task.uuid + '_' + task.status;
                     if (localStorage.getItem(notifyKey)) return;
-                    localStorage.setItem(notifyKey, '1');
+                    markTaskNotified(task);
 
                     if (typeof PNotify === 'undefined') return;
 
@@ -2191,6 +2633,29 @@
                     }
                 };
 
+                const pollWatchedTasks = function () {
+                    var watched = getWatchedTaskUuids();
+                    if (!watched.length) return;
+
+                    watched.forEach(function (uuid) {
+                        fetch(taskShowUrl(uuid), {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json'
+                            }
+                        })
+                            .then(function (res) { return res.ok ? res.json() : null; })
+                            .then(function (task) {
+                                if (!task || !task.uuid) return;
+                                if (task.status === 'completed' || task.status === 'failed') {
+                                    unwatchBackgroundTask(uuid);
+                                    notifyTask(task);
+                                }
+                            })
+                            .catch(function () {});
+                    });
+                };
+
                 const pollBackgroundTasks = () => {
                     fetch(pollUrl, {
                         headers: {
@@ -2202,19 +2667,131 @@
                         .then((data) => {
                             const items = Array.isArray(data?.items) ? data.items : [];
                             items.forEach(function (item) {
-                                if (item.status === 'completed' || item.status === 'failed') {
-                                    notifyTask(item);
+                                if (item.uuid && (item.status === 'pending' || item.status === 'running')) {
+                                    window.partilotWatchBackgroundTask(item.uuid);
                                 }
                             });
                         })
                         .catch(() => {});
                 };
 
+                acknowledgeHistoricalTasks();
+                pollWatchedTasks();
                 pollBackgroundTasks();
-                setInterval(pollBackgroundTasks, 3000);
+                setInterval(function () {
+                    pollWatchedTasks();
+                    pollBackgroundTasks();
+                }, 3000);
             });
         </script>
         @endauth
+
+        @if(auth()->check() && ! auth()->user()->isSuperAdmin())
+        <script>
+        (function () {
+            var listEl = document.getElementById('panel-inbox-list');
+            var badgeEl = document.getElementById('panel-inbox-badge');
+            var markAllBtn = document.getElementById('panel-inbox-mark-all');
+            if (!listEl || !badgeEl) return;
+
+            var csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                || document.querySelector('input[name="_token"]')?.value
+                || '';
+
+            function setBadge(count) {
+                badgeEl.textContent = count > 99 ? '99+' : String(count);
+                if (count > 0) {
+                    badgeEl.classList.add('is-visible');
+                } else {
+                    badgeEl.classList.remove('is-visible');
+                }
+            }
+
+            function escapeHtml(s) {
+                return String(s || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+
+            function render(items) {
+                if (!items.length) {
+                    listEl.innerHTML = '<div class="p-3 text-muted text-center small">No hay notificaciones</div>';
+                    return;
+                }
+                listEl.innerHTML = items.map(function (n) {
+                    return '<a href="javascript:void(0);" class="panel-inbox-item' + (n.read ? '' : ' unread') + '" data-id="' + n.id + '">'
+                        + '<div class="title">' + escapeHtml(n.title) + '</div>'
+                        + '<div class="msg">' + escapeHtml(n.message) + '</div>'
+                        + '<div class="meta">' + escapeHtml(n.created_at_human || '') + (n.sender ? ' · ' + escapeHtml(n.sender) : '') + '</div>'
+                        + '</a>';
+                }).join('');
+            }
+
+            function loadFeed() {
+                fetch(@json(route('notifications.panel-inbox')) + '?limit=10', {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.success) return;
+                        setBadge(data.unread || 0);
+                        render(data.notifications || []);
+                    })
+                    .catch(function () {
+                        listEl.innerHTML = '<div class="p-3 text-muted text-center small">No se pudieron cargar</div>';
+                    });
+            }
+
+            listEl.addEventListener('click', function (e) {
+                var item = e.target.closest('.panel-inbox-item');
+                if (!item) return;
+                var id = item.getAttribute('data-id');
+                if (!id || item.classList.contains('read-pending')) return;
+                item.classList.add('read-pending');
+                fetch(@json(url('notifications/panel-inbox')) + '/' + id + '/read', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrf
+                    },
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        item.classList.remove('unread', 'read-pending');
+                        if (data && typeof data.unread === 'number') setBadge(data.unread);
+                    })
+                    .catch(function () { item.classList.remove('read-pending'); });
+            });
+
+            if (markAllBtn) {
+                markAllBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fetch(@json(route('notifications.panel-inbox-read-all')), {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrf
+                        },
+                        credentials: 'same-origin'
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function () { loadFeed(); })
+                        .catch(function () {});
+                });
+            }
+
+            loadFeed();
+            setInterval(loadFeed, 60000);
+        })();
+        </script>
+        @endif
 
         @yield('scripts')
 
@@ -2363,6 +2940,8 @@
             localStorage.removeItem('guide-step3');
             localStorage.removeItem('guide-step4');
         </script>
+
+        @include('partials.cookie-consent-banner')
 
     </body>
 

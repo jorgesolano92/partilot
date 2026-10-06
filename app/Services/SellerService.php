@@ -23,7 +23,10 @@ class SellerService
             // Primero verificar si ya existe un seller con este email
             $existingSeller = Seller::with('entities')->where('email', $data['email'])->first();
             
-            if ($existingSeller) {
+            // Generar token de confirmación
+            $confirmationToken = Str::random(64);
+
+            if ($existingSeller && (int) $existingSeller->status !== Seller::STATUS_REJECTED) {
                 // Seller ya existe - verificar si ya está vinculado a esta entidad
                 if ($existingSeller->entities->contains($entityId)) {
                     throw new \Exception("Este vendedor ya está asignado a la entidad seleccionada");
@@ -35,14 +38,24 @@ class SellerService
                 Log::info("Vendedor existente ID:{$existingSeller->id} agregado a la entidad {$entityId}");
                 return $existingSeller;
             }
-            
-            // No existe seller con este email, buscar usuario
-            $user = User::where('email', $data['email'])->first();
-            
-            // Generar token de confirmación
-            $confirmationToken = Str::random(64);
-            
-            if ($user) {
+
+            $user = $existingSeller ? null : User::where('email', $data['email'])->first();
+
+            if ($existingSeller) {
+                // Rechazó una invitación anterior: se reinvita conservando el mismo registro.
+                if (! $existingSeller->entities->contains($entityId)) {
+                    $existingSeller->entities()->attach($entityId);
+                }
+                $existingSeller->update([
+                    'status' => Seller::STATUS_PENDING,
+                    'confirmation_token' => $confirmationToken,
+                    'confirmation_sent_at' => now(),
+                    'role_invitation_reminder_sent_at' => null,
+                ]);
+                $seller = $existingSeller;
+
+                Log::info("Vendedor ID:{$seller->id} reinvitado a la entidad {$entityId} tras rechazo previo");
+            } elseif ($user) {
                 // Usuario existe - crear vendedor pendiente de confirmación
                 $seller = Seller::create([
                     'user_id' => $user->id,
@@ -68,30 +81,6 @@ class SellerService
                     $user->update(['role' => User::ROLE_SELLER]);
                 }
 
-                try {
-                    $entity = Entity::find($entityId);
-                    if ($entity instanceof Entity) {
-                        $inbox = app(AppInboxNotificationService::class);
-                        $senderId = $inbox->resolveSenderIdForEntity($entityId) ?? (int) $user->id;
-                        $inbox->notifyUser(
-                            (int) $user->id,
-                            $entityId,
-                            $entity->administration_id ? (int) $entity->administration_id : null,
-                            $senderId,
-                            'invitacion_vendedor',
-                            $entity->name,
-                            'Te han invitado como vendedor PARTILOT para esta entidad. Revisa tu correo para confirmar.',
-                            [
-                                'seller_id' => $seller->id,
-                                'entity_id' => $entityId,
-                                'rol_context' => 'vendedor',
-                            ]
-                        );
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('Inbox invitación vendedor: '.$e->getMessage());
-                }
-                
                 Log::info("Vendedor PARTILOT creado pendiente de confirmación, usuario {$user->id} y entidad {$entityId}");
             } else {
                 // Usuario no existe - crear vendedor pendiente de vinculación y confirmación
@@ -135,6 +124,13 @@ class SellerService
                 Log::error("Error al enviar correo de confirmación: " . ($log->error_message ?? 'unknown'));
                 // No lanzar excepción, el vendedor ya está creado
             }
+
+            $seller->refresh();
+            try {
+                app(AppInboxNotificationService::class)->notifySellerInvitation($seller, $entityId);
+            } catch (\Throwable $e) {
+                Log::warning('Inbox invitación vendedor (post-alta): '.$e->getMessage());
+            }
             
             return $seller;
         });
@@ -145,6 +141,10 @@ class SellerService
      */
     public function createExternalSeller(array $data, int $entityId): Seller
     {
+        if (trim((string) ($data['nif_cif'] ?? '')) === '') {
+            throw new \InvalidArgumentException('El NIF/CIF es obligatorio para vendedores externos.');
+        }
+
         return DB::transaction(function () use ($data, $entityId) {
             // Primero verificar si ya existe un seller con este email
             $existingSeller = Seller::with('entities')->where('email', $data['email'])->first();
@@ -230,6 +230,62 @@ class SellerService
                 'created_at' => $seller->created_at->format('d/m/Y H:i')
             ];
         });
+    }
+
+    /**
+     * Crear o vincular la cuenta de usuario de un vendedor PARTILOT sin user_id.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function ensurePartilotUserAccount(Seller $seller, array $attributes): User
+    {
+        if ($seller->seller_type !== 'partilot') {
+            throw new \InvalidArgumentException('Solo los vendedores PARTILOT pueden tener cuenta de usuario.');
+        }
+
+        $email = trim((string) ($attributes['email'] ?? $seller->email ?? ''));
+        if ($email === '') {
+            throw new \InvalidArgumentException('El email es obligatorio para crear la cuenta del vendedor.');
+        }
+
+        $user = null;
+        if ($seller->user_id > 0) {
+            $user = User::find($seller->user_id);
+        }
+
+        if (! $user) {
+            $user = User::where('email', $email)->first();
+        }
+
+        $userData = [
+            'name' => $attributes['name'] ?? $seller->name,
+            'last_name' => $attributes['last_name'] ?? $seller->last_name,
+            'last_name2' => $attributes['last_name2'] ?? $seller->last_name2,
+            'nif_cif' => $attributes['nif_cif'] ?? $seller->nif_cif,
+            'birthday' => $attributes['birthday'] ?? $seller->birthday,
+            'email' => $email,
+            'phone' => $attributes['phone'] ?? $seller->phone,
+            'role' => User::ROLE_SELLER,
+            'status' => true,
+        ];
+
+        if (! $user) {
+            $user = app(ManagerAccountService::class)->createUser($userData, 'vendedor');
+            Log::info("Cuenta de usuario creada para vendedor PARTILOT {$seller->id}");
+        } else {
+            if ($user->isPanelAccount()) {
+                throw new \InvalidArgumentException('Ese email corresponde a una cuenta de acceso al panel.');
+            }
+
+            $user->update($userData);
+            Log::info("Vendedor PARTILOT {$seller->id} vinculado al usuario existente {$user->id}");
+        }
+
+        if (! $seller->isLinkedToUser() || (int) $seller->user_id !== (int) $user->id) {
+            $seller->update(['user_id' => $user->id]);
+        }
+
+        return $user;
     }
 
     /**

@@ -7,7 +7,10 @@ use App\Models\LotteryType;
 use App\Models\Administration;
 use App\Models\LotteryResult;
 use App\Jobs\NotifyLotteryResultsPublishedJob;
+use App\Services\EntityLotteryPrizeService;
 use App\Services\NavidadScrapingService;
+use App\Support\LotteryPanelAccess;
+use App\Rules\ValidCalendarDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Validator;
@@ -20,16 +23,32 @@ class LotteryController extends Controller
     /**
      * Mostrar lista de sorteos
      */
-    public function index()
+    public function index(Request $request)
     {
-        $lotteries = Lottery::with(['lotteryType'])
+        $user = auth()->user();
+        $filterAdministration = \App\Support\AdministrationListFilter::resolve($request, $user);
+
+        $lotteryAccess = LotteryPanelAccess::for($user);
+        $query = Lottery::with(['lotteryType'])
             ->orderBy('draw_date', 'desc')
-            ->orderBy('id', 'desc')
-            ->get();
+            ->orderBy('id', 'desc');
 
-        $lotteryAccess = \App\Support\LotteryPanelAccess::for(auth()->user());
+        if ($lotteryAccess['canViewEntityPrizesOnly'] ?? false) {
+            $entityIds = $user->accessibleEntityIds();
+            if (empty($entityIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHas('reserves', fn ($q) => $q->whereIn('entity_id', $entityIds));
+            }
+        }
 
-        return view('lottery.index', compact('lotteries', 'lotteryAccess'));
+        if ($filterAdministration) {
+            $query->whereHas('reserves.entity', fn ($q) => $q->where('administration_id', $filterAdministration->id));
+        }
+
+        $lotteries = $query->get();
+
+        return view('lottery.index', compact('lotteries', 'lotteryAccess', 'filterAdministration'));
     }
 
     /**
@@ -37,6 +56,8 @@ class LotteryController extends Controller
      */
     public function create()
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $lotteryTypes = LotteryType::where('is_active', true)->get();
 
         return view('lottery.add', compact('lotteryTypes'));
@@ -47,12 +68,15 @@ class LotteryController extends Controller
      */
     public function store(Request $request)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'draw_date' => 'required|date|after:today',
-            'draw_time' => 'required',
-            'deadline_date' => 'nullable|date|after:today|before:draw_date',
+            'draw_date' => ValidCalendarDate::afterToday(),
+            'draw_time' => 'nullable|date_format:H:i',
+            'deadline_date' => array_merge(ValidCalendarDate::afterToday(false), ['before:draw_date']),
+            'deadline_time' => 'required|date_format:H:i',
             'ticket_price' => 'required|numeric|min:0',
             // 'lottery_type_code' => 'required|string|in:J,X,S,N,B,V',
             'is_special' => 'nullable|boolean',
@@ -93,11 +117,38 @@ class LotteryController extends Controller
     /**
      * Mostrar sorteo específico
      */
-    public function show(Lottery $lottery)
+    public function show(Lottery $lottery, EntityLotteryPrizeService $entityPrizeService)
     {
         $lottery->load(['lotteryType']);
-        
-        return view('lottery.show', compact('lottery'));
+        $lotteryAccess = LotteryPanelAccess::for(auth()->user());
+
+        if ($lotteryAccess['canViewEntityPrizesOnly'] ?? false) {
+            $entity = $entityPrizeService->resolveViewEntity(auth()->user());
+            if (! $entity || ! $entityPrizeService->entityParticipatesInLottery($entity, $lottery)) {
+                abort(403, 'No tiene acceso al premio de este sorteo.');
+            }
+
+            $scrutiny = $entityPrizeService->getScrutinyForEntity($entity, $lottery);
+            $participationStats = $entityPrizeService->participationStats($entity, $lottery);
+            $entityResults = $scrutiny?->detailedResults ?? collect();
+            $totalEntityPrize = $entityResults->sum(fn ($result) => $entityPrizeService->recalculateDecimos($result, $lottery)['premio_total']);
+
+            $prizeSetting = app(\App\Services\EntityLotteryPrizePaymentService::class)
+                ->getSettings((int) $entity->id, (int) $lottery->id);
+
+            return view('lottery.show_entity_prizes', compact(
+                'lottery',
+                'entity',
+                'scrutiny',
+                'participationStats',
+                'entityResults',
+                'totalEntityPrize',
+                'entityPrizeService',
+                'prizeSetting'
+            ));
+        }
+
+        return view('lottery.show', compact('lottery', 'lotteryAccess'));
     }
 
     /**
@@ -105,6 +156,8 @@ class LotteryController extends Controller
      */
     public function edit(Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $lotteryTypes = LotteryType::where('is_active', true)->get();
 
         return view('lottery.edit', compact('lottery', 'lotteryTypes'));
@@ -115,12 +168,15 @@ class LotteryController extends Controller
      */
     public function update(Request $request, Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'draw_date' => 'required|date',
-            'draw_time' => 'required',
-            'deadline_date' => 'nullable|date|before:draw_date',
+            'draw_date' => ValidCalendarDate::rules(true),
+            'draw_time' => 'nullable|date_format:H:i',
+            'deadline_date' => array_merge(ValidCalendarDate::rules(false), ['before:draw_date']),
+            'deadline_time' => 'required|date_format:H:i',
             'ticket_price' => 'required|numeric|min:0',
             // 'lottery_type_code' => 'required|string|in:J,X,S,N,B,V',
             'is_special' => 'nullable|boolean',
@@ -167,6 +223,8 @@ class LotteryController extends Controller
      */
     public function destroy(Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         // Eliminar imagen si existe
         if ($lottery->image && File::exists(public_path('uploads/' . $lottery->image))) {
             File::delete(public_path('uploads/' . $lottery->image));
@@ -183,6 +241,8 @@ class LotteryController extends Controller
      */
     public function changeStatus(Request $request, Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $request->validate([
             'status' => 'required|integer|in:1,2,3,4' // 1=active, 2=inactive, 3=completed, 4=cancelled
         ]);
@@ -198,6 +258,8 @@ class LotteryController extends Controller
      */
     public function deleteImage(Lottery $lottery)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         if ($lottery->image && File::exists(public_path('uploads/' . $lottery->image))) {
             // Eliminar archivo físico
             File::delete(public_path('uploads/' . $lottery->image));
@@ -216,6 +278,8 @@ class LotteryController extends Controller
      */
     public function generate(Request $request)
     {
+        LotteryPanelAccess::ensureCanManageLotteries();
+
         $validator = Validator::make($request->all(), [
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
@@ -233,7 +297,7 @@ class LotteryController extends Controller
             $dateTo = date('Ymd', strtotime($request->date_to));
 
             // Construir URL de la API (celebrados=true: en pruebas reduce errores 503 respecto a celebrados=false)
-            $apiUrl = "https://www.loteriasyapuestas.es/servicios/buscadorSorteos?game_id=LNAC&celebrados=true&fechaInicioInclusiva={$dateFrom}&fechaFinInclusiva={$dateTo}";
+            $apiUrl = "https://www.loteriasyapuestas.es/servicios/buscadorSorteos?game_id=LNAC&celebrados=false&fechaInicioInclusiva={$dateFrom}&fechaFinInclusiva={$dateTo}";
 
             // Realizar petición HTTP usando Guzzle
             $response = Http::withOptions(['verify' => config('app.http_verify_ssl')])
@@ -285,24 +349,14 @@ class LotteryController extends Controller
                         continue; // Saltar si no tiene fecha o ID de sorteo
                     }
 
-                    // Extraer fecha y hora del sorteo
-                    $fechaSorteo = $sorteo['fecha_sorteo'];
-                    $horaSorteo = null;
-                    
-                    // Extraer hora de la fecha_sorteo si contiene hora
-                    if (strpos($fechaSorteo, ' ') !== false) {
-                        $fechaHora = explode(' ', $fechaSorteo);
-                        $fechaSorteo = $fechaHora[0];
-                        $horaSorteo = $fechaHora[1];
-                    }
+                    // Extraer fecha y hora del sorteo y del cierre
+                    $drawParts = $this->parseApiDateTime($sorteo['fecha_sorteo']);
+                    $cierreParts = $this->parseApiDateTime($sorteo['cierre'] ?? null);
 
-                    // Convertir fecha y hora a formato datetime
-                    $drawDateTime = null;
-                    if ($horaSorteo) {
-                        $drawDateTime = $fechaSorteo . ' ' . $horaSorteo;
-                    } else {
-                        $drawDateTime = $fechaSorteo . ' 00:00:00';
-                    }
+                    $fechaSorteo = $drawParts['date'];
+                    $horaSorteo = $drawParts['time'];
+                    $fechaCierre = $cierreParts['date'] ?? $fechaSorteo;
+                    $horaCierre = $cierreParts['time'] ?? '23:59:00';
 
                     // Preparar datos del sorteo
                     // Generar nombre del sorteo: num_sorteo/últimas 2 cifras del año
@@ -315,8 +369,9 @@ class LotteryController extends Controller
                         'name' => $nombreSorteo,
                         'description' => $sorteo['nombre'] ?? '', // Usar día de la semana como descripción
                         'draw_date' => $fechaSorteo,
-                        'deadline_date' => $fechaSorteo,
-                        'draw_time' => $horaSorteo ? $horaSorteo : '00:00:00',
+                        'deadline_date' => $fechaCierre,
+                        'deadline_time' => $horaCierre,
+                        'draw_time' => $horaSorteo,
                         'ticket_price' => $sorteo['precioDecimo'], // Precio del décimo desde JSON
                         'lottery_type_code' => $sorteo['tipoSorteo'] ?? 'S', // Código del tipo desde JSON
                         'is_special' => isset($sorteo['premio_especial']) && $sorteo['premio_especial'] > 0, // Es especial si tiene premio especial
@@ -538,21 +593,10 @@ class LotteryController extends Controller
             // Obtener los datos guardados de la base de datos para incluir las pedreas
             $savedResult = LotteryResult::where('lottery_id', $lottery->id)->first();
             
-            // Eliminar duplicados de las extracciones antes de devolver los datos
             $responseData = $filteredData; // Datos originales de la API
-            
-            // Aplicar eliminación de duplicados a las extracciones
+
             if (isset($responseData['extraccionesDeCincoCifras'])) {
                 $responseData['extraccionesDeCincoCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeCincoCifras']);
-            }
-            if (isset($responseData['extraccionesDeCuatroCifras'])) {
-                $responseData['extraccionesDeCuatroCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeCuatroCifras']);
-            }
-            if (isset($responseData['extraccionesDeTresCifras'])) {
-                $responseData['extraccionesDeTresCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeTresCifras']);
-            }
-            if (isset($responseData['extraccionesDeDosCifras'])) {
-                $responseData['extraccionesDeDosCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeDosCifras']);
             }
             
             if ($savedResult) {
@@ -603,11 +647,11 @@ class LotteryController extends Controller
         $resultData['cuartos_premios'] = $data['cuartosPremios'] ?? [];
         $resultData['quintos_premios'] = $data['quintosPremios'] ?? [];
 
-        // Procesar extracciones (eliminar duplicados)
+        // Las bolas repetidas de 4, 3 y 2 cifras son extracciones reales y cobran cada una
         $resultData['extracciones_cinco_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCincoCifras'] ?? []);
-        $resultData['extracciones_cuatro_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCuatroCifras'] ?? []);
-        $resultData['extracciones_tres_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeTresCifras'] ?? []);
-        $resultData['extracciones_dos_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeDosCifras'] ?? []);
+        $resultData['extracciones_cuatro_cifras'] = $data['extraccionesDeCuatroCifras'] ?? [];
+        $resultData['extracciones_tres_cifras'] = $data['extraccionesDeTresCifras'] ?? [];
+        $resultData['extracciones_dos_cifras'] = $data['extraccionesDeDosCifras'] ?? [];
 
         // Procesar reintegros
         $resultData['reintegros'] = $data['reintegros'] ?? [];
@@ -647,11 +691,11 @@ class LotteryController extends Controller
         $updateData['cuartos_premios'] = $data['cuartosPremios'] ?? [];
         $updateData['quintos_premios'] = $data['quintosPremios'] ?? [];
 
-        // Procesar extracciones (eliminar duplicados)
+        // Las bolas repetidas de 4, 3 y 2 cifras son extracciones reales y cobran cada una
         $updateData['extracciones_cinco_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCincoCifras'] ?? []);
-        $updateData['extracciones_cuatro_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCuatroCifras'] ?? []);
-        $updateData['extracciones_tres_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeTresCifras'] ?? []);
-        $updateData['extracciones_dos_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeDosCifras'] ?? []);
+        $updateData['extracciones_cuatro_cifras'] = $data['extraccionesDeCuatroCifras'] ?? [];
+        $updateData['extracciones_tres_cifras'] = $data['extraccionesDeTresCifras'] ?? [];
+        $updateData['extracciones_dos_cifras'] = $data['extraccionesDeDosCifras'] ?? [];
 
         // Procesar reintegros
         $updateData['reintegros'] = $data['reintegros'] ?? [];
@@ -792,8 +836,15 @@ class LotteryController extends Controller
     /**
      * Mostrar vista de resultados de lotería (después de seleccionar administración)
      */
-    public function showLotteryResults()
+    public function showLotteryResults(Request $request)
     {
+        if ($request->filled('administration_id')) {
+            $administration = Administration::with('manager')
+                ->forUser(auth()->user())
+                ->findOrFail((int) $request->administration_id);
+            $request->session()->put('selected_administration', $administration);
+        }
+
         $lotteries = Lottery::with(['result', 'lotteryType'])
             ->orderBy('draw_date', 'desc')
             ->orderBy('id', 'desc')
@@ -1028,7 +1079,8 @@ class LotteryController extends Controller
     }
     
     /**
-     * Eliminar duplicados de las extracciones
+     * Eliminar duplicados de las extracciones de 5 cifras: SELAE envía cada número dos veces
+     * (una con el premio acumulado y otra con el premio base).
      */
     private function removeDuplicateExtractions($extractions)
     {
@@ -1066,5 +1118,29 @@ class LotteryController extends Controller
             ->get();
 
         return response()->json($lotteries);
+    }
+
+    /**
+     * @return array{date: string, time: string|null}|null
+     */
+    private function parseApiDateTime(?string $value): ?array
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $value = trim($value);
+        $parts = preg_split('/\s+/', $value, 2);
+        $date = $parts[0] ?? null;
+        if (! $date) {
+            return null;
+        }
+
+        $time = isset($parts[1]) ? substr($parts[1], 0, 8) : null;
+
+        return [
+            'date' => $date,
+            'time' => $time,
+        ];
     }
 } 

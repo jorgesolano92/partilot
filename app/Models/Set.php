@@ -27,6 +27,16 @@ class Set extends Model
         'deadline_date',
         'tickets',
         'status',
+        'management_fee_status',
+        'management_fee_amount',
+        'management_fee_unit_price',
+        'management_fee_participation_count',
+        'management_fee_payer',
+        'management_fee_paid_at',
+        'management_fee_paid_by_user_id',
+        'management_fee_stripe_payment_intent_id',
+        'management_fee_payment_provider',
+        'management_fee_billing_charge_id',
         'created_at',
         'updated_at'
     ];
@@ -43,6 +53,10 @@ class Set extends Model
         'digital_participations' => 'integer',
         'deadline_date' => 'date',
         'tickets' => 'array',
+        'management_fee_amount' => 'decimal:2',
+        'management_fee_unit_price' => 'decimal:4',
+        'management_fee_participation_count' => 'integer',
+        'management_fee_paid_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -77,6 +91,11 @@ class Set extends Model
     public function designFormats()
     {
         return $this->hasMany(DesignFormat::class);
+    }
+
+    public function managementFeeBillingCharge()
+    {
+        return $this->belongsTo(BillingCharge::class, 'management_fee_billing_charge_id');
     }
 
     /**
@@ -145,10 +164,11 @@ class Set extends Model
         $usedReferences = [];
 
         for ($i = 1; $i <= $totalParticipations; $i++) {
-            do {
-                $referencia = ParticipationTicketReference::generate((int) $entityId, (int) $reserveId);
-            } while (isset($usedReferences[$referencia]));
-
+            $referencia = ParticipationTicketReference::generateUnique(
+                (int) $entityId,
+                (int) $reserveId,
+                static fn (string $ref): bool => isset($usedReferences[$ref])
+            );
             $usedReferences[$referencia] = true;
             $tickets[] = [
                 'n' => $i,
@@ -266,6 +286,104 @@ class Set extends Model
     }
 
     /**
+     * Participaciones ya generadas por un diseño (con design_format_id), excluyendo anuladas.
+     */
+    public function participationsAllocatedToDesignCount(): int
+    {
+        return (int) $this->participations()
+            ->whereNotNull('design_format_id')
+            ->where('status', '!=', 'anulada')
+            ->count();
+    }
+
+    /**
+     * Participaciones que aún pueden asignarse a un diseño nuevo en este set.
+     */
+    public function availableParticipationsForNewDesign(): int
+    {
+        return max(0, (int) $this->total_participations - $this->participationsAllocatedToDesignCount());
+    }
+
+    public function hasExistingDesign(): bool
+    {
+        return $this->designFormats()->exists();
+    }
+
+    /**
+     * Hay trabajo real de diseño (no solo un placeholder vacío).
+     * Mientras sea false, el set se puede reconfigurar o borrar.
+     */
+    public function hasRealDesignWork(): bool
+    {
+        $this->loadMissing('designFormats');
+
+        $approval = app(\App\Services\DesignApprovalService::class);
+
+        foreach ($this->designFormats as $design) {
+            if ($approval->designHasParticipationContent($design)) {
+                return true;
+            }
+
+            $cover = trim(strip_tags((string) ($design->cover_html ?? '')));
+            $back = trim(strip_tags((string) ($design->back_html ?? '')));
+            if ($cover !== '' || $back !== '') {
+                return true;
+            }
+
+            if ($design->participation_export_locked_at !== null) {
+                return true;
+            }
+
+            $status = $approval->normalizedApprovalStatus($design->approval_status);
+            if (in_array($status, [
+                \App\Services\DesignApprovalService::STATUS_PENDING,
+                \App\Services\DesignApprovalService::STATUS_APPROVED,
+            ], true)) {
+                return true;
+            }
+        }
+
+        return \App\Models\PrintOrder::query()
+            ->where('set_id', $this->id)
+            ->exists();
+    }
+
+    /**
+     * Elimina diseños vacíos (placeholders) y sus participaciones asociadas.
+     */
+    public function purgeEmptyDesignFormats(): int
+    {
+        $deleted = 0;
+        $approval = app(\App\Services\DesignApprovalService::class);
+
+        foreach ($this->designFormats()->get() as $design) {
+            if ($approval->designHasParticipationContent($design)) {
+                continue;
+            }
+            $cover = trim(strip_tags((string) ($design->cover_html ?? '')));
+            $back = trim(strip_tags((string) ($design->back_html ?? '')));
+            if ($cover !== '' || $back !== '') {
+                continue;
+            }
+            if ($design->participation_export_locked_at !== null) {
+                continue;
+            }
+            $status = $approval->normalizedApprovalStatus($design->approval_status);
+            if (in_array($status, [
+                \App\Services\DesignApprovalService::STATUS_PENDING,
+                \App\Services\DesignApprovalService::STATUS_APPROVED,
+            ], true)) {
+                continue;
+            }
+
+            $design->delete();
+            $deleted++;
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Obtener el total de participaciones restando las anuladas
      */
     public function getTotalParticipationsAttribute()
@@ -282,6 +400,19 @@ class Set extends Model
         $cancelledCount = $this->participations()->where('status', 'anulada')->count();
         $cancelledAmount = $cancelledCount * ($this->played_amount ?? 0);
         return $this->attributes['total_amount'] - $cancelledAmount;
+    }
+
+    /**
+     * Importe total por participación (jugado + donativo).
+     */
+    public function pricePerParticipation(): float
+    {
+        $total = $this->total_participation_amount ?? null;
+        if ($total !== null && (float) $total > 0) {
+            return (float) $total;
+        }
+
+        return (float) (($this->played_amount ?? 0) + ($this->donation_amount ?? 0));
     }
 
     /**

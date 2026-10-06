@@ -27,10 +27,16 @@ use App\Mail\TransferCollectionVerificationMail;
 use App\Mail\DonationCodeConfirmationMail;
 use App\Services\AppInboxNotificationService;
 use App\Services\PendingDigitalSaleService;
-use App\Services\ParticipationGiftService;
+use App\Services\ManagementFeeService;
+use App\Support\ParticipationListPagination;
 use App\Support\ParticipationTicketReference;
 use App\Services\ParticipationOwnerService;
+use App\Services\ParticipationGiftService;
 use App\Services\ParticipationWalletValidityService;
+use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\UserConsentService;
+use App\Models\UserConsent;
+use App\Models\EntityLotteryPrizeActivationLog;
 
 class ParticipationController extends Controller
 {
@@ -223,6 +229,7 @@ class ParticipationController extends Controller
         if ($user && $user->canViewPendingDigitalLinkCode()) {
             $pending = $participation->activePendingDigitalSale();
             if ($pending) {
+                $pending->load('seller');
                 $pending->ensureLinkCode();
                 $pendingDigitalSaleForLinkCode = $pending;
             }
@@ -512,7 +519,7 @@ class ParticipationController extends Controller
             }
 
             $set = $participations->first()->set()->with('reserve')->first();
-            $pricePerParticipation = (float) ($set->played_amount ?? 0);
+            $pricePerParticipation = $set->pricePerParticipation();
             $saleAmount = $participations->count() * $pricePerParticipation;
 
             $paymentMethod = $request->payment_method;
@@ -524,6 +531,12 @@ class ParticipationController extends Controller
                 $this->createSellerSettlementFromSale($seller, $participations, $set, $saleAmount, $paymentMethod, $user->id);
             }
             DB::commit();
+
+            $this->recordSaleConsentIfRequested($request, $user, [
+                'channel' => 'manual',
+                'set_id' => (int) $request->set_id,
+                'seller_id' => $seller->id,
+            ]);
 
             // Confirmación compra digital al email del comprador indicado por el vendedor
             try {
@@ -576,6 +589,7 @@ class ParticipationController extends Controller
             'set_id' => 'nullable|integer|exists:sets,id',
             'entity_id' => 'nullable|integer|exists:entities,id',
             'lottery_id' => 'nullable|integer|exists:lotteries,id',
+            'reserve_id' => 'nullable|integer|exists:reserves,id',
             'quantity' => 'required|integer|min:1',
             'buyer_email' => 'required|email',
             'payment_method' => 'nullable|string|in:efectivo,bizum,transferencia,omitir,otro',
@@ -601,6 +615,7 @@ class ParticipationController extends Controller
 
         $pendingService = app(PendingDigitalSaleService::class);
         $usePool = $request->filled('entity_id') && $request->filled('lottery_id');
+        $reserveId = $request->filled('reserve_id') ? (int) $request->reserve_id : null;
         $pendingService->releaseExpiredForDigitalContext(
             $usePool ? (int) $request->entity_id : null,
             $usePool ? (int) $request->lottery_id : null,
@@ -611,20 +626,24 @@ class ParticipationController extends Controller
             if (!$seller->entities()->where('entities.id', $request->entity_id)->exists()) {
                 return response()->json(['success' => false, 'message' => 'No tienes acceso a esta entidad.'], 403);
             }
-            $ids = Participation::query()
-                ->join('sets', 'participations.set_id', '=', 'sets.id')
-                ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
-                ->where('participations.entity_id', $request->entity_id)
-                ->where('reserves.lottery_id', $request->lottery_id)
-                ->where('sets.physical_participations', '<=', 0)
-                ->whereRaw('sets.digital_participations > 0')
-                ->whereRaw("participations.participation_code LIKE '1D/%'")
-                ->where('participations.status', 'disponible')
-                ->select('participations.id')
-                ->orderBy('participations.id')
-                ->limit($request->quantity)
-                ->pluck('participations.id');
-            $participations = Participation::with('set.reserve')->whereIn('id', $ids)->orderBy('id')->get();
+            if ($reserveId) {
+                $reserveOk = \App\Models\Reserve::query()
+                    ->where('id', $reserveId)
+                    ->where('entity_id', $request->entity_id)
+                    ->where('lottery_id', $request->lottery_id)
+                    ->exists();
+                if (! $reserveOk) {
+                    return response()->json(['success' => false, 'message' => 'La reserva no pertenece a esta entidad y sorteo.'], 422);
+                }
+            }
+            $participations = $pendingService->selectDigitalParticipations(
+                $seller,
+                (int) $request->quantity,
+                null,
+                (int) $request->entity_id,
+                (int) $request->lottery_id,
+                $reserveId
+            );
         } else {
             if (!$request->filled('set_id')) {
                 return response()->json(['success' => false, 'message' => 'Indica set_id o entity_id + lottery_id.'], 422);
@@ -632,6 +651,13 @@ class ParticipationController extends Controller
             $set = \App\Models\Set::with('reserve')->findOrFail($request->set_id);
             if (($set->digital_participations ?? 0) <= 0) {
                 return response()->json(['success' => false, 'message' => 'Este set no es de participaciones digitales.'], 422);
+            }
+            if (! app(ManagementFeeService::class)->allowsDigitalSale($set)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => app(ManagementFeeService::class)->digitalSaleBlockedMessage(),
+                    'management_fee_pending' => true,
+                ], 422);
             }
             if (! $seller->entities()->where('entities.id', $set->entity_id)->exists()) {
                 return response()->json(['success' => false, 'message' => 'No tienes acceso a esta entidad.'], 403);
@@ -655,7 +681,7 @@ class ParticipationController extends Controller
             return response()->json(['success' => false, 'message' => 'Error al obtener el set.'], 500);
         }
 
-        $pricePerParticipation = (float) ($set->played_amount ?? 0);
+        $pricePerParticipation = $set->pricePerParticipation();
         $saleAmount = $participations->count() * $pricePerParticipation;
         $paymentMethod = $request->payment_method;
 
@@ -671,6 +697,12 @@ class ParticipationController extends Controller
                 $this->createSellerSettlementFromSale($seller, $participations, $set, $saleAmount, $paymentMethod, $user->id);
             }
             DB::commit();
+
+            $this->recordSaleConsentIfRequested($request, $user, [
+                'channel' => 'digital',
+                'seller_id' => $seller->id,
+                'buyer_id' => $buyer->id,
+            ]);
 
             try {
                 app(\App\Services\DigitalParticipationNotificationService::class)->sendPurchaseConfirmation(
@@ -706,8 +738,11 @@ class ParticipationController extends Controller
             'set_id' => 'nullable|integer|exists:sets,id',
             'entity_id' => 'nullable|integer|exists:entities,id',
             'lottery_id' => 'nullable|integer|exists:lotteries,id',
+            'reserve_id' => 'nullable|integer|exists:reserves,id',
             'quantity' => 'required|integer|min:1',
             'buyer_email' => 'nullable|email',
+            'buyer_phone' => 'nullable|string|max:20',
+            'notify_channel' => 'nullable|string|in:email,sms,whatsapp',
             'payment_method' => 'nullable|string|in:efectivo,bizum,transferencia,omitir,otro',
         ]);
 
@@ -722,11 +757,32 @@ class ParticipationController extends Controller
         }
 
         $buyerEmail = trim((string) $request->input('buyer_email', ''));
+        $buyerPhone = trim((string) $request->input('buyer_phone', ''));
+        $notifyChannel = $request->input('notify_channel');
+
+        if ($buyerEmail === '' && $buyerPhone === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes indicar el email o el teléfono del comprador.',
+            ], 422);
+        }
+
         if ($buyerEmail !== '' && User::where('email', $buyerEmail)->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => 'El correo ya está registrado. Usa la venta directa.',
             ], 422);
+        }
+
+        if ($request->filled('set_id')) {
+            $setForFee = \App\Models\Set::query()->find((int) $request->set_id);
+            if ($setForFee && ! app(ManagementFeeService::class)->allowsDigitalSale($setForFee)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => app(ManagementFeeService::class)->digitalSaleBlockedMessage(),
+                    'management_fee_pending' => true,
+                ], 422);
+            }
         }
 
         try {
@@ -739,20 +795,34 @@ class ParticipationController extends Controller
                 $request->set_id ? (int) $request->set_id : null,
                 $request->entity_id ? (int) $request->entity_id : null,
                 $request->lottery_id ? (int) $request->lottery_id : null,
+                $buyerPhone !== '' ? $buyerPhone : null,
+                $notifyChannel,
+                $request->filled('reserve_id') ? (int) $request->reserve_id : null,
             );
 
-            $codeOnly = $buyerEmail === '';
+            $initialSmsSent = false;
+            try {
+                $initialSmsSent = $pendingService->sendInitialSmsIfNeeded($pending);
+                $pending->refresh();
+            } catch (\Throwable $e) {
+                \Log::warning('SMS inicial venta digital #'.$pending->id.': '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => $codeOnly
-                    ? 'Venta reservada. Envía el WhatsApp al comprador desde la pantalla de confirmación.'
-                    : 'Se ha enviado un correo al comprador para completar el registro.',
+                'message' => $pending->usesEmailChannel()
+                    ? 'Se ha enviado un correo al comprador para completar el registro.'
+                    : ($initialSmsSent
+                        ? 'Venta registrada y SMS enviado al comprador.'
+                        : 'Venta registrada. Envía el mensaje al comprador desde la pantalla de confirmación.'),
                 'pending_id' => $pending->id,
                 'buyer_registration_url' => $pending->registrationUrlForShare(),
                 'valid_until' => $pending->valid_until?->toIso8601String(),
                 'quantity' => $pending->quantity,
-                'code_only' => $codeOnly,
+                'notify_channel' => $pending->notify_channel,
+                'masked_buyer_contact' => $pending->maskedBuyerContact(),
+                'initial_notify_sent' => $pending->usesEmailChannel() || $initialSmsSent,
+                'buyer_sms_sent_count' => (int) ($pending->buyer_sms_sent_count ?? 0),
             ]);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -785,7 +855,7 @@ class ParticipationController extends Controller
         }
 
         $paymentMethod = in_array($paymentMethod, ['efectivo', 'bizum', 'transferencia'], true) ? $paymentMethod : 'otro';
-        $pricePerParticipation = (float) ($set->played_amount ?? 0);
+        $pricePerParticipation = $set->pricePerParticipation();
         $now = now();
 
         // Obtener TODAS las participaciones (asignada+vendida+pagada) del vendedor para este sorteo
@@ -796,7 +866,7 @@ class ParticipationController extends Controller
             ->get();
 
         $totalParticipations = $allParticipations->count();
-        $totalAmount = $allParticipations->sum(fn ($p) => (float) ($p->set->played_amount ?? 0));
+        $totalAmount = $allParticipations->sum(fn ($p) => (float) ($p->set?->pricePerParticipation() ?? 0));
 
         // Obtener lo ya pagado en liquidaciones previas
         $previousPaid = SellerSettlement::where('seller_id', $seller->id)
@@ -894,7 +964,7 @@ class ParticipationController extends Controller
 
             try {
                 $set = $participations->first()->set()->with('reserve')->first();
-                $pricePerParticipation = (float) ($set->played_amount ?? 0);
+                $pricePerParticipation = $set->pricePerParticipation();
                 $saleAmount = $participations->count() * $pricePerParticipation;
                 $paymentMethod = $request->payment_method;
 
@@ -945,7 +1015,7 @@ class ParticipationController extends Controller
 
         try {
             $set = $participation->set()->with('reserve')->first();
-            $pricePerParticipation = (float) ($set->played_amount ?? 0);
+            $pricePerParticipation = $set->pricePerParticipation();
             $saleAmount = $pricePerParticipation;
             $paymentMethod = $request->payment_method;
 
@@ -955,6 +1025,13 @@ class ParticipationController extends Controller
                 $this->createSellerSettlementFromSale($seller, collect([$participation]), $set, $saleAmount, $paymentMethod, $user->id);
             }
             DB::commit();
+
+            $this->recordSaleConsentIfRequested($request, $user, [
+                'channel' => 'qr',
+                'set_id' => (int) $set->id,
+                'seller_id' => $seller->id,
+                'referencia' => $request->referencia,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -1118,13 +1195,21 @@ class ParticipationController extends Controller
             return response()->json(['success' => false, 'message' => 'Vendedor no encontrado.'], 403);
         }
 
-        $participations = Participation::where('seller_id', $seller->id)
+        $pagination = ParticipationListPagination::parseFromRequest($request);
+        $salesLimit = $pagination['enabled'] ? null : 200;
+        $pendingLimit = $pagination['enabled'] ? null : 50;
+
+        $participationsQuery = Participation::where('seller_id', $seller->id)
             ->where('status', 'vendida')
             ->with(['set.entity', 'set.reserve.lottery.lotteryType', 'set.designFormats'])
             ->orderBy('sale_date', 'desc')
-            ->orderBy('sale_time', 'desc')
-            ->limit(200)
-            ->get();
+            ->orderBy('sale_time', 'desc');
+
+        if ($salesLimit !== null) {
+            $participationsQuery->limit($salesLimit);
+        }
+
+        $participations = $participationsQuery->get();
 
         $historial = $participations->map(function ($p) use ($seller) {
             $set = $p->set;
@@ -1141,8 +1226,12 @@ class ParticipationController extends Controller
             $importeJugado = (float) ($set->played_amount ?? 0);
             $donativo = (float) ($set->donation_amount ?? 0);
             $importeTotal = round($importeJugado + $donativo, 2);
+            // sale_date/sale_time se guardan en hora local de la aplicación: se envían con su desfase real.
             $saleDateTime = $p->sale_date
-                ? $p->sale_date->format('Y-m-d') . 'T' . ($p->sale_time ? (is_object($p->sale_time) ? $p->sale_time->format('H:i:s') : substr((string) $p->sale_time, 0, 8)) : '00:00:00') . '.000000Z'
+                ? \Carbon\Carbon::parse(
+                    $p->sale_date->format('Y-m-d') . ' ' . ($p->sale_time ? (is_object($p->sale_time) ? $p->sale_time->format('H:i:s') : substr((string) $p->sale_time, 0, 8)) : '00:00:00'),
+                    config('app.timezone')
+                )->toIso8601String()
                 : $p->updated_at->toIso8601String();
 
             // Obtener snapshot_path del design format
@@ -1235,28 +1324,37 @@ class ParticipationController extends Controller
             ];
         })->filter()->values()->all();
 
-        $pendingHistorial = PendingDigitalSale::where('seller_id', $seller->id)
+        $pendingQuery = PendingDigitalSale::where('seller_id', $seller->id)
             ->pendingNotExpired()
-            ->with(['entity', 'lottery.lotteryType', 'set'])
-            ->orderByDesc('created_at')
-            ->limit(50)
-            ->get()
+            ->with(['entity', 'lottery.lotteryType', 'set', 'participations.set'])
+            ->orderByDesc('created_at');
+
+        if ($pendingLimit !== null) {
+            $pendingQuery->limit($pendingLimit);
+        }
+
+        $pendingHistorial = $pendingQuery->get()
             ->map(function (PendingDigitalSale $p) {
                 $smsNotify = app(\App\Services\DigitalSaleSmsService::class);
                 $entity = $p->entity;
                 $lottery = $p->lottery;
-                if (! $lottery && $p->set) {
-                    $p->set->loadMissing('reserve.lottery.lotteryType');
-                    $lottery = $p->set->reserve?->lottery;
+                $set = $p->set;
+                if (! $set && $p->participations->isNotEmpty()) {
+                    $set = $p->participations->first()->set;
+                }
+                if (! $lottery && $set) {
+                    $set->loadMissing('reserve.lottery.lotteryType');
+                    $lottery = $set->reserve?->lottery;
                 }
                 $entidadNombre = $entity ? $entity->name : '—';
                 $fechaSorteo = $lottery && $lottery->draw_date
                     ? $lottery->draw_date->format('d/m/y')
                     : '—';
                 $qty = (int) $p->quantity;
-                $importeTotal = (float) $p->sale_amount;
-                $importeJugado = $qty > 0 ? round($importeTotal / $qty, 2) : $importeTotal;
-                $setLabel = $this->setHistorialLabel($p->set);
+                $importeJugado = (float) ($set->played_amount ?? 0);
+                $donativo = (float) ($set->donation_amount ?? 0);
+                $importeTotal = round(($importeJugado + $donativo) * max(1, $qty), 2);
+                $setLabel = $this->setHistorialLabel($set);
                 $sorteoLabel = $this->lotteryHistorialLabel($lottery);
 
                 return [
@@ -1268,11 +1366,14 @@ class ParticipationController extends Controller
                     'quantity' => $qty,
                     'descripcion' => 'Venta digital ' . $entidadNombre . ' · Pendiente de registro',
                     'pendienteRegistro' => true,
+                    'notify_channel' => $p->notify_channel,
+                    'masked_buyer_contact' => $p->maskedBuyerContact(),
                     'valid_until' => $p->valid_until?->toIso8601String(),
                     'buyer_registration_url' => $p->registrationUrlForShare(),
                     'buyer_sms_sent_count' => (int) ($p->buyer_sms_sent_count ?? 0),
-                    'buyer_sms_can_send' => $smsNotify->isEnabled() && $smsNotify->canSendToBuyer($p),
-                    'buyer_sms_sends_remaining' => $smsNotify->sendsRemaining($p),
+                    'buyer_sms_can_send' => $p->usesPhoneChannel() && $smsNotify->isEnabled() && $smsNotify->canSendToBuyer($p),
+                    'buyer_sms_sends_remaining' => $p->usesPhoneChannel() ? $smsNotify->sendsRemaining($p) : 0,
+                    'can_resend_email' => $p->usesEmailChannel() && $p->email && $p->isStillValid(),
                     'setLabel' => $setLabel,
                     'sorteo' => $sorteoLabel,
                     'fechaSorteo' => $fechaSorteo,
@@ -1282,13 +1383,15 @@ class ParticipationController extends Controller
                         'numero' => $qty . ' dig.',
                         'fechaSorteo' => $fechaSorteo,
                         'importeJugado' => $importeJugado,
+                        'donativo' => $donativo > 0 ? $donativo : null,
                         'importeTotal' => $importeTotal,
-                        'clienteEmail' => $p->email,
+                        'clienteContactoEnmascarado' => $p->maskedBuyerContact(),
+                        'notify_channel' => $p->notify_channel,
                         'pendienteRegistro' => true,
                         'validUntil' => $p->valid_until?->format('d/m/Y'),
                         'esDigital' => true,
                         'setLabel' => $setLabel,
-                        'set_number' => $p->set?->set_number,
+                        'set_number' => $set?->set_number,
                         'buyer_registration_url' => $p->registrationUrlForShare(),
                     ],
                 ];
@@ -1301,12 +1404,21 @@ class ParticipationController extends Controller
             ->values()
             ->all();
 
+        $listed = ParticipationListPagination::apply($historial, $pagination, 'fecha');
+        $historial = $listed['data'];
+
         $notify = app(\App\Services\DigitalSaleBuyerNotifyService::class);
 
-        return response()->json(array_merge([
+        $payload = array_merge([
             'success' => true,
             'historial' => $historial,
-        ], $notify->configPayload()));
+        ], $notify->configPayload());
+
+        if ($listed['meta'] !== null) {
+            $payload['meta'] = $listed['meta'];
+        }
+
+        return response()->json($payload);
     }
 
     public function apiWhatsAppConfig()
@@ -1323,6 +1435,93 @@ class ParticipationController extends Controller
     public function apiSendPendingDigitalNotify(Request $request, int $pendingId)
     {
         return $this->handleSendPendingDigitalNotify($request, $pendingId);
+    }
+
+    /**
+     * Reenvía el correo de registro al email fijado en la venta pendiente.
+     */
+    public function apiResendPendingDigitalEmail(Request $request, int $pendingId, PendingDigitalSaleService $pendingService)
+    {
+        $user = $request->user();
+        if (! $user->isSeller()) {
+            return response()->json(['success' => false, 'message' => 'No tienes permisos para esta acción.'], 403);
+        }
+
+        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Vendedor no encontrado.'], 403);
+        }
+
+        $pending = PendingDigitalSale::query()
+            ->where('seller_id', $seller->id)
+            ->where('id', $pendingId)
+            ->pendingNotExpired()
+            ->first();
+
+        if (! $pending) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Venta pendiente no encontrada o caducada.',
+            ], 422);
+        }
+
+        try {
+            $pendingService->resendRegistrationEmail($pending);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Correo reenviado al comprador.',
+                'masked_buyer_contact' => $pending->maskedBuyerContact(),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            \Log::error('apiResendPendingDigitalEmail: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo reenviar el correo.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Enlace wa.me para reenvío manual (teléfono fijado en la venta; no editable).
+     */
+    public function apiGetPendingDigitalWhatsAppLink(Request $request, int $pendingId)
+    {
+        $user = $request->user();
+        if (! $user->isSeller()) {
+            return response()->json(['success' => false, 'message' => 'No tienes permisos.'], 403);
+        }
+
+        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Vendedor no encontrado.'], 403);
+        }
+
+        $pending = PendingDigitalSale::query()
+            ->where('seller_id', $seller->id)
+            ->where('id', $pendingId)
+            ->pendingNotExpired()
+            ->first();
+
+        if (! $pending || ! $pending->buyer_phone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Venta pendiente no encontrada o sin teléfono registrado.',
+            ], 422);
+        }
+
+        $digits = ltrim((string) $pending->buyer_phone, '+');
+        $message = \App\Services\DigitalSaleBuyerMessageBuilder::build($pending);
+        $url = 'https://wa.me/'.$digits.'?text='.rawurlencode($message);
+
+        return response()->json([
+            'success' => true,
+            'whatsapp_url' => $url,
+            'masked_buyer_contact' => $pending->maskedBuyerContact(),
+        ]);
     }
 
     /**
@@ -1346,9 +1545,7 @@ class ParticipationController extends Controller
         }
 
         $request->validate([
-            'phone' => 'required|string|max:20',
-        ], [
-            'phone.required' => 'Introduce el teléfono del comprador.',
+            'phone' => 'nullable|string|max:20',
         ]);
 
         $notify = app(\App\Services\DigitalSaleBuyerNotifyService::class);
@@ -1360,7 +1557,26 @@ class ParticipationController extends Controller
         }
 
         try {
-            $result = $notify->sendToBuyer($seller, $pendingId, (string) $request->phone);
+            $pending = $notify->findPendingForSeller($seller, $pendingId);
+            if (! $pending) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Venta pendiente no encontrada, caducada o ya reclamada.',
+                ], 422);
+            }
+
+            $phone = trim((string) $request->input('phone', ''));
+            if ($phone === '') {
+                $phone = (string) ($pending->buyer_phone ?? '');
+            }
+            if ($phone === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta venta no tiene teléfono de comprador registrado.',
+                ], 422);
+            }
+
+            $result = $notify->sendToBuyer($seller, $pendingId, $phone);
 
             return response()->json([
                 'success' => true,
@@ -1441,10 +1657,10 @@ class ParticipationController extends Controller
     /**
      * Buscar set y número de participación por referencia (campo 'r' del ticket).
      */
-    private function findSetAndParticipationNumberByReference(string $referencia): ?array
+    private function findSetAndParticipationNumberByReference(string $referencia, ?string $signature = null): ?array
     {
         $referencia = ParticipationTicketReference::normalize($referencia) ?? '';
-        if ($referencia === '' || ! ParticipationTicketReference::isValid($referencia)) {
+        if ($referencia === '' || ParticipationTicketReference::authenticationError($referencia, $signature) !== null) {
             return null;
         }
 
@@ -1510,11 +1726,13 @@ class ParticipationController extends Controller
         $reserve = $set->reserve ?? null;
         $lottery = $reserve ? $reserve->lottery : null;
         $entity = $set->entity ?? null;
-        $designFormat = $set->designFormats->first();
+        $publicCheck = app(\App\Services\ParticipationPublicCheckService::class);
+        $designFormat = $set ? $publicCheck->resolveDesignForSet($set) : null;
         $snapshotPath = null;
         if ($designFormat && $designFormat->snapshot_path) {
-            $snapshotPath = asset('storage/' . $designFormat->snapshot_path);
+            $snapshotPath = asset('storage/'.ltrim((string) $designFormat->snapshot_path, '/'));
         }
+        $previewImageUrl = url('/comprobar-participaciones/imagen?ref='.urlencode($referencia));
         $numeroReservado = '—';
         if ($reserve && $reserve->reservation_numbers) {
             $nums = is_array($reserve->reservation_numbers) ? $reserve->reservation_numbers : json_decode($reserve->reservation_numbers, true);
@@ -1543,6 +1761,8 @@ class ParticipationController extends Controller
         $isDigital = str_starts_with($participationCode, '1D/') || $this->setIsDigitalOnly($set);
         $administration = $entity?->administration;
         $prepagoService = app(\App\Services\PrepagoCodigosService::class);
+        $drawStatus = $publicCheck->resolveDrawStatus($lottery);
+        $prizeInfo = app(ApiController::class)->getPrizeInfoForReference($numeroReferencia);
 
         return [
             'id' => $participation->id,
@@ -1551,6 +1771,8 @@ class ParticipationController extends Controller
             'entity_id' => $entity ? (int) $entity->id : null,
             'administration_id' => $administration ? (int) $administration->id : null,
             'can_generate_recharge_code' => $prepagoService->canGenerateCodes($administration),
+            'can_donate' => (bool) ($entity?->is_non_profit ?? false),
+            'can_issue_donation_certificate' => (bool) ($entity?->is_non_profit ?? false),
             'sorteo' => $this->lotteryHistorialLabel($lottery),
             'numero' => $participation->participation_number,
             'numeroReservado' => $numeroReservado,
@@ -1561,8 +1783,21 @@ class ParticipationController extends Controller
             'numeroParticipacion' => $participation->display_participation_code ?? $participation->participation_code ?? ($participation->participation_number . '/0001'),
             'numeroReferencia' => $numeroReferencia,
             'snapshot_path' => $snapshotPath,
+            'preview_image_url' => $previewImageUrl,
+            'image' => $previewImageUrl ?: $snapshotPath,
+            'draw_status' => $drawStatus,
+            'draw_status_label' => $publicCheck->drawStatusLabel($drawStatus),
+            'prize_info' => $prizeInfo,
+            'premio' => (float) ($prizeInfo['prize_amount'] ?? 0),
+            'has_won' => (bool) ($prizeInfo['has_won'] ?? false),
             'is_digital' => $isDigital,
             'esDigital' => $isDigital,
+            'wallet_mode' => $participation->wallet_mode ?? ($participation->buyerNameIsWalletUserId() ? Participation::WALLET_MODE_DIGITAL : null),
+            'is_storage' => $participation->isWalletStorage(),
+            'requires_online_collection' => $participation->requiresOnlinePrizeCollection(),
+            'storage_message' => $participation->isWalletStorage()
+                ? \App\Services\LotteryDigitalizationService::STORAGE_WALLET_MESSAGE
+                : null,
             'setLabel' => $this->setHistorialLabel($set),
             'set_number' => $set->set_number ?? null,
         ];
@@ -1574,10 +1809,12 @@ class ParticipationController extends Controller
     public function apiGetWalletParticipations(Request $request)
     {
         $user = $request->user();
-        // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden ver su cartera.'], 403);
+        // Modo Usuario de la app: cualquier cuenta autenticada (cliente, vendedor o gestor).
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
+        $pagination = ParticipationListPagination::parseFromRequest($request);
+        $includeExpired = $pagination['enabled'] && $pagination['includeExpired'];
         $userId = (string) $user->id;
         $items = [];
 
@@ -1614,10 +1851,12 @@ class ParticipationController extends Controller
             }
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
+            $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
-            if (! empty($item['wallet_expired'])) {
+            if (! empty($item['wallet_expired']) && ! $includeExpired) {
                 continue;
             }
+            $item['fecha'] = $p->updated_at->toIso8601String();
             $items[] = $item;
         }
 
@@ -1654,10 +1893,12 @@ class ParticipationController extends Controller
             $item['gifted_to_email'] = null;
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
+            $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
-            if (! empty($item['wallet_expired'])) {
+            if (! empty($item['wallet_expired']) && ! $includeExpired) {
                 continue;
             }
+            $item['fecha'] = $gift->created_at->toIso8601String();
             $items[] = $item;
         }
 
@@ -1665,7 +1906,13 @@ class ParticipationController extends Controller
             return ($b['id'] ?? 0) <=> ($a['id'] ?? 0);
         });
 
-        return response()->json(['success' => true, 'participations' => $items]);
+        $listed = ParticipationListPagination::apply($items, $pagination, 'fecha');
+        $payload = ['success' => true, 'participations' => $listed['data']];
+        if ($listed['meta'] !== null) {
+            $payload['meta'] = $listed['meta'];
+        }
+
+        return response()->json($payload);
     }
 
     /**
@@ -1676,8 +1923,8 @@ class ParticipationController extends Controller
     {
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden acceder.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $userId = (string) $user->id;
         $apiController = app(ApiController::class);
@@ -1695,6 +1942,9 @@ class ParticipationController extends Controller
             ->get();
 
         foreach ($participations as $p) {
+            if ($p->isWalletStorage()) {
+                continue;
+            }
             if ($p->relationLoaded('gift') && $p->gift && in_array($p->gift->status, [ParticipationGift::STATUS_PENDING, ParticipationGift::STATUS_ACCEPTED], true)) {
                 continue; // regalada pendiente o aceptada por el destinatario
             }
@@ -1708,6 +1958,11 @@ class ParticipationController extends Controller
             }
             $item = $this->formatParticipationForWallet($p, $ref);
             $item['premio'] = $prizeInfo['prize_amount'];
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection($p, (float) $prizeInfo['prize_amount']);
+            if (! $gate['cobrable']) {
+                continue;
+            }
+            $item = array_merge($item, $gate);
             $items[] = $item;
             $addedIds[$p->id] = true;
         }
@@ -1729,6 +1984,9 @@ class ParticipationController extends Controller
             if ($p->collected_at || $p->donated_at) {
                 continue;
             }
+            if ($p->isWalletStorage()) {
+                continue;
+            }
             if (app(ParticipationWalletValidityService::class)->isParticipationWalletExpired($p)) {
                 continue;
             }
@@ -1740,6 +1998,11 @@ class ParticipationController extends Controller
             $item = $this->formatParticipationForWallet($p, $ref);
             $item['premio'] = $prizeInfo['prize_amount'];
             $item['recibida_regalo'] = true;
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection($p, (float) $prizeInfo['prize_amount']);
+            if (! $gate['cobrable']) {
+                continue;
+            }
+            $item = array_merge($item, $gate);
             $items[] = $item;
             $addedIds[$p->id] = true;
         }
@@ -1760,13 +2023,16 @@ class ParticipationController extends Controller
             'apellidos' => 'required|string|max:255',
             'nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
             'iban' => ['required', 'string', new \App\Rules\SpanishIban],
-            'importe_total' => 'required|numeric|min:0',
+            'importe_total' => 'required|numeric|min:0.01',
+            'confirmacion_cobro_irreversible' => 'required|accepted',
+        ], [
+            'confirmacion_cobro_irreversible.accepted' => 'Debe confirmar que entiende que el cobro es irreversible.',
         ]);
 
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $userId = (string) $user->id;
 
@@ -1788,17 +2054,85 @@ class ParticipationController extends Controller
             if ($walletValidity->isParticipationWalletExpired($p)) {
                 return $this->walletExpiredJsonResponse();
             }
+            if ($p->isWalletStorage()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Las participaciones en almacén no se pueden cobrar online.',
+                ], 422);
+            }
         }
 
-        // Todas las participaciones deben ser de la misma entidad
+        // Multientidad: permitido solo si todas las entidades están habilitadas para cobro online
         $participations->load('set.entity');
-        $entityIds = $participations->map(fn ($p) => $p->set?->entity_id ?? $p->entity_id)->filter()->unique()->values();
-        if ($entityIds->count() > 1) {
-            return response()->json(['success' => false, 'message' => 'Solo puedes cobrar participaciones de la misma entidad.'], 422);
+        $multiCheck = $this->prizePaymentService()->canGroupMultientityTransfer(
+            $participations->pluck('id')->all()
+        );
+        if (! $multiCheck['allowed']) {
+            return response()->json(['success' => false, 'message' => $multiCheck['message']], 422);
         }
 
-        // Usar el importe total enviado desde el frontend
-        $importeTotal = (float) $request->importe_total;
+        $walletGuard = app(\App\Services\PrizeWalletOperationGuardService::class);
+        if ($message = $walletGuard->assertEntitiesActive($participations)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        $apiController = app(ApiController::class);
+        $prizeInfoResolver = function ($p) use ($apiController) {
+            $ref = $this->getReferenceFromParticipation($p);
+
+            return $apiController->getPrizeInfoForReference($ref);
+        };
+        if ($message = $walletGuard->assertAllParticipationsHavePrize($participations, $prizeInfoResolver)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        foreach ($participations as $p) {
+            $ref = $this->getReferenceFromParticipation($p);
+            $prizeInfo = $apiController->getPrizeInfoForReference($ref);
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection(
+                $p,
+                (float) ($prizeInfo['prize_amount'] ?? 0)
+            );
+            if (! $gate['cobrable']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $gate['user_message'] ?? 'El cobro online no está habilitado para esta participación.',
+                ], 422);
+            }
+        }
+
+        $importeTotal = round((float) $request->importe_total, 2);
+        if ($message = $walletGuard->assertPositiveAmount($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        if ($message = $walletGuard->assertWithinGlobalCap($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        if ($message = $walletGuard->assertAmountMatchesParticipations(
+            $importeTotal,
+            $participations,
+            fn ($p) => $this->resolveParticipationWalletAmount($p)
+        )) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        // Usar el importe total validado en servidor
+        $participationIds = $participations->pluck('id')->toArray();
+        $firstEntity = $participations->first()?->set?->entity;
+        app(\App\Services\LegalAcceptanceService::class)->recordPrizeCollectionConfirmation(
+            $user,
+            $request,
+            [
+                'modalidad' => 'TRANSFERENCIA',
+                'importe' => $importeTotal,
+                'participation_ids' => $participationIds,
+                'destino' => 'IBAN',
+                'iban_last4' => substr(preg_replace('/\s+/', '', (string) $request->iban), -4),
+                'entity_id' => $firstEntity?->id,
+                'administration_id' => $firstEntity?->administration_id,
+            ]
+        );
+
         $token = ParticipationCollection::generateConfirmationToken();
         $expiresAt = now()->addHours(ParticipationCollection::verificationExpiryHours());
 
@@ -1818,12 +2152,16 @@ class ParticipationController extends Controller
         ]);
 
         // Reservar participaciones (sin marcar collected_at hasta confirmar email)
-        $participationIds = $participations->pluck('id')->toArray();
-        foreach ($participationIds as $pid) {
-            ParticipationCollectionItem::create([
+        foreach ($participations as $p) {
+            $ref = $this->getReferenceFromParticipation($p);
+            $prizeInfo = $apiController->getPrizeInfoForReference($ref);
+            $itemData = [
                 'collection_id' => $collection->id,
-                'participation_id' => $pid,
-            ]);
+                'participation_id' => $p->id,
+                'entity_id' => $p->set?->entity_id ?? $p->entity_id,
+                'amount' => (float) ($prizeInfo['prize_amount'] ?? 0),
+            ];
+            ParticipationCollectionItem::create($itemData);
         }
 
         // Email con enlace de confirmación / cancelación
@@ -1842,6 +2180,16 @@ class ParticipationController extends Controller
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando email de verificación de cobro: '.$e->getMessage());
         }
+
+        app(\App\Services\PaymentOperationAuditService::class)->log(
+            operationType: \App\Models\PaymentOperationAuditLog::OP_COLLECTION_REQUESTED,
+            userId: (int) $user->id,
+            amount: $importeTotal,
+            referenceType: 'participation_collection',
+            referenceId: (int) $collection->id,
+            context: ['participation_ids' => $participationIds],
+            request: $request,
+        );
 
         return response()->json([
             'success' => true,
@@ -1865,12 +2213,18 @@ class ParticipationController extends Controller
             'nombre' => 'nullable|string|max:255',
             'apellidos' => 'nullable|string|max:255',
             'nif' => ['nullable', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            'confirmacion_operacion_irreversible' => 'required|accepted',
+            'confirmacion_donacion_irreversible' => 'required_if:importe_donacion,>0|accepted',
+            'certificado_fiscal' => 'nullable|boolean',
+        ], [
+            'confirmacion_operacion_irreversible.accepted' => 'Debe confirmar que entiende que la operación es irreversible.',
+            'confirmacion_donacion_irreversible.accepted' => 'Debe confirmar la donación de premio.',
         ]);
 
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
         $userId = (string) $user->id;
 
@@ -1893,6 +2247,12 @@ class ParticipationController extends Controller
             if ($walletValidity->isParticipationWalletExpired($p)) {
                 return $this->walletExpiredJsonResponse();
             }
+            if ($p->isWalletStorage()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Las participaciones en almacén no se pueden donar.',
+                ], 422);
+            }
         }
 
         // Todas las participaciones deben ser de la misma entidad
@@ -1902,23 +2262,72 @@ class ParticipationController extends Controller
             return response()->json(['success' => false, 'message' => 'Solo puedes donar participaciones de la misma entidad.'], 422);
         }
 
-        $importeDonacion = (float) $request->importe_donacion;
-        $importeCodigo = (float) $request->importe_codigo;
+        $walletGuard = app(\App\Services\PrizeWalletOperationGuardService::class);
+        $entity = Entity::with('administration')->find($entityIds->first());
+        if ($message = $walletGuard->assertEntityActive($entity)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        $apiController = app(ApiController::class);
+        $prizeInfoResolver = function ($p) use ($apiController) {
+            $ref = $this->getReferenceFromParticipation($p);
+
+            return $apiController->getPrizeInfoForReference($ref);
+        };
+        if ($message = $walletGuard->assertAllParticipationsHavePrize($participations, $prizeInfoResolver)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        foreach ($participations as $p) {
+            $ref = $this->getReferenceFromParticipation($p);
+            $prizeInfo = $apiController->getPrizeInfoForReference($ref);
+            $gate = $this->prizePaymentService()->evaluateOnlineCollection(
+                $p,
+                (float) ($prizeInfo['prize_amount'] ?? 0)
+            );
+            if (! $gate['cobrable']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $gate['user_message'] ?? 'El cobro online no está habilitado para esta participación.',
+                ], 422);
+            }
+        }
+
+        $importeDonacion = round((float) $request->importe_donacion, 2);
+        $importeCodigo = round((float) $request->importe_codigo, 2);
         $importeTotal = $importeDonacion + $importeCodigo;
 
-        // Mismo criterio que la app (premio si hay premio; si no, importeTotal del set).
-        $totalParticipaciones = round($participations->sum(
-            fn (Participation $p) => $this->resolveParticipationWalletAmount($p)
-        ), 2);
+        if ($importeDonacion > 0 && ! ($entity?->is_non_profit ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta entidad no puede emitir certificado de donación.',
+            ], 422);
+        }
 
-        if (abs($importeTotal - $totalParticipaciones) > 0.01) {
+        if ($request->boolean('certificado_fiscal') && ! ($entity?->is_non_profit ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta entidad no puede emitir certificado de donación.',
+            ], 422);
+        }
+
+        if ($message = $walletGuard->assertPositiveAmount($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        if ($message = $walletGuard->assertWithinGlobalCap($importeTotal)) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        if ($message = $walletGuard->assertAmountMatchesParticipations(
+            $importeTotal,
+            $participations,
+            fn ($p) => $this->resolveParticipationWalletAmount($p)
+        )) {
             return response()->json([
                 'success' => false,
                 'message' => 'La suma de donación y código no coincide con el importe total de las participaciones.',
             ], 422);
         }
 
-        $entity = Entity::with('administration')->find($entityIds->first());
         $administration = $entity?->administration;
         $prepagoService = app(\App\Services\PrepagoCodigosService::class);
 
@@ -1927,6 +2336,52 @@ class ParticipationController extends Controller
                 'success' => false,
                 'message' => 'Esta administración no tiene configurada la generación de códigos de recarga. Dona el importe total sin generar código.',
             ], 422);
+        }
+
+        $certificadoFiscal = (bool) $request->boolean('certificado_fiscal');
+        if ($importeDonacion > 0 && $certificadoFiscal) {
+            $request->validate([
+                'nombre' => 'required|string|max:255',
+                'apellidos' => 'required|string|max:255',
+                'nif' => ['required', 'string', 'max:20', new \App\Rules\SpanishDocument],
+            ], [
+                'nombre.required' => 'Indique su nombre para el certificado fiscal.',
+                'apellidos.required' => 'Indique sus apellidos para el certificado fiscal.',
+                'nif.required' => 'Indique su NIF/NIE para el certificado fiscal.',
+            ]);
+        }
+
+        $participationIds = $participations->pluck('id')->toArray();
+        $modalidad = $importeDonacion > 0 && $importeCodigo > 0
+            ? 'DONACION_CODIGO'
+            : ($importeDonacion > 0 ? 'DONACION' : 'CODIGO_RECARGA');
+
+        app(\App\Services\LegalAcceptanceService::class)->recordPrizeCollectionConfirmation(
+            $user,
+            $request,
+            [
+                'modalidad' => $modalidad,
+                'importe' => $importeTotal,
+                'participation_ids' => $participationIds,
+                'entity_id' => $entity?->id,
+                'administration_id' => $administration?->id,
+            ]
+        );
+
+        if ($importeDonacion > 0) {
+            app(\App\Services\LegalAcceptanceService::class)->recordPrizeDonationConfirmation(
+                $user,
+                $request,
+                [
+                    'modalidad' => 'DONACION',
+                    'importe_donado' => $importeDonacion,
+                    'participation_ids' => $participationIds,
+                    'certificado_fiscal' => $certificadoFiscal,
+                    'entity_id' => $entity?->id,
+                    'administration_id' => $administration?->id,
+                    'entity_name' => $entity?->name,
+                ]
+            );
         }
 
         // Generar código de recarga si hay importe para código (API de la administración o PARTILOT por defecto)
@@ -1947,6 +2402,7 @@ class ParticipationController extends Controller
         // Crear registro de donación
         $donation = ParticipationDonation::create([
             'user_id' => $user->id,
+            'entity_id' => $entity?->id,
             'nombre' => $request->nombre,
             'apellidos' => $request->apellidos,
             'nif' => $request->nif,
@@ -1954,11 +2410,10 @@ class ParticipationController extends Controller
             'importe_codigo' => $importeCodigo,
             'codigo_recarga' => $codigoRecarga,
             'anonima' => $anonima,
-            'donated_at' => now(),
+            'certificado_fiscal' => $certificadoFiscal,
         ]);
 
         // Marcar participaciones como donadas en la tabla participations
-        $participationIds = $participations->pluck('id')->toArray();
         Participation::whereIn('id', $participationIds)->update(['donated_at' => now()]);
 
         // Asociar cada participación al registro de donación
@@ -1986,6 +2441,22 @@ class ParticipationController extends Controller
             \Log::warning('Fallo enviando email donación/código: '.$e->getMessage());
         }
 
+        app(\App\Services\PaymentOperationAuditService::class)->log(
+            operationType: \App\Models\PaymentOperationAuditLog::OP_DONATION,
+            userId: (int) $user->id,
+            amount: $importeTotal,
+            entityId: $entity ? (int) $entity->id : null,
+            administrationId: $administration ? (int) $administration->id : null,
+            referenceType: 'participation_donation',
+            referenceId: (int) $donation->id,
+            context: [
+                'participation_ids' => $participationIds,
+                'importe_donacion' => $importeDonacion,
+                'importe_codigo' => $importeCodigo,
+            ],
+            request: $request,
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Donación registrada correctamente.',
@@ -2003,10 +2474,11 @@ class ParticipationController extends Controller
     public function apiGetUserHistorial(Request $request)
     {
         $user = $request->user();
-        // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'Solo los usuarios pueden ver su historial.'], 403);
+        // Modo Usuario de la app: cualquier cuenta autenticada (cliente, vendedor o gestor).
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
+        $pagination = ParticipationListPagination::parseFromRequest($request);
         $userId = (string) $user->id;
         $historial = [];
 
@@ -2189,7 +2661,13 @@ class ParticipationController extends Controller
             return strcmp($fechaB, $fechaA);
         });
 
-        return response()->json(['success' => true, 'historial' => $historial]);
+        $listed = ParticipationListPagination::apply($historial, $pagination, 'fecha');
+        $payload = ['success' => true, 'historial' => $listed['data']];
+        if ($listed['meta'] !== null) {
+            $payload['meta'] = $listed['meta'];
+        }
+
+        return response()->json($payload);
     }
 
     /**
@@ -2388,7 +2866,7 @@ class ParticipationController extends Controller
 
         $set = $participation->set;
         if ($set) {
-            return (float) ($set->played_amount ?? 0) + (float) ($set->donation_amount ?? 0);
+            return $set->pricePerParticipation();
         }
 
         return (float) ($participation->sale_amount ?? 0);
@@ -2427,14 +2905,20 @@ class ParticipationController extends Controller
      */
     public function apiCheckByReference(Request $request)
     {
-        $request->validate(['referencia' => 'required|string']);
+        $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
+        }
+        if ($authError = ParticipationTicketReference::authenticationError(
+            $request->referencia,
+            $request->input('sig')
+        )) {
+            return response()->json(['success' => false, 'message' => $authError], 400);
         }
         $userId = (string) $user->id;
-        $found = $this->findSetAndParticipationNumberByReference($request->referencia);
+        $found = $this->findSetAndParticipationNumberByReference($request->referencia, $request->input('sig'));
         if (!$found) {
             return response()->json([
                 'success' => false,
@@ -2462,13 +2946,27 @@ class ParticipationController extends Controller
             ], 422);
         }
         $currentBuyer = $participation->buyer_name;
+        $lottery = $participation->set?->reserve?->lottery;
+        $digitalizationService = app(\App\Services\LotteryDigitalizationService::class);
+        $formatted = $this->formatParticipationForWallet($participation, $request->referencia);
+        $drawStatus = (string) ($formatted['draw_status'] ?? 'pending_celebration');
+        $hasWon = (bool) ($formatted['has_won'] ?? false);
+        $walletOptions = $digitalizationService->walletRegistrationOptions(
+            $participation,
+            $lottery,
+            $hasWon,
+            $drawStatus
+        );
         if ($currentBuyer !== null && $currentBuyer !== '') {
             if ($currentBuyer === $userId) {
                 return response()->json([
                     'success' => true,
                     'status' => 'already_mine',
                     'message' => 'Ya la posees en tu cartera.',
-                    'participation' => $this->formatParticipationForWallet($participation, $request->referencia),
+                    'participation' => $formatted,
+                    'wallet_options' => $walletOptions,
+                    'digitalization_notice' => \App\Services\LotteryDigitalizationService::IRREVERSIBLE_NOTICE,
+                    'storage_notice' => \App\Services\LotteryDigitalizationService::STORAGE_NOTICE,
                 ]);
             }
             return response()->json([
@@ -2477,10 +2975,37 @@ class ParticipationController extends Controller
                 'message' => 'La participación no se puede vincular porque ya se encuentra leída por otro usuario.',
             ], 422);
         }
+
+        $canAct = $walletOptions['can_digitalize']
+            || $walletOptions['can_store_in_warehouse']
+            || $walletOptions['can_manage'];
+
+        if (! $canAct) {
+            $message = $walletOptions['notice']
+                ?? 'Esta participación no se puede registrar en la app.';
+            if (! $digitalizationService->isPhysicalParticipation($participation)) {
+                $message = 'Las participaciones digitales nativas no se digitalizan desde este flujo.';
+            }
+
+            // Aun sin acción: devolver datos (estado sorteo, importes, imagen) para consulta.
+            return response()->json([
+                'success' => true,
+                'status' => 'view_only',
+                'message' => $message,
+                'participation' => $formatted,
+                'wallet_options' => $walletOptions,
+                'digitalization_notice' => \App\Services\LotteryDigitalizationService::IRREVERSIBLE_NOTICE,
+                'storage_notice' => \App\Services\LotteryDigitalizationService::STORAGE_NOTICE,
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'status' => 'can_link',
-            'participation' => $this->formatParticipationForWallet($participation, $request->referencia),
+            'participation' => $formatted,
+            'wallet_options' => $walletOptions,
+            'digitalization_notice' => \App\Services\LotteryDigitalizationService::IRREVERSIBLE_NOTICE,
+            'storage_notice' => \App\Services\LotteryDigitalizationService::STORAGE_NOTICE,
         ]);
     }
 
@@ -2489,14 +3014,24 @@ class ParticipationController extends Controller
      */
     public function apiLinkToWallet(Request $request)
     {
-        $request->validate(['referencia' => 'required|string']);
+        $request->validate([
+            'referencia' => 'required|string',
+            'sig' => 'nullable|string',
+            'for_manage' => 'nullable|boolean',
+        ]);
         $user = $request->user();
         // Permitir tanto usuarios (client) como vendedores (seller) cuando acceden como usuarios normales
-        if (!$user->isClient() && !$user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
+        }
+        if ($authError = ParticipationTicketReference::authenticationError(
+            $request->referencia,
+            $request->input('sig')
+        )) {
+            return response()->json(['success' => false, 'message' => $authError], 400);
         }
         $userId = (string) $user->id;
-        $found = $this->findSetAndParticipationNumberByReference($request->referencia);
+        $found = $this->findSetAndParticipationNumberByReference($request->referencia, $request->input('sig'));
         if (!$found) {
             return response()->json([
                 'success' => false,
@@ -2528,7 +3063,39 @@ class ParticipationController extends Controller
                 'message' => 'La participación no se puede vincular porque ya se encuentra leída por otro usuario.',
             ], 422);
         }
+
+        $participation->load('set.reserve.lottery');
+        $lottery = $participation->set?->reserve?->lottery;
+        $digitalizationService = app(\App\Services\LotteryDigitalizationService::class);
+        $forManage = $request->boolean('for_manage');
+        $publicCheck = app(\App\Services\ParticipationPublicCheckService::class);
+        $drawStatus = $publicCheck->resolveDrawStatus($lottery);
+        $prizeInfo = app(ApiController::class)->getPrizeInfoForReference($request->referencia);
+
+        try {
+            if (! $digitalizationService->isPhysicalParticipation($participation)) {
+                throw new \InvalidArgumentException('Solo se pueden digitalizar participaciones físicas.');
+            }
+            if ($forManage) {
+                if ($drawStatus !== 'completed' || ! ($prizeInfo['has_won'] ?? false)) {
+                    throw new \InvalidArgumentException(
+                        'Solo se puede gestionar una participación tras el sorteo cuando tiene premio.'
+                    );
+                }
+            } elseif ($lottery) {
+                if ($drawStatus === 'completed') {
+                    throw new \InvalidArgumentException(
+                        'El sorteo ya se ha celebrado. Usa «Gestionar participación» si hay premio.'
+                    );
+                }
+                $digitalizationService->assertCanRegisterInWallet($lottery);
+            }
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
         \App\Services\ParticipationOwnerService::assignOwner($participation, $user);
+        $participation->wallet_mode = Participation::WALLET_MODE_DIGITAL;
         $participation->save();
 
         try {
@@ -2543,8 +3110,90 @@ class ParticipationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Participación añadida a tu cartera.',
+            'message' => $forManage
+                ? 'Participación añadida a tu cartera para gestionar el premio.'
+                : 'Participación añadida a tu cartera.',
             'participation' => $this->formatParticipationForWallet($participation->load(['set.reserve.lottery', 'set.entity', 'set.designFormats']), $request->referencia),
+        ]);
+    }
+
+    /**
+     * API: Guardar participación física en almacén (solo consulta, sin digitalizar).
+     */
+    public function apiStoreInWarehouse(Request $request)
+    {
+        $request->validate(['referencia' => 'required|string', 'sig' => 'nullable|string']);
+        $user = $request->user();
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
+        }
+        if ($authError = ParticipationTicketReference::authenticationError(
+            $request->referencia,
+            $request->input('sig')
+        )) {
+            return response()->json(['success' => false, 'message' => $authError], 400);
+        }
+        $userId = (string) $user->id;
+        $found = $this->findSetAndParticipationNumberByReference($request->referencia, $request->input('sig'));
+        if (! $found) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encuentra la participación.',
+            ], 404);
+        }
+        $participation = Participation::where('set_id', $found['set']->id)
+            ->where('participation_number', $found['participation_number'])
+            ->first();
+        if (! $participation) {
+            return response()->json(['success' => false, 'message' => 'No se encuentra la participación.'], 404);
+        }
+        if (! in_array($participation->status, ['disponible', 'asignada', 'vendida'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta participación no se puede guardar en almacén.',
+            ], 422);
+        }
+        if ($participation->buyer_name !== null && $participation->buyer_name !== '') {
+            if ($participation->buyer_name === $userId) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Ya la tienes en tu almacén.',
+                    'participation' => $this->formatParticipationForWallet($participation->load('set'), $request->referencia),
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'La participación ya está registrada por otro usuario.',
+            ], 422);
+        }
+
+        $participation->load('set.reserve.lottery');
+        $lottery = $participation->set?->reserve?->lottery;
+        $digitalizationService = app(\App\Services\LotteryDigitalizationService::class);
+
+        try {
+            if ($lottery) {
+                $digitalizationService->assertCanRegisterInWallet($lottery);
+            }
+            if (! $digitalizationService->isPhysicalParticipation($participation)) {
+                throw new \InvalidArgumentException('Solo se pueden guardar participaciones físicas en almacén.');
+            }
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        \App\Services\ParticipationOwnerService::assignOwner($participation, $user);
+        $participation->wallet_mode = Participation::WALLET_MODE_STORAGE;
+        $participation->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Participación guardada en almacén.',
+            'participation' => $this->formatParticipationForWallet(
+                $participation->load(['set.reserve.lottery', 'set.entity', 'set.designFormats']),
+                $request->referencia
+            ),
         ]);
     }
 
@@ -2560,8 +3209,8 @@ class ParticipationController extends Controller
         ]);
 
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         try {
@@ -2599,8 +3248,8 @@ class ParticipationController extends Controller
         ]);
 
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         $userId = (string) $user->id;
@@ -2619,6 +3268,9 @@ class ParticipationController extends Controller
         }
         if ($participation->donated_at) {
             return response()->json(['success' => false, 'message' => 'No se puede regalar una participación ya donada.'], 422);
+        }
+        if ($participation->isWalletStorage()) {
+            return response()->json(['success' => false, 'message' => 'Las participaciones en almacén no se pueden regalar.'], 422);
         }
         if (app(ParticipationWalletValidityService::class)->isParticipationWalletExpired($participation)) {
             return $this->walletExpiredJsonResponse();
@@ -2650,8 +3302,8 @@ class ParticipationController extends Controller
     public function apiAcceptGift(Request $request, int $giftId, ParticipationGiftService $giftService)
     {
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         $giftService->attachPendingGiftsToUser($user);
@@ -2680,8 +3332,8 @@ class ParticipationController extends Controller
     public function apiRejectGift(Request $request, int $giftId, ParticipationGiftService $giftService)
     {
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         $giftService->attachPendingGiftsToUser($user);
@@ -2709,8 +3361,8 @@ class ParticipationController extends Controller
     public function apiPendingGifts(Request $request)
     {
         $user = $request->user();
-        if (! $user->isClient() && ! $user->isSeller()) {
-            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
         }
 
         app(ParticipationGiftService::class)->attachPendingGiftsToUser($user);
@@ -2835,6 +3487,7 @@ class ParticipationController extends Controller
 
         $entityId = (int) $data['entity_id'];
         $out = [];
+        $rejected = [];
         foreach ($participations as $item) {
             $id = $item['id'] ?? null;
             if (!$id) {
@@ -2847,11 +3500,33 @@ class ParticipationController extends Controller
                 ->where('status', '!=', 'pagada')
                 ->first();
             if (!$p) {
+                $rejected[] = [
+                    'participation_code' => $item['participation_code'] ?? $item['code'] ?? null,
+                    'reason' => 'not_found',
+                    'message' => 'Participación no encontrada o sin permisos.',
+                ];
                 continue;
             }
             $ref = $this->getReferenceFromParticipation($p);
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             if (!($prizeInfo['has_won'] && $prizeInfo['prize_amount'] > 0)) {
+                $rejected[] = [
+                    'participation_code' => $p->display_participation_code,
+                    'reason' => 'no_prize',
+                    'message' => 'La participación no tiene premio.',
+                ];
+                continue;
+            }
+            $presencialGate = $this->prizePaymentService()->evaluatePresencialPayment(
+                $p,
+                (float) $prizeInfo['prize_amount']
+            );
+            if (! $presencialGate['allowed']) {
+                $rejected[] = [
+                    'participation_code' => $p->display_participation_code,
+                    'reason' => $presencialGate['reason'],
+                    'message' => $presencialGate['message'],
+                ];
                 continue;
             }
             $out[] = [
@@ -2867,7 +3542,11 @@ class ParticipationController extends Controller
             ];
         }
 
-        return response()->json(['success' => true, 'participations' => $out]);
+        return response()->json([
+            'success' => true,
+            'participations' => $out,
+            'rejected' => $rejected,
+        ]);
     }
 
     /**
@@ -2883,6 +3562,7 @@ class ParticipationController extends Controller
         $user = auth()->user();
         $apiController = app(ApiController::class);
         $valid = [];
+        $firstBlockMessage = null;
         foreach ($request->participation_ids as $id) {
             $p = Participation::with('set.entity')
                 ->forUser($user)
@@ -2890,11 +3570,21 @@ class ParticipationController extends Controller
                 ->where('status', '!=', 'pagada')
                 ->first();
             if (!$p || !$user->canAccessEntity((int) $p->entity_id)) {
+                $firstBlockMessage = $firstBlockMessage ?? 'Una o más participaciones no son válidas para tu entidad.';
                 continue;
             }
             $ref = $this->getReferenceFromParticipation($p);
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             if (!$prizeInfo['has_won'] || $prizeInfo['prize_amount'] <= 0) {
+                $firstBlockMessage = $firstBlockMessage ?? 'Una o más participaciones no tienen premio.';
+                continue;
+            }
+            $presencialGate = $this->prizePaymentService()->evaluatePresencialPayment(
+                $p,
+                (float) $prizeInfo['prize_amount']
+            );
+            if (! $presencialGate['allowed']) {
+                $firstBlockMessage = $presencialGate['message'] ?? 'Pago presencial no permitido.';
                 continue;
             }
             $valid[] = $p;
@@ -2903,7 +3593,7 @@ class ParticipationController extends Controller
         if (empty($valid)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ninguna participación válida para pagar (deben tener premio y no estar ya pagadas).',
+                'message' => $firstBlockMessage ?? 'Ninguna participación válida para pagar (deben tener premio y no estar ya pagadas).',
             ], 422);
         }
 
@@ -2921,6 +3611,20 @@ class ParticipationController extends Controller
                 'new_status' => 'pagada',
                 'description' => 'Pago de premio registrado por el gestor.',
             ]);
+
+            $lotteryId = (int) ($p->set?->reserve?->lottery_id ?? 0);
+            $setting = $lotteryId
+                ? $this->prizePaymentService()->getSettings((int) $p->entity_id, $lotteryId)
+                : null;
+            if ($setting) {
+                EntityLotteryPrizeActivationLog::query()->create([
+                    'entity_lottery_prize_setting_id' => $setting->id,
+                    'event' => 'payment_registered_presencial',
+                    'payload' => ['participation_id' => $p->id],
+                    'user_id' => $user->id,
+                    'created_at' => now(),
+                ]);
+            }
         }
 
         return response()->json([
@@ -2947,6 +3651,63 @@ class ParticipationController extends Controller
         return $item;
     }
 
+    protected function applyPrizePaymentGateToWalletItem(
+        array $item,
+        Participation $participation,
+        ?float $prizeAmount
+    ): array {
+        if ($participation->isWalletStorage()) {
+            $item['cobrable'] = false;
+            $item['payment_blocked'] = false;
+            $item['block_reason'] = 'storage';
+            $item['user_message'] = null;
+            $item['storage_message'] = \App\Services\LotteryDigitalizationService::STORAGE_WALLET_MESSAGE;
+            if ($prizeAmount !== null && $prizeAmount > 0) {
+                $item['presencial_orientative_prize'] = $prizeAmount;
+                $entityId = (int) ($participation->entity_id ?? $participation->set?->entity_id ?? 0);
+                $lotteryId = (int) ($participation->set?->reserve?->lottery_id ?? 0);
+                if ($entityId && $lotteryId) {
+                    $setting = $this->prizePaymentService()->getSettings($entityId, $lotteryId);
+                    if ($setting && $setting->isModePresencial()) {
+                        $item['presencial_contact'] = $this->prizePaymentService()->presencialContactPayload($setting);
+                    }
+                }
+            }
+
+            return $item;
+        }
+
+        if ($prizeAmount === null || $prizeAmount <= 0) {
+            $item['cobrable'] = false;
+            $item['payment_blocked'] = false;
+            $item['block_reason'] = null;
+            $item['user_message'] = null;
+
+            return $item;
+        }
+
+        $gate = $this->prizePaymentService()->evaluateOnlineCollection($participation, $prizeAmount);
+        $item = array_merge($item, $gate);
+
+        if ($prizeAmount > 0 && ! $participation->requiresOnlinePrizeCollection()) {
+            $entityId = (int) ($participation->entity_id ?? $participation->set?->entity_id ?? 0);
+            $lotteryId = (int) ($participation->set?->reserve?->lottery_id ?? 0);
+            if ($entityId && $lotteryId) {
+                $setting = $this->prizePaymentService()->getSettings($entityId, $lotteryId);
+                if ($setting && $setting->isModePresencial()) {
+                    $item['presencial_contact'] = $this->prizePaymentService()->presencialContactPayload($setting);
+                }
+            }
+        }
+
+        return $item;
+    }
+
+    protected function prizePaymentService(): EntityLotteryPrizePaymentService
+    {
+        return app(EntityLotteryPrizePaymentService::class);
+    }
+
     protected function walletExpiredJsonResponse(): \Illuminate\Http\JsonResponse
     {
         $months = (int) config('digital_sale.wallet_validity_months_after_draw', 3);
@@ -2955,5 +3716,33 @@ class ParticipationController extends Controller
             'success' => false,
             'message' => "Esta participación ha caducado (plazo de {$months} meses desde la fecha del sorteo).",
         ], 422);
+    }
+
+    /**
+     * Modo Usuario (cartera/historial): cualquier cuenta autenticada.
+     * El switch Usuario/Vendedor/Gestor de la app no cambia users.role; un gestor
+     * en modo Usuario antes recibía 403 al exigir solo role=client o seller.
+     */
+    private function denyUnlessPersonalAppUser(?User $user): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'No autenticado.'], 401);
+        }
+
+        return null;
+    }
+
+    private function recordSaleConsentIfRequested(Request $request, User $user, array $context = []): void
+    {
+        if (! $request->boolean('accept_terms')) {
+            return;
+        }
+
+        app(UserConsentService::class)->record(
+            $user,
+            UserConsent::TYPE_DIGITAL_SALE_TERMS,
+            $request,
+            $context
+        );
     }
 }

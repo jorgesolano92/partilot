@@ -857,7 +857,7 @@
                                                             <div class="card-header">Liquidación Actual</div>
                                                             <div class="card-body">
                                                                 <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00€</span></p>
-                                                                <p><strong>Participaciones Liquidadas:</strong> <span id="vendedor-settlement-liquidated-participations">0</span></p>
+                                                                <p><strong>Participaciones cubiertas por lo pagado:</strong> <span id="vendedor-settlement-liquidated-participations">0</span></p>
                                                                 <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00€</span></p>
                                                                 <p><strong>Participaciones Pendientes:</strong> <span id="vendedor-settlement-pending-participations">0</span></p>
                                                             </div>
@@ -882,7 +882,7 @@
                                                                         <strong>Pago en Efectivo</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00" id="vendedor-settlement-pago-efectivo">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00€" id="vendedor-settlement-pago-efectivo">
                                         </div>
                                     </div>
 
@@ -895,7 +895,7 @@
                                                                         <strong>Pago por Bizum</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00" id="vendedor-settlement-pago-bizum">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00€" id="vendedor-settlement-pago-bizum">
                                                                     </div>
                                                                 </div>
 
@@ -908,7 +908,7 @@
                                                                         <strong>Pago por Transferencia</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00" id="vendedor-settlement-pago-transferencia">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00€" id="vendedor-settlement-pago-transferencia">
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1178,7 +1178,7 @@
                                                                             <strong>Pago en Efectivo</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00" id="pago-efectivo-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00€" id="pago-efectivo-monto">
                                                                         </div>
                                                                     </div>
 
@@ -1191,7 +1191,7 @@
                                                                             <strong>Pago por Bizum</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00" id="pago-bizum-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00€" id="pago-bizum-monto">
                                                                         </div>
                                                                     </div>
 
@@ -1204,7 +1204,7 @@
                                                                             <strong>Pago por Transferencia</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00" id="pago-transferencia-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00€" id="pago-transferencia-monto">
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -1247,6 +1247,8 @@
     </div>
 
 </div>
+</div>
+<!-- End Content-->
 
 <div class="modal fade" id="modal-premio-especial-obligatorio" tabindex="-1" aria-labelledby="modal-premio-especial-obligatorio-label" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -1266,6 +1268,90 @@
     </div>
 </div>
 
+<div class="modal fade" id="modal-liquidacion-definitiva" tabindex="-1" aria-labelledby="modal-liquidacion-definitiva-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-liquidacion-definitiva-label">{{ config('legal_prizes.definitive_liquidation.title') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger small mb-3">
+                    <strong>Acción irreversible.</strong> {{ config('legal_prizes.definitive_liquidation.warning') }}
+                </div>
+                <label for="confirmacion-liquidacion-definitiva" class="form-label fw-semibold">
+                    {{ config('legal_prizes.definitive_liquidation.confirmation_label') }}
+                </label>
+                <input type="text" class="form-control" id="confirmacion-liquidacion-definitiva" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="btn-confirmar-liquidacion-definitiva" disabled style="border-radius: 30px;">
+                    {{ config('legal_prizes.definitive_liquidation.confirm_button') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modal-modalidad-pago-premios" tabindex="-1" aria-labelledby="modal-modalidad-pago-premios-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-modalidad-pago-premios-label">Modalidad de pago de premios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Selecciona cómo se gestionarán los premios de las participaciones vendidas tras el escrutinio.</p>
+                <div class="alert alert-danger small mb-3">
+                    <strong>Acción irreversible.</strong> {{ config('legal_prizes.payment_mode.irreversibility_warning') }}
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-presencial" value="presencial">
+                                <span class="form-check-label fw-semibold">Opción A € Pago presencial</span>
+                            </div>
+                            <small class="text-muted d-block mt-2">La entidad paga en sus instalaciones (app gestor). Sin ingreso en PARTILOT salvo participaciones digitales vendidas.</small>
+                        </label>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online" value="online" data-online-payer="partilot">
+                                <span class="form-check-label fw-semibold">Opción B € Pago online (PARTILOT)</span>
+                            </div>
+                            <small class="text-muted d-block mt-2">PARTILOT gestiona la remesa. Requiere ingreso del 100% del importe premiado, contrato y activación por superadministrador.</small>
+                        </label>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online-entity" value="online" data-online-payer="entity">
+                                <span class="form-check-label fw-semibold">Opción C € Pago online (entidad)</span>
+                            </div>
+                            <small class="text-muted d-block mt-2">La entidad gestiona sus remesas desde su panel. Los usuarios cobran online tras el escrutinio, sin bloqueo PARTILOT.</small>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="prize-payment-mode-confirm">
+                    <label class="form-check-label" for="prize-payment-mode-confirm">
+                        {{ config('legal_prizes.payment_mode.confirm_checkbox_label') }}
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="btn-confirmar-modalidad-pago" disabled>Aceptar y liquidar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @section('scripts')
@@ -1276,13 +1362,58 @@ function manejarAdvertenciaLiquidacionVendedores(xhr, payload, reenviarFn) {
     if (xhr.status === 409 && data && data.requires_confirmation
         && data.warning_code === 'seller_liquidation_pending'
         && !payload.acknowledge_seller_liquidation_warning) {
-        if (window.confirm((data.message || 'Hay vendedores con liquidación pendiente.') + '\n\n¿Deseas continuar de todas formas?')) {
+        mostrarAvisoLiquidacionVendedores(data, function () {
             payload.acknowledge_seller_liquidation_warning = true;
             reenviarFn(payload);
-        }
+        });
         return true;
     }
     return false;
+}
+
+function escapeHtmlAviso(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+function mostrarAvisoLiquidacionVendedores(data, onContinue) {
+    var sellers = Array.isArray(data.sellers) ? data.sellers : [];
+    var physicalTotal = parseInt(data.physical_in_hand_total, 10) || 0;
+    var rows = sellers.map(function (s) {
+        return '<tr><td>' + escapeHtmlAviso(s.name) + '</td>'
+            + '<td class="text-end">' + (parseFloat(s.pending_amount) || 0).toFixed(2) + ' €</td>'
+            + (physicalTotal > 0 ? '<td class="text-end">' + (parseInt(s.physical_in_hand, 10) || 0) + '</td>' : '')
+            + '</tr>';
+    }).join('');
+    var table = rows
+        ? '<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Vendedor</th><th class="text-end">Importe pendiente</th>'
+            + (physicalTotal > 0 ? '<th class="text-end">Papeletas físicas en mano</th>' : '')
+            + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+        : '';
+    var physicalAlert = physicalTotal > 0
+        ? '<div class="alert alert-danger" style="display:block;">Si continúas, <strong>' + physicalTotal
+            + ' papeleta(s) física(s)</strong> que siguen en manos de vendedores pasarán a considerarse vendidas definitivamente.</div>'
+        : '';
+    var html = '<div class="modal fade" id="aviso-liquidacion-vendedores" tabindex="-1" data-bs-backdrop="static">'
+        + '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">'
+        + '<div class="modal-header"><h5 class="modal-title">Vendedores con liquidación pendiente</h5></div>'
+        + '<div class="modal-body">' + physicalAlert
+        + '<p>' + escapeHtmlAviso(data.message || 'Hay vendedores con liquidación pendiente.') + '</p>' + table + '</div>'
+        + '<div class="modal-footer">'
+        + '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Revisar antes</button>'
+        + '<button type="button" class="btn btn-danger" id="aviso-liquidacion-continuar">Continuar de todas formas</button>'
+        + '</div></div></div></div>';
+
+    $('#aviso-liquidacion-vendedores').remove();
+    $('body').append(html);
+    var $modal = $('#aviso-liquidacion-vendedores');
+    $modal.find('#aviso-liquidacion-continuar').on('click', function () {
+        $modal.modal('hide');
+        onContinue();
+    });
+    $modal.on('hidden.bs.modal', function () { $modal.remove(); });
+    $modal.modal('show');
 }
 
 $(document).ready(function() {
@@ -1299,13 +1430,14 @@ $(document).ready(function() {
     let specialPrizeRequirementKey = null;
     let specialPrizeAssignments = {};
     let specialPrizeIntroShown = false;
+    let pendingLiquidacionData = null;
     
     // DataTables
     let tablaEntidades = null;
     let tablaSorteos = null;
     let tablaVendedores = null;
 
-    // Asegurar que el primer paso esté activo al cargar
+    // Asegurar que el primer paso está activo al cargar
     $('#step-1').addClass('active');
     
     // Inicializar DataTable de entidades al cargar la página
@@ -1423,7 +1555,7 @@ $(document).ready(function() {
         // Actualizar indicadores de pasos con lógica de progreso
         actualizarIndicadoresPasos(pasoId);
         
-        // En paso sorteo: texto del botón volver según tipo (Vendedor → Vendedores, Administración/Anulación → Opciones)
+        // En paso sorteo: texto del botón volver según tipo (Vendedor € Vendedores, Administración/Anulación € Opciones)
         if (pasoId === 'paso-sorteo') {
             const textoVolver = tipoDevolucion === 'vendedor' ? 'Volver a Vendedores' : 'Volver a Opciones';
             $('#btn-volver-desde-sorteo-text').text(textoVolver);
@@ -1524,8 +1656,8 @@ $(document).ready(function() {
             "language": {
                 url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
             },
-            "pageLength": 10,
-            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+            "pageLength": 20,
+            "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
             "ajax": {
                 "url": "{{ route('devolutions.entities') }}",
                 "type": "GET",
@@ -1612,8 +1744,8 @@ $(document).ready(function() {
             "language": {
                 url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
             },
-            "pageLength": 10,
-            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+            "pageLength": 20,
+            "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
             "ajax": {
                 "url": "{{ route('devolutions.lotteries') }}",
                 "type": "GET",
@@ -1676,8 +1808,8 @@ $(document).ready(function() {
             "language": {
                 url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
             },
-            "pageLength": 10,
-            "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+            "pageLength": 20,
+            "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
             "ajax": {
                 "url": "{{ route('devolutions.sellers') }}",
                 "type": "GET",
@@ -2064,7 +2196,7 @@ $(document).ready(function() {
                         if (summary.returned_digitales_auto > 0) {
                             partes.push(summary.returned_digitales_auto + ' digitales automáticas (pool)');
                         }
-                        $('#liquidacion-devueltas-detalle').text(partes.join(' · '));
+                        $('#liquidacion-devueltas-detalle').text(partes.join(' ? '));
                     } else {
                         $('#liquidacion-devueltas-detalle').text('');
                     }
@@ -2149,7 +2281,7 @@ $(document).ready(function() {
         });
     }
 
-    // Función para cargar reservas del vendedor (devolución vendedor → entidad)
+    // Función para cargar reservas del vendedor (devolución vendedor € entidad)
     function cargarReservasVendedor() {
         if (!entidadSeleccionada || !sorteoSeleccionado || !vendedorSeleccionado) return;
         
@@ -2442,7 +2574,7 @@ $(document).ready(function() {
     // Función para configurar la liquidación según el tipo
     function configurarLiquidacionPorTipo() {
         if (tipoDevolucion === 'vendedor') {
-            // Devolución vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 × 6€ = 540€)
+            // Devolución vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 x 6€ = 540€)
             $('#liquidacion-titulo').text('Liquidación de Vendedor');
             $('#liquidacion-subtitulo').html('<i>Registra pagos por las participaciones que siguen asignadas al vendedor</i>');
             $('#liquidacion-resumen-subtitulo').text('Resumen Devolución Vendedor');
@@ -2555,10 +2687,13 @@ $(document).ready(function() {
                 data: payloadData,
                 success: function(response) {
                     if (response.queued && response.success) {
+                        if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                            window.partilotWatchBackgroundTask(response.task_uuid);
+                        }
                         try {
                             sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                                 title: 'Tramitación en segundo plano',
-                                text: 'La operación está en cola. Puedes seguir navegando; al terminar verás un aviso y el listado se actualizará.',
+                                text: 'La operación está en cola. Puedes seguir navegando; al terminar verás un aviso y el listado se actualizar?.',
                                 type: 'notice'
                             }));
                         } catch (e) {}
@@ -2723,7 +2858,7 @@ $(document).ready(function() {
             $('#special-prize-requirement-alert')
                 .removeClass('alert-info')
                 .addClass('alert-warning')
-                .text(`Debes completar ${objetivo} décimos para cerrar la liquidación. Premio especial ${specialPrizeRequirement.premio_especial_numero || '-'} · Serie ${specialPrizeRequirement.premio_especial_serie || '-'} · Fracción ${specialPrizeRequirement.premio_especial_fraccion || '-'} · Series válidas: 1-${maxSeries}`);
+                .text(`Debes completar ${objetivo} décimos para cerrar la liquidación. Premio especial ${specialPrizeRequirement.premio_especial_numero || '-'} ? Serie ${specialPrizeRequirement.premio_especial_serie || '-'} ? Fracción ${specialPrizeRequirement.premio_especial_fraccion || '-'} ? Series válidas: 1-${maxSeries}`);
             $('#special-prize-resumen-text').text('Este sorteo requiere informar serie/fracción para completar la liquidación.');
         } else {
             $('#special-prize-badge').removeClass('bg-danger bg-info').addClass('bg-warning text-dark').text('Opcional');
@@ -2882,7 +3017,7 @@ $(document).ready(function() {
         $('html, body').animate({ scrollTop: $('#bloque-premio-especial').offset().top - 120 }, 250);
     });
 
-    // Event listener para solo devolución (sin liquidar) — botón "Aceptar" #333
+    // Event listener para solo devolución (sin liquidar) € botón "Aceptar" #333
     $('#btn-aceptar-solo-devolucion').click(function() {
         if (participacionesAsignadas.length === 0) {
             mostrarMensaje('Selecciona al menos una participación para devolver', 'warning');
@@ -2912,6 +3047,9 @@ $(document).ready(function() {
                 data: payloadData,
                 success: function(response) {
                     if (response.queued && response.success) {
+                        if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                            window.partilotWatchBackgroundTask(response.task_uuid);
+                        }
                         try {
                             sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
                                 title: 'Tramitación en segundo plano',
@@ -3018,48 +3156,137 @@ $(document).ready(function() {
             liquidacionData.seller_id = vendedorSeleccionado.id;
         }
 
-        $(this).prop('disabled', true).text('Procesando...');
-
-        function enviarLiquidacionCompleta(payloadData) {
-            $.ajax({
-                url: "{{ route('devolutions.store') }}",
-                method: 'POST',
-                data: payloadData,
-                success: function(response) {
-                    if (response.queued && response.success) {
-                        try {
-                            sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
-                                title: 'Tramitación en segundo plano',
-                                text: 'La operación está en cola. Te llevamos al listado; al terminar verás un aviso.',
-                                type: 'notice'
-                            }));
-                        } catch (e) {}
-                        window.location.href = "{{ route('devolutions.index') }}";
-                        return;
-                    }
-                    if (response.success) {
-                        mostrarMensaje('Liquidación procesada correctamente', 'success');
-                        setTimeout(() => {
-                            window.location.href = "{{ route('devolutions.index') }}";
-                        }, 2000);
-                    } else {
-                        mostrarMensaje(response.message || 'Error al procesar la liquidación', 'error');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    if (manejarAdvertenciaLiquidacionVendedores(xhr, payloadData, enviarLiquidacionCompleta)) {
-                        return;
-                    }
-                    console.error('Error en liquidación:', error);
-                    mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error al procesar la liquidación', 'error');
-                },
-                complete: function() {
-                    $('#btn-aceptar-liquidacion').prop('disabled', false).text('Aceptar');
-                }
-            });
+        if (tipoDevolucion === 'administracion') {
+            pendingLiquidacionData = liquidacionData;
+            $('#confirmacion-liquidacion-definitiva').val('');
+            $('#btn-confirmar-liquidacion-definitiva').prop('disabled', true);
+            const l8Modal = document.getElementById('modal-liquidacion-definitiva');
+            if (l8Modal && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(l8Modal).show();
+            } else {
+                mostrarMensaje('No se pudo abrir la confirmación de liquidación definitiva.', 'error');
+            }
+            return;
         }
-        enviarLiquidacionCompleta(liquidacionData);
+
+        $(this).prop('disabled', true).text('Procesando...');
+        enviarLiquidacionCompleta(liquidacionData, $(this));
     });
+
+    const expectedLiquidacionPhrase = @json(config('legal_prizes.definitive_liquidation.confirmation_phrase'));
+
+    $('#confirmacion-liquidacion-definitiva').on('input', function() {
+        const matches = $(this).val().trim() === expectedLiquidacionPhrase;
+        $('#btn-confirmar-liquidacion-definitiva').prop('disabled', !matches);
+    });
+
+    $('#btn-confirmar-liquidacion-definitiva').click(function() {
+        if (!pendingLiquidacionData) {
+            return;
+        }
+        const phrase = $('#confirmacion-liquidacion-definitiva').val().trim();
+        if (phrase !== expectedLiquidacionPhrase) {
+            mostrarMensaje('Debes escribir exactamente ?' + expectedLiquidacionPhrase + '?.', 'warning');
+            return;
+        }
+        pendingLiquidacionData.confirmacion_liquidacion_definitiva = phrase;
+        const l8Modal = document.getElementById('modal-liquidacion-definitiva');
+        if (l8Modal && window.bootstrap) {
+            bootstrap.Modal.getOrCreateInstance(l8Modal).hide();
+        }
+        $('input[name="prize_payment_mode"]').prop('checked', false);
+        $('#prize-payment-mode-confirm').prop('checked', false);
+        $('#btn-confirmar-modalidad-pago').prop('disabled', true);
+        const modalEl = document.getElementById('modal-modalidad-pago-premios');
+        if (modalEl && window.bootstrap) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else {
+            mostrarMensaje('No se pudo abrir el selector de modalidad de pago.', 'error');
+        }
+    });
+
+    function actualizarBotonModalidadPago() {
+        const modo = $('input[name="prize_payment_mode"]:checked').val();
+        const confirmado = $('#prize-payment-mode-confirm').is(':checked');
+        $('#btn-confirmar-modalidad-pago').prop('disabled', !(modo && confirmado));
+    }
+
+    $(document).on('change', 'input[name="prize_payment_mode"], #prize-payment-mode-confirm', actualizarBotonModalidadPago);
+
+    $('#btn-confirmar-modalidad-pago').click(function() {
+        if (!pendingLiquidacionData) {
+            return;
+        }
+        const modo = $('input[name="prize_payment_mode"]:checked').val();
+        if (!modo || !$('#prize-payment-mode-confirm').is(':checked')) {
+            mostrarMensaje('Debes seleccionar la modalidad de pago y confirmarla.', 'warning');
+            return;
+        }
+        const confirmMsg = @json(config('legal_prizes.payment_mode.double_confirm_message'));
+        if (!window.confirm(confirmMsg)) {
+            return;
+        }
+        pendingLiquidacionData.prize_payment_mode = modo;
+        const $checked = $('input[name="prize_payment_mode"]:checked');
+        const onlinePayer = $checked.data('online-payer');
+        if (modo === 'online' && onlinePayer) {
+            pendingLiquidacionData.online_payer = onlinePayer;
+        }
+        const modalEl = document.getElementById('modal-modalidad-pago-premios');
+        if (modalEl && window.bootstrap) {
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+        const $btn = $('#btn-aceptar-liquidacion');
+        $btn.prop('disabled', true).text('Procesando...');
+        enviarLiquidacionCompleta(pendingLiquidacionData, $btn);
+        pendingLiquidacionData = null;
+    });
+
+    function enviarLiquidacionCompleta(payloadData, $triggerBtn) {
+        $.ajax({
+            url: "{{ route('devolutions.store') }}",
+            method: 'POST',
+            data: payloadData,
+            success: function(response) {
+                if (response.queued && response.success) {
+                    if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
+                        window.partilotWatchBackgroundTask(response.task_uuid);
+                    }
+                    try {
+                        sessionStorage.setItem('partilot_bg_job_started', JSON.stringify({
+                            title: 'Tramitacion en segundo plano',
+                            text: 'La operacion esta en cola. Te llevamos al listado; al terminar veras un aviso.',
+                            type: 'notice'
+                        }));
+                    } catch (e) {}
+                    window.location.href = "{{ route('devolutions.index') }}";
+                    return;
+                }
+                if (response.success) {
+                    mostrarMensaje('Liquidacion procesada correctamente', 'success');
+                    setTimeout(() => {
+                        window.location.href = "{{ route('devolutions.index') }}";
+                    }, 2000);
+                } else {
+                    mostrarMensaje(response.message || 'Error al procesar la liquidacion', 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                if (manejarAdvertenciaLiquidacionVendedores(xhr, payloadData, function (p) {
+                    enviarLiquidacionCompleta(p, $triggerBtn);
+                })) {
+                    return;
+                }
+                console.error('Error en liquidacion:', error);
+                mostrarMensaje(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error al procesar la liquidacion', 'error');
+            },
+            complete: function() {
+                if ($triggerBtn && $triggerBtn.length) {
+                    $triggerBtn.prop('disabled', false).text('Aceptar Liquidacion');
+                }
+            }
+        });
+    }
 
     // Event listener para cerrar liquidación
     $('#btn-cerrar-liquidacion').click(function() {
@@ -3149,9 +3376,11 @@ $(document).ready(function() {
                     $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '€');
                     $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + '€');
                     $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + '€');
-                    $('#vendedor-settlement-liquidated-participations').text(liquidatedParticipations.toFixed(2));
+                    const totalParticipationsCount = parseInt(summary.total_participations, 10) || 0;
+                    const coveredParticipations = Math.min(totalParticipationsCount, Math.floor(liquidatedParticipations + 1e-6));
+                    $('#vendedor-settlement-liquidated-participations').text(coveredParticipations);
                     $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + '€');
-                    $('#vendedor-settlement-pending-participations').text(pendingParticipations.toFixed(2));
+                    $('#vendedor-settlement-pending-participations').text(Math.max(0, totalParticipationsCount - coveredParticipations));
                     $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + '€');
                     
                     console.log('Datos actualizados en la vista');
@@ -3225,6 +3454,17 @@ $(document).ready(function() {
             return;
         }
 
+        const pendienteActual = parseFloat(($('#vendedor-settlement-pending-amount').text().match(/[\d.,]+/) || ['0'])[0].replace(',', '.')) || 0;
+        const totalPagos = pagos.reduce((sum, p) => sum + p.amount, 0);
+        if (pendienteActual <= 0.009) {
+            mostrarMensaje('No queda importe pendiente de liquidar para este vendedor en este sorteo.', 'warning');
+            return;
+        }
+        if (totalPagos > pendienteActual + 0.009) {
+            mostrarMensaje('El importe a liquidar (' + totalPagos.toFixed(2) + '€) supera el pendiente (' + pendienteActual.toFixed(2) + '€).', 'warning');
+            return;
+        }
+
         // Deshabilitar botón
         $(this).prop('disabled', true).text('Procesando...');
 
@@ -3255,7 +3495,8 @@ $(document).ready(function() {
             },
             error: function(xhr, status, error) {
                 console.error('Error:', error);
-                mostrarMensaje('Error al registrar la liquidación', 'error');
+                const serverMessage = xhr.responseJSON && xhr.responseJSON.message;
+                mostrarMensaje(serverMessage || 'Error al registrar la liquidación', xhr.status === 422 ? 'warning' : 'error');
             },
             complete: function() {
                 $('#btn-registrar-liquidacion-vendedor').prop('disabled', false).html('<i class="ri-add-line"></i> Registrar Liquidación');
@@ -3276,7 +3517,7 @@ $(document).ready(function() {
             },
             success: function(response) {
                 if (response.success && response.settlements.length > 0) {
-                    let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Participaciones Liquidadas</th><th>Monto Pagado</th><th>Métodos de Pago</th></tr></thead><tbody>';
+                    let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Fecha</th><th>Importe pagado</th><th>Pendiente tras el pago</th><th>Métodos de Pago</th></tr></thead><tbody>';
                     
                     response.settlements.forEach(settlement => {
                         const fecha = new Date(settlement.settlement_date).toLocaleDateString('es-ES');
@@ -3295,14 +3536,14 @@ $(document).ready(function() {
                             metodos.push(`${icono} ${paymentAmount.toFixed(2)}€`);
                         });
                         
-                        const calculatedParts = parseFloat(settlement.calculated_participations) || 0;
+                        const pendingAfter = Math.max(0, parseFloat(settlement.pending_amount) || 0);
                         const paidAmount = parseFloat(settlement.paid_amount) || 0;
                         
                         html += `
                             <tr>
                                 <td>${fecha}</td>
-                                <td>${calculatedParts.toFixed(2)}</td>
                                 <td class="fw-bold text-success">${paidAmount.toFixed(2)}€</td>
+                                <td>${pendingAfter.toFixed(2)}€</td>
                                 <td>${metodos.join(', ')}</td>
                             </tr>
                         `;
@@ -3470,7 +3711,7 @@ $(document).ready(function() {
                 <tr>
                     <td>${participation.number || participation.participation_number}</td>
                     <td>${participation.participation_code}</td>
-                    <td><span class="badge bg-warning">Se anulará</span></td>
+                    <td><span class="badge bg-warning">Se anular?</span></td>
                 </tr>
             `;
         });

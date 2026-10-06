@@ -11,6 +11,14 @@ class Entity extends Model
 {
     use HasFactory;
 
+    public const CONTRACT_PENDING = 'pending';
+
+    public const CONTRACT_SIGNED = 'signed';
+
+    public const CLIENT_TYPE_LEGAL_ENTITY = 'legal_entity';
+
+    public const CLIENT_TYPE_NATURAL_ORGANIZER = 'natural_organizer';
+
     protected $fillable = [
         'administration_id',
         'image',
@@ -23,13 +31,88 @@ class Entity extends Model
         'phone',
         'email',
         'comments',
+        'client_type',
+        'signer_name',
+        'signer_last_name',
+        'signer_last_name2',
+        'signer_nif',
+        'signer_email',
+        'signer_birthday',
+        'signer_is_primary_manager',
+        'is_non_profit',
         'status',
         'billing_iban',
+        'entity_pays_management_fee',
+        'entity_pays_print_fee',
+        'stripe_customer_id',
+        'contract_status',
+        'contract_reference',
+        'contract_version',
+        'contract_token',
+        'contract_sent_at',
+        'contract_signed_at',
+        'contract_signed_by_user_id',
+        'contract_signer_name',
+        'contract_signer_nif',
+        'contract_pdf_path',
     ];
 
     protected $casts = [
         'status' => 'integer',
+        'is_non_profit' => 'boolean',
+        'entity_pays_management_fee' => 'boolean',
+        'entity_pays_print_fee' => 'boolean',
+        'signer_is_primary_manager' => 'boolean',
+        'signer_birthday' => 'date',
+        'contract_sent_at' => 'datetime',
+        'contract_signed_at' => 'datetime',
     ];
+
+    public function isNaturalOrganizer(): bool
+    {
+        return $this->client_type === self::CLIENT_TYPE_NATURAL_ORGANIZER;
+    }
+
+    public function isLegalEntityClient(): bool
+    {
+        return ($this->client_type ?: self::CLIENT_TYPE_LEGAL_ENTITY) === self::CLIENT_TYPE_LEGAL_ENTITY;
+    }
+
+    public function hasPendingFrameworkContract(): bool
+    {
+        return $this->contract_status === self::CONTRACT_PENDING;
+    }
+
+    public function hasSignedFrameworkContract(): bool
+    {
+        return $this->contract_status === self::CONTRACT_SIGNED;
+    }
+
+    public function signerFullName(): string
+    {
+        return trim(implode(' ', array_filter([
+            (string) ($this->signer_name ?? ''),
+            (string) ($this->signer_last_name ?? ''),
+            (string) ($this->signer_last_name2 ?? ''),
+        ])));
+    }
+
+    public function clientTypeLabel(): string
+    {
+        return match ($this->client_type) {
+            self::CLIENT_TYPE_NATURAL_ORGANIZER => 'Organizador / persona física',
+            default => 'Entidad con personalidad jurídica',
+        };
+    }
+
+    public function contractStatusLabel(): string
+    {
+        return match ($this->contract_status) {
+            self::CONTRACT_SIGNED => 'Firmado',
+            self::CONTRACT_PENDING => 'Pendiente de firma',
+            default => 'Sin contrato',
+        };
+    }
 
     protected function name(): Attribute
     {
@@ -48,7 +131,10 @@ class Entity extends Model
 
     protected function comments(): Attribute
     {
-        return $this->htmlDecodedTextAttribute();
+        return Attribute::make(
+            get: fn (?string $value) => HtmlText::decode($value),
+            set: fn (?string $value) => HtmlText::sanitizePlainText($value),
+        );
     }
 
     protected function province(): Attribute
@@ -77,7 +163,9 @@ class Entity extends Model
      */
     public function manager()
     {
-        return $this->hasOne(Manager::class,'entity_id','id')->where('is_primary', true);
+        return $this->hasOne(Manager::class, 'entity_id', 'id')
+            ->where('is_primary', true)
+            ->notInvitationRejected();
     }
 
     /**
@@ -88,12 +176,22 @@ class Entity extends Model
         return $this->hasMany(Manager::class,'entity_id','id');
     }
 
+    public function pendingManagerInvitations()
+    {
+        return $this->hasMany(PendingEntityManagerInvitation::class, 'entity_id', 'id');
+    }
+
     /**
      * Relación con Reservas
      */
     public function reserves()
     {
         return $this->hasMany(Reserve::class);
+    }
+
+    public function lotteryPrizeSettings()
+    {
+        return $this->hasMany(EntityLotteryPrizeSetting::class);
     }
 
     /**
@@ -168,5 +266,17 @@ class Entity extends Model
         }
 
         return $query->whereIn('id', $entityIds);
+    }
+
+    /** Etiqueta del pagador de la cuota de gestión PARTILOT según Switch 1. */
+    public function managementFeePayerLabel(): string
+    {
+        return $this->entity_pays_management_fee ? 'Entidad' : 'Administración';
+    }
+
+    /** Etiqueta del pagador de diseño e impresión según Switch 2. */
+    public function printFeePayerLabel(): string
+    {
+        return $this->entity_pays_print_fee ? 'Entidad' : 'Administración';
     }
 }

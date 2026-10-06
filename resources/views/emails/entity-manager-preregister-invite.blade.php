@@ -1,16 +1,37 @@
 @extends('emails.layouts.base')
 
+@php
+    $roleType = $pending->is_primary ? 'gestor_responsable' : 'gestor';
+    $role = config("legal_roles.{$roleType}", []);
+@endphp
 @php($title = 'Invitación gestor - Partilot')
-@php($heading = 'Invitación como gestor')
+@php($heading = $pending->is_primary ? 'Designación como Gestor Responsable' : 'Invitación como gestor')
 
 @section('content')
 <p>Hola,</p>
-<p>Has sido invitado/a a ser <strong>gestor responsable</strong> de la entidad <strong>{{ $entity->name }}</strong> en Partilot.</p>
+<p>Has sido invitado/a a ser <strong>{{ $pending->is_primary ? 'gestor responsable' : 'gestor' }}</strong> de la entidad <strong>{{ $entity->name }}</strong> en Partilot.</p>
+@if(!empty($role['summary_bullets']))
+<ul>
+    @foreach($role['summary_bullets'] as $bullet)
+        <li>{{ $bullet }}</li>
+    @endforeach
+</ul>
+@endif
 <div class="info-box">
-    <p><strong>Aún no tenemos una cuenta registrada con el email {{ $invitedEmail }}.</strong></p>
-    <p>Para vincularte automáticamente, <strong>regístrate en la aplicación o en el sitio web</strong> usando <strong>exactamente este mismo correo</strong>: <strong>{{ $invitedEmail }}</strong>.</p>
+    <p><strong>Email de la invitación:</strong> {{ $invitedEmail }}</p>
+    <p>Si <strong>aceptas</strong>, completarás un breve registro con ese correo (nombre, DNI, teléfono y contraseña) y quedarás vinculado/a a la entidad.</p>
+    <p>Si <strong>rechazas</strong>, la invitación se cancelará y no se creará ninguna cuenta.</p>
 </div>
-<p>Cuando completes el registro, recibirás un correo para <strong>aceptar o rechazar</strong> la invitación y podrás <strong>definir la contraseña de acceso al panel</strong> como gestor.</p>
-<p style="font-size: 13px; color:#666;">Web: <a href="{{ $registerHintUrl }}">{{ $registerHintUrl }}</a></p>
-<p style="font-size: 13px; color:#666;">Si no esperabas esta invitación, puedes ignorar este mensaje.</p>
+<p style="text-align:center; margin: 24px 0;">
+    <a href="{{ $acceptUrl }}" style="display:inline-block;padding:10px 18px;background:#198754;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;margin-right:8px;">Aceptar y registrarme</a>
+    <a href="{{ $rejectUrl }}" style="display:inline-block;padding:10px 18px;background:#dc3545;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Rechazar</a>
+</p>
+@if($pending->is_primary)
+<p style="font-size: 13px; color:#555; background:#f8f9fa; padding:12px; border-radius:8px;">
+    <strong>Aviso:</strong> cuando completes el registro y aceptes el cargo de gestor responsable,
+    se enviará a la entidad el correo con el <strong>acceso a la plataforma</strong>.
+    Este correo de invitación no es el acceso del panel de la entidad.
+</p>
+@endif
+<p style="font-size: 13px; color:#666;">Si no esperabas esta invitación, puedes rechazarla o ignorar este mensaje.</p>
 @endsection

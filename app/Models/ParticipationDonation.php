@@ -10,6 +10,7 @@ class ParticipationDonation extends Model
 {
     protected $fillable = [
         'user_id',
+        'entity_id',
         'nombre',
         'apellidos',
         'nif',
@@ -17,7 +18,7 @@ class ParticipationDonation extends Model
         'importe_codigo',
         'codigo_recarga',
         'anonima',
-        'donated_at',
+        'certificado_fiscal',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class ParticipationDonation extends Model
         'importe_donacion' => 'decimal:2',
         'importe_codigo' => 'decimal:2',
         'anonima' => 'boolean',
+        'certificado_fiscal' => 'boolean',
     ];
 
     public function user(): BelongsTo
@@ -40,5 +42,14 @@ class ParticipationDonation extends Model
     public function participations()
     {
         return $this->belongsToMany(Participation::class, 'participation_donation_items', 'donation_id', 'participation_id');
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (ParticipationDonation $donation) {
+            if ($donation->donated_at === null) {
+                $donation->donated_at = now();
+            }
+        });
     }
 }

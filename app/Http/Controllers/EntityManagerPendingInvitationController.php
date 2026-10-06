@@ -1,0 +1,227 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Manager;
+use App\Models\PendingEntityManagerInvitation;
+use App\Models\User;
+use App\Rules\SpanishDocument;
+use App\Rules\ValidCalendarDate;
+use App\Services\LegalAcceptanceService;
+use App\Services\RoleLegalAcceptanceService;
+use App\Support\PasswordRules;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class EntityManagerPendingInvitationController extends Controller
+{
+    public function showRegister(string $token)
+    {
+        $pending = PendingEntityManagerInvitation::findByToken($token);
+        if (! $pending) {
+            return view('auth.entity-manager-register-expired');
+        }
+
+        $email = PendingEntityManagerInvitation::normalizeEmail((string) $pending->email);
+        if (User::query()->whereRaw('LOWER(email) = ?', [$email])->exists()) {
+            return view('auth.entity-manager-register-exists', [
+                'pending' => $pending->loadMissing('entity.administration'),
+                'email' => $email,
+            ]);
+        }
+
+        $pending->loadMissing('entity.administration');
+
+        return view('auth.entity-manager-register', [
+            'pending' => $pending,
+            'token' => $token,
+            'email' => $email,
+        ]);
+    }
+
+    public function storeRegister(Request $request, string $token, RoleLegalAcceptanceService $roleService)
+    {
+        $pending = PendingEntityManagerInvitation::findByToken($token);
+        if (! $pending) {
+            return view('auth.entity-manager-register-expired');
+        }
+
+        $email = PendingEntityManagerInvitation::normalizeEmail((string) $pending->email);
+        if (User::query()->whereRaw('LOWER(email) = ?', [$email])->exists()) {
+            return view('auth.entity-manager-register-exists', [
+                'pending' => $pending->loadMissing('entity.administration'),
+                'email' => $email,
+            ]);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'last_name2' => 'nullable|string|max:255',
+            'nif_cif' => ['required', 'string', 'max:20', new SpanishDocument],
+            'phone' => 'nullable|string|max:20',
+            'birthday' => ValidCalendarDate::birthday(),
+            'password' => PasswordRules::registration(),
+            'marco_legal' => 'accepted',
+        ], array_merge(PasswordRules::messages(), [
+            'marco_legal.accepted' => 'Debe aceptar el Marco Legal de PARTILOT para continuar.',
+            'nif_cif.required' => 'Indique su NIF/CIF.',
+        ]));
+
+        $pending->loadMissing('entity.administration');
+        $entity = $pending->entity;
+
+        $manager = DB::transaction(function () use ($request, $pending, $email, $entity) {
+            $snapshot = $pending->only([
+                'entity_id',
+                'is_primary',
+                'permission_sellers',
+                'permission_design',
+                'permission_statistics',
+                'permission_payments',
+            ]);
+
+            $pending->delete();
+
+            $user = User::create([
+                'name' => $request->input('name'),
+                'last_name' => $request->input('last_name'),
+                'last_name2' => $request->input('last_name2'),
+                'nif_cif' => $request->input('nif_cif'),
+                'phone' => $request->input('phone') ?: null,
+                'birthday' => $request->input('birthday') ?: null,
+                'email' => $email,
+                'password' => $request->input('password'),
+                'must_change_password' => false,
+                'role' => User::ROLE_ENTITY,
+                'status' => true,
+            ]);
+
+            if ($snapshot['is_primary']) {
+                Manager::query()->where('entity_id', $snapshot['entity_id'])->update(['is_primary' => false]);
+            }
+
+            return Manager::create([
+                'user_id' => $user->id,
+                'entity_id' => $snapshot['entity_id'],
+                'is_primary' => (bool) $snapshot['is_primary'],
+                'pending_primary' => false,
+                'permission_sellers' => (bool) $snapshot['permission_sellers'],
+                'permission_design' => (bool) $snapshot['permission_design'],
+                'permission_statistics' => (bool) $snapshot['permission_statistics'],
+                'permission_payments' => (bool) $snapshot['permission_payments'],
+                'confirmation_token' => Str::random(64),
+                'confirmation_sent_at' => now(),
+                'requires_password_setup' => false,
+                'user_created_for_invitation' => false,
+                'status' => null,
+            ]);
+        });
+
+        $entity->refresh();
+        $manager->load('user');
+
+        $meta = app(LegalAcceptanceService::class)->registrationDocumentMeta();
+        app(LegalAcceptanceService::class)->recordFromRequest(
+            action: \App\Models\LegalAcceptance::ACTION_REGISTRO_ACEPTACION_TCU,
+            request: $request,
+            user: $manager->user,
+            version: $meta['version'],
+            textHash: $meta['text_hash'],
+            entityId: (int) $entity->id,
+            administrationId: $entity->administration_id ? (int) $entity->administration_id : null,
+            context: ['via' => 'entity_manager_register'],
+        );
+
+        if ($manager->is_primary && $entity->contract_status === \App\Models\Entity::CONTRACT_PENDING) {
+            return redirect()->route('entity-contract.accept-primary', ['token' => $manager->confirmation_token]);
+        }
+
+        $result = $roleService->finalizeManagerActivation($manager, $request, $manager->user);
+        if (! $result['success']) {
+            return view('entities.manager-confirmation-error', [
+                'message' => $result['message'],
+            ]);
+        }
+
+        $manager->refresh()->load('entity');
+
+        return view('entities.manager-confirmation-success', [
+            'message' => '¡Cuenta creada e invitación aceptada! Ya puede iniciar sesión en el panel con su email y la contraseña elegida.',
+            'type' => 'accept',
+            'manager' => $manager,
+        ]);
+    }
+
+    public function confirmReject(string $token)
+    {
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
+        $pending = PendingEntityManagerInvitation::findByToken($token);
+        if (! $pending) {
+            return view('entities.manager-confirmation-error', [
+                'message' => 'El enlace de invitación no es válido o ya ha sido utilizado.',
+            ]);
+        }
+
+        $pending->loadMissing('entity');
+
+        return view('public.confirm-reject', [
+            'title' => 'Rechazar invitación de gestor',
+            'message' => '¿Seguro que quieres rechazar la invitación como gestor'.($pending->entity ? ' de '.$pending->entity->name : '').'? No se creará ninguna cuenta.',
+            'action' => route('entity-managers.pending.reject.store', ['token' => $token]),
+        ]);
+    }
+
+    public function reject(string $token)
+    {
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
+        $pending = PendingEntityManagerInvitation::findByToken($token);
+        if (! $pending) {
+            return view('entities.manager-confirmation-error', [
+                'message' => 'El enlace de invitación no es válido o ya ha sido utilizado.',
+            ]);
+        }
+
+        $pending->loadMissing('entity');
+        $email = PendingEntityManagerInvitation::normalizeEmail((string) $pending->email);
+        $roleType = $pending->is_primary ? 'gestor_responsable' : 'gestor';
+        $role = config("legal_roles.{$roleType}", []);
+        $action = $pending->is_primary
+            ? \App\Models\LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR_RESPONSABLE
+            : \App\Models\LegalAcceptance::ACTION_ACEPTACION_ROL_GESTOR;
+
+        app(LegalAcceptanceService::class)->recordFromRequest(
+            action: $action,
+            request: request(),
+            user: null,
+            result: \App\Models\LegalAcceptance::RESULT_RECHAZADO,
+            version: (string) ($role['version'] ?? '3'),
+            textHash: (string) ($role['hash'] ?? 'role_v3'),
+            entityId: (int) $pending->entity_id,
+            administrationId: $pending->entity?->administration_id ? (int) $pending->entity->administration_id : null,
+            context: [
+                'pending_invitation_id' => $pending->id,
+                'role_type' => $roleType,
+                'is_primary' => (bool) $pending->is_primary,
+                'manager_email' => $email !== '' ? $email : null,
+                'via' => 'pending_invitation',
+            ],
+        );
+
+        $pending->update([
+            'rejected_at' => now(),
+            'confirmation_token' => null,
+            'confirmation_sent_at' => null,
+        ]);
+
+        return view('entities.manager-confirmation-success', [
+            'message' => 'Invitación rechazada. No se creará ninguna cuenta ni vínculo como gestor de esta entidad.',
+            'type' => 'reject',
+            'manager' => null,
+        ]);
+    }
+
+}

@@ -11,6 +11,55 @@
     color: #333;
 }
 
+/* Login móvil (< 768px) */
+.partilot-login-mobile {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem 1rem;
+    background: #eef1f5;
+    box-sizing: border-box;
+}
+.partilot-login-mobile-inner {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 24px;
+    padding: 1.75rem 1.25rem 1.5rem;
+    box-shadow: 0 8px 28px rgba(31, 36, 48, 0.08);
+}
+.partilot-login-mobile .auth-brand h4 {
+    font-size: 1.15rem;
+    line-height: 1.4;
+}
+.partilot-login-mobile-form .group-login-mobile {
+    width: 100%;
+}
+.partilot-login-mobile-form .group-login-mobile .form-control {
+    font-size: 16px !important;
+    min-width: 0;
+}
+.partilot-login-mobile-submit {
+    border-radius: 30px;
+    padding: 13px 0;
+}
+
+@media (max-width: 575.98px) {
+    .partilot-login-mobile {
+        padding: 0.85rem 0.75rem;
+    }
+    .partilot-login-mobile-inner {
+        padding: 1.5rem 1rem 1.25rem;
+        border-radius: 20px;
+    }
+    .partilot-login-mobile .group-login div,
+    .partilot-login-mobile .group-login input {
+        padding: 0.65rem 0.75rem !important;
+    }
+}
+
 /* Textos más legibles */
 .text-muted,
 small.text-muted,
@@ -121,14 +170,37 @@ small.text-muted,
     pointer-events: none;
 }
 
-/* Avisos PNotify error más visibles */
+/* Avisos PNotify (brighttheme + partilot) */
+.ui-pnotify .ui-pnotify-container.brighttheme-success,
+.ui-pnotify.brighttheme-success .ui-pnotify-container,
+.ui-pnotify.partilot-notify .ui-pnotify-container.brighttheme-success {
+    background-color: #c7efe9 !important;
+    color: #0f766e !important;
+    border-color: #8fd7cd !important;
+}
+.ui-pnotify .ui-pnotify-container.brighttheme-error,
+.ui-pnotify.brighttheme-error .ui-pnotify-container,
+.ui-pnotify.partilot-notify-error .ui-pnotify-container,
 .ui-pnotify.partilot-notify-error,
 .ui-pnotify.partilot-notify-error .alert {
     background-color: #f8d7da !important;
-    border: 2px solid #dc3545 !important;
+    border-radius: 50px !important;
     color: #842029 !important;
     font-size: 1rem !important;
     font-weight: 600 !important;
+    border-color: #f1aeb5 !important;
+}
+.ui-pnotify .ui-pnotify-container.brighttheme-notice,
+.ui-pnotify.brighttheme-notice .ui-pnotify-container {
+    background-color: #fff3cd !important;
+    color: #7a5a00 !important;
+    border-color: #ffe69c !important;
+}
+.ui-pnotify .ui-pnotify-container.brighttheme-info,
+.ui-pnotify.brighttheme-info .ui-pnotify-container {
+    background-color: #cff4fc !important;
+    color: #055160 !important;
+    border-color: #9eeaf9 !important;
 }
 .ui-pnotify.partilot-notify-error {
     top: 120px !important;
@@ -140,9 +212,63 @@ small.text-muted,
     box-shadow: 0 0 0 0.15rem rgba(220, 53, 69, 0.25) !important;
 }
 
-/* Botones de acción en tablas */
-.table .btn[title] {
+/* Botones de acción en tablas: esquinas poco redondeadas; btn-light con borde visible */
+.content-page .table .btn.btn-sm,
+.content-page .dataTables_wrapper table .btn.btn-sm {
+    padding: 0.28rem 0.5rem;
     min-width: 2rem;
+    line-height: 1.15;
+    box-shadow: none !important;
+}
+
+.content-page .table .btn.btn-sm + .btn.btn-sm,
+.content-page .dataTables_wrapper table .btn.btn-sm + .btn.btn-sm {
+    margin-left: 4px;
+}
+
+.content-page .table .btn.btn-sm.btn-light,
+.content-page .dataTables_wrapper table .btn.btn-sm.btn-light {
+    background-color: #fff !important;
+    border: 1px solid #cfd4dc !important;
+    color: #333 !important;
+}
+
+.content-page .table .btn.btn-sm.btn-light:hover,
+.content-page .table .btn.btn-sm.btn-light:focus,
+.content-page .dataTables_wrapper table .btn.btn-sm.btn-light:hover,
+.content-page .dataTables_wrapper table .btn.btn-sm.btn-light:focus {
+    background-color: #f3f4f7 !important;
+    border-color: #b8bec8 !important;
+    color: #1a1a1a !important;
+}
+
+.content-page .table .btn[title] {
+    min-width: 2rem;
+}
+
+/* Logos de entidad / org: marco cuadrado redondeado (override del círculo 50px) */
+.logo-round.photo-preview,
+.logo-round.photo-preview-2,
+.logo-round.photo-preview-3,
+.photo-preview.logo-round,
+.photo-preview-2.logo-round,
+.photo-preview-3.logo-round {
+    border-radius: 12px !important;
+    padding: 0 !important;
+    background-size: 100% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.logo-round.photo-preview i,
+.logo-round.photo-preview-2 i,
+.logo-round.photo-preview-3 i,
+.photo-preview.logo-round i,
+.photo-preview-2.logo-round i,
+.photo-preview-3.logo-round i {
+    line-height: 1;
 }
 
 /* Ficha entidad: cabecera icono + nombre sin solapamiento */
@@ -261,4 +387,316 @@ small.text-muted,
     .partilot-entity-switcher {
         display: list-item !important;
     }
+}
+
+/* Pestañas horizontales en Ajustes (app.min.css fuerza .nav-item { width: 100% }) */
+.config-inline-tabs {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0;
+    border-bottom: 1px solid #dee2e6;
+}
+.config-inline-tabs .nav-item {
+    width: auto;
+    flex: 0 0 auto;
+}
+.config-inline-tabs .nav-link {
+    white-space: nowrap;
+}
+
+/* (Overlay bloqueante de PDF eliminado: solo notificación arriba derecha) */
+
+/*
+ * Utilidades de panel (card + footer como listado Sorteos).
+ * No usar flex/min-height en .content: rompe el footer absoluto del tema.
+ */
+.partilot-page-panel--centered > .card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.partilot-page-panel__inner {
+    width: 100%;
+}
+
+.partilot-page-panel__narrow {
+    width: 100%;
+    max-width: 540px;
+}
+
+/* Summary diseño: cuadros de estado en fila (botones de descarga siempre visibles debajo) */
+.design-summary-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    align-items: stretch;
+    width: 100%;
+    margin: 0 auto 1.5rem;
+}
+
+.design-summary-card {
+    flex: 1 1 280px;
+    max-width: 420px;
+    margin: 0 !important;
+    text-align: left;
+}
+
+.partilot-page-panel__section + .partilot-page-panel__section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eef1f6;
+}
+
+@media (min-width: 992px) {
+    .partilot-page-panel__aside {
+        padding-left: 1.5rem;
+        border-left: 1px solid #eef1f6;
+    }
+}
+
+.partilot-page-panel__col-main,
+.partilot-page-panel__col-side {
+    height: 100%;
+}
+
+.partilot-page-panel__col-side {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (min-width: 992px) {
+    .partilot-page-panel__col-side {
+        padding-left: 1.5rem;
+        border-left: 1px solid #eef1f6;
+    }
+}
+
+/* Paginación tablas: todos los botones redondeados (pill) */
+.content-page .pagination {
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.content-page .pagination .page-item .page-link {
+    border-radius: 999px !important;
+    min-width: 32px;
+    height: 32px;
+    line-height: 30px;
+    padding: 0 10px !important;
+    text-align: center;
+    border: 1px solid #d9dde8 !important;
+    margin: 0 2px;
+    color: #525a6d;
+    background: #fff;
+    box-shadow: none;
+}
+
+.content-page .pagination .page-item:first-child .page-link,
+.content-page .pagination .page-item:last-child .page-link {
+    border-radius: 999px !important;
+}
+
+.content-page .pagination .page-item.active .page-link,
+.content-page .pagination .page-link.active,
+.content-page .pagination .active > .page-link {
+    background-color: #1f2430 !important;
+    border-color: #1f2430 !important;
+    color: #fff !important;
+    border-radius: 999px !important;
+    height: 32px;
+    line-height: 30px;
+    font-weight: 600;
+}
+
+.content-page .pagination .page-item.disabled .page-link,
+.content-page .pagination .page-link.disabled,
+.content-page .pagination .disabled > .page-link {
+    opacity: 0.55;
+    height: 32px;
+    line-height: 30px;
+    border-radius: 999px !important;
+}
+
+.content-page .dataTables_wrapper .dataTables_paginate .paginate_button {
+    border-radius: 999px !important;
+}
+
+.content-page .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.content-page .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+    border-radius: 999px !important;
+}
+
+/* Botones del panel: esquinas redondeadas (30px, como formularios y asistente diseño) */
+.content-page .btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button) {
+    border-radius: 30px !important;
+}
+
+/* Tablas: menos redondeado — debe ir después y con más especificidad que la regla anterior */
+.content-page .table .btn.btn-sm:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button),
+.content-page .dataTables_wrapper table .btn.btn-sm:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button) {
+    border-radius: 6px !important;
+}
+
+/* Herramientas del editor de diseño: grupo continuo (solo esquinas exteriores redondeadas) */
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button),
+.content-page .format-btn-group label.btn:not(.btn-link):not(.page-link) {
+    border-radius: 0 !important;
+}
+
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):first-of-type:not(:last-of-type) {
+    border-radius: 0.25rem 0 0 0.25rem !important;
+}
+
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):last-of-type:not(:first-of-type) {
+    border-radius: 0 0.25rem 0.25rem 0 !important;
+}
+
+.content-page .format-btn-group button.btn:not(.btn-link):not(.btn-close):not(.page-link):not(.paginate_button):only-of-type {
+    border-radius: 0.25rem !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:not(.btn-link):not(.page-link) {
+    border-radius: 0 !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:first-child {
+    border-radius: 30px 0 0 30px !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:last-child,
+.content-page .btn-group:not(.format-btn-group) > .dropdown-toggle-split {
+    border-radius: 0 30px 30px 0 !important;
+}
+
+.content-page .btn-group:not(.format-btn-group) > .btn:only-child,
+.content-page .btn-group:not(.format-btn-group) > .dropdown-toggle:only-child {
+    border-radius: 30px !important;
+}
+
+.content-page .input-group > .btn:last-child,
+.content-page .input-group > .btn:not(:first-child):not(:last-child) {
+    border-radius: 0 30px 30px 0 !important;
+}
+
+.content-page .input-group > .btn:first-child:only-child {
+    border-radius: 30px !important;
+}
+
+.form-card .input-group:has(.input-group-text + input.form-control) input.form-control {
+    padding-left: 0px !important;
+}
+
+/*
+ * Card + footer unidos (como listados Administraciones / Sorteos).
+ * Debe ir al final del CSS para ganar al .footer { position:absolute } del tema.
+ */
+.content-page {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100vh;
+}
+
+.content-page > .content {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    padding: 0 15px 0 !important;
+}
+
+.content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    width: 100%;
+}
+
+.content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    min-height: 0 !important;
+}
+
+.content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+}
+
+.content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    margin-bottom: 0 !important;
+    border: 1px solid #d9dde8 !important;
+    border-bottom: 0 !important;
+    border-radius: 18px 18px 0 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    height: auto !important;
+}
+
+.content-page .content .container-fluid:not(.design-editor-page):not(.dashboard-panel) > .row:last-child > [class*="col-"] > .card > .card-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    padding-bottom: 32px !important;
+    overflow: visible !important;
+}
+
+html body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer,
+html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer,
+html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer,
+html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
+    position: relative !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    width: auto !important;
+    flex-shrink: 0 !important;
+    height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    margin: -1px 27px 24px !important;
+    padding: 0 1.5rem !important;
+    border: 1px solid #d9dde8 !important;
+    border-top: 0 !important;
+    border-radius: 0 0 18px 18px !important;
+    background: #fff !important;
+    box-shadow: none !important;
+}
+
+html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer > .container-fluid {
+    width: 100%;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer .row {
+    align-items: center !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100%;
+}
+
+/* MEJ-002: TomSelect single — el ítem seleccionado no tapa el texto al filtrar */
+.group-form .ts-wrapper.single .ts-control,
+.ts-wrapper.single.partilot-geo .ts-control {
+    align-items: center;
+    overflow: hidden;
+}
+.group-form .ts-wrapper.single .ts-control > input,
+.ts-wrapper.single.partilot-geo .ts-control > input {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+.group-form .ts-wrapper.single.input-active .ts-control .item,
+.ts-wrapper.single.partilot-geo.input-active .ts-control .item {
+    display: none !important;
 }

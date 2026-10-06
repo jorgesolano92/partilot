@@ -1,0 +1,302 @@
+PARTILOT
+Plataforma de Gestión de Participaciones de Lotería
+
+TEXTOS DE ACEPTACIÓN DE ROL
+Gestor Responsable · Gestor · Vendedor
+Guía de implementación para el equipo de desarrollo
+
+📋  CÓMO USAR ESTE DOCUMENTO
+Este documento contiene los textos exactos que deben mostrarse en pantalla cuando un usuario acepta un rol en la Plataforma.
+Para cada rol hay tres partes: (1) el texto que ve el usuario en pantalla, (2) el mockup visual de cómo debe quedar,
+y (3) las especificaciones técnicas de qué datos debe registrar el sistema en el momento de la aceptación.
+Los textos entre [CORCHETES] se rellenan automáticamente con los datos del contexto en el momento de mostrarse.
+Los mockups son orientativos. El equipo de diseño puede adaptar el estilo visual manteniendo todos los elementos de contenido.
+
+ROL 1 — GESTOR RESPONSABLE
+
+1. Contexto y cuándo se muestra
+La pantalla de aceptación del rol de Gestor Responsable se muestra cuando:
+La Administración de Lotería ha designado a un usuario como Gestor Responsable de una Entidad concreta.
+El usuario designado ya está registrado en PARTILOT con cuenta activa y verificada.
+El usuario accede a la Plataforma y el sistema detecta que tiene una designación pendiente de aceptar.
+
+⚠  IMPORTANTE PARA EL DESARROLLO
+El usuario NO puede operar como Gestor Responsable hasta que haya aceptado expresamente.
+Si hay más de una designación pendiente, se muestra una por una, en orden de llegada.
+La pantalla debe bloquear el acceso al resto de la plataforma hasta que el usuario tome una decisión.
+Si el usuario pulsa 'Rechazar', la Administración recibe notificación automática para designar a otro usuario.
+
+2. Texto que ve el usuario en pantalla
+
+Tienes una solicitud pendiente
+
+Entidad: [NOMBRE DE LA ENTIDAD]
+Administración: [NOMBRE DE LA ADMINISTRACIÓN DE LOTERÍA]
+Rol solicitado: Gestor Responsable
+Solicitado por: [NOMBRE DE LA ADMINISTRACIÓN] el [FECHA]
+
+Te han designado Gestor Responsable de [NOMBRE DE LA ENTIDAD]. Este cargo te convierte en el representante operativo de la Entidad en PARTILOT y conlleva responsabilidades específicas que debes conocer antes de aceptar:  • Serás el único autorizado para ejecutar la liquidación definitiva con la Administración de Lotería. Este acto es irreversible. • Supervisarás todas las operaciones de la Entidad en la Plataforma. • Gestionarás el estado de los Vendedores vinculados a la Entidad. • Si hay premios, serás quien autorice el pago a través de la Plataforma. • No puedes abandonar este cargo sin que haya un sustituto que lo acepte.  Al aceptar, confirmas que actúas con conocimiento y consentimiento de la Entidad y que has leído las condiciones legales.
+📄  Ver condiciones legales completas  →
+✅  Acepto el cargo de Gestor Responsable
+
+❌  Rechazar esta designación
+
+🔒  El sistema registrará tu aceptación con fecha, hora y dispositivo.
+
+3. Texto legal completo — lo que ve al pulsar 'Ver condiciones legales'
+
+CONDICIONES ESPECÍFICAS DEL ROL DE GESTOR RESPONSABLE
+Al aceptar este cargo, usted, D./Dña. [NOMBRE], con DNI/NIE [DNI/NIE], asume las siguientes responsabilidades en nombre propio:
+1.  Actúa como representante operativo de [NOMBRE DE LA ENTIDAD] en la plataforma PARTILOT, con las facultades y limitaciones descritas en el Marco Legal Integral de la Plataforma, que declara haber leído y aceptado en el momento de su registro como usuario.
+2.  Es el único usuario autorizado para ejecutar la liquidación definitiva con la Administración de Lotería. Este acto es formal, irrevocable y vinculante desde el momento de su confirmación. Una vez confirmada la liquidación, no podrá ser modificada, cancelada ni revertida.
+3.  Supervisará la integridad de todas las operaciones de la Entidad en la Plataforma y gestionará el estado operativo de los Vendedores vinculados.
+4.  Este cargo no puede quedar vacante. Si desea ser relevado, deberá permanecer en el cargo hasta que un sustituto designado por la Entidad acepte expresamente el relevo.
+5.  Responde personalmente frente a PARTILOT y frente a la Entidad por los daños causados por el ejercicio negligente, fraudulento o no autorizado de las funciones propias del cargo.
+6.  Los datos registrados en el momento de esta aceptación (identidad, timestamp, IP) constituyen prueba fehaciente de su conformidad con estas condiciones.
+Esta aceptación tiene plena validez jurídica conforme al Reglamento (UE) 910/2014 (eIDAS) y la Ley 6/2020. El sistema registrará este acto con identificación del aceptante, marca temporal y dirección IP.
+
+4. Datos que el sistema debe registrar
+
+Dato registrado
+Descripción y finalidad
+ID de usuario
+Identificador único del usuario en la base de datos de PARTILOT.
+Nombre y apellidos
+Nombre completo del usuario registrado.
+DNI/NIE
+Documento de identidad verificado en el registro.
+Email registrado
+Correo electrónico de la cuenta del usuario.
+ID de la Entidad
+Identificador único de la Entidad para la que acepta el cargo.
+Nombre de la Entidad
+Nombre de la Entidad en el momento de la aceptación.
+ID de la Administración
+Identificador de la Administración de Lotería vinculada.
+Acción registrada
+ACEPTACIÓN_ROL_GESTOR_RESPONSABLE
+Versión del texto
+Versión del texto de condiciones mostrado (para auditoría).
+Timestamp
+Fecha y hora exacta de la aceptación (UTC). Generado por el servidor.
+Dirección IP
+IP desde la que se realizó la aceptación.
+Dispositivo/canal
+App móvil / Panel web — identificar el canal utilizado.
+Resultado
+ACEPTADO / RECHAZADO — según la decisión del usuario.
+
+ROL 2 — GESTOR
+
+1. Contexto y cuándo se muestra
+La pantalla de aceptación del rol de Gestor se muestra cuando:
+El Gestor Responsable de una Entidad ha invitado a un usuario registrado a ser Gestor con funciones delegadas.
+El usuario invitado ya está registrado en PARTILOT con cuenta activa y verificada.
+El usuario recibe la notificación de invitación y accede a la pantalla de aceptación.
+
+💡  DIFERENCIA CLAVE CON EL GESTOR RESPONSABLE
+El Gestor tiene funciones delegadas por el Gestor Responsable, no todas las funciones de este.
+Un usuario puede ser Gestor en varias Entidades simultáneamente, cada aceptación es independiente.
+El Gestor SÍ puede ser desvinculado por el Gestor Responsable, a diferencia del Gestor Responsable.
+Si rechaza la invitación, simplemente no se incorpora. No hay consecuencias para la Entidad más allá de buscar otro.
+
+2. Texto que ve el usuario en pantalla
+
+Invitación a colaborar
+
+Entidad: [NOMBRE DE LA ENTIDAD]
+Invitado por: [NOMBRE DEL GESTOR RESPONSABLE]
+Rol: Gestor con funciones delegadas
+Fecha de invitación: [FECHA]
+
+[NOMBRE DEL GESTOR RESPONSABLE] te ha invitado a colaborar como Gestor en [NOMBRE DE LA ENTIDAD].  Como Gestor podrás ejercer las funciones que te delegue el Gestor Responsable dentro de esta Entidad. Ten en cuenta que:  • Solo podrás acceder a los datos y funciones que el Gestor Responsable te asigne. • Eres responsable del uso que hagas de los datos de otros usuarios a los que accedas. Usarlos para fines distintos a la gestión de la Entidad puede ser una infracción legal. • Puedes ser desvinculado de este rol en cualquier momento por el Gestor Responsable. • Puedes ser Gestor en varias Entidades a la vez. Esta aceptación solo aplica a [NOMBRE DE LA ENTIDAD].  Al aceptar, confirmas que has leído las condiciones legales.
+📄  Ver condiciones legales completas  →
+✅  Aceptar invitación
+
+❌  Rechazar invitación
+
+🔒  El sistema registrará tu aceptación con fecha, hora y dispositivo.
+
+3. Texto legal completo — lo que ve al pulsar 'Ver condiciones legales'
+
+CONDICIONES ESPECÍFICAS DEL ROL DE GESTOR
+Al aceptar esta invitación, usted, D./Dña. [NOMBRE], con DNI/NIE [DNI/NIE], acepta las siguientes condiciones para el ejercicio del rol de Gestor en [NOMBRE DE LA ENTIDAD]:
+1.  Ejercerá las funciones que el Gestor Responsable de la Entidad le delegue expresamente. No podrá actuar más allá de dichas funciones delegadas.
+2.  Accederá a los datos de otros usuarios (Vendedores, Usuarios Finales) únicamente para la gestión interna de la Entidad en la Plataforma. Cualquier otro uso puede constituir infracción de la normativa de protección de datos y, en su caso, un delito conforme al artículo 197 y siguientes del Código Penal.
+3.  Esta aceptación es independiente para cada Entidad. Si es Gestor en varias Entidades, cada rol tiene sus propias funciones delegadas y sus propias responsabilidades.
+4.  El Gestor Responsable puede desvincularle de este rol en cualquier momento. También puede solicitar usted mismo ser desvinculado.
+5.  Responde personalmente por el uso indebido de los datos o funciones a los que acceda en el ejercicio de este rol.
+6.  Los datos registrados en el momento de esta aceptación (identidad, timestamp, IP) constituyen prueba fehaciente de su conformidad con estas condiciones.
+Esta aceptación tiene plena validez jurídica conforme al Reglamento (UE) 910/2014 (eIDAS) y la Ley 6/2020.
+
+4. Datos que el sistema debe registrar
+
+Dato registrado
+Descripción y finalidad
+ID de usuario
+Identificador único del usuario en la base de datos de PARTILOT.
+Nombre y apellidos
+Nombre completo del usuario registrado.
+DNI/NIE
+Documento de identidad verificado en el registro.
+Email registrado
+Correo electrónico de la cuenta del usuario.
+ID de la Entidad
+Identificador único de la Entidad para la que acepta el rol.
+Nombre de la Entidad
+Nombre de la Entidad en el momento de la aceptación.
+ID del Gestor Responsable
+Identificador del Gestor Responsable que realizó la invitación.
+Acción registrada
+ACEPTACIÓN_ROL_GESTOR
+Versión del texto
+Versión del texto de condiciones mostrado (para auditoría).
+Timestamp
+Fecha y hora exacta de la aceptación (UTC). Generado por el servidor.
+Dirección IP
+IP desde la que se realizó la aceptación.
+Dispositivo/canal
+App móvil / Panel web — identificar el canal utilizado.
+Resultado
+ACEPTADO / RECHAZADO — según la decisión del usuario.
+
+ROL 3 — VENDEDOR
+
+1. Contexto y cuándo se muestra
+La pantalla de aceptación del rol de Vendedor se muestra cuando:
+La Entidad (a través del Gestor Responsable o un Gestor) ha invitado a un usuario registrado a ser Vendedor.
+La invitación especifica la Entidad y el sorteo o campaña concreta para la que se le invita.
+El usuario invitado ya está registrado en PARTILOT con cuenta activa y verificada.
+El usuario recibe la notificación y accede a la pantalla de aceptación.
+
+⚠  IMPORTANTE PARA EL DESARROLLO
+A diferencia de los roles anteriores, la invitación al Vendedor incluye información del sorteo concreto.
+El usuario debe ver claramente para qué entidad y para qué sorteo le están invitando antes de aceptar.
+Un usuario puede ser Vendedor en varias Entidades simultáneamente. Cada aceptación es independiente.
+Si rechaza, simplemente no se incorpora como Vendedor de esa Entidad para ese sorteo.
+El estado del Vendedor (activo/suspendido) puede cambiar después sin necesidad de nueva aceptación.
+
+2. Texto que ve el usuario en pantalla
+
+Invitación como Vendedor
+
+Entidad: [NOMBRE DE LA ENTIDAD]
+Sorteo: [NOMBRE DEL SORTEO] — [FECHA DEL SORTEO]
+Invitado por: [NOMBRE DEL GESTOR RESPONSABLE O GESTOR]
+Fecha de invitación: [FECHA]
+
+[NOMBRE DE LA ENTIDAD] te invita a participar como Vendedor en el sorteo [NOMBRE DEL SORTEO].  Como Vendedor podrás recibir participaciones para vender y registrar el resultado en la app. Antes de aceptar, ten en cuenta que:  • Desde el momento en que firmes el recibo de las participaciones físicas, eres responsable de ellas. • El dinero que recojas de las ventas es de la Entidad, no tuyo. Debes entregarlo según lo acordado con la Entidad. • Estás obligado a verificar que los compradores son mayores de 18 años. Si vendes a un menor, la responsabilidad es tuya. • Los datos de los compradores que gestiones son confidenciales. No puedes usarlos para nada ajeno a esta venta. • La Administración de Lotería vinculada a esta Entidad puede ver tus datos operativos para resolver incidencias. Solo para ese fin. • Está terminantemente prohibido fotocopiar, fotografiar o reproducir por cualquier medio las participaciones físicas que tengas asignadas. Hacerlo para obtener un cobro indebido es un fraude. • Puedes ser Vendedor en varias Entidades. Esta aceptación solo aplica a [NOMBRE DE LA ENTIDAD] para este sorteo.  Al aceptar, confirmas que has leído las condiciones legales.
+📄  Ver condiciones legales completas  →
+✅  Acepto ser Vendedor
+
+❌  Rechazar invitación
+
+🔒  El sistema registrará tu aceptación con fecha, hora y dispositivo.
+
+3. Texto legal completo — lo que ve al pulsar 'Ver condiciones legales'
+
+CONDICIONES ESPECÍFICAS DEL ROL DE VENDEDOR
+Al aceptar esta invitación, usted, D./Dña. [NOMBRE], con DNI/NIE [DNI/NIE], acepta las siguientes condiciones para el ejercicio del rol de Vendedor en [NOMBRE DE LA ENTIDAD] para el sorteo [NOMBRE DEL SORTEO]:
+1.  Asume plena responsabilidad sobre las participaciones físicas que le sean asignadas desde el momento en que suscriba el justificante de recepción. Hasta que las devuelva o liquide, usted responde de ellas.
+2.  El dinero recaudado mediante la venta de participaciones es en todo momento propiedad de la Entidad. Usted actúa como intermediario de la Entidad y está obligado a rendir cuentas y entregar lo recaudado en la forma y plazo que acuerde con la Entidad.
+3.  Está obligado a verificar que los compradores de participaciones son mayores de 18 años antes de realizar cualquier venta. La venta de participaciones a menores de edad es su responsabilidad exclusiva, así como la de la Entidad.
+4.  Los datos personales de los compradores a los que acceda a través de la Plataforma (nombre, email, etc.) son estrictamente confidenciales. Solo pueden usarse para la gestión de la venta de participaciones. Cualquier otro uso puede constituir una infracción de la normativa de protección de datos y, en su caso, un delito.
+5.  Esta aceptación aplica específicamente a su rol como Vendedor en [NOMBRE DE LA ENTIDAD]. Si colabora con otras Entidades, cada relación tiene sus propias condiciones y su propia aceptación.
+6.  La Administración de Lotería vinculada a la Entidad puede acceder a sus datos operativos en la Plataforma (identificación y datos de asignación y liquidación de participaciones) exclusivamente para la resolución de incidencias operativas de los sorteos. No podrá usar dichos datos para ningún otro fin.
+7.  Queda expresamente prohibido fotocopiar, fotografiar, escanear o reproducir por cualquier medio las participaciones físicas asignadas, así como distribuirlas o entregarlas a terceros haciéndolas pasar por participaciones válidas. La duplicación intencionada de participaciones para obtener un cobro indebido puede constituir un delito de estafa conforme al artículo 248 y siguientes del Código Penal español.
+8.  Puede ser desvinculado de este rol por la Entidad en cualquier momento, siempre que no tenga participaciones físicas asignadas pendientes de devolución o liquidación.
+9.  Los datos registrados en el momento de esta aceptación (identidad, timestamp, IP) constituyen prueba fehaciente de su conformidad con estas condiciones.
+Esta aceptación tiene plena validez jurídica conforme al Reglamento (UE) 910/2014 (eIDAS) y la Ley 6/2020.
+
+4. Datos que el sistema debe registrar
+
+Dato registrado
+Descripción y finalidad
+ID de usuario
+Identificador único del usuario en la base de datos de PARTILOT.
+Nombre y apellidos
+Nombre completo del usuario registrado.
+DNI/NIE
+Documento de identidad verificado en el registro.
+Email registrado
+Correo electrónico de la cuenta del usuario.
+ID de la Entidad
+Identificador único de la Entidad que realiza la invitación.
+Nombre de la Entidad
+Nombre de la Entidad en el momento de la aceptación.
+ID del sorteo
+Identificador del sorteo para el que se le invita como Vendedor.
+Nombre del sorteo
+Nombre y fecha del sorteo en el momento de la aceptación.
+ID del Gestor invitador
+Identificador del Gestor Responsable o Gestor que realizó la invitación.
+Acción registrada
+ACEPTACIÓN_ROL_VENDEDOR
+Versión del texto
+Versión del texto de condiciones mostrado (para auditoría).
+Timestamp
+Fecha y hora exacta de la aceptación (UTC). Generado por el servidor.
+Dirección IP
+IP desde la que se realizó la aceptación.
+Dispositivo/canal
+App móvil / Panel web — identificar el canal utilizado.
+Resultado
+ACEPTADO / RECHAZADO — según la decisión del usuario.
+
+RESUMEN TÉCNICO PARA EL EQUIPO DE DESARROLLO
+
+Reglas generales que aplican a todos los roles
+
+El usuario DEBE estar registrado y verificado antes de poder aceptar cualquier rol. No se puede aceptar un rol sin cuenta previa.
+Cada aceptación genera un registro inmutable en la base de datos. Este registro nunca debe poder modificarse ni eliminarse.
+El botón de aceptar solo se activa cuando el usuario ha podido ver el texto completo (scroll hasta el final o tiempo mínimo de lectura).
+El enlace 'Ver condiciones legales completas' abre el Marco Legal Integral en una nueva pantalla o pestaña sin abandonar el flujo de aceptación.
+Si el usuario rechaza, la pantalla desaparece y el flujo normal de la app continúa. No se genera ningún registro de 'rechazo' visible para terceros.
+Si hay múltiples solicitudes pendientes para el mismo usuario, se muestran de una en una, nunca agrupadas.
+Tras la aceptación, el sistema envía automáticamente un email de confirmación al usuario con el resumen de lo aceptado y la fecha.
+
+Tabla resumen de los tres roles
+
+Criterio
+Gestor Responsable
+Gestor
+Vendedor
+¿Quién invita?
+La Administración de Lotería
+El Gestor Responsable
+El Gestor Responsable o un Gestor
+¿Registro previo?
+✅ Obligatorio
+✅ Obligatorio
+✅ Obligatorio
+¿Una aceptación por entidad?
+✅ Sí
+✅ Sí
+✅ Sí, y por sorteo
+¿Puede rechazar?
+✅ Sí — notifica a la Administración
+✅ Sí
+✅ Sí
+¿Puede haber varios?
+❌ Solo uno por Entidad
+✅ Varios simultáneos
+✅ Varios simultáneos
+¿Puede desvincularse?
+❌ Solo con sustituto
+✅ En cualquier momento
+✅ Sin participaciones asignadas
+Tipo de firma
+Click + registro interno
+Click + registro interno
+Click + registro interno
+¿Bloquea la app?
+✅ Hasta que decide
+✅ Hasta que decide
+✅ Hasta que decide
+Email de confirmación
+✅ Sí
+✅ Sí
+✅ Sí
+
+© PARTILOT — Textos de Aceptación de Rol — v1.0
+[RAZÓN SOCIAL] — [EMAIL LEGAL]

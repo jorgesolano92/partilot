@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -12,10 +13,18 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Requests\CreateAdmin;
 use App\Models\Administration;
 use App\Support\ContactEmailRegistry;
+use App\Support\FormRedirectNotify;
+use App\Rules\ValidCalendarDate;
+use App\Support\SecureImageUpload;
 use App\Models\User;
 use App\Models\Manager;
 use App\Mail\AdministrationWelcomeMail;
+use App\Models\EmailCommunicationLog;
+use App\Services\AdministrationBillingService;
+use App\Services\AdministrationContractService;
+use App\Services\AuditLogService;
 use App\Services\CommunicationEmailService;
+use App\Services\AdministrationManagerContactService;
 
 class AdministratorController extends Controller
 {
@@ -45,6 +54,13 @@ class AdministratorController extends Controller
         $request->merge(['account' => $accountValue ?? '']);
 
         // Validar formato básico primero
+        $adminNumberRaw = $request->input('admin_number');
+        if ($adminNumberRaw !== null && $adminNumberRaw !== '') {
+            $request->merge(['admin_number' => preg_replace('/\D/', '', (string) $adminNumberRaw)]);
+        } else {
+            $request->merge(['admin_number' => null]);
+        }
+
         $request->validate([
             'web' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
@@ -54,7 +70,7 @@ class AdministratorController extends Controller
             'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument],
             'province' => 'required|string|max:255',
             'city' => 'required|string|max:255',
-            'postal_code' => 'required|string|max:10',
+            'postal_code' => ['required', 'string', 'regex:/^[0-9]{5}$/'],
             'address' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'phone' => 'required|string|max:255',
@@ -68,8 +84,13 @@ class AdministratorController extends Controller
                     }
                 },
             ],
-            'status' => 'nullable|in:-1,0,1',
+            'status' => 'nullable|in:-1,0,1,3',
             'panel_password' => 'nullable|string|min:8|confirmed',
+            ...SecureImageUpload::rules('image'),
+        ], [
+            'admin_number.regex' => 'Se requieren exactamente 9 dígitos numéricos (ejemplo: 260000001). No se admiten letras, espacios ni símbolos.',
+            'receiving.regex' => 'El número de receptor debe tener exactamente 5 dígitos.',
+            'postal_code.regex' => 'El código postal debe tener exactamente 5 dígitos.',
         ]);
 
         // Validar IBAN completo solo si se proporciona cuenta
@@ -123,14 +144,31 @@ class AdministratorController extends Controller
         ];
 
         if ($request->file('image')) {
-            $file = $request->file('image');
-            $filename = $file->hashName();
-            $file->move(public_path('images'), $filename);
-            $data['image'] = $filename;
+            $data['image'] = SecureImageUpload::store($request->file('image'), 'images');
         }
 
+        $previousStatus = $administration->status;
+        $previousAccount = $administration->account;
         $administration->update($data);
 
+        if ((int) ($previousStatus ?? -1) !== (int) ($data['status'] ?? -1)
+            || (($previousStatus === null) !== (($data['status'] ?? null) === null))) {
+            if (! $administration->fresh()->isActive()) {
+                app(\App\Services\AdministrationSessionInvalidationService::class)
+                    ->invalidateForAdministration($administration);
+            }
+        }
+
+        app(AuditLogService::class)->logAdministrationFieldChange(
+            $administration,
+            auth()->user(),
+            'account',
+            $previousAccount,
+            $data['account'] ?? null,
+            $request
+        );
+
+        $upgradedUsername = null;
         if ($panelUser) {
             $u = [
                 'email' => $newEmail,
@@ -142,6 +180,10 @@ class AdministratorController extends Controller
                 $u['password'] = $request->panel_password;
             }
             $panelUser->update($u);
+
+            // Si al crear no había Nº Administración (login = solo receptor) y ahora sí, regenerar usuario.
+            $administration->refresh();
+            $upgradedUsername = $administration->syncPanelLoginUsernameAfterAdminNumber($panelUser->fresh());
         }
 
         // Contraseña de panel definida: si la administración seguía pendiente, pasar a activa.
@@ -152,16 +194,30 @@ class AdministratorController extends Controller
             }
         }
 
+        $success = 'Administración actualizada correctamente';
+        if (! empty($upgradedUsername)) {
+            $success .= '. Usuario de acceso al panel actualizado a «'.$upgradedUsername.'» (se completó el Nº Administración).';
+        }
+
         return redirect()->route('administrations.show', $administration->id)
-            ->with('success', 'Administración actualizada correctamente');
+            ->with('success', $success);
     }
 
     /**
      * Envío manual (superadmin): correo con usuario de panel y enlace mágico para establecer contraseña.
+     * Destinatario: correo de la administración (INC-004), no el del gestor personal.
      */
     public function sendPanelAccessEmail(Administration $administration)
     {
         $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
+
+        $recipientEmail = trim((string) ($administration->email ?? ''));
+        if ($recipientEmail === '' || ! filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            return back()->with(
+                'error',
+                'No se puede enviar el correo de acceso: el correo electrónico de la administración está vacío o no es válido. Actualice el campo en la ficha antes de reintentar.'
+            );
+        }
 
         $panelUser = User::query()
             ->where('panel_account_type', 'administration')
@@ -169,8 +225,8 @@ class AdministratorController extends Controller
             ->firstOrFail();
 
         try {
-            app(CommunicationEmailService::class)->sendAndLog(
-                recipientEmail: (string) $panelUser->email,
+            $log = app(CommunicationEmailService::class)->sendAndLog(
+                recipientEmail: $recipientEmail,
                 recipientRole: 'gestor_administracion',
                 recipientUser: $panelUser,
                 messageType: 'administration_welcome',
@@ -182,10 +238,35 @@ class AdministratorController extends Controller
         } catch (\Throwable $e) {
             \Log::warning('Fallo enviando acceso panel administración: '.$e->getMessage());
 
-            return back()->with('error', 'No se pudo enviar el correo. Inténtelo más tarde o revise la configuración de correo.');
+            return back()->with('error', 'No se pudo tramitar el envío del correo. Inténtelo más tarde o revise la configuración de correo.');
         }
 
-        return back()->with('success', 'Se ha enviado el correo con el usuario de acceso y el enlace para establecer la contraseña.');
+        if ($log->status !== EmailCommunicationLog::STATUS_SENT
+            && $log->status !== EmailCommunicationLog::STATUS_RE_SENT) {
+            return back()->with(
+                'error',
+                'No se pudo entregar el correo a '.$recipientEmail.'. '
+                .($log->error_message ?: 'Revise la configuración SMTP o el buzón de destino e inténtelo de nuevo.')
+            );
+        }
+
+        return back()->with('success', 'Se ha enviado el correo con el usuario de acceso y el enlace para establecer la contraseña a '.$recipientEmail.'.');
+    }
+
+    /**
+     * Reenvío manual del contrato SaaS (superadmin).
+     */
+    public function sendContract(Administration $administration)
+    {
+        $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
+
+        try {
+            app(AdministrationContractService::class)->sendContractInvitation($administration, (int) auth()->id());
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Se ha enviado el correo con el enlace para firmar el contrato SaaS.');
     }
 
     public function editApi($id)
@@ -252,10 +333,7 @@ class AdministratorController extends Controller
             'account' => $accountValue ? ('ES' . $accountValue) : null,
         ];
         if ($request->file('image')) {
-            $file = $request->file('image');
-            $filename = $file->hashName();
-            $file->move(public_path('images'), $filename);
-            $data['image'] = $filename;
+            $data['image'] = SecureImageUpload::store($request->file('image'), 'images');
         }
 
         $request->session()->put('administration', $data);
@@ -282,100 +360,105 @@ class AdministratorController extends Controller
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\SpanishDocument],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:20',
             'email' => 'required|email|max:255',
         ]);
 
-        $email = $administrationData['email'];
-        if (ContactEmailRegistry::isTaken($email)) {
+        $panelEmail = trim((string) $administrationData['email']);
+        $managerContactEmail = trim((string) $request->input('email'));
+
+        if (ContactEmailRegistry::isTaken($panelEmail)) {
             return back()->withErrors([
-                'email' => 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario. Use otro correo en el paso anterior.',
+                'email' => 'El correo de acceso al panel ya está en uso en otra administración, entidad o cuenta de usuario. Use otro correo en el paso anterior.',
             ])->withInput();
+        }
+
+        $contactService = app(AdministrationManagerContactService::class);
+        $contactError = $contactService->contactEmailValidationError(
+            $managerContactEmail,
+            new Administration(['email' => $panelEmail])
+        );
+        if ($contactError) {
+            return back()->withErrors(['email' => $contactError])->withInput();
         }
 
         $administrationData['status'] = null;
 
-        $newAdministration = Administration::create($administrationData);
+        try {
+            $newAdministration = DB::transaction(function () use (
+                $administrationData,
+                $panelEmail,
+                $managerContactEmail,
+                $request,
+                $contactService
+            ) {
+                $newAdministration = Administration::create($administrationData);
 
-        $panelLoginBase = Administration::panelLoginUsernameFromParts(
-            $newAdministration->receiving,
-            $newAdministration->admin_number
-        );
-        $panelLoginUsername = Administration::ensureUniquePanelLoginUsername($panelLoginBase, null);
+                $panelLoginBase = Administration::panelLoginUsernameFromParts(
+                    $newAdministration->receiving,
+                    $newAdministration->admin_number
+                );
+                $panelLoginUsername = Administration::ensureUniquePanelLoginUsername($panelLoginBase, null);
 
-        if (strcasecmp((string) $request->input('email'), (string) $email) === 0) {
-            return back()->withErrors([
-                'email' => 'El email del gestor debe ser distinto al email de acceso del panel de la administración.',
-            ])->withInput();
+                $panelUser = User::create([
+                    'name' => Administration::panelDisplayNameFromParts($administrationData['name'] ?? '', $administrationData['society'] ?? ''),
+                    'email' => $panelEmail,
+                    'password' => Str::password(32),
+                    'role' => User::ROLE_ADMINISTRATION,
+                    'panel_account_type' => 'administration',
+                    'panel_account_id' => $newAdministration->id,
+                    'panel_login_username' => $panelLoginUsername,
+                    'status' => true,
+                    'phone' => $administrationData['phone'] ?? null,
+                    'nif_cif' => $administrationData['nif_cif'] ?? null,
+                ]);
+
+                Manager::firstOrCreate([
+                    'user_id' => $panelUser->id,
+                    'administration_id' => $newAdministration->id,
+                    'entity_id' => null,
+                ], [
+                    'is_primary' => false,
+                    'permission_sellers' => true,
+                    'permission_design' => true,
+                    'permission_statistics' => true,
+                    'permission_payments' => true,
+                    'status' => 1,
+                ]);
+
+                $contactService->persistPrimaryContact($newAdministration, [
+                    'name' => $request->input('name'),
+                    'last_name' => $request->input('last_name'),
+                    'last_name2' => $request->input('last_name2'),
+                    'email' => $managerContactEmail,
+                    'nif_cif' => $request->input('nif_cif') ?: null,
+                    'birthday' => $request->input('birthday') ?: null,
+                    'phone' => $request->input('phone') ?: null,
+                ]);
+
+                return $newAdministration;
+            });
+        } catch (\Throwable $e) {
+            Log::error('Error creando administración: '.$e->getMessage(), ['exception' => $e]);
+
+            return back()->with('error', 'No se pudo crear la administración. Inténtelo de nuevo.')->withInput();
         }
-
-        $managerUser = User::where('email', $request->input('email'))->first();
-        if ($managerUser && $managerUser->isPanelAccount()) {
-            return back()->withErrors([
-                'email' => 'Ese email corresponde a una cuenta de acceso de panel. Use otro email para el gestor.',
-            ])->withInput();
-        }
-
-        if (! $managerUser) {
-            $managerUser = User::create([
-                'name' => $request->input('name'),
-                'last_name' => $request->input('last_name'),
-                'last_name2' => $request->input('last_name2'),
-                'email' => $request->input('email'),
-                'password' => bcrypt(12345678),
-                'role' => User::ROLE_ADMINISTRATION,
-                'status' => true,
-                'phone' => $request->input('phone') ?: null,
-                'nif_cif' => $request->input('nif_cif') ?: null,
-                'birthday' => $request->input('birthday') ?: null,
-            ]);
-        }
-
-        $panelUser = User::create([
-            'name' => Administration::panelDisplayNameFromParts($administrationData['name'] ?? '', $administrationData['society'] ?? ''),
-            'email' => $email,
-            'password' => Str::password(32),
-            'role' => User::ROLE_ADMINISTRATION,
-            'panel_account_type' => 'administration',
-            'panel_account_id' => $newAdministration->id,
-            'panel_login_username' => $panelLoginUsername,
-            'status' => true,
-            'phone' => $administrationData['phone'] ?? null,
-            'nif_cif' => $administrationData['nif_cif'] ?? null,
-        ]);
-
-        Manager::firstOrCreate([
-            'user_id' => $panelUser->id,
-            'administration_id' => $newAdministration->id,
-            'entity_id' => null,
-        ], [
-            'is_primary' => false,
-            'permission_sellers' => true,
-            'permission_design' => true,
-            'permission_statistics' => true,
-            'permission_payments' => true,
-            'status' => 1,
-        ]);
-
-        Manager::firstOrCreate([
-            'user_id' => $managerUser->id,
-            'administration_id' => $newAdministration->id,
-            'entity_id' => null,
-        ], [
-            'is_primary' => true,
-            'permission_sellers' => true,
-            'permission_design' => true,
-            'permission_statistics' => true,
-            'permission_payments' => true,
-            'status' => 1,
-        ]);
 
         $request->session()->forget(['administration', 'manager']);
 
+        $contractSent = app(AdministrationContractService::class)->initializeForNewAdministration($newAdministration->fresh(['manager']));
+
+        if (! $contractSent) {
+            return redirect()->route('administrations.show', $newAdministration->id)->with(
+                'warning',
+                'Administración creada, pero no se pudo enviar el correo con el contrato SaaS. Revise el email de contacto y use «Enviar contrato» en esta ficha para reenviarlo.'
+            );
+        }
+
         return redirect('administrations')->with(
             'success',
-            'Administración creada correctamente. Envíe el correo de acceso al panel desde la ficha de la administración cuando corresponda.'
+            'Administración creada correctamente. Se ha enviado el contrato SaaS al correo de contacto. Envíe el correo de acceso al panel desde la ficha cuando corresponda.'
         );
     }
 
@@ -391,7 +474,7 @@ class AdministratorController extends Controller
             ->where('is_primary', true)
             ->first();
 
-        if ($existingPrimary && User::query()->whereKey($existingPrimary->user_id)->exists()) {
+        if ($existingPrimary && $existingPrimary->hasContactData()) {
             return redirect()->route('administrations.edit-manager', $administration->id)
                 ->with('info', 'Esta administración ya tiene un gestor principal asignado.');
         }
@@ -404,8 +487,14 @@ class AdministratorController extends Controller
             'name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\SpanishDocument],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'nif_cif' => [
+                'nullable',
+                'string',
+                'max:20',
+                new \App\Rules\SpanishDocument,
+                new \App\Rules\ManagerContactNif((int) $administration->id, null, null, $existingPrimary?->id),
+            ],
+            'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:20',
             'email' => 'required|email|max:255',
             'comment' => 'nullable|string|max:10000',
@@ -414,63 +503,25 @@ class AdministratorController extends Controller
         $panelEmail = trim((string) $administration->email);
         $managerEmail = trim((string) $request->input('email'));
 
-        if ($panelEmail !== '' && strcasecmp($panelEmail, $managerEmail) === 0) {
-            return back()->withErrors([
-                'email' => 'El email del gestor debe ser distinto al correo de acceso al panel de la administración.',
-            ])->withInput();
+        $contactService = app(AdministrationManagerContactService::class);
+        $contactError = $contactService->contactEmailValidationError($managerEmail, $administration);
+        if ($contactError) {
+            return FormRedirectNotify::withErrors(
+                redirect()->route('administrations.edit-manager', $administration->id),
+                ['email' => $contactError]
+            );
         }
 
-        $norm = ContactEmailRegistry::normalize($managerEmail);
-        $managerUser = User::query()->whereRaw('LOWER(TRIM(email)) = ?', [$norm])->first();
-
-        if ($managerUser) {
-            if ($managerUser->isPanelAccount()) {
-                return back()->withErrors([
-                    'email' => 'Ese email corresponde a una cuenta de acceso al panel. Use otro email para el gestor.',
-                ])->withInput();
-            }
-        } else {
-            if (ContactEmailRegistry::isTaken($managerEmail)) {
-                return back()->withErrors([
-                    'email' => 'Este correo no puede usarse (duplicado en el sistema).',
-                ])->withInput();
-            }
-
-            $managerUser = User::create([
-                'name' => $request->input('name'),
-                'last_name' => $request->input('last_name'),
-                'last_name2' => $request->input('last_name2'),
-                'email' => $managerEmail,
-                'password' => bcrypt(12345678),
-                'role' => User::ROLE_ADMINISTRATION,
-                'status' => true,
-                'phone' => $request->input('phone') ?: null,
-                'nif_cif' => $request->input('nif_cif') ?: null,
-                'birthday' => $request->input('birthday') ?: null,
-                'comment' => $request->input('comment') ?: null,
-            ]);
-        }
-
-        Manager::query()
-            ->where('administration_id', $administration->id)
-            ->where('user_id', '!=', $managerUser->id)
-            ->update(['is_primary' => false]);
-
-        Manager::updateOrCreate(
-            [
-                'user_id' => $managerUser->id,
-                'administration_id' => $administration->id,
-                'entity_id' => null,
-            ],
-            [
-                'is_primary' => true,
-                'permission_sellers' => true,
-                'permission_design' => true,
-                'permission_statistics' => true,
-                'permission_payments' => true,
-                'status' => 1,
-            ]
-        );
+        $contactService->persistPrimaryContact($administration, [
+            'name' => $request->input('name'),
+            'last_name' => $request->input('last_name'),
+            'last_name2' => $request->input('last_name2'),
+            'email' => $managerEmail,
+            'nif_cif' => $request->input('nif_cif') ?: null,
+            'birthday' => $request->input('birthday') ?: null,
+            'phone' => $request->input('phone') ?: null,
+            'comment' => $request->input('comment') ?: null,
+        ]);
 
         return redirect()->route('administrations.edit-manager', $administration->id)
             ->with('success', 'Gestor principal registrado correctamente.');
@@ -594,44 +645,35 @@ class AdministratorController extends Controller
     }
 
     /**
-     * Cambiar estado (Activo/Inactivo/Pendiente) de la administración vía AJAX.
+     * Cambiar estado (Pendiente/Activo/Bloqueado/Inactivo) de la administración vía AJAX.
      */
     public function toggleStatus(Request $request, Administration $administration)
     {
-        // Verificar permisos
         $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
 
-        // Determinar el nuevo estado según el estado actual
         $currentStatus = $administration->status;
 
-        // Lógica de toggle: null/-1 (Pendiente) -> 1 (Activo), 1 (Activo) -> 0 (Inactivo), 0 (Inactivo) -> 1 (Activo)
+        // Ciclo: Pendiente -> Activo -> Bloqueado -> Inactivo -> Activo (INC-006).
         $newStatus = match ($currentStatus) {
-            null, -1 => 1,  // Pendiente -> Activo
-            1 => 0,         // Activo -> Inactivo
-            0 => 1,         // Inactivo -> Activo
-            default => 1
+            null, -1 => Administration::STATUS_ACTIVE,
+            Administration::STATUS_ACTIVE => Administration::STATUS_BLOCKED,
+            Administration::STATUS_BLOCKED => Administration::STATUS_INACTIVE,
+            Administration::STATUS_INACTIVE => Administration::STATUS_ACTIVE,
+            default => Administration::STATUS_ACTIVE,
         };
 
         $administration->update(['status' => $newStatus]);
 
-        // Obtener texto y clase del nuevo estado
-        $statusValue = $administration->fresh()->status;
-        if ($statusValue === null || $statusValue === -1) {
-            $statusText = 'Pendiente';
-            $statusClass = 'secondary';
-        } elseif ($statusValue == 1) {
-            $statusText = 'Activo';
-            $statusClass = 'success';
-        } else {
-            $statusText = 'Inactivo';
-            $statusClass = 'danger';
+        $fresh = $administration->fresh();
+        if (! $fresh->isActive()) {
+            $this->invalidatePanelSessionsForAdministration($fresh);
         }
 
         return response()->json([
             'success' => true,
-            'status' => $newStatus,
-            'status_text' => $statusText,
-            'status_class' => $statusClass,
+            'status' => $fresh->status,
+            'status_text' => $fresh->status_text,
+            'status_class' => $fresh->status_class,
         ]);
     }
 
@@ -665,5 +707,39 @@ class AdministratorController extends Controller
             'exists' => $exists,
             'message' => $exists ? 'Este correo ya está en uso por otra administración, entidad o usuario' : null,
         ]);
+    }
+
+    public function updateBillingPayment(Request $request, Administration $administration)
+    {
+        $administration = Administration::forUser(auth()->user())->findOrFail($administration->id);
+
+        $data = $request->validate([
+            'billing_payment_mode' => 'required|in:card,remittance',
+            'billing_remittance_frequency' => 'nullable|required_if:billing_payment_mode,remittance|in:monthly,biweekly',
+        ]);
+
+        if ($data['billing_payment_mode'] === AdministrationBillingService::MODE_REMITTANCE
+            && ! app(AdministrationBillingService::class)->hasValidBillingIban($administration)) {
+            return back()->with('error', 'Para activar remesa debe configurar un IBAN válido en los datos legales de la administración.');
+        }
+
+        $administration->forceFill([
+            'billing_payment_mode' => $data['billing_payment_mode'],
+            'billing_remittance_frequency' => $data['billing_payment_mode'] === AdministrationBillingService::MODE_REMITTANCE
+                ? ($data['billing_remittance_frequency'] ?? AdministrationBillingService::FREQUENCY_MONTHLY)
+                : null,
+        ])->save();
+
+        return back()->with('success', 'Modalidad de cobro de la administración actualizada.');
+    }
+
+
+    /**
+     * INC-006: invalidar sesiones del panel cuando cambia el estado de la administración.
+     */
+    private function invalidatePanelSessionsForAdministration(Administration $administration): void
+    {
+        app(\App\Services\AdministrationSessionInvalidationService::class)
+            ->invalidateForAdministration($administration);
     }
 }

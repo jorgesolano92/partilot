@@ -66,6 +66,17 @@ class DigitalSaleBuyerNotifyService
             );
         }
 
+        if ($pending->buyer_phone) {
+            $stored = $this->sms->normalizeSmsAddress($pending->buyer_phone);
+            $requested = $this->sms->normalizeSmsAddress($buyerPhone);
+            if ($stored && $requested && $stored !== $requested) {
+                throw new \InvalidArgumentException(
+                    'Solo se puede reenviar al teléfono registrado en la venta.'
+                );
+            }
+            $buyerPhone = $pending->buyer_phone;
+        }
+
         $messageSid = $this->sms->sendToBuyer($pending, $buyerPhone);
         $pending->refresh();
 

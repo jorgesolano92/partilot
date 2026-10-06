@@ -198,7 +198,7 @@
   },100);
 
   function deleteNotification(id) {
-    if (confirm('¿Estás seguro de que quieres eliminar esta notificación?')) {
+    var run = function () {
         $.ajax({
           url: '{{ url('/') }}/notifications/delete/' + id,
           type: 'DELETE',
@@ -212,7 +212,16 @@
             location.reload();
         }
       });
+    };
+    if (typeof window.partilotConfirm === 'function') {
+      window.partilotConfirm({
+        title: 'Eliminar notificación',
+        message: '¿Estás seguro de que quieres eliminar esta notificación?',
+        confirmText: 'Eliminar'
+      }).then(function (ok) { if (ok) run(); });
+      return;
     }
+    run();
   }
 
 </script>

@@ -9,6 +9,9 @@
     <div class="card-header bg-warning bg-opacity-25 d-flex align-items-center gap-2 py-2">
         <i class="ri-folder-user-line fs-5"></i>
         <strong>Indicaciones y archivos del cliente</strong>
+        @if(!empty($printShopOrder))
+            <span class="badge bg-dark ms-auto">Orden {{ $printShopOrder->order_code }}</span>
+        @endif
     </div>
     <div class="card-body py-3">
         @if(filled($externalInvitation->comment))
@@ -22,7 +25,7 @@
             <ul class="list-unstyled mb-0 d-flex flex-wrap gap-2">
                 @foreach($externalInvitation->files as $f)
                     <li>
-                        <a href="{{ route('design.external.downloadFile', $f->id) }}" class="btn btn-sm btn-outline-dark">
+                        <a href="{{ !empty($printShopOrder) ? route('print-shop.orders.briefing-file', [$printShopOrder->id, $f->id]) : route('design.external.downloadFile', $f->id) }}" class="btn btn-sm btn-outline-dark">
                             <i class="ri-download-2-line"></i> {{ $f->original_name ?: basename($f->path) }}
                         </a>
                     </li>
@@ -32,6 +35,18 @@
             <p class="text-muted small mb-0">No se adjuntaron archivos en el pedido.</p>
         @endif
     </div>
+</div>
+@endif
+
+@if(!empty($printShopOrder))
+<div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+        <i class="ri-printer-line me-1"></i>
+        Estás diseñando para la orden <strong>{{ $printShopOrder->order_code }}</strong>.
+    </div>
+    <a href="{{ route('print-shop.orders.show', $printShopOrder->id) }}" class="btn btn-sm btn-outline-dark">
+        <i class="ri-arrow-left-line me-1"></i> Volver a la orden
+    </a>
 </div>
 @endif
 
@@ -88,24 +103,29 @@ window.__designLoad = {!! json_encode([
     'rows' => $design->rows,
     'cols' => $design->cols,
     'orientation' => $design->orientation,
-    'margin_up' => $design->margin_up,
-    'margin_right' => $design->margin_right,
-    'margin_left' => $design->margin_left,
-    'margin_top' => $design->margin_top,
+    'margin_up' => $design->margin_up ?? ($design->margins['up'] ?? null),
+    'margin_right' => $design->margin_right ?? ($design->margins['right'] ?? null),
+    'margin_left' => $design->margin_left ?? ($design->margins['left'] ?? null),
+    'margin_top' => $design->margin_top ?? ($design->margins['top'] ?? null),
     'identation' => $design->identation,
+    'cut_lines' => $design->cut_lines,
     'matrix_box' => $design->matrix_box,
     'margin_custom' => $design->margin_custom,
-    'page_rigth' => $design->page_rigth,
-    'page_bottom' => $design->page_bottom,
+    'page_rigth' => $design->page_rigth ?? $design->horizontal_space,
+    'page_bottom' => $design->page_bottom ?? $design->vertical_space,
     'participation_html' => $loadParticipation,
     'cover_html' => $loadCover,
     'back_html' => $loadBack,
     'backgrounds' => $design->backgrounds,
+    'design_name' => $design->design_name,
+    'back_skipped' => (bool) ($design->back_skipped ?? false),
     'updated_at' => optional($design->updated_at)->toISOString(),
 ]) !!};
+window.__defaultDesignName = @json($design->design_name ?: ('Diseño ' . ($set->set_name ?: 'Set ' . $set->id) . ' ' . now()->format('d/m/Y')));
+window.__backSkipped = @json((bool) ($design->back_skipped ?? false));
 </script>
 @else
-<script> window.__designId = null; window.__designLoad = null; window.__designUpdatedAt = null; </script>
+<script> window.__designId = null; window.__designLoad = null; window.__designUpdatedAt = null; window.__defaultDesignName = @json('Diseño ' . ($set->set_name ?: 'Set ' . $set->id) . ' ' . now()->format('d/m/Y')); window.__backSkipped = false; </script>
 @endif
 <script>
 window.__designLocked = @json((bool)($designLock['locked'] ?? false));
@@ -117,9 +137,14 @@ window.__designContext = {
   set_id: {{ (int)($set->id ?? 0) }}
 };
 window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
+window.__preferServerDesign = @json((bool)($loadedFromPicker ?? false));
 </script>
+<link rel="stylesheet" href="{{ asset('assets/css/design-editor-ui.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/css/design-editor-fonts.css') }}">
 
 <style>
+    @include('design.partials.design_canvas_styles')
+
     .design-lock-alert {
         border-radius: 12px;
         border: 1px solid #f0ad4e;
@@ -130,6 +155,12 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
     .design-locked .format-box {
         pointer-events: none;
         opacity: 0.85;
+    }
+
+    /* Guías y capas de fondo son solo visuales: los clics deben llegar a textos e imágenes. */
+    .guide2, .guide3, .guide4,
+    .design-margin-bg, #design-participation-bg, #design-cover-bg, #design-back-bg {
+        pointer-events: none !important;
     }
 
     .design-locked .format-box-btn,
@@ -184,6 +215,17 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
     .elements.element-critical {
         z-index: 10000 !important;
     }
+    /* Participación/referencia por encima del QR (se solapan en la plantilla) para poder editar */
+    .elements.element-critical.participation,
+    .elements.element-critical.reference {
+        z-index: 10002 !important;
+    }
+    .elements.element-critical.qr {
+        z-index: 10001 !important;
+    }
+    .elements.element-critical.context.cover-taco-label {
+        z-index: 10001 !important;
+    }
     /* Área de arrastre: span del QR y primer span de texto ocupan el elemento para handle: 'span' */
     .elements.qr > span {
         display: block;
@@ -206,6 +248,11 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
     .text-style-btn {
         display: inline-block;
     }
+    .text-style-btn.text-vertical-btn.active {
+        background-color: #e78307 !important;
+        border-color: #e78307 !important;
+        color: #333 !important;
+    }
     .text-bold { font-weight: bold; }
     .text-italic { font-style: italic; }
     .text-underline { text-decoration: underline; }
@@ -215,7 +262,9 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
     .text-right { text-align: right; }
 
     .format-btn-group button, .format-btn-group label {
-      max-width: 55px;
+      flex: 1 1 0;
+      min-width: 36px;
+      max-width: none;
     }
     
     .design-zoom-container {
@@ -239,7 +288,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 </style>
 
 <!-- Start Content-->
-<div class="container-fluid {{ !empty($designLock['locked']) ? 'design-locked' : '' }}">
+<div class="container-fluid design-editor-page {{ !empty($designLock['locked']) ? 'design-locked' : '' }}">
     @if(!empty($designLock['locked']))
         <div class="alert design-lock-alert mb-3" role="alert">
             <strong>Diseño bloqueado.</strong> {{ $designLock['message'] ?? 'Este set ya tiene operación activa y no permite edición.' }}
@@ -257,23 +306,6 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" id="btn-draft-discard">Empezar limpio</button>
                     <button type="button" class="btn btn-warning" id="btn-draft-continue">Continuar editando</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="modal fade" id="design-conflict-modal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Conflicto de edición</h5>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-2" id="design-conflict-message">Se detectó una versión más reciente del diseño.</p>
-                    <p class="mb-0 text-muted small">Para evitar sobreescritura, recarga el editor antes de guardar de nuevo.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" id="btn-conflict-keep-editing">Seguir revisando</button>
-                    <button type="button" class="btn btn-warning" id="btn-conflict-reload">Recargar editor</button>
                 </div>
             </div>
         </div>
@@ -394,17 +426,19 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                                 
                                                 <div class="col-12">
                                                     <div class="form-group mt-2 mb-3">
-                                                        <label class="label-control">Plantilla rápida</label>
+                                                        <label class="label-control" for="format">Plantilla rápida</label>
 
-                                                        <div class="input-group input-group-merge group-form">
-
-                                                            <select class="form-control" name="" id="format" style="border-radius: 30px;">
+                                                        <div class="input-group input-group-merge group-form plantilla-rapida-select">
+                                                            <select class="form-control form-select" name="" id="format" aria-label="Plantilla rápida" style="border-radius: 30px 0 0 30px; appearance: none; -webkit-appearance: none; -moz-appearance: none; padding-right: 0.75rem;">
                                                                 <option value="a3-h-3x2">A3 - Apaisado - (3x2)</option>
                                                                 <option value="a3-h-4x2">A3 - Apaisado - (4x2)</option>
                                                                 <option value="a4-v-3x1">A4 - Vertical - (3x1)</option>
                                                                 <option value="a4-v-4x1">A4 - Vertical - (4x1)</option>
                                                                 <option value="custom">Personalizado</option>
                                                             </select>
+                                                            <span class="input-group-text plantilla-rapida-chevron" aria-hidden="true" style="border-radius: 0 30px 30px 0; background: #fff; border-left: 0; pointer-events: none; color: #333;">
+                                                                <i class="ri-arrow-down-s-line fs-5"></i>
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -486,19 +520,19 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                                         <label class="col-form-label label-control col-4 text-end">Márgenes de la página (mm)</label>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-up" value="9.75" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-up" value="1" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                         </div>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-right" value="10.00" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-right" value="1" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                         </div>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-left" value="10.00" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-left" value="1" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                         </div>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-top" value="10.00" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-top" value="1" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                         </div>
 
                                                     </div>
@@ -510,9 +544,18 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                                         </label>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="identation" value="2.50" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="identation" value="0" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                         </div>
 
+                                                    </div>
+
+                                                    <div class="row mb-3">
+                                                        <label class="col-form-label label-control col-4 text-end">
+                                                            Líneas de corte (mm)
+                                                        </label>
+                                                        <div class="col-sm-2">
+                                                            <input class="form-control" type="number" id="cut-lines" value="2.50" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                        </div>
                                                     </div>
 
                                                     <div class="row mb-3">
@@ -539,7 +582,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                                         </label>
 
                                                         <div class="col-sm-2">
-                                                            <input class="form-control" type="number" id="margin-custom" value="12.50" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            <input class="form-control" type="number" id="margin-custom" value="1" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                         </div>
 
                                                     </div>
@@ -604,6 +647,11 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                             </div>
 
                             <div class="form-card fade bs d-none" id="step-2" style="min-height: 658px;">
+                                @if($isDigitalSet ?? false)
+                                <div class="design-digital-banner alert alert-info py-2 px-3 mx-auto" style="max-width: 270mm;">
+                                    <strong>Set digital.</strong> Diseñas solo la participación (sin portada ni trasera). La imagen se exportará en PNG para venta digital.
+                                </div>
+                                @endif
                                 <h4 class="mb-0 mt-1">
                                     Configuración de Formato
                                 </h4>
@@ -614,11 +662,11 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                 {{-- <div style="overflow: auto; height: 658px; width: 100%;"> --}}
 
                                 {{-- Tarea 6: barra centrada y que no se salga del ancho de pantalla --}}
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
 
                                     <br>
 
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="2"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="2"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -629,6 +677,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                             Fondo<input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
                                         </label> --}}
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" data-id="2" title="Elimina los campos de ejemplo y deja solo los obligatorios (número, participación, referencia, QR). Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -647,6 +696,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -660,11 +710,11 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         @endif
                                         <div class="format-box" style="border:1px solid #c8c8c8; width: 200mm; height: 92mm; @if($isDigitalSet ?? false) right: {{ $matrixBoxMm }}mm; @endif margin: auto; position: relative;">
                                         {{-- Guías de márgenes y matriz --}}
-                                        <div class="margen-izquierdo guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-left: 1px solid purple; left: 2.5mm;"></div>
-                                        <div class="margen-arriba guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-top: 1px solid purple; top: 2.5mm;"></div>
-                                        <div class="margen-derecho guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-right: 1px solid purple; right: 2.5mm;"></div>
-                                        <div class="margen-abajo guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 2.5mm;"></div>
-                                        <div class="caja-matriz guide2" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-right: 1px solid purple; height: 100%; left: 2.5mm;"></div>
+                                        <div class="margen-izquierdo guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-left: 1px solid purple; left: 0mm;"></div>
+                                        <div class="margen-arriba guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-top: 1px solid purple; top: 0mm;"></div>
+                                        <div class="margen-derecho guide2" style="opacity: 1; z-index:1;position: absolute; height: 100%; border-right: 1px solid purple; right: 0mm;"></div>
+                                        <div class="margen-abajo guide2" style="opacity: 1; z-index:1;position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 0mm;"></div>
+                                        <div class="caja-matriz guide2" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-right: 1px solid purple; height: 100%; left: 0mm;"></div>
 
                                         <div id="containment-wrapper2" style="width: 100%; height: calc(100% - 0mm); background-size: cover; background-position: center;"> 
 
@@ -672,7 +722,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 
                                               
 
-                                             <div class="elements element-critical number text ui-draggable" style="padding: 10px; width: 274px; height: 94px; resize: both; overflow: hidden; position: relative; left: 452px; top: 25.875px;">
+                                             <div class="elements number text ui-draggable" style="padding: 10px; width: 274px; height: 94px; resize: both; overflow: hidden; position: absolute; left: 452px; top: 25.875px;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><h1><span style="color:hsl(0,0%,0%);font-size:{{ getNumberFontSize($reservation_numbers) }};" class="ui-draggable-handle"><strong>{{ is_array($reservation_numbers) ? implode(' - ', $reservation_numbers) : $reservation_numbers }}</strong></span></h1></span>
                                             </div>
@@ -689,11 +739,20 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                             </div>
                                                 <div class="elements text ui-draggable" style="padding: 10px; width: 200px; height: 120px; resize: both; overflow: hidden; position: absolute; top: 144px; left: 158px;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-                                                <span class="ui-draggable-handle"><h5 style="text-align:center;"><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">DATOS DE LA EMPRESA</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">NOMBRE</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">C/NOMBRE DE LA VIA</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">TELEFONO</span><br><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">DATOS</span></h5></span>
+                                                @php
+                                                    $entityTemplateLines = array_values(array_filter([
+                                                        $entity->name ?? null,
+                                                        !empty($entity->nif_cif) ? 'CIF: '.$entity->nif_cif : null,
+                                                        $entity->address ?? null,
+                                                        trim(implode(' ', array_filter([$entity->postal_code ?? null, $entity->city ?? null, !empty($entity->province) && ($entity->province ?? '') !== ($entity->city ?? '') ? '('.$entity->province.')' : null]))) ?: null,
+                                                        !empty($entity->phone) ? 'Tel. '.$entity->phone : null,
+                                                    ]));
+                                                @endphp
+                                                <span class="ui-draggable-handle"><h5 style="text-align:center;">@foreach($entityTemplateLines as $line)@if(!$loop->first)<br>@endif<span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle">{{ $line }}</span>@endforeach</h5></span>
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 82px; height: 44px; resize: both; overflow: hidden; position: absolute; top: 144px; left: 42px;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-                                                <span class="ui-draggable-handle"><p><span style="color:hsl(0, 0%, 0%);" class="ui-draggable-handle"><strong>25/07/25</strong></span></p></span>
-                                            </div><div class="elements element-critical text number mini ui-draggable" style="padding: 10px; width: 74px; height: 43px; resize: both; overflow: hidden; position: absolute; top: 180.797px; left: 51.7969px; z-index: 1001;">
+                                                <span class="ui-draggable-handle"><p><span style="color:hsl(0, 0%, 0%);" class="ui-draggable-handle"><strong>{{ !empty($lottery?->draw_date) ? $lottery->draw_date->format('d/m/y') : '' }}</strong></span></p></span>
+                                            </div><div class="elements text number mini ui-draggable" style="padding: 10px; width: 74px; height: 43px; resize: both; overflow: hidden; position: absolute; top: 180.797px; left: 51.7969px; z-index: 1001;">
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-family:Arial, Helvetica, sans-serif;font-size:14px;" class="ui-draggable-handle"><strong>{{ formatMini($reservation_numbers) }}</strong></span></p></span>
                                             </div>
@@ -715,14 +774,16 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                             <span class="ui-draggable-handle"><p style="text-align:center;"><span style="color:hsl(0,0%,0%);font-size:26px;" class="ui-draggable-handle"><strong>{{ number_format($set->played_amount, 2, ',', '.') }}€</strong></span><br><span style="color:hsl(0,0%,0%);font-size:14px;" class="ui-draggable-handle"><strong>Donativo:</strong></span><br><span style="color:hsl(0,0%,0%);font-size:18px;" class="ui-draggable-handle"><strong>{{ number_format($set->donation_amount, 2, ',', '.') }}€</strong></span></p></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                             </div><div class="elements element-critical participation text ui-draggable" style="padding: 10px; width: 80px; height: 42px; resize: both; overflow: hidden; position: absolute; top: 218px; left: 662px;">
+                                                <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-size:10px;" class="ui-draggable-handle"><strong>Nº 1/0001</strong></span></p></span>
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 92px; height: 36px; resize: both; overflow: hidden; position: absolute; top: 247.797px; left: 490.781px;">
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-size:12px;" class="ui-draggable-handle"><strong>DEPOSITARIO</strong></span></p></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                             </div><div class="elements element-critical reference text ui-draggable" style="padding: 10px; width: 227px; height: 40px; resize: both; overflow: hidden; position: absolute; top: 278.688px; left: 459.703px;">
+                                                <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                                 <span class="ui-draggable-handle"><p><span style="color:hsl(0,0%,0%);font-size:12px;" class="ui-draggable-handle"><strong>Nº Ref: 00000000000000000000</strong></span></p></span>
                                             </div>
-                                        <div class="elements element-critical qr ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 253.562px; left: 666.588px; width: 60px; height: 60px;"><span class="ui-draggable-handle"></span></div>
+                                        <div class="elements element-critical qr ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 253.562px; left: 666.588px; width: 76px; height: 76px; min-width: 76px; min-height: 76px;"><span class="ui-draggable-handle"></span></div>
                                         
                                         </div>
 
@@ -750,11 +811,11 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 
                                 {{-- <div style="overflow: auto; height: 658px; width: 100%;"> --}}
 
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
 
                                     <br>
 
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="3"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="3"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -767,6 +828,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
                                         <button title="Agregar barra superior" class="btn btn-sm btn-dark add-top" data-id="3" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-top-line"></i></button>
                                         <button title="Agregar barra inferior" class="btn btn-sm btn-dark add-bottom" data-id="3" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-bottom-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" data-id="3" title="Elimina los campos de ejemplo y deja solo los obligatorios. Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -785,6 +847,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -792,21 +855,21 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         <div class="format-box" style="border:1px solid #c8c8c8; width: 200mm; height: 92mm; margin: auto; position: relative;">
 
                                         {{-- margen izquierdo --}}
-                                        <div class="margen-izquierdo guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 2.5mm;"></div>
+                                        <div class="margen-izquierdo guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 0mm;"></div>
                                         {{-- margen arriba --}}
-                                        <div class="margen-arriba guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 2.5mm;"></div>
+                                        <div class="margen-arriba guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 0mm;"></div>
                                         {{-- margen derecho --}}
-                                        <div class="margen-derecho guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 2.5mm;"></div>
+                                        <div class="margen-derecho guide3" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 0mm;"></div>
                                         {{-- margen abajo --}}
-                                        <div class="margen-abajo guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 2.5mm;"></div>
+                                        <div class="margen-abajo guide3" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 0mm;"></div>
 
                                         <div id="containment-wrapper3" style="width: 100%; height: calc(100% - 0mm); background-size: cover; background-position: center;"> 
                                             {{-- Cuadro blanco QR portada: se reemplazará por el QR del taco en el PDF; más arriba para no chocar con la barra inferior --}}
-                                            <div class="elements element-critical qr cover-taco-qr" style="resize: both; overflow: hidden; position: absolute; bottom: 50px; right: 15px; width: 60px; height: 60px; min-width: 60px; min-height: 60px; background: #fff; border: 2px solid #ccc; z-index: 5;"><span></span></div>
+                                            <div class="elements element-critical qr cover-taco-qr" style="resize: both; overflow: hidden; position: absolute; bottom: 50px; right: 15px; width: 76px; height: 76px; min-width: 76px; min-height: 76px; background: #fff; border: 2px solid #ccc; z-index: 5;"><span></span></div>
                                             <div class="elements text ui-draggable" style="padding: 10px; width: 351px; height: 93px; resize: both; overflow: hidden; position: absolute; top: 59.8295px; left: 378.71px;">
                                                 <span class="ui-draggable-handle"><h4><span style="color:hsl(0,0%,0%);" class="ui-draggable-handle"><u>&nbsp; Nombre: &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</u></span></h4></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-                                            </div><div class="elements context ui-draggable" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; inset: 294.67px 0px 20px 2.83209px; margin: auto; background-color: rgb(223, 223, 223); border: 2px solid #333;"><span style="padding: 20px; display: block;" class="ui-draggable-handle"></span></div><div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 49.7045px; left: 25.7074px; width: 90px; height: 36px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 203px; height: 78px; resize: both; overflow: hidden; position: absolute; top: 29.4034px; left: 106.426px;">
+                                            </div><div class="elements element-critical context cover-taco-label ui-draggable" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; inset: 294.67px 0px 20px 2.83209px; margin: auto; background-color: rgb(223, 223, 223); border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;" class="ui-draggable-handle">@{{taco_label}}</span></div><div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 49.7045px; left: 25.7074px; width: 90px; height: 36px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 280px; height: 87px; resize: both; overflow: hidden; position: absolute; top: 29.4034px; left: 106.426px;">
                                                 <span class="ui-draggable-handle"><h1><span style="font-size:38px;" class="ui-draggable-handle"><strong>PARTI</strong></span><span style="color:hsl(36,100%,48%);font-size:38px;" class="ui-draggable-handle"><strong>LOT</strong></span></h1></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
                                             </div><div class="elements text ui-draggable" style="padding: 10px; width: 257px; height: 165px; resize: both; overflow: hidden; position: absolute; top: 107.724px; left: 24.7074px;">
@@ -827,6 +890,12 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                             </div>
 
                             <div class="form-card fade bs d-none" id="step-4" style="min-height: 658px;">
+                                <div class="design-skip-back-banner alert py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" id="skip-back-banner">
+                                    <span class="mb-0 skip-back-msg"><strong>¿No necesitas diseñar la trasera?</strong> Puedes omitir este paso. No se habilitará la descarga de PDF de traseras.</span>
+                                    <span class="mb-0 restore-back-msg d-none"><strong>Trasera omitida.</strong> Puedes volver a activarla para diseñar y generar PDF de traseras.</span>
+                                    <button type="button" class="btn btn-dark btn-sm rounded-pill px-3" id="btn-skip-back-design"><i class="ri-skip-forward-line me-1"></i> Omitir trasera</button>
+                                    <button type="button" class="btn btn-success btn-sm rounded-pill px-3 d-none" id="btn-restore-back-design"><i class="ri-arrow-go-back-line me-1"></i> Usar trasera</button>
+                                </div>
                                 <h4 class="mb-0 mt-1">
                                     Configuración de Formato
                                 </h4>
@@ -836,11 +905,11 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 
                                 {{-- <div style="overflow: auto; height: 658px; width: 100%;"> --}}
 
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
 
                                     <br>
 
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="4"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="4"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -853,6 +922,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
                                         <button title="Agregar barra superior" class="btn btn-sm btn-dark add-top" data-id="4" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-top-line"></i></button>
                                         <button title="Agregar barra inferior" class="btn btn-sm btn-dark add-bottom" data-id="4" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-bottom-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" data-id="4" title="Elimina los campos de ejemplo y deja solo los obligatorios. Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -871,6 +941,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -878,19 +949,19 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         <div class="format-box" style="border:1px solid #c8c8c8; width: 200mm; height: 92mm; margin: auto; position: relative;">
 
                                         {{-- margen izquierdo --}}
-                                        <div class="margen-izquierdo guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 2.5mm;"></div>
+                                        <div class="margen-izquierdo guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-left: 1px solid purple; left: 0mm;"></div>
                                         {{-- margen arriba --}}
-                                        <div class="margen-arriba guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 2.5mm;"></div>
+                                        <div class="margen-arriba guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-top: 1px solid purple; top: 0mm;"></div>
                                         {{-- margen derecho --}}
-                                        <div class="margen-derecho guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 2.5mm;"></div>
+                                        <div class="margen-derecho guide4" style="opacity: 1; z-index: 1; position: absolute; height: 100%; border-right: 1px solid purple; right: 0mm;"></div>
                                         {{-- margen abajo --}}
-                                        <div class="margen-abajo guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 2.5mm;"></div>
+                                        <div class="margen-abajo guide4" style="opacity: 1; z-index: 1; position: absolute; width: 100%; border-bottom: 1px solid purple; bottom: 0mm;"></div>
                                         {{-- caja matriz --}}
-                                        {{-- <div class="caja-matriz-2 guide4" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-left: 1px solid purple; height: 100%; right: 2.5mm;"></div> --}}
+                                        {{-- <div class="caja-matriz-2 guide4" style="opacity: 1; z-index:1;position: absolute; width: 40mm; border-left: 1px solid purple; height: 100%; right: 0mm;"></div> --}}
 
                                         {{-- Tarea 5: imagen de fondo solo hasta el límite matrix-box (identation+matrix desde la derecha) --}}
                                         <div id="containment-wrapper4" style="width: 100%; height: calc(100% - 0mm); position: relative;">
-                                            <div id="design-back-bg" style="position: absolute; left: 0; top: 0; right: 42.5mm; bottom: 0; z-index: 0; pointer-events: none; background-color: #dfdfdf; background-size: cover; background-position: center;"></div>
+                                            <div id="design-back-bg" style="position: absolute; left: 0; top: 0; right: 40mm; bottom: 0; z-index: 0; pointer-events: none; background-color: #dfdfdf; background-size: cover; background-position: center;"></div>
                                             <div class="elements images ui-draggable" style="resize: both; overflow: hidden; position: absolute; top: 38.7969px; left: 44.8125px; width: 111px; height: 74px;"><span class="ui-draggable-handle"><img style="width: 100%; height: 100%" src="{{url('logo.svg')}}" alt=""></span><button class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button></div><div class="elements text ui-draggable" style="padding: 10px; width: 380px; height: 140px; resize: both; overflow: hidden; position: absolute; top: 17.5938px; left: 173px;">
                                                 <span class="ui-draggable-handle"><h3><strong>Descargate la APP</strong><br><strong>PARTILOT</strong><br><strong>Y Comprueba tu Participación</strong></h3></span>
                                                 <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
@@ -997,7 +1068,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 
                                         <div class="form-check form-switch mt-3">
                                             <input style="float: left;" class="form-check-input bg-dark" type="radio" name="generate" value="2" role="switch" id="generate">
-                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Generar un rango de participaciones</b></label>
                                         </div>
                                     </div>
 
@@ -1029,6 +1100,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                     <h4 class="mb-0 mt-1">
                                         Número de documentos
                                     </h4>
+                                    <p class="text-muted small mb-2">Valores por defecto al imprimir. Al generar el PDF podrá elegir en ese momento si quiere un único documento o un ZIP (sin necesidad de reaprobar el diseño).</p>
 
                                     <div class="form-group mb-3">
                                         <div class="form-check form-switch mt-3">
@@ -1038,7 +1110,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 
                                         <div class="form-check form-switch mt-3">
                                             <input style="float: left;" class="form-check-input bg-dark" type="radio" name="documents" value="2" role="switch" id="documents">
-                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                            <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Separar las participaciones en múltiples documentos</b></label>
                                         </div>
                                     </div>
 
@@ -1049,9 +1121,9 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                                         </label>
 
                                         <div class="col-sm-1">
-                                            <input class="form-control" type="number" value="150" id="participation_page" style="border-radius: 30px">
+                                            <input class="form-control" type="number" value="150" id="participation_page" min="1" style="border-radius: 30px">
                                         </div>
-                                        <label class="col-form-label label-control col-8 text-start">
+                                        <label class="col-form-label label-control col-8 text-start" id="pages-per-document-hint">
                                             (6 participaciones por página, 1 documento)
                                         </label>
 
@@ -1063,16 +1135,32 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
                             <div class="row">
 
                                 <div class="col-6 text-start">
-                                    <a href="javascript:;" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 prev-step">
-                                        <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
+                                    <a href="javascript:;" class="btn btn-md btn-light mt-2 prev-step design-wizard-nav-btn design-wizard-nav-btn--dark">
+                                        <i class="ri-arrow-left-circle-line" aria-hidden="true"></i>
+                                        <span>Atrás</span>
+                                    </a>
                                 </div>
                                 <div class="col-6 text-end">
-                                    {{-- Un solo botón a la derecha: Siguiente o Guardar (mismo hueco, solo uno visible) --}}
-                                    <div class="d-inline-block position-relative" style="min-width: 200px; min-height: 46px;">
-                                        <button id="step" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 next-step">Siguiente
-                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i></button>
-                                        <button id="save-step" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: absolute; left: 0;" class="btn btn-md btn-light mt-2 d-none">Guardar
-                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
+                                    {{-- Previsualizar (pasos 2–4) + Siguiente/Guardar --}}
+                                    <div class="d-inline-flex flex-wrap align-items-end justify-content-end gap-2">
+                                        <button type="button" id="design-preview-pdf-btn" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--dark" title="Vista previa del PDF del paso actual">
+                                            <i class="ri-file-pdf-line" aria-hidden="true"></i>
+                                            <span>Previsualizar PDF</span>
+                                        </button>
+                                        <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
+                                        <button id="step" type="button" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                            <span>Siguiente</span>
+                                            <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                        </button>
+                                        <button id="save-step" type="button" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                            <span>Guardar</span>
+                                            <i class="ri-save-line" aria-hidden="true"></i>
+                                        </button>
+                                        <button id="save-continue-step" type="button" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--continue">
+                                            <span>Guardar y continuar</span>
+                                            <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                        </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1090,7 +1178,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 
 </div> <!-- container -->
 
-<div class="modal fade" id="ckeditor-modal" tabindex="-1">
+<div class="modal fade design-editor-modal" id="ckeditor-modal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
@@ -1099,6 +1187,9 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
       </div>
       <div class="modal-body">
         
+        <p class="text-muted small mb-2 mb-md-3" style="margin-bottom: 0.75rem;">
+          Mientras editas, el texto se muestra en negro para que se lea bien. El color real (p. ej. blanco) se verá en el diseño al aceptar.
+        </p>
         <div class="editor-container__editor"><div id="editor" style="height: 200px;"></div></div>
         {{-- <div class="editor-container editor-container_document-editor" id="editor-container">
             <div class="editor-container__editor-wrapper">
@@ -1115,7 +1206,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
   </div>
 </div>
 
-<div class="modal fade" id="imagen-modal" tabindex="-1">
+<div class="modal fade design-editor-modal" id="imagen-modal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -1164,6 +1255,24 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
         <button type="button" class="btn btn-sm btn-danger deleteElements" data-bs-dismiss="modal">Eliminar elemento</button>
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-sm btn-primary accept-qr">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade design-editor-modal" id="design-name-modal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nombre del diseño</h5>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Asigne un nombre para identificar este diseño en el listado de la entidad.</p>
+        <input type="text" class="form-control" id="design-name-input" maxlength="120" placeholder="Nombre del diseño">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="design-name-cancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="design-name-confirm">Guardar diseño</button>
       </div>
     </div>
   </div>
@@ -1228,7 +1337,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 </div>
 
 <!-- === MODAL FONDO DE TICKET === -->
-<div class="modal fade" id="background-modal" tabindex="-1" aria-labelledby="backgroundModalLabel" aria-hidden="true">
+<div class="modal fade design-editor-modal" id="background-modal" tabindex="-1" aria-labelledby="backgroundModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -1243,11 +1352,12 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
         <div class="mb-3">
           <label for="background-image" class="form-label">Imagen de fondo</label>
           <input class="form-control" type="file" id="background-image" accept="image/*">
+          <small class="text-muted">JPG, PNG, GIF o WebP. Máximo {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB.</small>
         </div>
         <div class="mb-3">
           <button class="btn btn-secondary" id="remove-bg-image">Quitar imagen de fondo</button>
         </div>
-        <div id="bg-preview" style="width:100%;height:80px;border:1px solid #ccc;background-size:cover;background-position:center;"></div>
+        <div id="bg-preview" class="design-bg-preview"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -1263,7 +1373,7 @@ window.__forceFreshDraft = @json((bool)($forceFreshDraft ?? false));
 @endsection
 
 @section('scripts')
-
+<script src="{{ asset('assets/libs/html2canvas/html2canvas.min.js') }}"></script>
 <script>
 // ... existing code ...
 // === SCRIPTS PARA EL MODAL DE FONDO ===
@@ -1275,32 +1385,37 @@ function hideDesignLoading() {
   $('#design-loading-overlay').hide();
 }
 
-$(document).ready(function() {
-  // Zoom del diseño (pasos 2, 3, 4)
-  var designZoom = 1;
-  var designZoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 3.5, 4];
-  function applyDesignZoom() {
-    var s = designZoom;
-    // Aplicar zoom solo al contenedor del diseño, no a las herramientas
-    $('.design-zoom-container').css('transform', 'scale(' + s + ')');
-    $('.design-zoom-label').text(Math.round(s * 100) + '%');
-    try { localStorage.setItem('designZoom', s); } catch (e) {}
-  }
-  try { designZoom = parseFloat(localStorage.getItem('designZoom')) || 1; } catch (e) {}
-  designZoom = designZoomSteps.indexOf(designZoom) >= 0 ? designZoom : 1;
-  applyDesignZoom();
-  $(document).on('click', '.design-zoom-in', function() {
-    var i = designZoomSteps.indexOf(designZoom);
-    if (i < 0) { for (i = 0; i < designZoomSteps.length && designZoomSteps[i] < designZoom; i++); i = Math.min(i, designZoomSteps.length - 1); }
-    if (i < designZoomSteps.length - 1) { designZoom = designZoomSteps[i + 1]; applyDesignZoom(); }
-  });
-  $(document).on('click', '.design-zoom-out', function() {
-    var i = designZoomSteps.indexOf(designZoom);
-    if (i < 0) { for (i = designZoomSteps.length - 1; i >= 0 && designZoomSteps[i] > designZoom; i--); i = Math.max(i, 0); }
-    if (i > 0) { designZoom = designZoomSteps[i - 1]; applyDesignZoom(); }
-  });
+// URL con espacios/caracteres especiales debe ir entre comillas en CSS url()
+// Debe ser global: next/prev-step viven en otro bloque <script>
+function bgImageCssUrl(url) {
+  if (!url) return 'none';
+  return 'url("' + String(url).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
+}
 
-  // Botón Desplegar/Ocultar márgenes
+// Zoom del diseño (global: setupDraggable vive en otro bloque <script>)
+var designZoom = 1;
+var designZoomSteps = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 3.5, 4];
+function applyDesignZoom() {
+  var s = designZoom;
+  $('.design-zoom-container').css('transform', 'scale(' + s + ')');
+  $('.design-zoom-label').text(Math.round(s * 100) + '%');
+  try { localStorage.setItem('designZoom', s); } catch (e) {}
+}
+try { designZoom = parseFloat(localStorage.getItem('designZoom')) || 1; } catch (e) {}
+designZoom = designZoomSteps.indexOf(designZoom) >= 0 ? designZoom : 1;
+applyDesignZoom();
+$(document).on('click', '.design-zoom-in', function() {
+  var i = designZoomSteps.indexOf(designZoom);
+  if (i < 0) { for (i = 0; i < designZoomSteps.length && designZoomSteps[i] < designZoom; i++); i = Math.min(i, designZoomSteps.length - 1); }
+  if (i < designZoomSteps.length - 1) { designZoom = designZoomSteps[i + 1]; applyDesignZoom(); }
+});
+$(document).on('click', '.design-zoom-out', function() {
+  var i = designZoomSteps.indexOf(designZoom);
+  if (i < 0) { for (i = designZoomSteps.length - 1; i >= 0 && designZoomSteps[i] > designZoom; i--); i = Math.max(i, 0); }
+  if (i > 0) { designZoom = designZoomSteps[i - 1]; applyDesignZoom(); }
+});
+
+$(document).ready(function() {
   $('#marginsCollapse').on('show.bs.collapse', function() {
     $('#btn-desplegar-margenes').text('Ocultar');
   }).on('hide.bs.collapse', function() {
@@ -1310,6 +1425,7 @@ $(document).ready(function() {
   // Botón Guardar márgenes (paso 1): feedback visual (los valores se guardan al finalizar el diseño)
   $(document).on('click', '#btn-guardar-margenes', function(e) {
     e.preventDefault();
+    if (typeof configMargins === 'function') configMargins();
     var $ti = $('#ticket-info');
     if ($ti.length) {
       $ti.addClass('alert-success').removeClass('alert-info');
@@ -1318,11 +1434,6 @@ $(document).ready(function() {
     alert('Márgenes aplicados. Se guardarán con el diseño al finalizar.');
   });
 
-  // URL con espacios/caracteres especiales debe ir entre comillas en CSS url()
-  function bgImageCssUrl(url) {
-    if (!url) return 'none';
-    return 'url("' + String(url).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
-  }
   // Botón para abrir el modal
   $(document).on('click', '#open-bg-modal', function() {
     // Cargar valores actuales
@@ -1367,25 +1478,56 @@ $(document).ready(function() {
     const color = $('#background-color').val();
     let img = '';
     if($('#background-image')[0].files && $('#background-image')[0].files[0]) {
-      // Subir imagen al servidor
       const file = $('#background-image')[0].files[0];
+      const maxBytes = {{ (int) \App\Support\SecureImageUpload::MAX_KB }} * 1024;
+      if (file.size > maxBytes) {
+        alert('La imagen pesa demasiado (' + (file.size / (1024 * 1024)).toFixed(1) + ' MB). El máximo es {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB. Comprima el PNG o use JPG.');
+        return;
+      }
       const formData = new FormData();
       formData.append('image', file);
       showDesignLoading('Subiendo imagen...');
-      fetch('{{url('api/upload-image')}}', {
+      fetch(@json($design_upload_url ?? route('design.uploadImage')), {
         method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
         body: formData
       })
-      .then(response => response.json())
-      .then(data => {
-        if(data.url) {
-          img = data.url;
+      .then(function(response) {
+        return response.json().then(function(data) {
+          return { ok: response.ok, status: response.status, data: data };
+        }).catch(function() {
+          return { ok: false, status: response.status, data: null };
+        });
+      })
+      .then(function(result) {
+        if (result.ok && result.data && result.data.url) {
+          img = result.data.url;
           localStorage.setItem('bgimg-step'+step, img);
           setBgToContainment(color, img);
           $('#background-modal').modal('hide');
+          return;
         }
+        var msg = 'No se pudo subir la imagen de fondo.';
+        if (result.data) {
+          if (result.data.message) msg = result.data.message;
+          else if (result.data.errors && result.data.errors.image) {
+            msg = [].concat(result.data.errors.image).join('\n');
+          }
+        }
+        if (result.status === 413) {
+          msg = 'El archivo es demasiado grande para el servidor. Comprima la imagen (máx. {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB).';
+        }
+        alert(msg);
       })
-      .finally(() => hideDesignLoading());
+      .catch(function() {
+        alert('Error de red al subir la imagen. Inténtelo de nuevo.');
+      })
+      .finally(function() { hideDesignLoading(); });
     } else {
       img = localStorage.getItem('bgimg-step'+step) || '';
       setBgToContainment(color, img);
@@ -1395,16 +1537,20 @@ $(document).ready(function() {
   });
 
   function setBgToContainment(color, img) {
-    var $cont = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
-    if (!$cont.length) $cont = $('#containment-wrapper'+step);
-    $cont.css('background-color', color);
-    if(img) {
+    var $cont = (typeof getBackgroundTargetEl === 'function')
+      ? getBackgroundTargetEl(step)
+      : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
+    if (!$cont || !$cont.length) $cont = $('#containment-wrapper'+step);
+    $cont.css('background-color', color || '#ffffff');
+    if (img) {
       $cont.css('background-image', bgImageCssUrl(img));
       $cont.css('background-size', 'cover');
       $cont.css('background-position', 'center');
+      $cont.css('background-repeat', 'no-repeat');
     } else {
       $cont.css('background-image', 'none');
     }
+    if (typeof syncMarginBgLayers === 'function') syncMarginBgLayers();
   }
 });
 // ... existing code ...
@@ -1530,31 +1676,40 @@ function initDatatable()
 }
 
 function recalculateDesign() {
-    let cols = $('#cols').val();
-    let rows = $('#rows').val();
-    let orientation = $('#orientation').val();
-    let page = $('#page').val();
+    let cols = Math.max(1, parseInt($('#cols').val(), 10) || 1);
+    let rows = Math.max(1, parseInt($('#rows').val(), 10) || 1);
+    let orientation = $('#orientation').val() || 'h';
+    let page = $('#page').val() || 'a3';
 
-    if (orientation == 'h') {
-        $('.preview-design > div').css('width','100%');
-    }else{
-        $('.preview-design > div').css('width','60%');
+    const paper = page === 'a4'
+        ? { shortSide: 210, longSide: 297 }
+        : { shortSide: 297, longSide: 420 };
+    const sheetW = orientation === 'h' ? paper.longSide : paper.shortSide;
+    const sheetH = orientation === 'h' ? paper.shortSide : paper.longSide;
+
+    let $sheet = $('.preview-design > div');
+    if (!$sheet.length) {
+        $('.preview-design').html('<div class="' + page + '"></div>');
+        $sheet = $('.preview-design > div');
     }
+    $sheet.removeClass('a3 a4').addClass(page);
+    $sheet.css({
+        width: orientation === 'h' ? '100%' : '62%',
+        maxWidth: '100%',
+        aspectRatio: sheetW + ' / ' + sheetH,
+        height: 'auto',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignContent: 'stretch',
+        boxSizing: 'border-box'
+    });
 
-    let h = 216 / rows;
-    let html = "";
     let percent = 100 / cols;
-    let margin = 1 / cols;
-    for (var i = 0; i < cols*rows; i++) {
-        html+=`<div style="height: ${h}px; width: ${percent-1}%; margin-left: ${margin}%"></div>`;
+    let html = '';
+    for (var i = 0; i < cols * rows; i++) {
+        html += '<div style="height: ' + (100 / rows) + '%; width: ' + (percent - 1) + '%; margin-left: 0.5%; margin-right: 0.5%; box-sizing: border-box;"></div>';
     }
-    $('.preview-design > div').html(html);
-
-    // Eliminado: cambio de tamaño de .format-box aquí
-    // if($('#format').val() === 'custom') {
-    //     const {w, h} = getCustomDimensions();
-    //     $('.format-box').css({width: w+'mm', height: h+'mm'});
-    // }
+    $sheet.html(html);
 }
 
 $('#cols,#rows').change(function (e) {
@@ -1580,57 +1735,32 @@ $('#format').change(function (e) {
     restoreValues();
     if($(this).val() == 'a3-h-3x2') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a3">
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-            </div>`;
+        $('#page').val('a3');
+        $('#orientation').val('h');
+        $('#rows').val(2);
+        $('#cols').val(3);
     } else if($(this).val() == 'a3-h-4x2') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a3">
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-            </div>`;
+        $('#page').val('a3');
+        $('#orientation').val('h');
+        $('#rows').val(2);
+        $('#cols').val(4);
     } else if($(this).val() == 'a4-v-3x1') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a4">
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-            </div>`;
+        $('#page').val('a4');
+        $('#orientation').val('v');
+        $('#rows').val(3);
+        $('#cols').val(1);
     } else if($(this).val() == 'a4-v-4x1') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a4">
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-            </div>`;
+        $('#page').val('a4');
+        $('#orientation').val('v');
+        $('#rows').val(4);
+        $('#cols').val(1);
     } else if($(this).val() == 'custom') {
         $('.custom').prop('disabled', false);
-        html = `<div class="a3">
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                </div>`;
-        // Actualizar el tamaño del format-box en tiempo real para personalizado
-        const {w, h} = getCustomDimensions();
-        console.log(w,h);
-        {{-- $('.format-box').css({width: w+'mm', height: h+'mm'}); --}}
     }
-    $('.preview-design').html(html);
+    recalculateDesign();
 });
 
   function restoreValues()
@@ -1647,13 +1777,135 @@ $('#format').change(function (e) {
   var designDirty = false;
   var autosaveInFlight = false;
   var autosaveIntervalMs = 30000;
-  var designConflictDetected = false;
   var draftPersistTimer = null;
   var pendingPersistentDraft = null;
   var restoredDraftStep = null;
   var draftContext = window.__designContext || {};
   var draftStorageKey = 'design:draft:set:' + (draftContext.set_id || 'unknown');
   var transientKeys = ['step2','step3','step4','bg-step2','bg-step3','bg-step4','bgimg-step2','bgimg-step3','bgimg-step4','guide-step2','guide-step3','guide-step4'];
+  var historyByStep = {};
+  var historyIndexByStep = {};
+  var designEditorFonts = 'Asgonlae/Asgonlae, sans-serif;Arial/Arial, Helvetica, sans-serif;Georgia/Georgia, serif;Times New Roman/Times New Roman, Times, serif;Verdana/Verdana, Geneva, sans-serif;Courier New/Courier New, Courier, monospace;Tahoma/Tahoma, Geneva, sans-serif;Trebuchet MS/Trebuchet MS, Helvetica, sans-serif';
+
+  function syncCurrentStepToLocalStorage() {
+    if (step >= 2 && step <= 4 && $('#containment-wrapper' + step).length) {
+      localStorage.setItem('step' + step, $('#containment-wrapper' + step).html());
+    }
+  }
+
+  function updateDesignActionButtons() {
+    if (designDirty) {
+      $('#step').addClass('d-none');
+      $('#save-step').removeClass('d-none');
+      $('#save-continue-step').removeClass('d-none');
+    } else {
+      $('#step').removeClass('d-none');
+      $('#save-step').addClass('d-none');
+      $('#save-continue-step').addClass('d-none');
+    }
+    if (typeof window.syncDesignPreviewPdfButton === 'function') {
+      window.syncDesignPreviewPdfButton();
+    }
+  }
+
+  function confirmLeaveWithUnsaved(callback) {
+    if (!designDirty) {
+      callback();
+      return;
+    }
+    if (confirm('Tienes cambios sin guardar en el servidor. ¿Quieres continuar sin guardar?')) {
+      callback();
+    }
+  }
+
+  function stashStepHistory(stepNum) {
+    if (stepNum < 2) {
+      return;
+    }
+    historyByStep[stepNum] = historyStates.slice();
+    historyIndexByStep[stepNum] = currentHistoryIndex;
+  }
+
+  function loadStepHistory(stepNum) {
+    historyStates = (historyByStep[stepNum] || []).slice();
+    currentHistoryIndex = typeof historyIndexByStep[stepNum] === 'number' ? historyIndexByStep[stepNum] : -1;
+    updateUndoRedoButtons();
+  }
+
+  function ensureStepHistoryInitialized() {
+    if (step < 2 || !$('#containment-wrapper' + step).length) {
+      return;
+    }
+    if (!historyByStep[step] || historyByStep[step].length === 0) {
+      saveHistoryState();
+    }
+  }
+
+  function buildCKEditorConfig(contenidoHTML) {
+    return {
+      enterMode: CKEDITOR.ENTER_BR,
+      shiftEnterMode: CKEDITOR.ENTER_P,
+      allowedContent: true,
+      font_names: designEditorFonts,
+      contentsCss: [
+        CKEDITOR.getUrl('contents.css'),
+        '{{ asset('assets/css/design-editor-fonts.css') }}',
+        '{{ asset('assets/css/design-ckeditor-edit.css') }}'
+      ],
+      toolbar: [
+        { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
+        { name: 'paragraph', items: [ 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
+        { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
+        { name: 'styles', items: [ 'Font', 'FontSize' ] }
+      ],
+      on: {
+        instanceReady: function() {
+          this.setData(contenidoHTML);
+        }
+      }
+    };
+  }
+
+  function performDesignSave(options) {
+    options = options || {};
+    $('.elements').removeClass('selected');
+    selectedElement = null;
+    $('.up-layer, .down-layer, .text-style-btn').prop('disabled', true);
+
+    if (window.__designLocked) {
+      alert(window.__designLockMessage || 'Este set no permite edición de diseño por estado operativo.');
+      return;
+    }
+
+    syncCurrentStepToLocalStorage();
+    persistDraftLocally();
+
+    var persistOpts = {
+      reason: 'manual-save',
+      showLoader: true,
+      redirectOnSuccess: false,
+      skipSuccessAlert: !!options.continueAfterSave,
+      onSuccess: options.continueAfterSave ? function() {
+        if (typeof options.onSuccess === 'function') {
+          options.onSuccess();
+        } else {
+          $('.next-step').first().trigger('click');
+        }
+      } : null
+    };
+
+    if (step == 2) {
+      showDesignLoading('Guardando vista previa...');
+      generateParticipationSnapshot(function() {
+        syncCurrentStepToLocalStorage();
+        persistDesignToServer(persistOpts);
+      });
+      return;
+    }
+
+    showDesignLoading(step === 1 ? 'Guardando configuración...' : 'Guardando diseño...');
+    persistDesignToServer(persistOpts);
+  }
 
   function clearTransientLocalState() {
     transientKeys.forEach(function(k){ localStorage.removeItem(k); });
@@ -1676,6 +1928,7 @@ $('#format').change(function (e) {
       margin_left: data.margins?.left ?? null,
       margin_top: data.margins?.top ?? null,
       identation: data.identation ?? null,
+      cut_lines: data.cut_lines ?? null,
       matrix_box: data.matrix_box ?? null,
       margin_custom: data.margin_custom ?? null,
       page_rigth: data.horizontal_space ?? null,
@@ -1786,7 +2039,13 @@ $('#format').change(function (e) {
     }, 800);
   }
 
-  pendingPersistentDraft = tryRestorePersistentDraft();
+  if (window.__preferServerDesign && window.__designLoad) {
+    clearPersistentDraft();
+    clearTransientLocalState();
+    pendingPersistentDraft = null;
+  } else {
+    pendingPersistentDraft = tryRestorePersistentDraft();
+  }
 
   // Reaplicar position/right/top/margin al .format-box del paso 2 en digital (el JS que actualiza width/height lo sobrescribe)
   function applyDigitalFormatBoxStep2() {
@@ -1797,18 +2056,51 @@ $('#format').change(function (e) {
     $fb.css({ position: 'absolute', right: '0', top: '0', margin: '0' });
   }
 
+  $('#design-name-confirm').click(function() {
+    window.__pendingDesignName = ($('#design-name-input').val() || '').trim() || window.__defaultDesignName || 'Diseño';
+    if (typeof bootstrap !== 'undefined') {
+      var el = document.getElementById('design-name-modal');
+      var inst = bootstrap.Modal.getInstance(el);
+      if (inst) inst.hide();
+    }
+    persistDesignToServer({
+      reason: 'final-save',
+      showLoader: true,
+      redirectOnSuccess: true
+    });
+  });
+
+  $('#design-name-modal').on('shown.bs.modal', function() {
+    $('#design-name-input').trigger('focus').select();
+  });
+  $('#design-name-input').on('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('#design-name-confirm').trigger('click');
+    }
+  });
+
+  $('#design-name-cancel').click(function() {
+    if (typeof bootstrap !== 'undefined') {
+      var el = document.getElementById('design-name-modal');
+      var inst = bootstrap.Modal.getInstance(el);
+      if (inst) inst.hide();
+    }
+  });
+
   $('.prev-step').click(function (e) {
       e.preventDefault();
 
-      if (step == 1) {
-        window.location.href = '{{ route('design.showChooseType') }}';
-      }else{
-        step -=1;
-        
-        // Limpiar historial al cambiar de paso
-        historyStates = [];
-        currentHistoryIndex = -1;
-        updateUndoRedoButtons();
+      var navigateBack = function() {
+        if (step == 1) {
+          window.location.href = '{{ route('design.showChooseType') }}';
+          return;
+        }
+
+        syncCurrentStepToLocalStorage();
+        stashStepHistory(step);
+        var previousStep = step - 1;
+        step = previousStep;
         
         // Limpiar observers anteriores
         if (resizeObserver) {
@@ -1826,25 +2118,19 @@ $('#format').change(function (e) {
         if (localStorage.getItem('step'+step)) {
             $('#containment-wrapper'+step).html(localStorage.getItem('step'+step));
         }
-        enableDesignElementsResize($('#containment-wrapper' + step));
+        if (step === 3) ensurePortadaQrPlaceholder();
 
-        setupDraggable();
-        setupResizeObserver();    
-
-        $('.elements.text .edit-btn').click(editelements);
-        // Doble clic en barra abre modal de opciones (manejador delegado)
-        $('.elements.images .edit-btn').click(changeImage);
-        {{-- $('.elements.qr').dblclick(setQRtext); --}}
+        initCanvasInteractions();
         
-        // Guardar estado inicial del paso
-        setTimeout(() => {
-          saveHistoryState();
-          // Actualizar estado de botones undo/redo
-          updateUndoRedoButtons();
+        setTimeout(function() {
+          loadStepHistory(step);
+          ensureStepHistoryInitialized();
         }, 100);
 
         if ($('#containment-wrapper'+step).length) {
-            var $bgEl = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
+            var $bgEl = (typeof getBackgroundTargetEl === 'function')
+              ? getBackgroundTargetEl(step)
+              : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
             if ($bgEl.length) {
               if(localStorage.getItem('bg-step'+step)){
                 $bgEl.css('background-color', localStorage.getItem('bg-step'+step));
@@ -1854,21 +2140,20 @@ $('#format').change(function (e) {
                 $bgEl.css('background-image', 'none');
               }
             }
+            if (typeof syncMarginBgLayers === 'function') syncMarginBgLayers();
         }
 
-        $('#step').removeClass('d-none');
-        $('#save-step').addClass('d-none');
+        updateDesignActionButtons();
+        persistDraftLocally();
 
         $('.form-wizard-element').removeClass('active');
         $('#bc-step-'+step).addClass('active');
 
         configMargins();
-        addEventsElement();
-        setupDraggable();
-        setupResizeObserver();
         if (typeof applyPendingRescaleIfStep2 === 'function') applyPendingRescaleIfStep2();
+      };
 
-      }
+      confirmLeaveWithUnsaved(navigateBack);
   });
 
   $('.next-step').click(function (e) {
@@ -1880,19 +2165,21 @@ $('#format').change(function (e) {
             alert(window.__designLockMessage || 'Este set no permite edición de diseño por estado operativo.');
             return;
           }
-          persistDesignToServer({
-            reason: 'final-save',
-            showLoader: true,
-            redirectOnSuccess: true
-          });
+          $('#design-name-input').val(window.__pendingDesignName || window.__defaultDesignName || '');
+          if (typeof bootstrap !== 'undefined' && document.getElementById('design-name-modal')) {
+            var nameModal = new bootstrap.Modal(document.getElementById('design-name-modal'));
+            nameModal.show();
+          } else {
+            $('#design-name-modal').modal('show');
+          }
+          return;
 
       }else{
+          syncCurrentStepToLocalStorage();
+          persistDraftLocally();
+          stashStepHistory(step);
           step +=1;
-          
-          // Limpiar historial al cambiar de paso
-          historyStates = [];
-          currentHistoryIndex = -1;
-          updateUndoRedoButtons();
+          loadStepHistory(step);
           
           // Limpiar observers anteriores
           if (resizeObserver) {
@@ -1922,24 +2209,20 @@ $('#format').change(function (e) {
               }
             });
           }
-          enableDesignElementsResize($('#containment-wrapper' + step));
           if (step === 3) ensurePortadaQrPlaceholder();
 
-          setupDraggable();
-        setupResizeObserver();
-          $('.elements.text .edit-btn').click(editelements);
-          // Doble clic en barra abre modal de opciones (manejador delegado)
-          $('.elements.images .edit-btn').click(changeImage);
-          {{-- $('.elements.qr').dblclick(setQRtext); --}}
+          initCanvasInteractions();
           
           // Guardar estado inicial del paso
           setTimeout(() => {
-            saveHistoryState();
-            updateUndoRedoButtons(); // Actualizar estado de botones
-          }, 100); // Pequeño delay para asegurar que todo esté cargado
+            ensureStepHistoryInitialized();
+            updateUndoRedoButtons();
+          }, 100);
 
           if ($('#containment-wrapper'+step).length) {
-              var $bgEl = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
+              var $bgEl = (typeof getBackgroundTargetEl === 'function')
+                ? getBackgroundTargetEl(step)
+                : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
               if ($bgEl.length) {
                 if(localStorage.getItem('bg-step'+step)){
                   $bgEl.css('background-color', localStorage.getItem('bg-step'+step));
@@ -1949,6 +2232,7 @@ $('#format').change(function (e) {
                   $bgEl.css('background-image', 'none');
                 }
               }
+              if (typeof syncMarginBgLayers === 'function') syncMarginBgLayers();
               if(localStorage.getItem('guide-step'+step)){
                   $('.guide'+step).css('border-color', localStorage.getItem('guide-step'+step));
               }else{
@@ -1960,7 +2244,6 @@ $('#format').change(function (e) {
           $('#bc-step-'+step).addClass('active');
 
           configMargins();
-          addEventsElement();
           if (typeof applyPendingRescaleIfStep2 === 'function') applyPendingRescaleIfStep2();
           if (step === 2 && typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
 
@@ -1973,83 +2256,6 @@ $('#format').change(function (e) {
             }, 600);
           }
 
-          $('.up-layer').unbind('click');
-          $('.up-layer').click(function(e) {
-            e.preventDefault();
-            if (selectedElement) {
-              if (selectedElement.hasClass('element-critical')) return;
-              let zindex = parseInt(selectedElement.css('z-index')) || 0;
-              if (zindex >= 9999) return;
-              selectedElement.css('z-index', zindex + 1);
-            }
-          });
-          $('.down-layer').unbind('click');
-          $('.down-layer').click(function(e) {
-            e.preventDefault();
-            if (selectedElement) {
-              let zindex = parseInt(selectedElement.css('z-index')) || 0;
-              if (zindex > 0) selectedElement.css('z-index', zindex - 1);
-            }
-          });
-          $('.delete-element-btn').unbind('click');
-          $('.delete-element-btn').click(function(e) {
-            e.preventDefault();
-            if (selectedElement) {
-              if (selectedElement.hasClass('element-critical')) {
-                alert('Este elemento es obligatorio y no se puede eliminar.');
-                return;
-              }
-              selectedElement.remove();
-              selectedElement = null;
-              $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-              $('#save-step').removeClass('d-none');
-              $('#step').addClass('d-none');
-              
-              saveHistoryState(); // Guardar estado después de eliminar
-              updateUndoRedoButtons(); // Actualizar estado de botones
-            }
-          });
-
-          // Suprimir / Backspace: eliminar elemento seleccionado (salvo en inputs)
-          $(document).off('keydown.designDelete').on('keydown.designDelete', function(e) {
-            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-            if ($(e.target).closest('input, textarea, select, [contenteditable="true"]').length) return;
-            if (!selectedElement || !selectedElement.length) return;
-            if (selectedElement.hasClass('element-critical')) {
-              e.preventDefault();
-              alert('Este elemento es obligatorio y no se puede eliminar.');
-              return;
-            }
-            e.preventDefault();
-            selectedElement.remove();
-            selectedElement = null;
-            $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-            $('#save-step').removeClass('d-none');
-            $('#step').addClass('d-none');
-            saveHistoryState();
-            updateUndoRedoButtons();
-          });
-
-          $('.undo-btn').click(function(e) {
-            e.preventDefault();
-            undo();
-          });
-          
-          $('.redo-btn').click(function(e) {
-            e.preventDefault();
-            redo();
-          });
-
-          // Deseleccionar al hacer clic fuera (no si un modal está abierto)
-          $('body').unbind('click.deselect');
-          $('body').bind('click.deselect', function(e) {
-            if ($('#imagen-modal').hasClass('show') || $('#ckeditor-modal').hasClass('show') || $('#qr-modal').hasClass('show') || $('#position-modal').hasClass('show') || $('#bar-options-modal').hasClass('show')) return;
-            if (!$(e.target).closest('.elements').length && !$(e.target).closest('.up-layer, .down-layer, .text-style-btn, .delete-element-btn, .undo-btn, #bar-options-modal').length) {
-              $('.elements').removeClass('selected');
-              selectedElement = null;
-              $('.up-layer, .down-layer, .text-style-btn, .delete-element-btn').prop('disabled', true);
-            }
-          });
       }
 
       if (step == 2) {
@@ -2085,7 +2291,6 @@ $('#format').change(function (e) {
                 width: w+'mm',
                 height: h+'mm'
             });
-            $('.format-box-btn').css('width', '250mm');
             if (typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
         }
         let matrix = $('#matrix-box').val() ?? 40;
@@ -2101,11 +2306,11 @@ $('#format').change(function (e) {
   // Sistema de Undo/Redo limitado
   var historyStates = [];
   var currentHistoryIndex = -1;
-  var maxHistoryStates = 10;
+  var maxHistoryStates = 30;
   var isRestoringState = false; // Flag para evitar guardar durante restauración
   var resizeTimeout; // Para debounce del ResizeObserver
 
-  /** Clona .format-box y elimina resize del HTML guardado sin modificar el canvas en edición. */
+  /** Clona .format-box y elimina resize del HTML exportado (no altera left/top). */
   function getFormatBoxHtmlForSave(selector) {
     var el = document.querySelector(selector);
     if (!el) return '';
@@ -2122,7 +2327,35 @@ $('#format').change(function (e) {
       : $('[id^="containment-wrapper"] .elements, #design-back-bg .elements');
     $els.each(function() {
       this.style.setProperty('resize', 'both', 'important');
-      this.style.setProperty('overflow', 'hidden', 'important');
+      if (!$(this).hasClass('text-vertical') && $(this).attr('data-text-vertical') !== '1') {
+        this.style.setProperty('overflow', 'hidden', 'important');
+      }
+    });
+    enforceQrMinSize($scope);
+    if (typeof normalizeVerticalTextBoxes === 'function') {
+      normalizeVerticalTextBoxes($scope);
+    }
+  }
+
+  /** Mínimo 0,9×0,9 cm (9 mm ≈ 35px @ 96dpi). Amplía sin mover left/top. */
+  function enforceQrMinSize($scope) {
+    var minPx = Math.ceil(9 * 96 / 25.4);
+    var $root = ($scope && $scope.length) ? $scope : $(document);
+    $root.find('.elements.qr').each(function () {
+      var el = this;
+      var $el = $(el);
+      var w = parseFloat(el.style.width);
+      var h = parseFloat(el.style.height);
+      if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+      if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+      var side = Math.max(w, h, minPx);
+      // No recentrar: al mínimo el recentrado hacía «saltar» el QR al soltarlo.
+      if (Math.abs(w - side) > 0.5 || Math.abs(h - side) > 0.5) {
+        el.style.width = side + 'px';
+        el.style.height = side + 'px';
+      }
+      el.style.minWidth = minPx + 'px';
+      el.style.minHeight = minPx + 'px';
     });
   }
 
@@ -2164,6 +2397,9 @@ $('#format').change(function (e) {
       historyStates.shift();
       currentHistoryIndex--;
     }
+
+    historyByStep[step] = historyStates.slice();
+    historyIndexByStep[step] = currentHistoryIndex;
     
     updateUndoRedoButtons();
   }
@@ -2183,6 +2419,8 @@ $('#format').change(function (e) {
       rebindEventsAfterRestore();
       
       currentHistoryIndex = targetIndex;
+      historyByStep[step] = historyStates.slice();
+      historyIndexByStep[step] = currentHistoryIndex;
       updateUndoRedoButtons();
     }
     
@@ -2215,20 +2453,40 @@ $('#format').change(function (e) {
     $('.undo-btn').prop('disabled', !canUndo());
     $('.redo-btn').prop('disabled', !canRedo());
   }
+
+  $(document).off('click.designUndo').on('click.designUndo', '.undo-btn', function(e) {
+    e.preventDefault();
+    if ($(this).prop('disabled')) return;
+    undo();
+  });
+
+  $(document).off('click.designRedo').on('click.designRedo', '.redo-btn', function(e) {
+    e.preventDefault();
+    if ($(this).prop('disabled')) return;
+    redo();
+  });
   
   // Compensación de arrastre con zoom: offset del clic en coordenadas lógicas
   var dragClickOffsetX, dragClickOffsetY;
 
   // Límites = borde morado (identation / Sangres). Trasera: derecho = matrix-box (no pasar de la matriz)
+  // Usar offsetWidth/Height (sin transform): getBoundingClientRect incluye el zoom y afloja los límites.
   function getMarginBoundsPx() {
     var $box = $('#step-' + step + ' .format-box');
     if (!$box.length) return null;
-    var r = $box[0].getBoundingClientRect();
-    var boxW = r.width, boxH = r.height;
+    var el = $box[0];
+    var boxW = el.offsetWidth;
+    var boxH = el.offsetHeight;
+    if (!(boxW > 0) || !(boxH > 0)) {
+      var r = el.getBoundingClientRect();
+      var z = (typeof designZoom === 'number' && designZoom > 0) ? designZoom : 1;
+      boxW = r.width / z;
+      boxH = r.height / z;
+    }
     var ticketW = parseFloat($('#ticket-size').data('w')) || 200;
     var ticketH = parseFloat($('#ticket-size').data('h')) || 92;
     var scaleX = boxW / ticketW, scaleY = boxH / ticketH;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var minLeft = identation * scaleX;
     var minTop = identation * scaleY;
@@ -2257,6 +2515,10 @@ $('#format').change(function (e) {
     var h = $el.outerHeight() || 0;
     left = Math.max(bounds.minLeft, Math.min(bounds.maxRight - w, left));
     top = Math.max(bounds.minTop, Math.min(bounds.maxBottom - h, top));
+    // Fijar solo top/left: bottom/right/inset del placeholder QR/barra rompen el PDF
+    el.style.removeProperty('bottom');
+    el.style.removeProperty('right');
+    el.style.removeProperty('inset');
     $el.css({ left: left + 'px', top: top + 'px' });
   }
 
@@ -2272,11 +2534,12 @@ $('#format').change(function (e) {
 
     $cont.find('.elements').draggable({
       handle: 'span',
-      containment: '#containment-wrapper'+step,
+      // Con zoom, el containment nativo de jQuery UI usa coords escaladas y falla.
+      containment: (typeof designZoom === 'number' && designZoom !== 1) ? false : '#containment-wrapper'+step,
       scroll: false,
       start: function(event, ui){
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        selectDesignElement($(this));
+        markDesignDirty();
         updateUndoRedoButtons();
         if (typeof designZoom !== 'undefined' && designZoom !== 1) {
           var el = ui.helper[0];
@@ -2304,9 +2567,15 @@ $('#format').change(function (e) {
         }
       },
       stop: function(event, ui) {
+        // Forzar left/top inline siempre (si no, al guardar se pierden)
+        ui.helper.css({
+          position: 'absolute',
+          left: ui.position.left + 'px',
+          top: ui.position.top + 'px'
+        });
         if (step >= 2 && step <= 4) clampElementToMargins(ui.helper[0]);
         console.log('Draggable stop - saving state');
-        saveHistoryState(); // Guardar estado después de mover
+        saveHistoryState();
       }
     });
   }
@@ -2387,39 +2656,112 @@ $('#format').change(function (e) {
     });
   }
 
-  function rebindEventsAfterRestore() {
-    // Re-vincular todos los eventos después de restaurar el HTML
-    enableDesignElementsResize($('#containment-wrapper' + step));
+  function selectDesignElement($el) {
+    if (!$el || !$el.length) return;
+    $el = $($el).closest('.elements');
+    if (!$el.length) return;
+    $('.elements').removeClass('selected');
+    $el.addClass('selected');
+    selectedElement = $el;
+    $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
+    if ($el.hasClass('text')) {
+      $('.text-style-btn').prop('disabled', false);
+      var isVertical = $el.hasClass('text-vertical') || $el.attr('data-text-vertical') === '1';
+      $('.text-vertical-btn').toggleClass('active', isVertical).attr('aria-pressed', isVertical ? 'true' : 'false');
+    } else {
+      $('.text-style-btn').prop('disabled', true);
+      $('.text-vertical-btn').removeClass('active').attr('aria-pressed', 'false');
+    }
+    if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
+  }
+
+  function ensureElementEditButtons($root) {
+    var $scope = $root && $root.length ? $root : $(document);
+    $scope.find('.elements.text').each(function() {
+      if ($(this).find('> .edit-btn, .edit-btn').length === 0) {
+        $(this).prepend('<button type="button" class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>');
+      }
+    });
+    $scope.find('.elements.images').each(function() {
+      if ($(this).find('> .edit-btn, .edit-btn').length === 0) {
+        $(this).append('<button type="button" class="edit-btn" title="Cambiar imagen"><i class="ri-image-line"></i></button>');
+      }
+    });
+  }
+
+  function bindCanvasEditButtons() {
+    // Delegados: funcionan aunque el HTML se recargue o falte el botón al inicio
+    $(document).off('click.editelement', '.elements.text .edit-btn').on('click.editelement', '.elements.text .edit-btn', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      editelements.call(this, e);
+      return false;
+    });
+    $(document).off('click.changeimage', '.elements.images .edit-btn').on('click.changeimage', '.elements.images .edit-btn', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      changeImage.call(this, e);
+      return false;
+    });
+    $(document).off('dblclick.edittext', '.elements.text').on('dblclick.edittext', '.elements.text', function(e) {
+      if ($(e.target).closest('.edit-btn').length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      editelements.call($(this).find('.edit-btn').get(0) || this, e);
+      return false;
+    });
+  }
+
+  function bindCanvasDeselect() {
+    $('body').off('click.deselect').on('click.deselect', function(e) {
+      if ($('#imagen-modal').hasClass('show') || $('#ckeditor-modal').hasClass('show') || $('#qr-modal').hasClass('show') || $('#position-modal').hasClass('show') || $('#bar-options-modal').hasClass('show')) return;
+      if (!$(e.target).closest('.elements').length && !$(e.target).closest('.up-layer, .down-layer, .text-style-btn, .delete-element-btn, .undo-btn, #bar-options-modal').length) {
+        $('.elements').removeClass('selected');
+        selectedElement = null;
+        $('.up-layer, .down-layer, .text-style-btn, .delete-element-btn').prop('disabled', true);
+      }
+    });
+  }
+
+  function clearStaleTextPlaceholders($root) {
+    var $scope = $root && $root.length ? $root : $(document);
+    $scope.find('.elements.text.text-placeholder-new').each(function() {
+      var $el = $(this);
+      var plain = $.trim($el.find('span').first().text() || '');
+      if (plain && plain !== 'Escribe aquí...') {
+        $el.removeClass('text-placeholder-new');
+      }
+    });
+  }
+
+  function initCanvasInteractions() {
+    if (step < 2 || step > 4) return;
+    var $wrap = $('#containment-wrapper' + step);
+    enableDesignElementsResize($wrap);
+    ensureElementEditButtons($wrap.length ? $wrap : $(document));
+    markCriticalDesignElements($wrap);
+    clearStaleTextPlaceholders($wrap);
+    bindCanvasEditButtons();
     setupDraggable();
     setupResizeObserver();
-    
-  // Hacer todos los elementos redimensionables
-  // $('.elements').resizable({
-  //   containment: "#containment-wrapper"+step,
-  //   minWidth: 50,
-  //   minHeight: 30,
-  //   stop: function() {
-  //     console.log('Resizable stop - saving state');
-  //     saveHistoryState();
-  //     $('.undo-btn').show();
-  //   }
-  // });
-  
-  $('.elements.text .edit-btn').unbind('click', editelements);
-  $('.elements.text .edit-btn').click(editelements);
-  
-  // Doble clic en barra: manejador delegado en document
-  $('.elements.images .edit-btn').unbind('click', changeImage);
-  $('.elements.images .edit-btn').click(changeImage);
-  
-  addEventsElement();
-}
+    addEventsElement();
+  }
+
+  function rebindEventsAfterRestore() {
+    initCanvasInteractions();
+  }
 
   function editelements(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     actualElement = $(this).closest('.elements.text');
+    selectDesignElement(actualElement);
     
     // Obtener el contenido del span (sin el botón de editar)
-    var contenidoHTML = $(actualElement).find('span').html() || '';
+    var $wrapper = getTextContentWrapper($(actualElement));
+    var contenidoHTML = $wrapper.html() || '';
 
     // Destruir instancia previa si existe
     if (editor && CKEDITOR.instances['editor']) {
@@ -2429,26 +2771,8 @@ $('#format').change(function (e) {
     // Limpiar el contenido del div
     $('#editor').html('');
 
-    addEventsElement();
-
     // Inicializar CKEditor
-    editor = CKEDITOR.replace('editor', {
-        enterMode: CKEDITOR.ENTER_BR,
-        shiftEnterMode: CKEDITOR.ENTER_P,
-        // Toolbar básico
-        toolbar: [
-            { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
-            { name: 'paragraph', items: [ 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
-            { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
-            { name: 'styles', items: [ 'FontSize' ] }
-        ],
-        on: {
-            instanceReady: function() {
-                // Establecer el contenido cuando CKEditor esté listo
-                this.setData(contenidoHTML);
-            }
-        }
-    });
+    editor = CKEDITOR.replace('editor', buildCKEditorConfig(contenidoHTML));
 
     $('#ckeditor-modal').modal('show');
   }
@@ -2463,8 +2787,7 @@ $('#format').change(function (e) {
     }
     if (confirm('¿Desea eliminar el elemento seleccionado?')) {
         element.remove();
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        markDesignDirty();
         saveHistoryState(); // Guardar estado después de eliminar
         updateUndoRedoButtons(); // Actualizar estado de botones
     }
@@ -2495,8 +2818,7 @@ $('#format').change(function (e) {
       }
       if (confirm('¿Desea eliminar el elemento seleccionado?')) {
         actualElement.remove();
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        markDesignDirty();
         saveHistoryState(); // Guardar estado después de eliminar
         updateUndoRedoButtons(); // Actualizar estado de botones
     }
@@ -2508,12 +2830,17 @@ $('#format').change(function (e) {
         var data = CKEDITOR.instances['editor'].getData();
         // Limpiar párrafos vacíos
         data = data.replace(/<p>&nbsp;<\/p>/gi, '').replace(/<p><\/p>/gi, '');
-        $(actualElement).find('span').html(data);
+        var $element = $(actualElement);
+        var $wrapper = getTextContentWrapper($element);
+        var detectedAlign = detectAlignmentFromHtml(data) || getTextElementAlignment($element);
+        $wrapper.html(data);
+        syncTextElementAlignment($element, detectedAlign || 'left');
+        // Quitar marcador naranja de “texto nuevo” al editar
+        $element.removeClass('text-placeholder-new');
         CKEDITOR.instances['editor'].destroy(true);
     }
     $('#ckeditor-modal').modal('hide');
-    $('#step').addClass('d-none');
-    $('#save-step').removeClass('d-none');
+    markDesignDirty();
     
     saveHistoryState(); // Guardar estado después de editar texto
     updateUndoRedoButtons(); // Actualizar estado de botones
@@ -2540,8 +2867,14 @@ $('#format').change(function (e) {
     const formData = new FormData();
     formData.append('text', $('#qr-text').val());
     showDesignLoading('Generando código QR...');
-    fetch('{{url('api/generarQr')}}', {
+    fetch(@json($design_qr_url ?? route('design.generateQr')), {
         method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
         body: formData
     })
     .then(response => response.json())
@@ -2550,8 +2883,7 @@ $('#format').change(function (e) {
             $(actualElement).find('img').attr('src', data.url);
             $('#qr-modal').modal('hide');
             $('#qr-text').val("");
-            $('#step').addClass('d-none');
-            $('#save-step').removeClass('d-none');
+            markDesignDirty();
         }
     })
     .catch(error => console.error('Error al subir la imagen:', error))
@@ -2562,8 +2894,14 @@ $('#format').change(function (e) {
     const formData = new FormData();
     formData.append('image', file);
     showDesignLoading('Subiendo imagen...');
-    fetch('{{url('api/upload-image')}}', {
+    fetch(@json($design_upload_url ?? route('design.uploadImage')), {
         method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
         body: formData
     })
     .then(response => response.json())
@@ -2572,8 +2910,7 @@ $('#format').change(function (e) {
             $(actualElement).find('img').attr('src', data.url);
             $('#imagen-modal').modal('hide');
             input.value = null;
-            $('#step').addClass('d-none');
-            $('#save-step').removeClass('d-none');
+            markDesignDirty();
         }
     })
     .catch(error => console.error('Error al subir la imagen:', error))
@@ -2582,34 +2919,167 @@ $('#format').change(function (e) {
 
   $('.add-text').click(function (e) {
       e.preventDefault();
+      var $box = $('#step-' + step + ' .format-box');
+      var boxW = $box.length ? $box.width() : 400;
+      var boxH = $box.length ? $box.height() : 300;
+      var left = Math.max(20, Math.round((boxW - 220) / 2));
+      var top = Math.max(20, Math.round((boxH - 100) / 2));
 
-      $('#containment-wrapper'+step).append(`<div class="elements text" style="padding: 10px; width: 200px; height: 120px; resize: both; overflow: hidden; position: absolute; top: 0">
+      var $newEl = $(`<div class="elements text text-placeholder-new selected" style="padding: 12px; width: 220px; height: 100px; resize: both; overflow: hidden; position: absolute; top: ${top}px; left: ${left}px; z-index: 5000;">
             <button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button>
-            <span>Escribe aquí...</span>
+            <span><strong>Escribe aquí...</strong></span>
         </div>`);
 
-      // Hacer el elemento redimensionable con jQuery UI
-      // const newElement = $('#containment-wrapper'+step + ' .elements').last();
-      // newElement.resizable({
-      //   containment: "#containment-wrapper"+step,
-      //   minWidth: 50,
-      //   minHeight: 30,
-      //   stop: function() {
-      //     saveHistoryState();
-      //     $('.undo-btn').show();
-      //   }
-      // });
-
-      $('.elements.text .edit-btn').unbind('click', editelements);
-      $('.elements.text .edit-btn').click(editelements);
-      addEventsElement();
-
-      setupDraggable();
-      setupResizeObserver();
-      
-      saveHistoryState(); // Guardar estado después de agregar
-      updateUndoRedoButtons(); // Actualizar estado de botones
+      $('#containment-wrapper'+step).append($newEl);
+      selectDesignElement($newEl);
+      initCanvasInteractions();
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
   });
+
+  function coverMandatoryTokens() {
+    return ['taco_label', 'taco_number', 'taco_total', 'participation_from', 'participation_to', '__TACO_LABEL__', '%%TACO_LABEL%%'];
+  }
+
+  function elementHasCoverMandatoryToken($el) {
+    if (!$el || !$el.length) return false;
+    if ($el.hasClass('cover-taco-qr') || $el.hasClass('cover-taco-label') || $el.hasClass('qr')) return true;
+    var haystack = ($el.html() || '') + ' ' + ($el.text() || '');
+    var tokens = coverMandatoryTokens();
+    for (var i = 0; i < tokens.length; i++) {
+      if (haystack.indexOf(tokens[i]) !== -1) return true;
+    }
+    return /\{\{\s*taco[_\-\s]*(label|number|total)\s*\}\}/i.test(haystack)
+      || /\{\{\s*participation_(from|to)\s*\}\}/i.test(haystack);
+  }
+
+  function markCoverCriticalElements($root) {
+    var $scope = ($root && $root.length) ? $root : $('#containment-wrapper3');
+    if (!$scope.length) return;
+    $scope.find('.elements.qr, .elements.cover-taco-qr, .elements.cover-taco-label').addClass('element-critical');
+    $scope.find('.elements').each(function() {
+      if (elementHasCoverMandatoryToken($(this))) {
+        $(this).addClass('element-critical');
+      }
+    });
+  }
+
+  function markCriticalDesignElements($root) {
+    var $scope = $root && $root.length ? $root : $('#containment-wrapper' + step);
+    // Obligatorios: nº participación (x2), referencia y QR. El nº de lotería (number/mini) es opcional.
+    $scope.find('.elements.number, .elements.mini').removeClass('element-critical');
+    $scope.find('.elements.participation, .elements.reference, .elements.qr')
+      .addClass('element-critical');
+    if (step === 3 || ($scope.attr('id') === 'containment-wrapper3')) {
+      markCoverCriticalElements($scope);
+    }
+  }
+
+  $(document).off('click.resetMandatory', '.reset-mandatory-canvas').on('click.resetMandatory', '.reset-mandatory-canvas', function (e) {
+      e.preventDefault();
+      if (step < 2 || step > 4) return;
+
+      var $wrap = $('#containment-wrapper' + step);
+      if (!$wrap.length) return;
+
+      markCriticalDesignElements($wrap);
+      var $removable = $wrap.find('.elements').not('.element-critical');
+      var count = $removable.length;
+      if (count === 0) {
+        alert('No hay campos de ejemplo que limpiar. Solo quedan los obligatorios.');
+        return;
+      }
+
+      if (!confirm(
+        'Se eliminarán ' + count + ' campo(s) de ejemplo de este paso.\n\n' +
+        'Se conservan los obligatorios (nº participación, referencia, QR; en portada taco/participaciones).\n' +
+        'Puedes deshacer con el botón Deshacer.\n\n¿Continuar?'
+      )) {
+        return;
+      }
+
+      $removable.remove();
+      $('.elements').removeClass('selected');
+      selectedElement = null;
+      actualElement = null;
+      $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
+      if (typeof rebindEventsAfterRestore === 'function') {
+        rebindEventsAfterRestore();
+      } else if (typeof initCanvasInteractions === 'function') {
+        initCanvasInteractions();
+      }
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
+      if (typeof syncCurrentStepToLocalStorage === 'function') {
+        syncCurrentStepToLocalStorage();
+      }
+  });
+
+  function syncSkipBackBannerUi() {
+      var skipped = !!window.__backSkipped;
+      $('#skip-back-banner').removeClass('d-none');
+      $('#skip-back-banner .skip-back-msg').toggleClass('d-none', skipped);
+      $('#skip-back-banner .restore-back-msg').toggleClass('d-none', !skipped);
+      $('#btn-skip-back-design').toggleClass('d-none', skipped);
+      $('#btn-restore-back-design').toggleClass('d-none', !skipped);
+      if (typeof updateDesignActionButtons === 'function') {
+        updateDesignActionButtons();
+      }
+  }
+
+  $('#btn-skip-back-design').click(function (e) {
+      e.preventDefault();
+      if (!confirm('¿Omitir el diseño de trasera? No podrá descargar PDF de traseras para este diseño.')) {
+        return;
+      }
+      window.__backSkipped = true;
+      $('#containment-wrapper4 .elements').remove();
+      if ($('#design-back-bg').length) {
+        $('#design-back-bg').css({ 'background-color': '#dfdfdf', 'background-image': 'none' });
+      }
+      localStorage.setItem('step4', $('#containment-wrapper4').html() || '');
+      syncSkipBackBannerUi();
+      markDesignDirty();
+      persistDraftLocally();
+      if (window.__designId) {
+        persistDesignToServer({ reason: 'autosave', showLoader: false });
+      }
+      if (step === 4) {
+        syncCurrentStepToLocalStorage();
+        stashStepHistory(step);
+        step = 5;
+        loadStepHistory(step);
+        $('.form-card[id*="step-"]').addClass('d-none').removeClass('show');
+        $('.form-card[id="step-5"]').removeClass('d-none fade').addClass('show');
+        $('.form-wizard-element').removeClass('active');
+        $('#bc-step-5').addClass('active');
+        updateDesignActionButtons();
+      }
+  });
+
+  $('#btn-restore-back-design').click(function (e) {
+      e.preventDefault();
+      window.__backSkipped = false;
+      if (typeof ensureMarginBgLayer === 'function') {
+        ensureMarginBgLayer(4);
+      }
+      syncSkipBackBannerUi();
+      markDesignDirty();
+      persistDraftLocally();
+      if (window.__designId) {
+        persistDesignToServer({ reason: 'autosave', showLoader: false });
+      }
+      if (typeof PartilotToast === 'function') {
+        PartilotToast('Trasera reactivada. Diseña el paso 4 y guarda el diseño.', 'success');
+      }
+  });
+
+  // Estado inicial al cargar un diseño ya omitido
+  if (window.__backSkipped) {
+    syncSkipBackBannerUi();
+  }
   $('.add-image').click(function (e) {
       e.preventDefault();
 
@@ -2631,11 +3101,12 @@ $('#format').change(function (e) {
 
   $('.add-qr').click(function (e) {
       e.preventDefault();
-
-      $('#containment-wrapper'+step).append(`<div class="elements element-critical qr" style="resize: both; overflow: hidden; position: absolute; top: 0"><span><img style="width: 100%; height: 100%" src="{{url('basicqr.jpg')}}" alt=""></span></div>`);
+      var qrMinPx = Math.ceil(9 * 96 / 25.4);
+      $('#containment-wrapper'+step).append(`<div class="elements element-critical qr" style="resize: both; overflow: hidden; position: absolute; top: 0; width: ${qrMinPx}px; height: ${qrMinPx}px; min-width: ${qrMinPx}px; min-height: ${qrMinPx}px;"><span><img style="width: 100%; height: 100%" src="{{url('basicqr.jpg')}}" alt=""></span></div>`);
 
       setupDraggable();
       setupResizeObserver();
+      enableDesignElementsResize($('#containment-wrapper' + step));
 
       $('.elements.qr').unbind('dblclick',setQRtext);
       {{-- $('.elements.qr').dblclick(setQRtext); --}}
@@ -2656,7 +3127,8 @@ $('#format').change(function (e) {
   $('.add-bottom').click(function (e) {
       e.preventDefault();
 
-      $('#containment-wrapper'+step).append(`<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 20px; display: block;"></span></div>`);
+      var criticalClass = (step === 3) ? ' element-critical cover-taco-label' : '';
+      $('#containment-wrapper'+step).append(`<div class="elements context${criticalClass}" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">@{{taco_label}}</span></div>`);
 
       addEventsElement();
 
@@ -2668,28 +3140,23 @@ $('#format').change(function (e) {
       e.preventDefault();
 
       localStorage.setItem('bg-step'+step,$(this).val());
-      var $bg = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
+      var $bg = (typeof getBackgroundTargetEl === 'function')
+        ? getBackgroundTargetEl(step)
+        : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
       if ($bg.length) $bg.css('background-color', $(this).val());
   });
 
   function addEventsElement()
   {
-    $('.elements').unbind('contextmenu',changePositionElement);
-    $('.elements').contextmenu(changePositionElement);
-    $('.elements').unbind('click.select');
-    $('.elements').bind('click.select', function(e) {
-      e.stopPropagation();
-      $('.elements').removeClass('selected');
-      $(this).addClass('selected');
-      selectedElement = $(this);
-      $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
-      if ($(this).hasClass('text')) {
-        $('.text-style-btn').prop('disabled', false);
-      } else {
-        $('.text-style-btn').prop('disabled', true);
-      }
-      updateUndoRedoButtons();
+    $(document).off('mousedown.designSelect', '.elements');
+    $(document).on('mousedown.designSelect', '.elements', function(e) {
+      if (e.which !== 1) return;
+      if ($(e.target).closest('.edit-btn').length) return;
+      selectDesignElement($(this));
     });
+    $(document).off('contextmenu.designElement', '.elements');
+    $(document).on('contextmenu.designElement', '.elements', changePositionElement);
+    bindCanvasDeselect();
   }
 
   function rgbToHex(rgb) {
@@ -2732,6 +3199,10 @@ $('#format').change(function (e) {
   });
   $('#bar-modal-delete').off('click').on('click', function() {
     if (!barModalElement || !barModalElement.length) return;
+    if (barModalElement.hasClass('element-critical') || elementHasCoverMandatoryToken(barModalElement)) {
+      alert('Este elemento es obligatorio y no se puede eliminar.');
+      return;
+    }
     if (!confirm('¿Eliminar esta barra?')) return;
     barModalElement.remove();
     barModalElement = null;
@@ -2761,6 +3232,153 @@ $('#format').change(function (e) {
     if (typeof saveHistoryState === 'function') saveHistoryState();
   });
 
+  function getTextContentWrapper($element) {
+    if (!$element || !$element.length) {
+      return $element;
+    }
+    var $wrapper = $element.children('span').first();
+    if (!$wrapper.length) {
+      $wrapper = $element.find('> span').first();
+    }
+    return $wrapper.length ? $wrapper : $element;
+  }
+
+  function normalizeAlignValue(ta) {
+    ta = String(ta || '').toLowerCase();
+    if (!ta || ta === 'start') {
+      return 'left';
+    }
+    if (ta === 'end') {
+      return 'right';
+    }
+    if (ta.indexOf('left') >= 0) {
+      return 'left';
+    }
+    if (ta.indexOf('right') >= 0) {
+      return 'right';
+    }
+    if (ta.indexOf('center') >= 0) {
+      return 'center';
+    }
+    return null;
+  }
+
+  function detectAlignmentFromHtml(html) {
+    if (!html) {
+      return null;
+    }
+    var $tmp = $('<div>').html(html);
+    var $block = $tmp.children('h1, h2, h3, h4, h5, h6, p, div').first();
+    if (!$block.length) {
+      $block = $tmp.find('h1, h2, h3, h4, h5, h6, p, div').first();
+    }
+    if ($block.length) {
+      var blockAlign = normalizeAlignValue($block.css('text-align') || $block.attr('align'));
+      if (blockAlign) {
+        return blockAlign;
+      }
+    }
+    var styleMatch = html.match(/text-align\s*:\s*(left|right|center|start|end)/i);
+    if (styleMatch) {
+      return normalizeAlignValue(styleMatch[1]);
+    }
+    var alignMatch = html.match(/\balign\s*=\s*["']?(left|right|center)\b/i);
+    if (alignMatch) {
+      return normalizeAlignValue(alignMatch[1]);
+    }
+    return null;
+  }
+
+  function stripInlineTextAlign($root) {
+    if (!$root || !$root.length) {
+      return;
+    }
+    $root.add($root.find('*')).each(function() {
+      if (this.style && this.style.textAlign) {
+        this.style.removeProperty('text-align');
+        if (!this.getAttribute('style') || !this.getAttribute('style').trim()) {
+          this.removeAttribute('style');
+        }
+      }
+      if (this.hasAttribute('align')) {
+        this.removeAttribute('align');
+      }
+    });
+  }
+
+  function detectAlignmentFromContent($wrapper) {
+    if (!$wrapper || !$wrapper.length) {
+      return null;
+    }
+    var $block = $wrapper.children('h1, h2, h3, h4, h5, h6, p, div').first();
+    if (!$block.length) {
+      $block = $wrapper.find('h1, h2, h3, h4, h5, h6, p, div').first();
+    }
+    if ($block.length) {
+      var fromBlock = normalizeAlignValue($block.css('text-align') || $block.attr('align'));
+      if (fromBlock) {
+        return fromBlock;
+      }
+    }
+    return normalizeAlignValue($wrapper.css('text-align') || $wrapper.attr('align'));
+  }
+
+  function getTextElementAlignment($element) {
+    if (!$element || !$element.length) {
+      return null;
+    }
+    if ($element.hasClass('text-left')) {
+      return 'left';
+    }
+    if ($element.hasClass('text-right')) {
+      return 'right';
+    }
+    if ($element.hasClass('text-center')) {
+      return 'center';
+    }
+    return detectAlignmentFromContent(getTextContentWrapper($element));
+  }
+
+  function syncTextElementAlignment($element, align) {
+    if (!$element || !$element.length || !$element.hasClass('text')) {
+      return;
+    }
+
+    align = normalizeAlignValue(align) || 'left';
+    $element.removeClass('text-left text-center text-right');
+    if (align === 'left') {
+      $element.addClass('text-left');
+    } else if (align === 'center') {
+      $element.addClass('text-center');
+    } else if (align === 'right') {
+      $element.addClass('text-right');
+    }
+
+    var $wrapper = getTextContentWrapper($element);
+    stripInlineTextAlign($wrapper);
+
+    var $blocks = $wrapper.children('h1, h2, h3, h4, h5, h6, p, div');
+    if (!$blocks.length) {
+      $blocks = $wrapper.find('h1, h2, h3, h4, h5, h6, p, div');
+    }
+    if ($blocks.length) {
+      $blocks.css('text-align', align);
+    } else {
+      $wrapper.css('text-align', align);
+    }
+  }
+
+  function applyTextElementAlignment(align) {
+    if (!selectedElement || !selectedElement.hasClass('text')) {
+      return;
+    }
+    syncTextElementAlignment(selectedElement, align);
+    markDesignDirty();
+    if (typeof saveHistoryState === 'function') {
+      saveHistoryState();
+    }
+  }
+
   // Event listeners for text style buttons
   $('.bold-btn').click(function(e) {
     e.preventDefault();
@@ -2788,21 +3406,15 @@ $('#format').change(function (e) {
   });
   $('.align-left-btn').click(function(e) {
     e.preventDefault();
-    if (selectedElement && selectedElement.hasClass('text')) {
-      selectedElement.removeClass('text-center text-right').addClass('text-left');
-    }
+    applyTextElementAlignment('left');
   });
   $('.align-center-btn').click(function(e) {
     e.preventDefault();
-    if (selectedElement && selectedElement.hasClass('text')) {
-      selectedElement.removeClass('text-left text-right').addClass('text-center');
-    }
+    applyTextElementAlignment('center');
   });
   $('.align-right-btn').click(function(e) {
     e.preventDefault();
-    if (selectedElement && selectedElement.hasClass('text')) {
-      selectedElement.removeClass('text-left text-center').addClass('text-right');
-    }
+    applyTextElementAlignment('right');
   });
   $('.font-size-up-btn').click(function(e) {
     e.preventDefault();
@@ -2818,6 +3430,79 @@ $('#format').change(function (e) {
       let span = selectedElement.find('span');
       let currentSize = parseInt(span.css('font-size'));
       span.css('font-size', Math.max(8, currentSize - 2) + 'px');
+    }
+  });
+  /** Intercambia width/height preservando el centro (layout = caja visible en PDF). */
+  function swapElementBoxPreserveCenter(el) {
+    if (!el) return;
+    var w = parseFloat(el.style.width);
+    var h = parseFloat(el.style.height);
+    var $el = $(el);
+    if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+    if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+    var left = parseFloat(el.style.left);
+    var top = parseFloat(el.style.top);
+    if (!isFinite(left)) left = 0;
+    if (!isFinite(top)) top = 0;
+    var cx = left + w / 2;
+    var cy = top + h / 2;
+    var nw = h;
+    var nh = w;
+    el.style.width = nw + 'px';
+    el.style.height = nh + 'px';
+    el.style.left = (cx - nw / 2) + 'px';
+    el.style.top = (cy - nh / 2) + 'px';
+  }
+
+  /**
+   * Activa/desactiva texto vertical.
+   * Al activar: la caja pasa a ser alta (AABB real) para que el PDF coincida con el editor.
+   */
+  function setTextElementVertical($el, enable) {
+    if (!$el || !$el.length) return;
+    var el = $el[0];
+    var isOn = $el.hasClass('text-vertical') || $el.attr('data-text-vertical') === '1';
+    if (enable === isOn) return;
+
+    // Pasar de horizontal↔vertical: intercambiar dimensiones del layout.
+    swapElementBoxPreserveCenter(el);
+
+    if (enable) {
+      $el.addClass('text-vertical').attr('data-text-vertical', '1');
+    } else {
+      $el.removeClass('text-vertical').removeAttr('data-text-vertical');
+    }
+  }
+
+  /** Corrige cajas verticales antiguas (anchas + transform) al cargar. */
+  function normalizeVerticalTextBoxes($scope) {
+    var $root = ($scope && $scope.length) ? $scope : $(document);
+    $root.find('.elements.text.text-vertical, .elements.text[data-text-vertical="1"]').each(function () {
+      var el = this;
+      var w = parseFloat(el.style.width);
+      var h = parseFloat(el.style.height);
+      var $el = $(el);
+      if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+      if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+      // Caja aún “apaisada”: era layout pre-rotación → convertir a alta.
+      if (w > h * 1.15) {
+        swapElementBoxPreserveCenter(el);
+        $el.addClass('text-vertical').attr('data-text-vertical', '1');
+      }
+    });
+  }
+
+  $('.text-vertical-btn').click(function(e) {
+    e.preventDefault();
+    if (!selectedElement || !selectedElement.hasClass('text')) {
+      return;
+    }
+    var enable = !selectedElement.hasClass('text-vertical') && selectedElement.attr('data-text-vertical') !== '1';
+    setTextElementVertical(selectedElement, enable);
+    $('.text-vertical-btn').toggleClass('active', enable).attr('aria-pressed', enable ? 'true' : 'false');
+    markDesignDirty();
+    if (typeof saveHistoryState === 'function') {
+      saveHistoryState();
     }
   });
 
@@ -2839,7 +3524,7 @@ $('#format').change(function (e) {
     if (!el) { if (onSuccess) onSuccess(); return; }
     html2canvas(el).then(function(canvas) {
       // Recorte de la matriz por la izquierda (igual para físico y digital)
-      var identationMm = parseFloat($('#identation').val()) || 2.5;
+      var identationMm = parseIdentationMm();
       var matrixMm = parseFloat($('#matrix-box').val()) || 40;
       var boxWidthMm = 200;
       var leftStripMm = identationMm + matrixMm;
@@ -2860,10 +3545,14 @@ $('#format').change(function (e) {
       formData.append('snapshot', imageData);
       $.ajax({
         type: 'POST',
-        url: '{{ url("/api/design/save-snapshot") }}',
+        url: @json($design_snapshot_url ?? route('design.saveSnapshot')),
         data: formData,
         contentType: false,
         processData: false,
+        headers: {
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+          'X-Requested-With': 'XMLHttpRequest'
+        },
         success: function (response) {
           snapshot_path = response.path;
           if (typeof onSuccess === 'function') onSuccess();
@@ -2875,66 +3564,62 @@ $('#format').change(function (e) {
   }
 
   $('#save-step').click(function(event) {
+    performDesignSave({ continueAfterSave: false });
+  });
 
-    // Deseleccionar cualquier elemento seleccionado
-    $('.elements').removeClass('selected');
-    selectedElement = null;
-    $('.up-layer, .down-layer, .text-style-btn').prop('disabled', true);
-
-    if (window.__designLocked) {
-      alert(window.__designLockMessage || 'Este set no permite edición de diseño por estado operativo.');
-      return;
-    }
-
-    if (step != 1) {
-      if(step == 2) {
-          showDesignLoading('Guardando vista previa...');
-          generateParticipationSnapshot(function() {
-            var html = $('#containment-wrapper'+step).html();
-            localStorage.setItem('step'+step, html);
-            persistDesignToServer({
-              reason: 'manual-save',
-              showLoader: true,
-              redirectOnSuccess: false
-            });
-          });
-      } else {
-          let html = $('#containment-wrapper'+step).html();
-          localStorage.setItem('step'+step, html);
-          persistDesignToServer({
-            reason: 'manual-save',
-            showLoader: true,
-            redirectOnSuccess: false
-          });
-      }
-    }
+  $('#save-continue-step').click(function(event) {
+    performDesignSave({ continueAfterSave: true });
   });
 
   function markDesignDirty() {
     if (window.__designLocked) return;
     designDirty = true;
-    $('#step').addClass('d-none');
-    $('#save-step').removeClass('d-none');
+    updateDesignActionButtons();
     scheduleDraftPersist();
   }
 
   function markDesignSaved() {
     designDirty = false;
-    $('#step').removeClass('d-none');
-    $('#save-step').addClass('d-none');
+    updateDesignActionButtons();
   }
 
-  function showDesignConflictModal(message) {
-    var text = message || 'Se detectó una versión más reciente del diseño.';
-    $('#design-conflict-message').text(text);
+  function parseDesignApiResponse(response) {
+    return response.text().then(function(text) {
+      var trimmed = (text || '').trim();
+      if (!trimmed) {
+        return {};
+      }
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        var start = trimmed.indexOf('{');
+        var end = trimmed.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          try {
+            return JSON.parse(trimmed.slice(start, end + 1));
+          } catch (e2) {}
+        }
+        return {};
+      }
+    });
+  }
 
-    if (typeof bootstrap !== 'undefined' && document.getElementById('design-conflict-modal')) {
-      const modalEl = document.getElementById('design-conflict-modal');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.show();
-    } else {
-      alert(text + ' Recarga el editor antes de guardar.');
+  function isDesignApiSuccess(result) {
+    if (!result || typeof result !== 'object') {
+      return false;
     }
+    return result.success === true || result.success === 1 || result.success === '1' || result.success === 'true';
+  }
+
+  function applyDesignSaveResult(result) {
+    if (result.id) {
+      window.__designId = result.id;
+    }
+    if (result.updated_at) {
+      window.__designUpdatedAt = result.updated_at;
+    }
+    markDesignSaved();
+    persistDraftLocally();
   }
 
   function persistDesignToServer(options) {
@@ -2943,33 +3628,48 @@ $('#format').change(function (e) {
       if (options.showLoader) hideDesignLoading();
       return Promise.resolve(false);
     }
-    if (designConflictDetected && options.reason === 'autosave') {
+
+    var data;
+    try {
+      data = collectDesignData();
+    } catch (e) {
+      console.error('collectDesignData failed', e);
+      if (options.showLoader) hideDesignLoading();
+      if (options.reason === 'manual-save' || options.reason === 'final-save' || options.redirectOnSuccess) {
+        alert('Error al guardar el diseño.');
+      }
       return Promise.resolve(false);
     }
-    const data = collectDesignData();
+
     data.save_reason = options.reason || 'manual-save';
-    const saveUrl = @json($save_format_url ?? url('/api/design/save-format'));
+    const saveUrl = @json($save_format_url ?? route('design.saveFormat'));
     const redirectAfterSave = @json($redirect_after_save ?? null);
     autosaveInFlight = true;
 
     return fetch(saveUrl, {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
       },
       body: JSON.stringify(data)
     })
-    .then(async (response) => {
-      const result = await response.json().catch(() => ({}));
-      return { ok: response.ok, status: response.status, result };
+    .then(function(response) {
+      return parseDesignApiResponse(response).then(function(result) {
+        return { ok: response.ok, status: response.status, result: result };
+      });
     })
-    .then(({ ok, status, result }) => {
-      if (ok && result.success) {
-        if (result.id) window.__designId = result.id;
-        if (result.updated_at) window.__designUpdatedAt = result.updated_at;
-        markDesignSaved();
-        persistDraftLocally();
+    .then(function(payload) {
+      var ok = payload.ok;
+      var status = payload.status;
+      var result = payload.result || {};
+
+      if (isDesignApiSuccess(result)) {
+        applyDesignSaveResult(result);
+
         if (options.redirectOnSuccess) {
           clearPersistentDraft();
           clearTransientLocalState();
@@ -2980,29 +3680,39 @@ $('#format').change(function (e) {
           } else {
             window.location.href = '{{ route("design.index") }}';
           }
-        } else if (options.reason === 'manual-save') {
+          return true;
+        }
+
+        if (options.reason === 'manual-save' && !options.skipSuccessAlert) {
           alert('Diseño guardado correctamente.');
+        }
+
+        if (typeof options.onSuccess === 'function') {
+          try {
+            options.onSuccess();
+          } catch (e) {
+            console.error('Post-save callback failed', e);
+          }
         }
         return true;
       }
 
-      if (status === 409 && result.code === 'DESIGN_CONFLICT') {
-        designConflictDetected = true;
-        showDesignConflictModal(result.message || 'Otro usuario guardó una versión más reciente. Recarga para evitar sobreescritura.');
-      } else if (status === 422 && result.code === 'SET_DESIGN_LOCKED') {
+      if (status === 422 && result.code === 'SET_DESIGN_LOCKED') {
         alert(result.message || 'Diseño bloqueado por estado operativo del set.');
-      } else if (options.reason === 'manual-save' || options.redirectOnSuccess) {
+      } else if (options.reason === 'manual-save' || options.reason === 'final-save' || options.redirectOnSuccess) {
+        console.error('Design save failed', { status: status, result: result });
         alert(result.message || 'Error al guardar el diseño.');
       }
       return false;
     })
-    .catch(() => {
-      if (options.reason === 'manual-save' || options.redirectOnSuccess) {
+    .catch(function(error) {
+      console.error('Design save request failed', error);
+      if (options.reason === 'manual-save' || options.reason === 'final-save' || options.redirectOnSuccess) {
         alert('Error al guardar el diseño.');
       }
       return false;
     })
-    .finally(() => {
+    .finally(function() {
       autosaveInFlight = false;
       if (options.showLoader) hideDesignLoading();
     });
@@ -3011,7 +3721,7 @@ $('#format').change(function (e) {
   function setupDesignAutosave() {
     if (window.__designLocked) return;
 
-    $(document).on('input change', '#format, #page, #rows, #cols, #orientation, #margin-up, #margin-right, #margin-left, #margin-top, #identation, #matrix-box, #margin-custom, #page-rigth, #page-bottom, #guide_color, #guide_weight, #participation_number, #participation_from, #participation_to, #participation_page', markDesignDirty);
+    $(document).on('input change', '#format, #page, #rows, #cols, #orientation, #margin-up, #margin-right, #margin-left, #margin-top, #identation, #cut-lines, #matrix-box, #margin-custom, #page-rigth, #page-bottom, #guide_color, #guide_weight, #participation_number, #participation_from, #participation_to, #participation_page', markDesignDirty);
     $(document).on('input', '.elements [contenteditable="true"], .elements textarea, .elements input', markDesignDirty);
     $(document).on('click', '.add-text, .add-image, .delete-element-btn, .up-layer, .down-layer, .text-style-btn, #open-bg-modal, #remove-bg-image, #apply-bg', function() {
       setTimeout(markDesignDirty, 50);
@@ -3032,31 +3742,122 @@ $('#format').change(function (e) {
       persistDesignToServer({
         reason: 'autosave',
         showLoader: false,
-        redirectOnSuccess: false
+        redirectOnSuccess: false,
+        skipSuccessAlert: true
       });
     }, autosaveIntervalMs);
   }
 
   setupDesignAutosave();
-  $('#btn-conflict-reload').off('click').on('click', function() {
-    window.location.reload();
-  });
-  $('#btn-conflict-keep-editing').off('click').on('click', function() {
-    if (typeof bootstrap !== 'undefined' && document.getElementById('design-conflict-modal')) {
-      const modalEl = document.getElementById('design-conflict-modal');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.hide();
-    }
-  });
   window.addEventListener('beforeunload', function() {
     if (!window.__designLocked && designDirty) {
       persistDraftLocally();
     }
   });
 
+  /**
+   * Fondo SOLO dentro de márgenes morados (identation).
+   * Capa absoluta inset en mm: fiable en editor, html2canvas y DomPDF (sin calc()).
+   */
+  /** Sangres: 0 es válido; solo default 0 si el campo está vacío o no es número. */
+  function parseIdentationMm() {
+    var v = parseFloat($('#identation').val());
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  function marginBgLayerId(stepNum) {
+    if (stepNum === 2) return 'design-participation-bg';
+    if (stepNum === 3) return 'design-cover-bg';
+    if (stepNum === 4) return 'design-back-bg';
+    return null;
+  }
+
+  function ensureMarginBgLayer(stepNum) {
+    var $wrap = $('#containment-wrapper' + stepNum);
+    if (!$wrap.length) return $();
+    var bgId = marginBgLayerId(stepNum);
+    if (!bgId) return $wrap;
+
+    var identationMm = parseIdentationMm();
+    var matrixMm = parseFloat($('#matrix-box').val()) || 40;
+    var $bg = $('#' + bgId);
+
+    if (stepNum === 4) {
+      // Trasera: fondo en todo el canvas salvo la franja de matriz.
+      var rightMm = matrixMm;
+      if (!$bg.length) {
+        var bgColor4 = $wrap.css('background-color') || '#dfdfdf';
+        var bgImg4 = $wrap.css('background-image');
+        $wrap.prepend(
+          '<div id="design-back-bg" style="position:absolute;left:0;top:0;right:' + rightMm +
+          'mm;bottom:0;z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+        );
+        $bg = $('#design-back-bg');
+        if (bgColor4 && bgColor4 !== 'rgba(0, 0, 0, 0)' && bgColor4 !== 'transparent') {
+          $bg.css('background-color', bgColor4);
+        }
+        if (bgImg4 && bgImg4 !== 'none') $bg.css('background-image', bgImg4);
+        $wrap.css({ 'background-color': '', 'background-image': 'none' });
+      } else {
+        $bg.css({ left: '0', top: '0', right: rightMm + 'mm', bottom: '0' });
+      }
+      return $bg;
+    }
+
+    // Fondo en todo el canvas (incluye sangres). Las guías moradas solo marcan zona segura.
+    if (!$bg.length) {
+      var bgColor = $wrap.css('background-color');
+      var bgImg = $wrap.css('background-image');
+      $wrap.prepend(
+        '<div id="' + bgId + '" class="design-margin-bg" style="position:absolute;left:0;top:0;right:0;bottom:0;' +
+        'z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+      );
+      $bg = $('#' + bgId);
+      if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+        $bg.css('background-color', bgColor);
+      }
+      if (bgImg && bgImg !== 'none') $bg.css('background-image', bgImg);
+      $wrap.css({ 'background-color': '#ffffff', 'background-image': 'none' });
+    } else {
+      $bg.css({
+        left: '0',
+        top: '0',
+        right: '0',
+        bottom: '0',
+        position: 'absolute',
+        zIndex: 0,
+        pointerEvents: 'none'
+      });
+      $wrap.css({ 'background-image': 'none' });
+      var wrapBg = $wrap.css('background-color');
+      if (wrapBg && wrapBg !== 'rgba(0, 0, 0, 0)' && wrapBg !== 'transparent' && wrapBg !== 'rgb(255, 255, 255)') {
+        if (!$bg.css('background-image') || $bg.css('background-image') === 'none') {
+          var layerBg = $bg.css('background-color');
+          if (!layerBg || layerBg === 'rgba(0, 0, 0, 0)' || layerBg === 'transparent') {
+            $bg.css('background-color', wrapBg);
+          }
+        }
+        $wrap.css('background-color', '#ffffff');
+      }
+    }
+    return $bg;
+  }
+
+  function syncMarginBgLayers() {
+    [2, 3, 4].forEach(function (n) {
+      if ($('#containment-wrapper' + n).length) ensureMarginBgLayer(n);
+    });
+  }
+
+  function getBackgroundTargetEl(stepNum) {
+    if (stepNum === 4) return ensureMarginBgLayer(4);
+    if (stepNum === 2 || stepNum === 3) return ensureMarginBgLayer(stepNum);
+    return $('#containment-wrapper' + stepNum);
+  }
+
   function configMargins()
   {
-    let identation = $('#identation').val() ?? 2.5;
+    let identation = parseIdentationMm();
     let matrix = $('#matrix-box').val() ?? 40;
     $('.margen-izquierdo').css('left',identation+'mm')
     $('.margen-arriba').css('top',identation+'mm')
@@ -3066,19 +3867,7 @@ $('#format').change(function (e) {
     $('.caja-matriz').css('width',matrix+'mm')
     $('.caja-matriz-2').css('right',identation+'mm')
     $('.caja-matriz-2').css('width',matrix+'mm')
-    if ($('#containment-wrapper4').length && !$('#design-back-bg').length) {
-      var identationMm = $('#identation').val() || 2.5;
-      var matrixMm = $('#matrix-box').val() || 40;
-      var rightMm = parseFloat(identationMm) + parseFloat(matrixMm);
-      var $wrap = $('#containment-wrapper4');
-      var bgColor = $wrap.css('background-color') || '#dfdfdf';
-      var bgImg = $wrap.css('background-image');
-      $wrap.prepend('<div id="design-back-bg" style="position:absolute;left:0;top:0;right:'+rightMm+'mm;bottom:0;z-index:0;pointer-events:none;background-color:'+bgColor+';background-size:cover;background-position:center;"></div>');
-      if (bgImg && bgImg !== 'none') $('#design-back-bg').css('background-image', bgImg);
-      $wrap.css('background-color','').css('background-image','none');
-    }
-    var identationMm = $('#identation').val() || 2.5;
-    $('#design-back-bg').css('right', (parseFloat(identationMm) + parseFloat(matrix)) + 'mm');
+    syncMarginBgLayers();
     if (step >= 2 && step <= 4) {
       $('#containment-wrapper'+step+' .elements').each(function() { clampElementToMargins(this); });
     }
@@ -3098,7 +3887,7 @@ $('#format').change(function (e) {
     var marginUp = parseFloat($('#margin-up').val()) || 0;
     var marginLeft = parseFloat($('#margin-left').val()) || 0;
     var marginRight = parseFloat($('#margin-right').val()) || 0;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var marginCustom = parseFloat($('#margin-custom').val()) || 0;
     var pageRight = parseFloat($('#page-rigth').val()) || 0;
@@ -3304,33 +4093,166 @@ $('#format').change(function (e) {
                   var oldBoxPx = { w: $box.width(), h: $box.height() };
                   if (oldBoxPx.w > 0 && oldBoxPx.h > 0) {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       var newBoxPx = { w: $box.width(), h: $box.height() };
                       repositionParticipationElementsByScale($box, oldBoxPx, newBoxPx);
                   } else {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
                   }
               } else {
                   $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                  $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                   pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
               }
           } else {
               $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-              $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
           }
       }
       lastTicketDimensions = { w: ticketW, h: ticketH };
       if (typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
       if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
+      if (typeof updatePagesPerDocumentHint === 'function') updatePagesPerDocumentHint();
+  }
+
+  function updatePagesPerDocumentHint() {
+    var $hint = $('#pages-per-document-hint');
+    if (!$hint.length) return;
+    var rows = Math.max(1, parseInt($('#rows').val(), 10) || 1);
+    var cols = Math.max(1, parseInt($('#cols').val(), 10) || 1);
+    var pp = rows * cols;
+    var pagesPerDoc = Math.max(1, parseInt($('#participation_page').val(), 10) || 1);
+    var docsMode = $('input[name="documents"]:checked').val()
+      || $('input[name="documents_mode"]:checked').val()
+      || '1';
+    var genMode = $('input[name="generate"]:checked').val()
+      || $('input[name="generate_mode"]:checked').val()
+      || '1';
+    var total = 0;
+    if (genMode === '2') {
+      var from = Math.max(1, parseInt($('#participation_from').val(), 10) || 1);
+      var to = Math.max(from, parseInt($('#participation_to').val(), 10) || from);
+      total = to - from + 1;
+    } else {
+      total = Math.max(0, parseInt(@json((int) ($set->total_participations ?? 0)), 10) || 0);
+      var toVal = parseInt($('#participation_to').val(), 10);
+      if (Number.isFinite(toVal) && toVal > 0) total = toVal;
+    }
+    var docs = 1;
+    if (String(docsMode) === '2' && total > 0 && pp > 0) {
+      var ticketsPerDoc = pagesPerDoc * pp;
+      docs = Math.max(1, Math.ceil(total / ticketsPerDoc));
+    }
+    $hint.text('(' + pp + ' participaciones por página, ' + docs + (docs === 1 ? ' documento' : ' documentos') + ')');
   }
 
   function ensurePortadaQrPlaceholder() {
-    if (!$('#containment-wrapper3').length || $('#containment-wrapper3 .elements.qr').length > 0) return;
-    var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:60px;height:60px;min-width:60px;min-height:60px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
-    $('#containment-wrapper3').append(qrHtml);
+    var $wrap = $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    if ($wrap.find('.elements.qr').length === 0) {
+      var qrMinPx = Math.ceil(9 * 96 / 25.4);
+      var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:'+qrMinPx+'px;height:'+qrMinPx+'px;min-width:'+qrMinPx+'px;min-height:'+qrMinPx+'px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
+      $wrap.append(qrHtml);
+    }
+
+    ensurePortadaTacoLabelBar($wrap);
+  }
+
+  /** Asegura la barra inferior con el marcador taco_label (borradores locales antiguos pueden no tenerla). */
+  function ensurePortadaTacoLabelBar($wrap) {
+    $wrap = $wrap && $wrap.length ? $wrap : $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    var labelToken = '{' + '{taco_label}' + '}';
+    var $ctx = $wrap.find('.elements.context');
+    var $withLabel = $ctx.filter(function() {
+      var html = ($(this).html() || '');
+      return html.indexOf(labelToken) !== -1 || html.indexOf('__TACO_LABEL__') !== -1;
+    });
+    if ($withLabel.length) {
+      $withLabel.addClass('element-critical cover-taco-label');
+      markCoverCriticalElements($wrap);
+      return;
+    }
+
+    var $emptyBottom = $ctx.filter(function() {
+      var text = $.trim($(this).find('span').first().text());
+      var style = ($(this).attr('style') || '');
+      return text === '' && (/bottom\s*:/i.test(style) || /inset\s*:/i.test(style));
+    }).first();
+
+    if ($emptyBottom.length) {
+      $emptyBottom.addClass('element-critical cover-taco-label');
+      $emptyBottom.find('span').first()
+        .attr('style', 'padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;')
+        .text(labelToken);
+      markCoverCriticalElements($wrap);
+      return;
+    }
+
+    $wrap.append(
+      '<div class="elements element-critical context cover-taco-label" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;">'
+      + '<span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">' + labelToken + '</span></div>'
+    );
+    markCoverCriticalElements($wrap);
+  }
+
+  function bindDesignToolbarActions() {
+    $('.up-layer').off('click.designToolbar').on('click.designToolbar', function(e) {
+      e.preventDefault();
+      if (!selectedElement || !selectedElement.length) return;
+      if (selectedElement.hasClass('element-critical')) return;
+      var zindex = parseInt(selectedElement.css('z-index'), 10) || 0;
+      if (zindex >= 9999) return;
+      selectedElement.css('z-index', zindex + 1);
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
+    });
+
+    $('.down-layer').off('click.designToolbar').on('click.designToolbar', function(e) {
+      e.preventDefault();
+      if (!selectedElement || !selectedElement.length) return;
+      var zindex = parseInt(selectedElement.css('z-index'), 10) || 0;
+      if (zindex > 0) {
+        selectedElement.css('z-index', zindex - 1);
+        markDesignDirty();
+        saveHistoryState();
+        updateUndoRedoButtons();
+      }
+    });
+
+    $('.delete-element-btn').off('click.designToolbar').on('click.designToolbar', function(e) {
+      e.preventDefault();
+      if (!selectedElement || !selectedElement.length) return;
+      if (selectedElement.hasClass('element-critical')) {
+        alert('Este elemento es obligatorio y no se puede eliminar.');
+        return;
+      }
+      selectedElement.remove();
+      selectedElement = null;
+      $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
+    });
+
+    $(document).off('keydown.designDelete').on('keydown.designDelete', function(e) {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if ($(e.target).closest('input, textarea, select, [contenteditable="true"]').length) return;
+      if (!selectedElement || !selectedElement.length) return;
+      if (selectedElement.hasClass('element-critical')) {
+        e.preventDefault();
+        alert('Este elemento es obligatorio y no se puede eliminar.');
+        return;
+      }
+      e.preventDefault();
+      selectedElement.remove();
+      selectedElement = null;
+      $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
+      markDesignDirty();
+      saveHistoryState();
+      updateUndoRedoButtons();
+    });
   }
 
   // Tarea 7: aplicar diseño cargado por reserva
@@ -3347,6 +4269,8 @@ $('#format').change(function (e) {
     if (d.margin_left != null) $('#margin-left').val(d.margin_left);
     if (d.margin_top != null) $('#margin-top').val(d.margin_top);
     if (d.identation != null) $('#identation').val(d.identation);
+    if (d.cut_lines != null) $('#cut-lines').val(d.cut_lines);
+    else if (d.identation != null) $('#cut-lines').val(d.identation);
     if (d.matrix_box != null) $('#matrix-box').val(d.matrix_box);
     if (d.margin_custom != null) $('#margin-custom').val(d.margin_custom);
     if (d.page_rigth != null) $('#page-rigth').val(d.page_rigth);
@@ -3354,6 +4278,9 @@ $('#format').change(function (e) {
     if (d.participation_html && $('#step-2 .format-box').length) {
       $('#step-2 .format-box').first().replaceWith(d.participation_html);
       enableDesignElementsResize($('#step-2 .format-box'));
+      if (typeof ensureElementEditButtons === 'function') {
+        ensureElementEditButtons($('#step-2 #containment-wrapper2'));
+      }
       var inner = $('#step-2 #containment-wrapper2').html();
       if (inner) localStorage.setItem('step2', inner);
     }
@@ -3378,10 +4305,15 @@ $('#format').change(function (e) {
           var img = (d.backgrounds[step].image != null && d.backgrounds[step].image !== '') ? d.backgrounds[step].image : '';
           localStorage.setItem('bg-step' + i, color);
           localStorage.setItem('bgimg-step' + i, img);
-          var $cont = (i === 4) ? $('#design-back-bg') : $('#containment-wrapper' + i);
+          var $cont = (typeof getBackgroundTargetEl === 'function')
+            ? getBackgroundTargetEl(i)
+            : ((i === 4) ? $('#design-back-bg') : $('#containment-wrapper' + i));
           if ($cont.length) {
             $cont.css('background-color', color);
             $cont.css('background-image', img ? 'url("' + String(img).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")' : 'none');
+            $cont.css('background-size', 'cover');
+            $cont.css('background-position', 'center');
+            $cont.css('background-repeat', 'no-repeat');
           }
         }
       });
@@ -3393,11 +4325,24 @@ $('#format').change(function (e) {
 
   // Llamar al cargar y al cambiar cualquier campo relevante
   $(document).ready(function() {
+      bindDesignToolbarActions();
+
       const initDesignEditor = function() {
         applyLoadedDesign();
         updateTicketInfo();
         $('#format,#page,#rows,#cols,#orientation').off('change keyup').on('change keyup', updateTicketInfo);
-        $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#matrix-box,#margin-custom,#page-rigth,#page-bottom').off('change keyup').on('change keyup', function() { if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo(); });
+        $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#cut-lines,#matrix-box,#margin-custom,#page-rigth,#page-bottom').off('change keyup').on('change keyup', function() {
+          if (typeof configMargins === 'function') configMargins();
+          else if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
+        });
+        $('#participation_page,#participation_from,#participation_to').off('change keyup input.pagesHint').on('change keyup input.pagesHint', updatePagesPerDocumentHint);
+        $('input[name="documents"],input[name="documents_mode"],input[name="generate"],input[name="generate_mode"]').off('change.pagesHint').on('change.pagesHint', updatePagesPerDocumentHint);
+        updatePagesPerDocumentHint();
+
+        if (window.__preferServerDesign) {
+          markDesignSaved();
+          persistDraftLocally();
+        }
 
         if (restoredDraftStep) {
           const maxStep = isDigitalSet ? 2 : 5;
@@ -3416,19 +4361,16 @@ $('#format').change(function (e) {
           $('.form-wizard-element').removeClass('active');
           $('#bc-step-'+step).addClass('active');
 
-          $('#step').removeClass('d-none');
-          $('#save-step').addClass('d-none');
+          markDesignSaved();
 
           configMargins();
-          addEventsElement();
-          setupDraggable();
-          setupResizeObserver();
+          initCanvasInteractions();
           if (typeof applyPendingRescaleIfStep2 === 'function') applyPendingRescaleIfStep2();
           if (step === 2 && typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
         }
       };
 
-      if (pendingPersistentDraft && !window.__forceFreshDraft) {
+      if (pendingPersistentDraft && !window.__forceFreshDraft && !window.__preferServerDesign) {
         if (typeof bootstrap !== 'undefined' && document.getElementById('draft-choice-modal')) {
           const modalEl = document.getElementById('draft-choice-modal');
           const modal = new bootstrap.Modal(modalEl);
@@ -3468,6 +4410,7 @@ $('#format').change(function (e) {
     const margin_left = parseFloat($('#margin-left').val());
     const margin_top = parseFloat($('#margin-top').val());
     const identation = parseFloat($('#identation').val());
+    const cut_lines = (function(){ var v = parseFloat($('#cut-lines').val()); return Number.isFinite(v) ? v : null; })();
     const matrix_box = parseFloat($('#matrix-box').val());
     const margin_custom = parseFloat($('#margin-custom').val());
     const horizontal_space = parseFloat($('#page-rigth').val());
@@ -3477,13 +4420,20 @@ $('#format').change(function (e) {
     const design_entity_id = '{{ session('design_entity_id') }}';
 
     // Paso 2, 3, 4: HTML sin resize (clon; el canvas en edición no se toca)
+    enforceQrMinSize($('#step-2 .format-box'));
+    enforceQrMinSize($('#step-3 .format-box'));
+    if (!window.__backSkipped) {
+      enforceQrMinSize($('#step-4 .format-box'));
+    }
     const participation_html = getFormatBoxHtmlForSave('#step-2 .format-box');
     const cover_html = getFormatBoxHtmlForSave('#step-3 .format-box');
-    const back_html = getFormatBoxHtmlForSave('#step-4 .format-box');
+    const back_html = window.__backSkipped ? '' : getFormatBoxHtmlForSave('#step-4 .format-box');
 
     // Fondos: leer del DOM (lo que ve el usuario) para guardar siempre los valores reales
     function getBackgroundFromDom(stepNum) {
-      var $el = (stepNum === 4) ? $('#design-back-bg') : $('#containment-wrapper' + stepNum);
+      var $el = (typeof getBackgroundTargetEl === 'function')
+        ? getBackgroundTargetEl(stepNum)
+        : ((stepNum === 4) ? $('#design-back-bg') : $('#containment-wrapper' + stepNum));
       if (!$el.length) return { color: '#dfdfdf', image: null };
       var color = $el.css('background-color');
       if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') color = '#dfdfdf';
@@ -3537,6 +4487,7 @@ $('#format').change(function (e) {
         top: margin_top
       },
       identation,
+      cut_lines,
       matrix_box,
       margin_custom,
       horizontal_space,
@@ -3547,6 +4498,8 @@ $('#format').change(function (e) {
       participation_html,
       cover_html,
       back_html,
+      back_skipped: !!window.__backSkipped,
+      design_name: window.__pendingDesignName || (window.__designLoad && window.__designLoad.design_name) || null,
       backgrounds,
       output: {
         draw_guides,
@@ -3565,10 +4518,8 @@ $('#format').change(function (e) {
   // Asegura que todos los .elements sean redimensionables al cargar la vista
 </script>
 
-{{-- {{url('design/add/select')}} --}}
+@include('design.partials.preview_pdf_button')
 
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script>
-</script>
+{{-- {{url('design/add/select')}} --}}
 
 @endsection

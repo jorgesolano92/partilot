@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Mail\UserWelcomeMail;
 use App\Models\PendingDigitalSale;
 use App\Models\User;
-use App\Rules\MinimumAge;
+use App\Rules\ValidCalendarDate;
 use App\Services\CommunicationEmailService;
 use App\Services\PendingDigitalSaleService;
 use App\Services\PhoneVerificationService;
+use App\Services\UserConsentService;
+use App\Support\PasswordRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -49,8 +51,8 @@ class DigitalBuyerRegistrationController extends Controller
             'last_name' => 'nullable|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
-            'birthday' => ['required', 'date', 'before:today', new MinimumAge(18)],
-            'password' => 'required|string|min:6|confirmed',
+            'birthday' => ValidCalendarDate::birthday(),
+            'password' => PasswordRules::registration(),
             'aceptar_condiciones' => 'required|accepted',
             'sms_code' => [
                 Rule::requiredIf(fn () => app(PhoneVerificationService::class)
@@ -88,6 +90,13 @@ class DigitalBuyerRegistrationController extends Controller
             'role' => User::ROLE_CLIENT,
             'status' => true,
         ]);
+
+        app(UserConsentService::class)->record(
+            $user,
+            \App\Models\UserConsent::TYPE_REGISTRATION_TERMS,
+            $request,
+            ['source' => 'digital_buyer_register', 'pending_sale_id' => $pending->id]
+        );
 
         // El enlace (token) identifica la venta pendiente: no se pide código en el formulario.
         $service->completePendingSalesForUser($user);

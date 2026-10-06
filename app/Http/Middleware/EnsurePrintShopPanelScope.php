@@ -28,6 +28,8 @@ class EnsurePrintShopPanelScope
             'print-shop',
             'cuenta',
             'design/pdf',
+            // Assets del editor al diseñar desde una orden de imprenta
+            'design-editor',
         ];
 
         foreach ($allowedPrefixes as $prefix) {
@@ -36,7 +38,11 @@ class EnsurePrintShopPanelScope
             }
         }
 
-        if ($request->routeIs('logout') || $path === 'logout') {
+        if ($request->routeIs('logout', 'panel-legal.submit') || $path === 'logout') {
+            return $next($request);
+        }
+
+        if ($path === 'panel/aceptacion-legal') {
             return $next($request);
         }
 

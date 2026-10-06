@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Seller;
 use App\Models\User;
+use App\Rules\ValidCalendarDate;
 use App\Models\Entity;
 use App\Models\Reserve;
 use App\Models\Set;
@@ -25,6 +26,9 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\EmailCommunicationLog;
 use App\Services\CommunicationEmailService;
+use App\Services\RoleLegalAcceptanceService;
+use App\Services\ParticipationAssignmentReceiptService;
+use App\Services\ManagementFeeService;
 use App\Mail\SellerSettlementStatusMail;
 use App\Support\ParticipationTicketReference;
 
@@ -73,9 +77,26 @@ class SellerController extends Controller
 
         $user = auth()->user();
         $hideEntityColumn = $user && $user->isEntity() && ! $user->isSuperAdmin() && ! $user->isAdministration();
-        $canManageSellers = $user && ($user->isSuperAdmin() || $user->isAdministration());
+        $hideSellerListPersonalData = $user && $user->isAdministration() && ! $user->isSuperAdmin();
+        // Alta: superadmin o gestor de entidad con permission_sellers (no cuenta panel ni administración).
+        $canManageSellers = $user && (
+            $user->isSuperAdmin()
+            || (
+                $user->isEntity()
+                && ! $user->isEntityPanelReadOnly()
+                && $user->hasEntityManagerPermission('sellers')
+            )
+        );
+        // Editar ficha completa / eliminar: solo superadmin (ver edit/update/destroy).
+        $canEditOrDeleteSellers = $user && $user->isSuperAdmin();
 
-        return view('sellers.index', compact('sellers', 'hideEntityColumn', 'canManageSellers'));
+        return view('sellers.index', compact(
+            'sellers',
+            'hideEntityColumn',
+            'hideSellerListPersonalData',
+            'canManageSellers',
+            'canEditOrDeleteSellers'
+        ));
     }
 
     /**
@@ -107,10 +128,35 @@ class SellerController extends Controller
     }
 
     /**
+     * Motivo por el que no se puede registrar el pago de liquidación, o null si es válido.
+     *
+     * @param  \Illuminate\Support\Collection<int, Participation>  $participations
+     */
+    private function settlementBlockReason($participations, float $previousPaid, float $newPayment): ?string
+    {
+        if ($participations->isEmpty()) {
+            return 'Este vendedor no tiene participaciones asignadas pendientes de liquidar en este sorteo.';
+        }
+
+        $totalAmount = (float) $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
+        $pending = round($totalAmount - $previousPaid, 2);
+        if ($pending <= 0.009) {
+            return 'No queda importe pendiente de liquidar para este vendedor en este sorteo.';
+        }
+        if ($newPayment > $pending + 0.009) {
+            return 'El importe a liquidar ('.number_format($newPayment, 2, ',', '.').' €) supera el pendiente ('.number_format($pending, 2, ',', '.').' €).';
+        }
+
+        return null;
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         if ($redirect = $this->redirectIfImplicitEntity($request, 'sellers.add-information', [], 'sellers')) {
             return $redirect;
         }
@@ -126,6 +172,8 @@ class SellerController extends Controller
      */
     public function store_entity(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         $request->validate([
             'entity_id' => 'required|exists:entities,id'
         ]);
@@ -148,6 +196,8 @@ class SellerController extends Controller
      */
     public function add_information()
     {
+        $this->denyAdministrationSellerManagement();
+
         $entity = session('selected_entity');
 
         if (!$entity || !auth()->user()->canAccessEntity($entity->id)) {
@@ -162,6 +212,8 @@ class SellerController extends Controller
      */
     public function store_existing_user(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         $validator = \Validator::make($request->all(), [
             'email' => 'required|email',
             'entity_id' => 'required|exists:entities,id',
@@ -169,7 +221,7 @@ class SellerController extends Controller
             'last_name' => 'nullable|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['nullable', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif', 'unique:sellers,nif_cif'],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'phone' => 'nullable|string|max:255',
             'comment' => 'nullable|string'
         ]);
@@ -204,13 +256,16 @@ class SellerController extends Controller
             // Verificar si el seller ya existe antes de crearlo
             $existingSeller = \App\Models\Seller::where('email', $request->email)->first();
             $wasExisting = $existingSeller !== null;
+            $wasRejected = $wasExisting && (int) $existingSeller->status === Seller::STATUS_REJECTED;
             
             $seller = $sellerService->createSeller($request->all(), $request->entity_id, 'partilot');
 
             session()->forget('selected_entity');
             
             // Determinar el mensaje
-            if ($wasExisting) {
+            if ($wasRejected) {
+                $message = 'Invitación reenviada. El vendedor había rechazado la anterior y queda de nuevo pendiente de aceptar.';
+            } elseif ($wasExisting) {
                 $message = 'Vendedor existente agregado a la entidad seleccionada';
             } else {
                 $message = $seller->isLinkedToUser() 
@@ -241,12 +296,14 @@ class SellerController extends Controller
      */
     public function store_new_user(Request $request)
     {
+        $this->denyAdministrationSellerManagement();
+
         $validator = \Validator::make($request->all(), [
             'name' => 'nullable|string|max:255', // No requerido
             'last_name' => 'nullable|string|max:255', // No requerido
             'last_name2' => 'nullable|string|max:255',
-            'nif_cif' => ['nullable', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif', 'unique:sellers,nif_cif'],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email',
             'phone' => 'nullable|string|max:255',
             'entity_id' => 'required|exists:entities,id'
@@ -274,6 +331,33 @@ class SellerController extends Controller
         $entity = Entity::find($request->entity_id);
         if (!$entity || $entity->status != 1) {
             return redirect()->route('sellers.add-information')->withErrors(['entity_id' => 'Solo se puede asignar un vendedor a una entidad activa.'])->withInput();
+        }
+
+        $nif = strtoupper(trim((string) $request->nif_cif));
+        $sellerWithNif = Seller::with('entities')->where('nif_cif', $nif)->first();
+        $identityError = null;
+        if ($sellerWithNif && $sellerWithNif->entities->contains($entity->id)) {
+            $identityError = 'Ya existe un vendedor con este DNI/NIE en esta entidad.';
+        } elseif ($sellerWithNif && $sellerWithNif->seller_type !== 'externo') {
+            $identityError = 'Este DNI/NIE pertenece a un vendedor con cuenta en Partilot. Añádelo como «Vendedor Partilot» con el email con el que está registrado; recibirá la invitación en su app.';
+        } elseif (! $sellerWithNif && User::where('nif_cif', $nif)->exists()) {
+            $identityError = 'Este DNI/NIE pertenece a un usuario ya registrado en Partilot. Añádelo como «Vendedor Partilot» con el email de su cuenta; recibirá la invitación en su app.';
+        }
+        if ($identityError) {
+            session(['selected_entity' => $entity->loadMissing('administration')]);
+
+            return redirect()->route('sellers.add-information')
+                ->withErrors(['nif_cif' => $identityError])
+                ->withInput();
+        }
+
+        if ($sellerWithNif) {
+            // Vendedor externo ya dado de alta en otra entidad: se reutiliza su ficha.
+            $sellerWithNif->entities()->attach($entity->id);
+            session()->forget('selected_entity');
+
+            return redirect()->route('sellers.index')
+                ->with('success', 'Este DNI/NIE ya estaba registrado como vendedor externo en otra entidad: se ha reutilizado su ficha y se ha añadido a esta entidad.');
         }
 
         try {
@@ -315,12 +399,31 @@ class SellerController extends Controller
     public function check_user_email(Request $request)
     {
         $request->validate([
-            'email' => 'required|email'
+            'email' => 'required|email',
+            'entity_id' => 'nullable|integer',
         ]);
 
-        $exists = User::where('email', $request->email)->exists();
+        $email = trim((string) $request->email);
+        $exists = User::where('email', $email)->exists();
 
-        return response()->json(['exists' => $exists]);
+        $linked = null;
+        $entityId = (int) $request->input('entity_id', 0);
+        if ($entityId > 0 && auth()->user()->canAccessEntity($entityId)) {
+            $linked = Seller::query()
+                ->where('email', $email)
+                ->whereHas('entities', fn ($q) => $q->where('entities.id', $entityId))
+                ->first();
+        }
+
+        $linkedStatus = $linked ? (int) $linked->status : null;
+
+        return response()->json([
+            'exists' => $exists,
+            'already_linked' => $linked !== null && $linkedStatus !== Seller::STATUS_REJECTED,
+            'previously_rejected' => $linkedStatus === Seller::STATUS_REJECTED,
+            'seller_status_text' => $linked?->status_text,
+            'seller_url' => $linked ? route('sellers.show', $linked->id) : null,
+        ]);
     }
 
     /**
@@ -409,6 +512,7 @@ class SellerController extends Controller
         $canEditSeller = $user && $user->isSuperAdmin();
         $canEditSellerObservations = $user && ($user->isSuperAdmin() || $isEntityRole);
         $hideSellerPersonalData = $user && $user->isAdministration() && ! $user->isSuperAdmin();
+        $hideSellerNif = $isEntityRole;
         $hideDatosVendedorTab = $hideSellerPersonalData;
         $hideSellerSidebarProfile = $hideSellerPersonalData;
         $defaultSellerTab = $hideDatosVendedorTab ? 'asignacion' : 'datos_vendedor';
@@ -424,6 +528,7 @@ class SellerController extends Controller
             'canEditSeller',
             'canEditSellerObservations',
             'hideSellerPersonalData',
+            'hideSellerNif',
             'hideDatosVendedorTab',
             'hideSellerSidebarProfile',
             'defaultSellerTab',
@@ -476,15 +581,29 @@ class SellerController extends Controller
             ->whereHas('sets', $setFilterForSeller)
             ->with(['sets' => function ($q) use ($setFilterForSeller) {
                 $setFilterForSeller($q);
-                $q->select('sets.id', 'sets.reserve_id', 'sets.set_name', 'sets.total_participations', 'sets.total_participation_amount as played_amount', 'sets.physical_participations', 'sets.digital_participations');
+                $q->select(
+                    'sets.id',
+                    'sets.reserve_id',
+                    'sets.set_number',
+                    'sets.set_name',
+                    'sets.total_participations',
+                    'sets.total_participation_amount as played_amount',
+                    'sets.physical_participations',
+                    'sets.digital_participations',
+                    'sets.management_fee_status'
+                );
             }])
             ->orderBy('reservation_date', 'desc')
             ->get();
 
         $pendingService = app(\App\Services\PendingDigitalSaleService::class);
+        $feeService = app(ManagementFeeService::class);
         foreach ($reserves as $reserve) {
-            foreach ($reserve->sets as $set) {
+            $reserve->setRelation('sets', $reserve->sets->filter(function ($set) use ($pendingService, $feeService, $seller) {
                 $isDigital = ($set->digital_participations ?? 0) > 0 && (int) ($set->physical_participations ?? 0) === 0;
+                if ($isDigital && ! $feeService->allowsDigitalSale($set)) {
+                    return false;
+                }
                 if ($isDigital) {
                     $set->setAttribute('digital_available_to_seller', $pendingService->countDigitalDisponibleForSet((int) $set->id));
                 } elseif ((int) ($set->physical_participations ?? 0) > 0) {
@@ -494,7 +613,9 @@ class SellerController extends Controller
                         ->where('status', 'asignada')
                         ->count());
                 }
-            }
+
+                return true;
+            })->values());
         }
 
         return response()->json([
@@ -591,6 +712,7 @@ class SellerController extends Controller
         $request->validate([
             'entity_id' => 'nullable|integer|exists:entities,id',
             'lottery_id' => 'nullable|integer|exists:lotteries,id',
+            'reserve_id' => 'nullable|integer|exists:reserves,id',
             'set_id' => 'nullable|integer|exists:sets,id',
         ]);
 
@@ -618,23 +740,36 @@ class SellerController extends Controller
             (int) $request->lottery_id,
         );
 
-        $total = Participation::query()
-            ->join('sets', 'participations.set_id', '=', 'sets.id')
-            ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
-            ->where('participations.entity_id', $request->entity_id)
-            ->where('reserves.lottery_id', $request->lottery_id)
-            ->where('sets.physical_participations', '<=', 0)
-            ->whereRaw('sets.digital_participations > 0')
-            ->whereRaw("participations.participation_code LIKE '1D/%'")
-            ->where('participations.status', 'disponible')
-            ->count();
+        $pendingService = app(\App\Services\PendingDigitalSaleService::class);
+        $reserveId = $request->filled('reserve_id') ? (int) $request->reserve_id : null;
+        if ($reserveId) {
+            $reserveOk = \App\Models\Reserve::query()
+                ->where('id', $reserveId)
+                ->where('entity_id', $request->entity_id)
+                ->where('lottery_id', $request->lottery_id)
+                ->exists();
+            if (! $reserveOk) {
+                return response()->json(['success' => false, 'message' => 'La reserva no pertenece a esta entidad y sorteo.'], 422);
+            }
+        }
 
-        $priceSet = Set::query()
+        $total = $pendingService->countDigitalDisponibleForPool(
+            (int) $request->entity_id,
+            (int) $request->lottery_id,
+            $reserveId
+        );
+
+        $priceSetQuery = Set::query()
             ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
             ->where('reserves.entity_id', $request->entity_id)
             ->where('reserves.lottery_id', $request->lottery_id)
             ->where('sets.physical_participations', '<=', 0)
-            ->whereRaw('sets.digital_participations > 0')
+            ->whereRaw('sets.digital_participations > 0');
+        app(ManagementFeeService::class)->applyDigitalSaleEligibleConstraint($priceSetQuery, 'sets.management_fee_status');
+        if ($reserveId) {
+            $priceSetQuery->where('sets.reserve_id', $reserveId);
+        }
+        $priceSet = $priceSetQuery
             ->select('sets.total_participation_amount as played_amount')
             ->first();
 
@@ -663,6 +798,14 @@ class SellerController extends Controller
         $set = Set::with('reserve')->findOrFail((int) $request->set_id);
         if (($set->digital_participations ?? 0) <= 0) {
             return response()->json(['success' => false, 'message' => 'Este set no es de participaciones digitales.'], 422);
+        }
+
+        if (! app(ManagementFeeService::class)->allowsDigitalSale($set)) {
+            return response()->json([
+                'success' => false,
+                'message' => app(ManagementFeeService::class)->digitalSaleBlockedMessage(),
+                'management_fee_pending' => true,
+            ], 422);
         }
 
         if (! $seller->entities()->where('entities.id', $set->entity_id)->exists()) {
@@ -1058,6 +1201,7 @@ class SellerController extends Controller
         $request->validate([
             'lottery_id' => 'required|integer|exists:lotteries,id',
             'referencia' => 'required|string|max:120',
+            'sig' => 'nullable|string|max:16',
         ]);
 
         if ($denied = $this->jsonUnlessManagerSellersPermission($request->user(), $entityId)) {
@@ -1065,7 +1209,11 @@ class SellerController extends Controller
         }
 
         $lotteryId = (int) $request->lottery_id;
-        $found = $this->findSetAndParticipationByReferenceForUser($request->user(), $request->referencia);
+        $found = $this->findSetAndParticipationByReferenceForUser(
+            $request->user(),
+            $request->referencia,
+            $request->input('sig')
+        );
 
         if (! $found) {
             return response()->json([
@@ -1382,13 +1530,19 @@ class SellerController extends Controller
 
             $participations = $this->settlementEligibleParticipationsQuery($seller->id, (int) $data['lottery_id'])->get();
 
-            $totalParticipations = $participations->count();
-            $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
-            $totalAmount = $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
-
             $previousPaid = SellerSettlement::where('seller_id', $seller->id)
                 ->where('lottery_id', $data['lottery_id'])
                 ->sum('paid_amount');
+
+            if ($reason = $this->settlementBlockReason($participations, (float) $previousPaid, (float) $totalPagoNuevo)) {
+                DB::rollBack();
+
+                return response()->json(['success' => false, 'message' => $reason], 422);
+            }
+
+            $totalParticipations = $participations->count();
+            $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
+            $totalAmount = $participations->sum(fn ($p) => (float) ($p->set->total_participation_amount ?? 0));
 
             $totalPaidWithNew = $previousPaid + $totalPagoNuevo;
             $pendingAmount = $totalAmount - $totalPaidWithNew;
@@ -1424,7 +1578,7 @@ class SellerController extends Controller
 
             // Email liquidación parcial / total 0 al vendedor, y copia informativa a entidad principal.
             try {
-                $seller = Seller::with(['user', 'entities.manager.user'])->find($data['seller_id']);
+                $seller = Seller::with(['user', 'entities.manager.user'])->find($seller->id);
                 $isFullySettled = (float) $pendingAmount <= 0.0001;
                 $communicationEmailService = app(CommunicationEmailService::class);
 
@@ -1516,8 +1670,89 @@ class SellerController extends Controller
     }
 
     /**
-     * API Gestor: Invitar vendedor (0 coincidencias): crear seller externo con email para invitación.
+     * API Gestor: Invitar vendedor SIPART sin cuenta (0 coincidencias): solo email, como en el panel web.
      */
+    /**
+     * API Gestor: reenviar notificación in-app / push de invitación de vendedor pendiente.
+     */
+    /**
+     * API App: re-sincronizar notificación in-app de invitación vendedor pendiente (propia).
+     */
+    public function apiNotifySellerInvitationForUser(Request $request, $sellerId)
+    {
+        $user = $request->user();
+        $seller = Seller::query()
+            ->where('id', (int) $sellerId)
+            ->where('status', Seller::STATUS_PENDING)
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+                if (filled($user->email)) {
+                    $q->orWhere(function ($inner) use ($user) {
+                        $inner->where('user_id', 0)->where('email', $user->email);
+                    });
+                }
+            })
+            ->with('entities')
+            ->first();
+
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Invitación no encontrada o ya procesada.'], 404);
+        }
+
+        $entityId = (int) ($seller->entities->first()?->id ?? 0);
+        if ($entityId <= 0) {
+            return response()->json(['success' => false, 'message' => 'Entidad de la invitación no encontrada.'], 422);
+        }
+
+        $notification = app(\App\Services\AppInboxNotificationService::class)->notifySellerInvitation($seller, $entityId);
+
+        return response()->json([
+            'success' => true,
+            'assignment_state' => $seller->invitationAssignmentState(),
+            'role_invitation_key' => 'seller-'.$seller->id,
+            'notification_id' => $notification?->id,
+        ]);
+    }
+
+    public function apiManagerNotifySellerInvitation(Request $request, $entityId, $sellerId)
+    {
+        $entityId = (int) $entityId;
+        $sellerId = (int) $sellerId;
+        $user = $request->user();
+        if (! in_array($entityId, $user->getManagerEntityIds(), true)) {
+            return response()->json(['success' => false, 'message' => 'No tienes acceso a esta entidad.'], 403);
+        }
+        if ($response = $this->jsonUnlessManagerSellersPermission($user, $entityId)) {
+            return $response;
+        }
+
+        $seller = Seller::query()
+            ->where('id', $sellerId)
+            ->whereHas('entities', fn ($q) => $q->where('entities.id', $entityId))
+            ->first();
+
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Vendedor no encontrado en esta entidad.'], 404);
+        }
+
+        if ((int) $seller->status !== Seller::STATUS_PENDING) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La invitación ya no está pendiente.',
+                'assignment_state' => $seller->invitationAssignmentState(),
+            ], 422);
+        }
+
+        $notification = app(\App\Services\AppInboxNotificationService::class)->notifySellerInvitation($seller, $entityId);
+
+        return response()->json([
+            'success' => true,
+            'message' => $notification ? 'Notificación enviada.' : 'No hay usuario destino para la notificación in-app.',
+            'assignment_state' => $seller->invitationAssignmentState(),
+            'notification_id' => $notification?->id,
+        ]);
+    }
+
     public function apiManagerStoreNewUser(Request $request)
     {
         $request->validate([
@@ -1532,7 +1767,8 @@ class SellerController extends Controller
         }
         try {
             $sellerService = new SellerService();
-            $seller = $sellerService->createSeller($request->only(['email', 'name', 'last_name']), (int) $request->entity_id, 'externo');
+            $seller = $sellerService->createSeller($request->only(['email', 'name', 'last_name']), (int) $request->entity_id, 'partilot');
+
             return response()->json(['success' => true, 'message' => 'Invitación enviada.', 'seller_id' => $seller->id]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -1551,8 +1787,8 @@ class SellerController extends Controller
             'last_name2' => 'nullable|string|max:255',
             'email' => 'required|email',
             'phone' => 'nullable|string|max:255',
-            'birthday' => 'nullable|date',
-            'nif_cif' => 'nullable|string|max:255',
+            'birthday' => ValidCalendarDate::birthday(false),
+            'nif_cif' => ['required', 'string', 'max:255', new \App\Rules\SpanishDocument],
         ]);
         $user = $request->user();
         if (!in_array((int) $request->entity_id, $user->getManagerEntityIds(), true)) {
@@ -2171,7 +2407,7 @@ class SellerController extends Controller
             'last_name' => 'required|string|max:255',
             'last_name2' => 'nullable|string|max:255',
             'nif_cif' => ['nullable', 'string', 'max:255', new \App\Rules\SpanishDocument, 'unique:users,nif_cif,' . ($seller->user_id ?? 0), 'unique:sellers,nif_cif,' . $seller->id],
-            'birthday' => ['nullable', 'date', new \App\Rules\MinimumAge(18)],
+            'birthday' => ValidCalendarDate::birthday(false),
             'email' => 'required|email|unique:users,email,' . ($seller->user_id ?? 0),
             'phone' => 'nullable|string|max:255',
             'group_id' => 'nullable|exists:groups,id',
@@ -2203,21 +2439,18 @@ class SellerController extends Controller
                 }
             }
 
-            // Actualizar el usuario si existe
-            if ($seller->user_id) {
-                $user = User::find($seller->user_id);
-                if ($user) {
-                    $user->update([
-                        'name' => $request->name,
-                        'last_name' => $request->last_name,
-                        'last_name2' => $request->last_name2,
-                        'nif_cif' => $request->nif_cif,
-                        'birthday' => $request->birthday,
-                        'email' => $request->email,
-                        'phone' => $request->phone,
-                        'role' => User::ROLE_SELLER
-                    ]);
-                }
+            // Vendedores PARTILOT: crear o actualizar la cuenta de usuario vinculada
+            if ($seller->seller_type === 'partilot') {
+                app(SellerService::class)->ensurePartilotUserAccount($seller, [
+                    'name' => $request->name,
+                    'last_name' => $request->last_name,
+                    'last_name2' => $request->last_name2,
+                    'nif_cif' => $request->nif_cif,
+                    'birthday' => $request->birthday,
+                    'email' => $request->email,
+                    'phone' => $request->phone,
+                ]);
+                $seller->refresh();
             }
 
             DB::commit();
@@ -2235,6 +2468,11 @@ class SellerController extends Controller
      */
     public function destroy($id)
     {
+        $user = auth()->user();
+        if (! $user || ! $user->isSuperAdmin()) {
+            abort(403, 'Solo el superadministrador puede eliminar vendedores.');
+        }
+
         try {
             $seller = Seller::forUser(auth()->user())->findOrFail($id);
             $seller->delete();
@@ -2614,6 +2852,14 @@ class SellerController extends Controller
             ]);
         }
 
+        $seller = Seller::find((int) $request->seller_id);
+        if (! $seller || (int) $seller->status !== Seller::STATUS_ACTIVE) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pueden asignar participaciones hasta que el vendedor acepte la invitación y sus responsabilidades legales.',
+            ], 422);
+        }
+
         // Por defecto procesamos en background para evitar bloquear la UI.
         // Solo se procesa en síncrono cuando se fuerza explícitamente.
         $runInBackground = !$request->boolean('force_sync');
@@ -2681,99 +2927,22 @@ class SellerController extends Controller
                 ]);
             }
 
-            $assignedCount = 0;
-            $assignedParticipations = []; // Para agrupar por set
-
-            // Una sola consulta: obtener todas las participaciones candidatas (disponible sin vendedor o ya asignadas a este vendedor)
-            $ids = array_column($participations, 'id');
-            $setIds = array_unique(array_column($participations, 'set_id'));
-            $participationsToUpdate = Participation::with(['set.reserve.lottery'])
-                ->whereIn('id', $ids)
-                ->whereIn('set_id', $setIds)
-                ->where(function ($query) use ($seller) {
-                    $query->where(function ($q) {
-                        $q->where('status', 'disponible')->whereNull('seller_id');
-                    })->orWhere(function ($q) use ($seller) {
-                        $q->where('status', 'asignada')->where('seller_id', $seller->id);
-                    });
-                })
-                ->get()
-                ->keyBy('id');
-
-            foreach ($participations as $participationData) {
-                $participation = $participationsToUpdate->get($participationData['id']);
-                if (!$participation || $participation->set_id != $participationData['set_id']) {
-                    continue;
-                }
-                // USAR update() del modelo para disparar el Observer
-                $participation->update([
-                    'seller_id' => $seller->id,
-                    'sale_date' => now()->toDateString(),
-                    'sale_time' => now()->toTimeString(),
-                    'status' => 'asignada'
-                ]);
-                $assignedCount++;
-                $assignedParticipations[] = $participation;
-            }
+            $batch = app(ParticipationAssignmentReceiptService::class)->processAssignmentBatch(
+                $seller,
+                $participations,
+                auth()->user()
+            );
 
             DB::commit();
 
-            // Enviar email de notificación si se asignaron participaciones
-            if ($assignedCount > 0 && $seller->email) {
-                // Agrupar participaciones por set
-                $assignmentsBySet = [];
-                foreach ($assignedParticipations as $participation) {
-                    $setId = $participation->set_id;
-
-                    if (!isset($assignmentsBySet[$setId])) {
-                        // Usar el set ya cargado desde la participación
-                        $set = $participation->set;
-
-                        $assignmentsBySet[$setId] = [
-                            'set' => $set,
-                            'lottery' => $set->reserve->lottery ?? null,
-                            'count' => 0,
-                        ];
-                    }
-
-                    $assignmentsBySet[$setId]['count']++;
-                }
-
-                $assignmentsList = [];
-                foreach ($assignmentsBySet as $setId => $data) {
-                    $assignmentsList[] = [
-                        'set_id' => (int) $setId,
-                        'count' => (int) ($data['count'] ?? 0),
-                    ];
-                }
-
-                $communicationEmailService = app(CommunicationEmailService::class);
-                $log = $communicationEmailService->sendAndLog(
-                    recipientEmail: (string) $seller->email,
-                    recipientRole: 'vendedor',
-                    recipientUser: null,
-                    messageType: 'participation_assignment',
-                    templateKey: null,
-                    mailClass: \App\Mail\ParticipationAssignmentMail::class,
-                    mailPayload: [
-                        'seller_id' => $seller->id,
-                        'assignments' => $assignmentsList,
-                    ],
-                    context: [
-                        'seller_id' => $seller->id,
-                        'assigned_count' => $assignedCount,
-                    ],
-                );
-
-                if ($log->status === EmailCommunicationLog::STATUS_CANCELLED) {
-                    \Log::error('Error enviando email de asignación de participaciones: ' . ($log->error_message ?? 'unknown'));
-                }
-            }
+            $message = $this->buildAssignmentBatchMessage($batch);
 
             return response()->json([
                 'success' => true,
-                'message' => "Se asignaron {$assignedCount} participaciones correctamente",
-                'assigned_count' => $assignedCount
+                'message' => $message,
+                'assigned_count' => $batch['assigned_count'],
+                'proposal_count' => $batch['proposal_count'],
+                'pending_receipt' => $batch['proposal_count'] > 0,
             ]);
 
         } catch (\Exception $e) {
@@ -2783,6 +2952,29 @@ class SellerController extends Controller
                 'message' => 'Error al guardar las asignaciones: ' . $e->getMessage()
             ]);
         }
+    }
+
+    /**
+     * @param  array{proposal: ?\App\Models\ParticipationAssignmentProposal, proposal_count: int, assigned_count: int, assigned_participation_ids: array<int, int>}  $batch
+     */
+    private function buildAssignmentBatchMessage(array $batch): string
+    {
+        $parts = [];
+
+        if (($batch['proposal_count'] ?? 0) > 0) {
+            $parts[] = 'Se ha enviado un email al vendedor para aceptar el recibo de '
+                .$batch['proposal_count'].' participación(es) física(s).';
+        }
+
+        if (($batch['assigned_count'] ?? 0) > 0) {
+            $parts[] = 'Se asignaron '.$batch['assigned_count'].' participación(es) digitales correctamente.';
+        }
+
+        if ($parts === []) {
+            return 'No se procesó ninguna asignación.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
@@ -3139,16 +3331,22 @@ class SellerController extends Controller
             // Obtener participaciones liquidables del vendedor para este sorteo
             $participations = $this->settlementEligibleParticipationsQuery((int) $data['seller_id'], (int) $data['lottery_id'])->get();
 
+            // Obtener liquidaciones previas
+            $previousSettlements = SellerSettlement::where('seller_id', $data['seller_id'])
+                ->where('lottery_id', $data['lottery_id'])
+                ->sum('paid_amount');
+
+            if ($reason = $this->settlementBlockReason($participations, (float) $previousSettlements, (float) $totalPagoNuevo)) {
+                DB::rollBack();
+
+                return response()->json(['success' => false, 'message' => $reason], 422);
+            }
+
             $totalParticipations = $participations->count();
             $pricePerParticipation = $participations->first()->set->total_participation_amount ?? 0;
             $totalAmount = $participations->sum(function($participation) {
                 return $participation->set->total_participation_amount ?? 0;
             });
-
-            // Obtener liquidaciones previas
-            $previousSettlements = SellerSettlement::where('seller_id', $data['seller_id'])
-                ->where('lottery_id', $data['lottery_id'])
-                ->sum('paid_amount');
 
             $totalPaidWithNew = $previousSettlements + $totalPagoNuevo;
             $pendingAmount = $totalAmount - $totalPaidWithNew;
@@ -3312,65 +3510,129 @@ class SellerController extends Controller
     }
 
     /**
-     * Confirmar aceptación de solicitud de vendedor
+     * Formulario público: revisar condiciones y aceptar invitación de vendedor.
      */
     public function confirmAccept($token)
     {
-        $seller = Seller::where('confirmation_token', $token)
-            ->where('status', Seller::STATUS_PENDING)
-            ->first();
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $seller = $roleService->findSellerByToken($token);
 
-        if (!$seller) {
+        if (! $seller) {
             return view('sellers.confirmation-error', [
                 'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
-                'type' => 'error'
+                'type' => 'error',
             ]);
         }
 
-        // Actualizar status a ACTIVO
-        $seller->update([
-            'status' => Seller::STATUS_ACTIVE,
-            'confirmation_token' => null,
-            'confirmation_sent_at' => null
-        ]);
+        $invitation = $roleService->buildWebSellerPayload($seller);
 
-        \Illuminate\Support\Facades\Log::info("Vendedor {$seller->id} ({$seller->email}) ha aceptado la solicitud de vendedor");
-
-        return view('sellers.confirmation-success', [
-            'message' => '¡Solicitud aceptada correctamente!',
-            'seller' => $seller,
-            'type' => 'accept'
+        return view('legal.role-invitation-public', [
+            'invitation' => $invitation,
+            'acceptUrl' => route('sellers.confirm-accept.store', ['token' => $token]),
+            'rejectUrl' => route('sellers.confirm-reject.store', ['token' => $token]),
         ]);
     }
 
     /**
-     * Confirmar rechazo de solicitud de vendedor
+     * Procesar aceptación de invitación de vendedor (web).
+     */
+    public function confirmAcceptStore(Request $request, $token)
+    {
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $seller = $roleService->findSellerByToken($token);
+
+        if (! $seller) {
+            return view('sellers.confirmation-error', [
+                'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
+                'type' => 'error',
+            ]);
+        }
+
+        $request->validate([
+            'action' => 'required|in:accept',
+            'role_terms' => 'accepted',
+        ], [
+            'role_terms.accepted' => 'Debe aceptar las responsabilidades del rol para continuar.',
+        ]);
+
+        $result = $roleService->respondSellerInvitation($seller, 'accept', $request, $seller->user);
+
+        if (! $result['success']) {
+            return view('sellers.confirmation-error', [
+                'message' => $result['message'],
+                'type' => 'error',
+            ]);
+        }
+
+        $seller->refresh();
+
+        \Log::info("Vendedor {$seller->id} ({$seller->email}) ha aceptado la solicitud de vendedor");
+
+        return view('sellers.confirmation-success', [
+            'message' => '¡Solicitud aceptada correctamente!',
+            'seller' => $seller,
+            'type' => 'accept',
+        ]);
+    }
+
+    /**
+     * Página de confirmación del rechazo (enlace del email). El rechazo real va por POST
+     * para que los escáneres de correo que abren enlaces no rechacen la solicitud solos.
      */
     public function confirmReject($token)
     {
-        $seller = Seller::where('confirmation_token', $token)
-            ->where('status', Seller::STATUS_PENDING)
-            ->first();
+        $seller = app(RoleLegalAcceptanceService::class)->findSellerByToken($token);
 
-        if (!$seller) {
+        if (! $seller) {
             return view('sellers.confirmation-error', [
                 'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
-                'type' => 'error'
+                'type' => 'error',
+            ]);
+        }
+
+        return view('public.confirm-reject', [
+            'title' => 'Rechazar solicitud de vendedor',
+            'message' => '¿Seguro que quieres rechazar la solicitud para ser vendedor?',
+            'action' => route('sellers.confirm-reject.store', ['token' => $token]),
+            'fields' => ['action' => 'reject'],
+        ]);
+    }
+
+    /**
+     * Procesar rechazo desde formulario web.
+     */
+    public function confirmRejectStore(Request $request, $token)
+    {
+        $request->validate([
+            'action' => 'required|in:reject',
+        ]);
+
+        return $this->processSellerReject($token, $request);
+    }
+
+    protected function processSellerReject(string $token, Request $request)
+    {
+        $roleService = app(RoleLegalAcceptanceService::class);
+        $seller = $roleService->findSellerByToken($token);
+
+        if (! $seller) {
+            return view('sellers.confirmation-error', [
+                'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
+                'type' => 'error',
             ]);
         }
 
         $email = $seller->email;
         $sellerId = $seller->id;
 
-        // Eliminar el vendedor
-        $seller->delete();
+        $roleService->respondSellerInvitation($seller, 'reject', $request, $seller->user);
 
-        \Illuminate\Support\Facades\Log::info("Vendedor {$sellerId} ({$email}) ha rechazado la solicitud de vendedor - Eliminado");
+        \Log::info("Vendedor {$sellerId} ({$email}) ha rechazado la solicitud de vendedor");
 
         return view('sellers.confirmation-success', [
-            'message' => 'Solicitud rechazada. El vendedor ha sido eliminado del sistema.',
+            'message' => 'Solicitud rechazada. Hemos avisado a la entidad.',
             'seller' => null,
-            'type' => 'reject'
+            'type' => 'reject',
         ]);
     }
 
@@ -3393,6 +3655,13 @@ class SellerController extends Controller
                 'message' => 'No se puede cambiar el estado de un vendedor pendiente'
             ], 400);
         }
+
+        if ($currentStatus == Seller::STATUS_REJECTED) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El vendedor rechazó la invitación. Vuelve a invitarle con su email para reactivarlo.'
+            ], 400);
+        }
         
         $newStatus = match($currentStatus) {
             0 => 1,  // Inactivo -> Activo
@@ -3408,6 +3677,7 @@ class SellerController extends Controller
             'status' => $newStatus,
             'status_text' => $seller->fresh()->status_text,
             'status_class' => $seller->fresh()->status_class,
+            'status_help' => $seller->fresh()->status_help,
         ]);
     }
 
@@ -3435,10 +3705,10 @@ class SellerController extends Controller
         return null;
     }
 
-    private function findSetAndParticipationByReferenceForUser(User $user, string $referencia): ?array
+    private function findSetAndParticipationByReferenceForUser(User $user, string $referencia, ?string $signature = null): ?array
     {
         $referencia = ParticipationTicketReference::normalize($referencia) ?? '';
-        if ($referencia === '' || ! ParticipationTicketReference::isValid($referencia)) {
+        if ($referencia === '' || ParticipationTicketReference::authenticationError($referencia, $signature) !== null) {
             return null;
         }
 
@@ -3470,5 +3740,13 @@ class SellerController extends Controller
         return $participationNumber !== null
             ? ['set' => $set, 'participation_number' => $participationNumber]
             : null;
+    }
+
+    private function denyAdministrationSellerManagement(): void
+    {
+        $user = auth()->user();
+        if ($user && $user->isAdministration() && ! $user->isSuperAdmin()) {
+            abort(403, 'La administración no puede gestionar vendedores desde el panel.');
+        }
     }
 } 

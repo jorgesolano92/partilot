@@ -93,7 +93,9 @@ class StripeWebhookController extends Controller
         }
 
         if ($secrets->isEmpty()) {
-            return true;
+            Log::warning('Stripe webhook rejected: no webhook secrets configured');
+
+            return false;
         }
 
         foreach ($secrets as $secret) {

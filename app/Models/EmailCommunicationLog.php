@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\CommunicationEmailTypeLabel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
 class EmailCommunicationLog extends Model
 {
@@ -26,6 +28,7 @@ class EmailCommunicationLog extends Model
         'recipient_user_id',
         'mail_class',
         'mail_payload',
+        'encrypted_secrets',
         'status',
         'sent_at',
         'resent_at',
@@ -73,6 +76,76 @@ class EmailCommunicationLog extends Model
         if ($this->status === self::STATUS_CANCELLED) return $this->cancelled_at;
 
         return $this->last_attempt_at ?? $this->created_at;
+    }
+
+    public function displayMessageType(): string
+    {
+        return CommunicationEmailTypeLabel::label($this->message_type, $this->template_key);
+    }
+
+    public function senderTypeLabel(): string
+    {
+        $value = trim((string) ($this->sender_type ?? ''));
+        if ($value === '') {
+            return '—';
+        }
+
+        return match ($value) {
+            'superadmin' => 'Superadmin',
+            'administration' => 'Administración',
+            'administracion' => 'Administración',
+            'entity' => 'Entidad',
+            'entidad' => 'Entidad',
+            default => ucfirst(str_replace('_', ' ', $value)),
+        };
+    }
+
+    public function recipientRoleLabel(): string
+    {
+        $value = trim((string) ($this->recipient_role ?? ''));
+        if ($value === '') {
+            return '—';
+        }
+
+        return match ($value) {
+            'gestor_entidad' => 'Gestor Entidad',
+            'gestor_administracion' => 'Gestor Administración',
+            'entity' => 'Entidad',
+            'entidad' => 'Entidad',
+            'manager' => 'Gestor',
+            'usuario' => 'Usuario',
+            'vendedor' => 'Vendedor',
+            'diseñador_externo' => 'Diseñador Externo',
+            'diseñador_externo ' => 'Diseñador Externo',
+            'imprenta' => 'Imprenta',
+            'print_shop' => 'Imprenta',
+            default => ucfirst(str_replace('_', ' ', $value)),
+        };
+    }
+
+    public function messageTypeKey(): ?string
+    {
+        $key = trim((string) ($this->message_type ?: $this->template_key));
+
+        return $key !== '' ? $key : null;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    public function decryptedSecrets(): ?array
+    {
+        if (empty($this->encrypted_secrets)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode(Crypt::decryptString($this->encrypted_secrets), true);
+
+            return is_array($decoded) ? $decoded : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }
 

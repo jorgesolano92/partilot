@@ -1,9 +1,61 @@
-{{-- Modales para rango de participaciones y cantidad de traseras idénticas --}}
-<div class="modal fade" id="designPdfParticipationModal" tabindex="-1" aria-labelledby="designPdfParticipationModalLabel" aria-hidden="true">
+{{-- Modales de impresión: estilo alineado con «Configurar salida» del editor --}}
+<style>
+.design-pdf-print-modal .form-control {
+    border-radius: 30px;
+}
+.design-pdf-print-modal .form-check.form-switch {
+    min-height: 1.5rem;
+    padding-left: 0;
+}
+.design-pdf-print-modal .form-check.form-switch .form-check-input {
+    float: left;
+    margin-left: 0;
+    width: 2.5em;
+    height: 1.25em;
+}
+.design-pdf-print-modal .form-check.form-switch .form-check-label {
+    float: left;
+    margin-left: 50px;
+    padding-top: 0.1rem;
+}
+.design-pdf-print-modal .form-check.form-switch::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+.design-pdf-print-modal .btn-print-cancel {
+    border-radius: 30px;
+    padding: 8px 18px;
+    font-weight: 700;
+    background-color: #333;
+    color: #fff;
+    border: none;
+}
+.design-pdf-print-modal .btn-print-cancel:hover,
+.design-pdf-print-modal .btn-print-cancel:focus {
+    background-color: #222;
+    color: #fff;
+}
+.design-pdf-print-modal .btn-print-confirm {
+    border-radius: 30px;
+    padding: 8px 18px;
+    font-weight: 700;
+    background-color: #e78307;
+    color: #333;
+    border: none;
+}
+.design-pdf-print-modal .btn-print-confirm:hover,
+.design-pdf-print-modal .btn-print-confirm:focus {
+    background-color: #d07406;
+    color: #333;
+}
+</style>
+
+<div class="modal fade design-pdf-print-modal" id="designPdfParticipationModal" tabindex="-1" aria-labelledby="designPdfParticipationModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="designPdfParticipationModalLabel">Rango de participaciones</h5>
+                <h5 class="modal-title" id="designPdfParticipationModalLabel">Imprimir participaciones</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
@@ -18,38 +70,157 @@
                         <input type="number" class="form-control" id="designPdfPartTo" min="1" value="1">
                     </div>
                 </div>
-                <p class="small text-muted mt-2 mb-0"><span id="designPdfPartMaxHint"></span></p>
+                <p class="small text-muted mt-2 mb-3"><span id="designPdfPartMaxHint"></span></p>
+
+                <h6 class="mb-2">Empaquetado de documentos</h6>
+                <p class="small text-muted mb-2">Esto solo afecta a cómo se genera el archivo (un PDF o un ZIP). No modifica el diseño ni requiere aprobación.</p>
+                <div class="form-group mb-2">
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfPartDocsMode" id="designPdfPartDocsMode1" value="1" role="switch" checked>
+                        <label class="form-check-label" for="designPdfPartDocsMode1"><b>Un único documento (PDF)</b></label>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfPartDocsMode" id="designPdfPartDocsMode2" value="2" role="switch">
+                        <label class="form-check-label" for="designPdfPartDocsMode2"><b>Varios documentos (ZIP)</b></label>
+                    </div>
+                </div>
+                <div id="designPdfPartPagesWrap" class="mb-1" style="display:none;">
+                    <label for="designPdfPartPagesPerDoc" class="form-label">Páginas por documento</label>
+                    <input type="number" class="form-control" id="designPdfPartPagesPerDoc" min="1" value="150" style="max-width: 140px;">
+                    <p class="small text-muted mt-1 mb-0" id="designPdfPartDocsHint"></p>
+                </div>
+
+                <h6 class="mt-3 mb-2">Nombre del archivo</h6>
+                <label for="designPdfPartDownloadName" class="form-label">Se guardará como</label>
+                <input type="text" class="form-control" id="designPdfPartDownloadName" maxlength="160" autocomplete="off">
+                <p class="small text-muted mt-1 mb-0">Puede editarlo. Se añadirá automáticamente <code>.pdf</code> o <code>.zip</code>.</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="designPdfPartConfirm">Generar PDF</button>
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfPartConfirm">Generar PDF</button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="designPdfBackModal" tabindex="-1" aria-labelledby="designPdfBackModalLabel" aria-hidden="true">
+<div class="modal fade design-pdf-print-modal" id="designPdfCoverModal" tabindex="-1" aria-labelledby="designPdfCoverModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="designPdfBackModalLabel">Cantidad de traseras</h5>
+                <h5 class="modal-title" id="designPdfCoverModalLabel">Imprimir portadas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">Se generarán las portadas de todos los tacos del diseño.</p>
+
+                <h6 class="mb-2">Participaciones por talonario</h6>
+                <p class="small text-muted mb-2"><i>Elige la cantidad de participaciones por talonario</i></p>
+                <label for="designPdfCoverPerBook" class="form-label">Cantidad de participaciones:</label>
+                <input type="number" class="form-control" id="designPdfCoverPerBook" min="1" max="1000" value="50" style="max-width: 140px; border-radius: 30px;">
+                <p class="small text-muted mt-1 mb-3" id="designPdfCoverTacoHint"></p>
+
+                <h6 class="mb-2">Empaquetado de documentos</h6>
+                <p class="small text-muted mb-2">Esto solo afecta a cómo se genera el archivo (un PDF o un ZIP). No modifica el diseño ni requiere aprobación.</p>
+                <div class="form-group mb-2">
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfCoverDocsMode" id="designPdfCoverDocsMode1" value="1" role="switch" checked>
+                        <label class="form-check-label" for="designPdfCoverDocsMode1"><b>Un único documento (PDF)</b></label>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfCoverDocsMode" id="designPdfCoverDocsMode2" value="2" role="switch">
+                        <label class="form-check-label" for="designPdfCoverDocsMode2"><b>Varios documentos (ZIP)</b></label>
+                    </div>
+                </div>
+                <div id="designPdfCoverPagesWrap" class="mb-1" style="display:none;">
+                    <label for="designPdfCoverPagesPerDoc" class="form-label">Páginas por documento</label>
+                    <input type="number" class="form-control" id="designPdfCoverPagesPerDoc" min="1" value="150" style="max-width: 140px;">
+                    <p class="small text-muted mt-1 mb-0" id="designPdfCoverDocsHint"></p>
+                </div>
+
+                <h6 class="mt-3 mb-2">Nombre del archivo</h6>
+                <label for="designPdfCoverDownloadName" class="form-label">Se guardará como</label>
+                <input type="text" class="form-control" id="designPdfCoverDownloadName" maxlength="160" autocomplete="off">
+                <p class="small text-muted mt-1 mb-0">Puede editarlo. Se añadirá automáticamente <code>.pdf</code> o <code>.zip</code>.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfCoverConfirm">Generar PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade design-pdf-print-modal" id="designPdfBackModal" tabindex="-1" aria-labelledby="designPdfBackModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="designPdfBackModalLabel">Imprimir traseras</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-2">Las traseras son idénticas. Indique cuántas unidades necesita imprimir.</p>
                 <label for="designPdfBackCount" class="form-label">Número de traseras</label>
-                <input type="number" class="form-control" id="designPdfBackCount" min="1" max="100000" value="1">
+                <input type="number" class="form-control" id="designPdfBackCount" min="1" max="100000" value="1" style="max-width: 160px;">
+
+                <h6 class="mt-3 mb-2">Empaquetado de documentos</h6>
+                <p class="small text-muted mb-2">Esto solo afecta a cómo se genera el archivo (un PDF o un ZIP). No modifica el diseño ni requiere aprobación.</p>
+                <div class="form-group mb-2">
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfBackDocsMode" id="designPdfBackDocsMode1" value="1" role="switch" checked>
+                        <label class="form-check-label" for="designPdfBackDocsMode1"><b>Un único documento (PDF)</b></label>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input bg-dark" type="radio" name="designPdfBackDocsMode" id="designPdfBackDocsMode2" value="2" role="switch">
+                        <label class="form-check-label" for="designPdfBackDocsMode2"><b>Varios documentos (ZIP)</b></label>
+                    </div>
+                </div>
+                <div id="designPdfBackPagesWrap" class="mb-1" style="display:none;">
+                    <label for="designPdfBackPagesPerDoc" class="form-label">Páginas por documento</label>
+                    <input type="number" class="form-control" id="designPdfBackPagesPerDoc" min="1" value="150" style="max-width: 140px;">
+                    <p class="small text-muted mt-1 mb-0" id="designPdfBackDocsHint"></p>
+                </div>
+
+                <h6 class="mt-3 mb-2">Nombre del archivo</h6>
+                <label for="designPdfBackDownloadName" class="form-label">Se guardará como</label>
+                <input type="text" class="form-control" id="designPdfBackDownloadName" maxlength="160" autocomplete="off">
+                <p class="small text-muted mt-1 mb-0">Puede editarlo. Se añadirá automáticamente <code>.pdf</code> o <code>.zip</code>.</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="designPdfBackConfirm">Generar PDF</button>
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfBackConfirm">Generar PDF</button>
             </div>
         </div>
     </div>
 </div>
 
+<div class="modal fade design-pdf-print-modal" id="designPdfEmailConfirmModal" tabindex="-1" aria-labelledby="designPdfEmailConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="designPdfEmailConfirmModalLabel">Confirmar envío por correo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Al terminar la generación se enviará un correo con el enlace de descarga a:</p>
+                <p class="fs-5 fw-semibold mb-3" id="designPdfEmailConfirmAddress">—</p>
+                <p class="small text-muted mb-0">Puede cancelar sin enviar. Si confirma, se intentará el envío; un fallo SMTP no se mostrará como entrega garantizada.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-print-cancel" data-bs-dismiss="modal" data-dismiss="modal" id="designPdfEmailConfirmCancel">Cancelar</button>
+                <button type="button" class="btn btn-print-confirm" id="designPdfEmailConfirmSend">Confirmar y generar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Overlay bloqueante eliminado: solo aviso PNotify (arriba derecha) mientras genera el PDF --}}
+
 <script>
 (function ($) {
+  var PARTILOT_PDF_SEND_EMAIL = @json((bool) config('pdf_optimization.send_email', false));
+  var PARTILOT_PDF_NOTIFY_EMAIL = @json(trim((string) (auth()->user()?->email ?? '')));
+  var partilotPendingPdfStart = null;
+  var partilotAwaitingPdfEmail = false;
   function partilotRemoveAllNotifies() {
     if (typeof PNotify !== 'undefined' && typeof PNotify.removeAll === 'function') {
       PNotify.removeAll();
@@ -59,19 +230,112 @@
     });
   }
 
-  function partilotTriggerDownload(url) {
-    var iframe = document.createElement('iframe');
-    iframe.setAttribute('style', 'display:none;width:0;height:0;border:0');
-    iframe.setAttribute('src', url);
-    document.body.appendChild(iframe);
-    setTimeout(function () {
-      iframe.remove();
-    }, 180000);
+  function partilotFilenameFromUrl(url, fallback) {
+    try {
+      var path = (url || '').split('?')[0];
+      var name = path.split('/').pop() || '';
+      if (name) return decodeURIComponent(name);
+    } catch (e) {}
+    return fallback || 'archivo.pdf';
+  }
+
+  function partilotFilenameFromDisposition(header, fallback) {
+    if (!header) return fallback;
+    var m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(header);
+    if (!m) return fallback;
+    try {
+      return decodeURIComponent((m[1] || m[2] || '').trim()) || fallback;
+    } catch (e) {
+      return (m[1] || m[2] || fallback).trim() || fallback;
+    }
+  }
+
+  /** Descarga nativa (sin cargar el PDF entero en RAM del navegador). */
+  function partilotTriggerDownload(url, preferredName) {
+    if (!url) return Promise.resolve(false);
+
+    // Importante: NO usar fetch()+blob() aquí. Los PDF de participaciones pueden pesar
+    // cientos de MB; meterlos en memoria JS hace que "Preparando descarga…" dure mucho
+    // (o falle) en portátiles con 8GB RAM, aunque la generación en servidor ya haya terminado.
+    try {
+      var a = document.createElement('a');
+      a.href = url;
+      if (preferredName) {
+        a.setAttribute('download', preferredName);
+      }
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        a.remove();
+      }, 2000);
+      return Promise.resolve(true);
+    } catch (e) {
+      return Promise.resolve(partilotTriggerDownloadIframe(url));
+    }
+  }
+
+  function partilotTriggerDownloadIframe(url) {
+    try {
+      var iframe = document.createElement('iframe');
+      iframe.setAttribute('style', 'display:none;width:0;height:0;border:0');
+      iframe.setAttribute('src', url);
+      document.body.appendChild(iframe);
+      setTimeout(function () {
+        iframe.remove();
+      }, 180000);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function partilotFinishDownload(url, title, preferredName, emailMeta) {
+    if (!url) return;
+    partilotNotifyPdf('info', title || 'PDF', 'Iniciando descarga en el navegador…', true);
+    partilotTriggerDownload(url, preferredName).then(function (ok) {
+      var emailNote = partilotPdfEmailStatusHtml(emailMeta);
+      if (ok) {
+        partilotNotifyPdf(
+          (emailMeta && emailMeta.email_failed) ? 'warning' : 'success',
+          title || 'PDF',
+          'Descarga iniciada. Si no ve el archivo, compruebe la carpeta de descargas o <a href="' + url + '" target="_blank" rel="noopener">pulse aquí</a>.'
+            + emailNote,
+          !!(emailMeta && emailMeta.email_failed)
+        );
+      } else {
+        partilotNotifyPdf(
+          'warning',
+          title || 'PDF',
+          'No se pudo iniciar la descarga automática. <a href="' + url + '" target="_blank" rel="noopener">Pulse aquí para descargar</a>.'
+            + emailNote,
+          true
+        );
+      }
+      partilotAwaitingPdfEmail = false;
+    });
+  }
+
+  function partilotPdfEmailStatusHtml(emailMeta) {
+    if (!partilotAwaitingPdfEmail) {
+      return '';
+    }
+    var to = PARTILOT_PDF_NOTIFY_EMAIL || '';
+    if (emailMeta && emailMeta.email_sent) {
+      return '<br><br>Correo de aviso enviado a <strong>' + to + '</strong>.';
+    }
+    if (emailMeta && emailMeta.email_failed) {
+      return '<br><br>El PDF está listo, pero no se pudo enviar el correo a <strong>' + to + '</strong>'
+        + (emailMeta.email_error ? ' (' + String(emailMeta.email_error).replace(/</g, '&lt;') + ')' : '')
+        + '. No se considera entregado.';
+    }
+    return '<br><br>El aviso por correo a <strong>' + to + '</strong> no se ha confirmado como entregado.';
   }
 
   function partilotNotifyPdf(type, title, message, sticky) {
     if (typeof PNotify === 'undefined') {
-      if (message) window.alert(title + '\\n\\n' + message);
+      if (message) window.alert(title + '\\n\\n' + message.replace(/<[^>]+>/g, ''));
       return;
     }
     partilotRemoveAllNotifies();
@@ -96,27 +360,57 @@
     new PNotify(opts);
   }
 
-  function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl) {
+  function partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft, restoreBtn, $restoreEl, emailWaitLeft) {
+    if (typeof emailWaitLeft === 'undefined') {
+      emailWaitLeft = 15;
+    }
     if (attemptsLeft <= 0) {
       if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera para el PDF terminó sin resultado. Revise si el worker de colas está en ejecución.');
+      partilotNotifyPdf('error', notifyTitle || 'PDF', 'El tiempo de espera terminó. Si el PDF era grande, vuelva a intentarlo en unos minutos; si el problema continúa, revise el log del servidor.');
       return;
+    }
+    // Aviso periódico para que no parezca colgado
+    if (attemptsLeft % 15 === 0) {
+      partilotNotifyPdf('info', notifyTitle || 'PDF', 'Sigue generándose el PDF… Espere, por favor.', true);
     }
     $.getJSON(checkUrl)
       .done(function (st) {
-        if (st && st.status === 'completed' && st.download_url) {
+        if (st && st.status === 'failed') {
           if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
-          partilotRemoveAllNotifies();
-          partilotTriggerDownload(st.download_url);
-          partilotNotifyPdf('success', notifyTitle || 'PDF', 'Descarga iniciada. Si no ve el archivo, compruebe descargas y el bloqueador.', false);
+          partilotAwaitingPdfEmail = false;
+          partilotNotifyPdf('error', notifyTitle || 'PDF', st.message || 'La generación del PDF falló.', false);
+          return;
+        }
+        if (st && st.status === 'completed' && st.download_url) {
+          // Esperar confirmación SMTP real antes de informar del correo.
+          if (partilotAwaitingPdfEmail && !st.email_sent && !st.email_failed && emailWaitLeft > 0) {
+            setTimeout(function () {
+              partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl, emailWaitLeft - 1);
+            }, 1000);
+            return;
+          }
+          if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+          partilotFinishDownload(st.download_url, notifyTitle, null, {
+            email_sent: !!st.email_sent,
+            email_failed: !!st.email_failed,
+            email_error: st.email_error || null
+          });
           return;
         }
         setTimeout(function () {
-          partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl);
+          partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl, emailWaitLeft);
         }, 2000);
       })
       .fail(function () {
+        // Fallo puntual de red: reintentar un poco antes de abortar
+        if (attemptsLeft > 3) {
+          setTimeout(function () {
+            partilotPollPdfStatus(checkUrl, notifyTitle, attemptsLeft - 1, restoreBtn, $restoreEl, emailWaitLeft);
+          }, 3000);
+          return;
+        }
         if (restoreBtn && $restoreEl && $restoreEl.length) $restoreEl.prop('disabled', false);
+        partilotAwaitingPdfEmail = false;
         partilotNotifyPdf('error', notifyTitle || 'PDF', 'No se pudo consultar el estado del PDF.');
       });
   }
@@ -142,12 +436,188 @@
     }
   }
 
+  function partilotParsePositiveInt(val, fallback) {
+    var n = parseInt(val, 10);
+    if (isNaN(n) || n < 1) return fallback;
+    return n;
+  }
+
+  function partilotBtnGridMeta($btn) {
+    return {
+      rows: partilotParsePositiveInt($btn.data('rows'), 1),
+      cols: partilotParsePositiveInt($btn.data('cols'), 1),
+      docsMode: String($btn.data('documents-mode') || '1') === '2' ? '2' : '1',
+      pagesPerDoc: partilotParsePositiveInt($btn.data('pages-per-document'), 150)
+    };
+  }
+
+  function partilotFillDocsFields(prefix, meta, itemCount) {
+    var mode = meta.docsMode;
+    $('input[name="' + prefix + 'DocsMode"][value="' + mode + '"]').prop('checked', true);
+    $('#' + prefix + 'PagesPerDoc').val(meta.pagesPerDoc);
+    $('#' + prefix + 'PagesWrap').toggle(mode === '2');
+    partilotUpdateDocsHint(prefix, meta.rows, meta.cols, itemCount);
+  }
+
+  function partilotUpdateDocsHint(prefix, rows, cols, itemCount) {
+    var mode = $('input[name="' + prefix + 'DocsMode"]:checked').val() || '1';
+    var pages = partilotParsePositiveInt($('#' + prefix + 'PagesPerDoc').val(), 150);
+    var perPage = Math.max(1, rows * cols);
+    var itemsPerDoc = pages * perPage;
+    var $hint = $('#' + prefix + 'DocsHint');
+    if (mode !== '2') {
+      $hint.text('');
+      return;
+    }
+    var msg = perPage + ' unidades por página; ' + itemsPerDoc + ' por documento.';
+    if (itemCount && itemCount > 0) {
+      var docs = Math.max(1, Math.ceil(itemCount / itemsPerDoc));
+      msg += ' Con el volumen actual (~' + itemCount + ') saldrían ' + docs + ' PDF en el ZIP.';
+    }
+    $hint.text(msg);
+  }
+
+  function partilotReadDocsQuery(prefix) {
+    var mode = $('input[name="' + prefix + 'DocsMode"]:checked').val() || '1';
+    if (mode !== '2') mode = '1';
+    var pages = partilotParsePositiveInt($('#' + prefix + 'PagesPerDoc').val(), 150);
+    var q = 'documents_mode=' + encodeURIComponent(mode) + '&pages_per_document=' + encodeURIComponent(pages);
+    var downloadName = $.trim($('#' + prefix + 'DownloadName').val() || '');
+    if (downloadName) {
+      q += '&download_name=' + encodeURIComponent(downloadName);
+    }
+    return q;
+  }
+
+  function partilotNormalizeCoverPerBook(value) {
+    var n = partilotParsePositiveInt(value, 50);
+    if (n < 1) return 1;
+    if (n > 1000) return 1000;
+    return n;
+  }
+
+  function partilotCoverTacoCount(total, perBook) {
+    total = parseInt(total, 10) || 0;
+    perBook = partilotNormalizeCoverPerBook(perBook);
+    if (total <= 0 || perBook <= 0) return 0;
+    return Math.max(1, Math.ceil(total / perBook));
+  }
+
+  function partilotUpdateCoverTacoHint(total, perBook, coverCountOverride) {
+    perBook = partilotNormalizeCoverPerBook(perBook);
+    var count = coverCountOverride != null
+      ? partilotParsePositiveInt(coverCountOverride, partilotCoverTacoCount(total, perBook))
+      : partilotCoverTacoCount(total, perBook);
+    var msg = count + ' portadas (tacos de ' + perBook + ' participaciones).';
+    if (total > 0 && count > 0) {
+      var last = total - ((count - 1) * perBook);
+      if (last > 0 && last < perBook) {
+        msg += ' El último taco tendrá ' + last + ' participaciones.';
+      }
+    }
+    $('#designPdfCoverTacoHint').text(msg);
+    var $modal = $('#designPdfCoverModal');
+    $modal.data('pdf-item-count', count);
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    partilotUpdateDocsHint('designPdfCover', meta.rows, meta.cols, count);
+  }
+
+  function partilotReadCoverTacoQuery() {
+    return 'participations_per_book=' + encodeURIComponent($('#designPdfCoverPerBook').val() || '50');
+  }
+
+  function partilotDefaultDownloadBase(designName, suffix) {
+    var base = $.trim(designName || '');
+    if (!base) base = 'Diseño';
+    // Barras de fechas (15/07/2026) no son válidas en nombres de archivo Windows.
+    base = base.replace(/[\/\\:*?"<>|]/g, '-');
+    base = base.replace(/\s+/g, ' ').replace(/^[\s.-]+|[\s.-]+$/g, '');
+    return base + ' - ' + suffix;
+  }
+
+  function partilotFillDownloadName(inputId, designName, suffix) {
+    $('#' + inputId).val(partilotDefaultDownloadBase(designName, suffix));
+  }
+
+  function partilotSyncBtnDocsDefaults($btn, prefix) {
+    if (!$btn || !$btn.length) return;
+    var mode = $('input[name="' + prefix + 'DocsMode"]:checked').val() || '1';
+    if (mode !== '2') mode = '1';
+    var pages = partilotParsePositiveInt($('#' + prefix + 'PagesPerDoc').val(), 150);
+    $btn.attr('data-documents-mode', mode).data('documents-mode', mode);
+    $btn.attr('data-pages-per-document', pages).data('pages-per-document', pages);
+  }
+
+  function partilotAppendQuery(baseUrl, query) {
+    var sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
+    return baseUrl + sep + query;
+  }
+
+  function partilotAppendPdfEmailQuery(url) {
+    if (!PARTILOT_PDF_SEND_EMAIL || !PARTILOT_PDF_NOTIFY_EMAIL) {
+      return url;
+    }
+    return partilotAppendQuery(
+      url,
+      'send_pdf_email=1&notify_email=' + encodeURIComponent(PARTILOT_PDF_NOTIFY_EMAIL)
+    );
+  }
+
+  function partilotConfirmPdfEmailThenStart(url, title, $btn) {
+    if (!PARTILOT_PDF_SEND_EMAIL) {
+      partilotStartDesignPdfAjax(url, title, $btn);
+      return;
+    }
+    if (!PARTILOT_PDF_NOTIFY_EMAIL) {
+      partilotNotifyPdf('error', title || 'PDF', 'No hay un correo de destinatario válido para el aviso de PDF listo. No se puede enviar.', false);
+      return;
+    }
+    partilotPendingPdfStart = { url: url, title: title, $btn: $btn };
+    $('#designPdfEmailConfirmAddress').text(PARTILOT_PDF_NOTIFY_EMAIL);
+    partilotModalShow(document.getElementById('designPdfEmailConfirmModal'));
+  }
+
+  $('#designPdfEmailConfirmSend').on('click', function () {
+    var pending = partilotPendingPdfStart;
+    partilotPendingPdfStart = null;
+    partilotModalHide(document.getElementById('designPdfEmailConfirmModal'));
+    if (!pending) return;
+    partilotAwaitingPdfEmail = true;
+    partilotStartDesignPdfAjax(
+      partilotAppendPdfEmailQuery(pending.url),
+      pending.title,
+      pending.$btn
+    );
+  });
+
+  $('#designPdfEmailConfirmCancel').on('click', function () {
+    partilotPendingPdfStart = null;
+    partilotAwaitingPdfEmail = false;
+  });
+
   function partilotStartDesignPdfAjax(url, title, $btn) {
     $btn.prop('disabled', true);
-    partilotNotifyPdf('info', title, 'Generando PDF… Puede tardar varios minutos según el volumen.', true);
-    $.ajax({ url: url, method: 'GET', dataType: 'json' })
+    partilotNotifyPdf('info', title, 'Generando PDF en segundo plano… Puede seguir usando el panel.', true);
+    // Si el servidor no libera la conexión hasta terminar (buffer / artisan serve),
+    // este timeout actúa de red de seguridad; si responde "processing" al instante, pasa a poll.
+    $.ajax({ url: url, method: 'GET', dataType: 'json', timeout: 300000 })
       .done(function (data) {
+        if (data && data.status === 'completed' && data.download_url) {
+          $btn.prop('disabled', false);
+          partilotFinishDownload(data.download_url, title, null, {
+            email_sent: !!data.email_sent,
+            email_failed: !!data.email_failed,
+            email_error: data.email_error || null
+          });
+          return;
+        }
+        if (data && data.status === 'failed') {
+          $btn.prop('disabled', false);
+          partilotNotifyPdf('error', title, data.message || 'La generación del PDF falló.', false);
+          return;
+        }
         if (data && data.status === 'processing' && data.check_url) {
+          // ~60 min de sondeo (1800 × 2s) para tiradas grandes
           partilotPollPdfStatus(data.check_url, title, 1800, true, $btn);
           return;
         }
@@ -157,13 +627,67 @@
       .fail(function (xhr) {
         $btn.prop('disabled', false);
         var msg = 'No se pudo iniciar la generación del PDF.';
+        if (xhr && xhr.status === 429) {
+          msg = 'Ya hay un PDF generándose. Espere a que termine antes de lanzar otro.';
+        }
         try {
           var j = xhr.responseJSON;
           if (j && j.message) msg = j.message;
         } catch (err) {}
+        if (xhr && (xhr.statusText === 'timeout' || xhr.status === 0)) {
+          msg = 'Tiempo de espera agotado al generar el PDF (posible timeout del servidor). Espere 1–2 minutos y reintente; si se repite en producción, hay que subir el timeout del proxy/PHP o usar cola (queue:work).';
+        }
         partilotNotifyPdf('error', title, msg, false);
       });
   }
+
+  $(document).on('change', 'input[name="designPdfPartDocsMode"]', function () {
+    var show = $(this).val() === '2';
+    $('#designPdfPartPagesWrap').toggle(show);
+    var $modal = $('#designPdfParticipationModal');
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    var from = partilotParsePositiveInt($('#designPdfPartFrom').val(), 1);
+    var to = partilotParsePositiveInt($('#designPdfPartTo').val(), from);
+    partilotUpdateDocsHint('designPdfPart', meta.rows, meta.cols, Math.max(0, to - from + 1));
+  });
+  $(document).on('input change', '#designPdfPartFrom, #designPdfPartTo, #designPdfPartPagesPerDoc', function () {
+    var $modal = $('#designPdfParticipationModal');
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    var from = partilotParsePositiveInt($('#designPdfPartFrom').val(), 1);
+    var to = partilotParsePositiveInt($('#designPdfPartTo').val(), from);
+    partilotUpdateDocsHint('designPdfPart', meta.rows, meta.cols, Math.max(0, to - from + 1));
+  });
+
+  $(document).on('change', 'input[name="designPdfCoverDocsMode"]', function () {
+    $('#designPdfCoverPagesWrap').toggle($(this).val() === '2');
+    var $modal = $('#designPdfCoverModal');
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    partilotUpdateDocsHint('designPdfCover', meta.rows, meta.cols, $modal.data('pdf-item-count') || 0);
+  });
+  $(document).on('input change', '#designPdfCoverPagesPerDoc', function () {
+    var $modal = $('#designPdfCoverModal');
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    partilotUpdateDocsHint('designPdfCover', meta.rows, meta.cols, $modal.data('pdf-item-count') || 0);
+  });
+  $(document).on('input change', '#designPdfCoverPerBook', function () {
+    var $modal = $('#designPdfCoverModal');
+    var total = parseInt($modal.data('pdf-total-participations'), 10) || 0;
+    partilotUpdateCoverTacoHint(total, $('#designPdfCoverPerBook').val());
+  });
+
+  $(document).on('change', 'input[name="designPdfBackDocsMode"]', function () {
+    $('#designPdfBackPagesWrap').toggle($(this).val() === '2');
+    var $modal = $('#designPdfBackModal');
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    var n = partilotParsePositiveInt($('#designPdfBackCount').val(), 1);
+    partilotUpdateDocsHint('designPdfBack', meta.rows, meta.cols, n);
+  });
+  $(document).on('input change', '#designPdfBackCount, #designPdfBackPagesPerDoc', function () {
+    var $modal = $('#designPdfBackModal');
+    var meta = $modal.data('pdf-grid-meta') || { rows: 1, cols: 1 };
+    var n = partilotParsePositiveInt($('#designPdfBackCount').val(), 1);
+    partilotUpdateDocsHint('designPdfBack', meta.rows, meta.cols, n);
+  });
 
   $(document).on('click', '.js-design-pdf-async', function (e) {
     e.preventDefault();
@@ -176,29 +700,55 @@
     var dialog = ($btn.data('pdf-dialog') || '').toString();
     var total = parseInt($btn.data('total-participations'), 10);
     if (isNaN(total) || total < 0) total = 0;
+    var meta = partilotBtnGridMeta($btn);
 
     if (dialog === 'participation') {
       var $modal = $('#designPdfParticipationModal');
-      $modal.data('pdf-wait-url', baseUrl).data('pdf-wait-title', title).data('pdf-wait-btn', $btn);
-      $('#designPdfPartFrom').val(total > 0 ? 1 : 1);
+      $modal.data('pdf-wait-url', baseUrl).data('pdf-wait-title', title).data('pdf-wait-btn', $btn).data('pdf-grid-meta', meta);
+      $('#designPdfPartFrom').val(1);
       $('#designPdfPartTo').val(total > 0 ? total : 1);
       $('#designPdfPartMaxHint').text(total > 0 ? 'Participaciones en el set (referencia máxima): ' + total + '.' : 'No hay total de participaciones en el set; ajuste el rango manualmente.');
       $('#designPdfPartFrom').attr('max', total > 0 ? total : '');
       $('#designPdfPartTo').attr('max', total > 0 ? total : '');
+      partilotFillDocsFields('designPdfPart', meta, total > 0 ? total : 0);
+      partilotFillDownloadName('designPdfPartDownloadName', $btn.attr('data-design-name'), 'participaciones');
       partilotModalShow($modal[0]);
+      return;
+    }
+
+    if (dialog === 'covers') {
+      var $cModal = $('#designPdfCoverModal');
+      var perBook = partilotNormalizeCoverPerBook($btn.data('participations-per-book'));
+      var totalParts = parseInt($btn.data('total-participations'), 10);
+      if (isNaN(totalParts) || totalParts < 0) totalParts = 0;
+      var coverCount = partilotParsePositiveInt($btn.data('cover-count'), partilotCoverTacoCount(totalParts, perBook));
+      $('#designPdfCoverPerBook').val(String(perBook));
+      $cModal.data('pdf-wait-url', baseUrl).data('pdf-wait-title', title).data('pdf-wait-btn', $btn)
+        .data('pdf-grid-meta', meta).data('pdf-item-count', coverCount)
+        .data('pdf-total-participations', totalParts);
+      partilotFillDocsFields('designPdfCover', meta, coverCount);
+      partilotUpdateCoverTacoHint(totalParts, perBook, coverCount);
+      partilotFillDownloadName('designPdfCoverDownloadName', $btn.attr('data-design-name'), 'portadas');
+      partilotModalShow($cModal[0]);
       return;
     }
 
     if (dialog === 'backs') {
       var $bModal = $('#designPdfBackModal');
-      $bModal.data('pdf-wait-url', baseUrl).data('pdf-wait-title', title).data('pdf-wait-btn', $btn);
+      $bModal.data('pdf-wait-url', baseUrl).data('pdf-wait-title', title).data('pdf-wait-btn', $btn).data('pdf-grid-meta', meta);
       var defCount = total > 0 ? total : 1;
       $('#designPdfBackCount').val(defCount);
+      partilotFillDocsFields('designPdfBack', meta, defCount);
+      partilotFillDownloadName('designPdfBackDownloadName', $btn.attr('data-design-name'), 'traseras');
       partilotModalShow($bModal[0]);
       return;
     }
 
-    partilotStartDesignPdfAjax(baseUrl, title, $btn);
+    partilotConfirmPdfEmailThenStart(
+      partilotAppendQuery(baseUrl, 'download_name=' + encodeURIComponent(partilotDefaultDownloadBase($btn.attr('data-design-name'), 'pdf'))),
+      title,
+      $btn
+    );
   });
 
   $('#designPdfPartConfirm').on('click', function () {
@@ -216,10 +766,35 @@
       partilotNotifyPdf('error', title, '«Desde» no puede ser mayor que «hasta».', false);
       return;
     }
-    var sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
-    var url = baseUrl + sep + 'pdf_from=' + encodeURIComponent(from) + '&pdf_to=' + encodeURIComponent(to);
+    if (!$.trim($('#designPdfPartDownloadName').val() || '')) {
+      partilotNotifyPdf('error', title, 'Indique un nombre para el archivo.', false);
+      return;
+    }
+    var url = partilotAppendQuery(baseUrl, 'pdf_from=' + encodeURIComponent(from) + '&pdf_to=' + encodeURIComponent(to) + '&' + partilotReadDocsQuery('designPdfPart'));
+    partilotSyncBtnDocsDefaults($btn, 'designPdfPart');
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotConfirmPdfEmailThenStart(url, title, $btn);
+  });
+
+  $('#designPdfCoverConfirm').on('click', function () {
+    var $modal = $('#designPdfCoverModal');
+    var baseUrl = $modal.data('pdf-wait-url');
+    var title = $modal.data('pdf-wait-title') || 'PDF';
+    var $btn = $modal.data('pdf-wait-btn');
+    if (!$.trim($('#designPdfCoverDownloadName').val() || '')) {
+      partilotNotifyPdf('error', title, 'Indique un nombre para el archivo.', false);
+      return;
+    }
+    var perBook = partilotNormalizeCoverPerBook($('#designPdfCoverPerBook').val());
+    if (perBook < 1 || perBook > 1000) {
+      partilotNotifyPdf('error', title, 'Indique una cantidad de participaciones por talonario entre 1 y 1000.', false);
+      return;
+    }
+    $('#designPdfCoverPerBook').val(String(perBook));
+    var url = partilotAppendQuery(baseUrl, partilotReadCoverTacoQuery() + '&' + partilotReadDocsQuery('designPdfCover'));
+    partilotSyncBtnDocsDefaults($btn, 'designPdfCover');
+    partilotModalHide($modal[0]);
+    if ($btn && $btn.length) partilotConfirmPdfEmailThenStart(url, title, $btn);
   });
 
   $('#designPdfBackConfirm').on('click', function () {
@@ -232,10 +807,14 @@
       partilotNotifyPdf('error', title, 'Indique un número de traseras entre 1 y 100000.', false);
       return;
     }
-    var sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
-    var url = baseUrl + sep + 'count=' + encodeURIComponent(n);
+    if (!$.trim($('#designPdfBackDownloadName').val() || '')) {
+      partilotNotifyPdf('error', title, 'Indique un nombre para el archivo.', false);
+      return;
+    }
+    var url = partilotAppendQuery(baseUrl, 'count=' + encodeURIComponent(n) + '&' + partilotReadDocsQuery('designPdfBack'));
+    partilotSyncBtnDocsDefaults($btn, 'designPdfBack');
     partilotModalHide($modal[0]);
-    if ($btn && $btn.length) partilotStartDesignPdfAjax(url, title, $btn);
+    if ($btn && $btn.length) partilotConfirmPdfEmailThenStart(url, title, $btn);
   });
 })(window.jQuery);
 </script>

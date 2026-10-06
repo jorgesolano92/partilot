@@ -2,22 +2,55 @@
     #configuration-content .alert {
         display: block !important;
     }
+    #configuration-content .ordenes-imprenta-table-scroll {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    #configuration-content .ordenes-imprenta-table-scroll .dataTables_wrapper {
+        width: 100%;
+        min-width: 0;
+    }
+    #tabla-ordenes-imprenta {
+        min-width: 1280px;
+    }
     #tabla-ordenes-imprenta td.text-truncate-cell {
-        max-width: 200px;
+        max-width: 180px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    #tabla-ordenes-imprenta .ordenes-imprenta-actions {
+        min-width: 140px;
+        white-space: nowrap;
     }
     #tabla-ordenes-imprenta .ordenes-imprenta-actions .btn {
         padding: 0.25rem 0.45rem;
     }
-    table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
-    table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before {
-        line-height: 1.1em;
+    #tabla-ordenes-imprenta .ordenes-imprenta-history-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        gap: 0.2rem;
+        width: auto;
+        min-width: 0;
     }
-    table.dataTable > tbody > tr.child ul.dtr-details {
-        width: 100%;
+    #tabla-ordenes-imprenta .ordenes-imprenta-history-btn i {
+        flex-shrink: 0;
+        line-height: 1;
+        margin-right: 0 !important;
     }
-    table.dataTable > tbody > tr.child ul.dtr-details > li {
-        border-bottom: 1px solid #eee;
-        padding: 0.35rem 0;
+    #tabla-ordenes-imprenta td:nth-child(7),
+    #tabla-ordenes-imprenta th:nth-child(7) {
+        min-width: 150px;
+    }
+    #tabla-ordenes-imprenta td:nth-child(10),
+    #tabla-ordenes-imprenta th:nth-child(10) {
+        min-width: 118px;
+        white-space: nowrap;
     }
 </style>
 <div class="form-card bs">
@@ -61,11 +94,10 @@
                 Hay {{ $issuesCount }} orden(es) con posible desajuste entre pedido y cobro. Usa «Conciliar» o ejecuta <code>php artisan sipart:pending-payments-check</code>.
             </div>
         @endif
-        <div class="table-responsive panel-table-scroll">
+        <div class="table-responsive ordenes-imprenta-table-scroll">
             <table id="tabla-ordenes-imprenta" class="table table-striped table-hover align-middle w-100">
                 <thead class="table-light">
                     <tr>
-                        <th class="dtr-control"></th>
                         <th>Orden</th>
                         <th>Imprenta</th>
                         <th>Entidad</th>
@@ -91,7 +123,6 @@
                         $paymentBlockReason = $order->paymentTransitionBlockReason();
                     @endphp
                     <tr>
-                        <td class="dtr-control"></td>
                         <td data-order="{{ $order->order_code }}"><span class="fw-semibold">{{ $order->order_code }}</span></td>
                         <td class="text-truncate-cell" title="{{ $order->printConfiguration?->displayName() ?? '' }}">{{ $order->printConfiguration?->displayName() ?? '—' }}</td>
                         <td class="text-truncate-cell" title="{{ $order->entity->name ?? '' }}">{{ $order->entity->name ?? '—' }}</td>
@@ -123,8 +154,8 @@
                         </td>
                         <td>
                             @if($orderAudits->isNotEmpty())
-                                <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#order-audit-modal-{{ $order->id }}">
-                                    <i class="ri-time-line me-1"></i> Ver ({{ $orderAudits->count() }})
+                                <button type="button" class="btn btn-sm btn-outline-dark ordenes-imprenta-history-btn" data-bs-toggle="modal" data-bs-target="#order-audit-modal-{{ $order->id }}">
+                                    <i class="ri-time-line"></i><span>Ver ({{ $orderAudits->count() }})</span>
                                 </button>
                             @else
                                 <span class="text-muted">—</span>

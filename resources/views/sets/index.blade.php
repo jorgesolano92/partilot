@@ -25,16 +25,82 @@
             <div class="card">
                 <div class="card-body">
 
+                    @include('partials.administration-list-filter-banner', [
+                        'filterAdministration' => $filterAdministration ?? null,
+                        'clearFilterUrl' => route('sets.index', array_filter([
+                            'entity_id' => $entityFilterId ?? null,
+                            'reserve_id' => $reserveFilterId ?? null,
+                        ])),
+                    ])
+
+                    @php
+                        $showEntityFilter = isset($entitiesForFilter)
+                            && $entitiesForFilter->count() > 0
+                            && (auth()->user()?->isAdministration() || auth()->user()?->isSuperAdmin())
+                            && empty($reserveFilterId);
+                        $filterEntity = null;
+                        if (!empty($entityFilterId) && isset($entitiesForFilter)) {
+                            $filterEntity = $entitiesForFilter->firstWhere('id', (int) $entityFilterId);
+                        }
+                        $clearEntityFilterUrl = route('sets.index', array_filter([
+                            'administration_id' => $filterAdministration->id ?? null,
+                            'reserve_id' => $reserveFilterId ?? null,
+                        ]));
+                        $clearReserveFilterUrl = route('sets.index', array_filter([
+                            'administration_id' => $filterAdministration->id ?? null,
+                            'entity_id' => $entityFilterId ?? null,
+                        ]));
+                    @endphp
+
+                    @if(!empty($reserveFilter))
+                        <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span>
+                                Filtrando por reserva:
+                                <strong>#RS{{ str_pad($reserveFilter->id, 4, '0', STR_PAD_LEFT) }}</strong>
+                                @if($reserveFilter->entity)
+                                    ({{ $reserveFilter->entity->name }})
+                                @endif
+                            </span>
+                            <a href="{{ $clearReserveFilterUrl }}" class="btn btn-sm btn-light">Quitar filtro</a>
+                        </div>
+                    @elseif($filterEntity)
+                        <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span>
+                                Filtrando por entidad: <strong>{{ $filterEntity->name }}</strong>
+                            </span>
+                            <a href="{{ $clearEntityFilterUrl }}" class="btn btn-sm btn-light">Quitar filtro</a>
+                        </div>
+                    @endif
+
                     <div class="{{$sets->count() > 0 ? '' : 'd-none'}}">
                         <h4 class="header-title">
 
                             <div class="float-start d-flex align-items-start">
-                                <input type="text" class="form-control" style="margin-right: 8px ;" placeholder="Provincia">
-                                <input type="text" class="form-control" style="margin-right: 8px ;" placeholder="Localidad">
-                                <input type="text" class="form-control" placeholder="Status">
+                                @if($showEntityFilter)
+                                    <select class="form-control" style="min-width: 200px;"
+                                        onchange="(function(sel) {
+                                            var u = new window.URL(window.location.href);
+                                            if (sel.value) {
+                                                u.searchParams.set('entity_id', sel.value);
+                                            } else {
+                                                u.searchParams.delete('entity_id');
+                                            }
+                                            window.location.href = u.toString();
+                                        })(this)">
+                                        <option value="">Todas las entidades</option>
+                                        @foreach($entitiesForFilter as $entity)
+                                            <option value="{{ $entity->id }}" {{ (isset($entityFilterId) && (int) $entityFilterId === (int) $entity->id) ? 'selected' : '' }}>
+                                                {{ $entity->name ?? '#'.$entity->id }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @endif
                             </div>
 
-                            <a href="{{url('sets/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                            <a href="{{ route('sets.create', array_filter([
+                                'entity_id' => $entityFilterId ?? null,
+                                'reserve_id' => $reserveFilterId ?? null,
+                            ])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark float-end"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
 
                         </h4>
 
@@ -48,6 +114,7 @@
                                     <th>Order ID</th>
                                     <th>Nombre Set</th>
                                     <th>N.Sorteo</th>
+                                    <th class="no-filter">Imagen</th>
                                     <th>Número/s</th>
                                     <th>Importe Jugado (por Número)</th>
                                     <th>Importe Donativo</th>
@@ -63,10 +130,22 @@
                         
                             <tbody>
                                 @foreach($sets as $set)
+                                @php($setConfigLocked = $set->hasRealDesignWork())
                                 <tr class="row-clickable" data-href="{{url('sets/view', $set->id)}}" style="cursor: pointer;">
                                     <td><a href="{{url('sets/view', $set->id)}}">#SP{{str_pad($set->id, 4, '0', STR_PAD_LEFT)}}</a></td>
-                                    <td>{{$set->set_name}}</td>
+                                    <td>
+                                        {{$set->set_name}}
+                                        @if($setConfigLocked)
+                                            <i class="ri-lock-line text-muted ms-1" title="Configuración bloqueada: el set ya tiene diseño. Solo se puede cambiar la fecha límite."></i>
+                                        @endif
+                                    </td>
                                     <td>{{$set->reserve->lottery ? $set->reserve->lottery->name : 'Sin sorteo'}}</td>
+                                    <td>
+                                        @include('partials.lottery_image', [
+                                            'lotteryImageModel' => $set->reserve->lottery ?? null,
+                                            'lotteryImageSize' => 40,
+                                        ])
+                                    </td>
                                     <td>
                                         @if($set->reserve->reservation_numbers)
                                             @foreach($set->reserve->reservation_numbers as $number)
@@ -92,8 +171,11 @@
                                     <td>{{$set->entity->name ?? 'Sin entidad'}}</td>
                                     <td>{{$set->entity->province ?? 'Sin provincia'}}</td>
                                     <td class="no-click" style="cursor: default;">
-                                        <a href="{{url('sets/download-xml', $set->id)}}" class="btn btn-sm btn-light" title="Descargar XML"><img src="{{url('icons_/diseno.svg')}}" alt="" width="12"></a>
-                                        <a href="{{url('sets/edit', $set->id)}}" class="btn btn-sm btn-light"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
+                                        <a href="{{ route('design.openChooseType', $set->id) }}" class="btn btn-sm btn-light" title="Diseño e impresión"><img src="{{url('icons_/diseno.svg')}}" alt="" width="12"></a>
+                                        @if(auth()->user()?->isSuperAdmin())
+                                        <a href="{{ route('sets.download-xml', $set->id) }}" class="btn btn-sm btn-light" title="Descargar XML"><i class="ri-download-line"></i></a>
+                                        @endif
+                                        <a href="{{url('sets/edit', $set->id)}}" class="btn btn-sm btn-light" title="{{ $setConfigLocked ? 'Configuración bloqueada por diseño: solo fecha límite' : 'Editar set' }}">@if($setConfigLocked)<i class="ri-lock-line"></i>@else<img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12">@endif</a>
                                         <button class="btn btn-sm btn-danger delete-btn" data-id="{{$set->id}}" data-name="set #{{$set->id}}"><i class="ri-delete-bin-6-line"></i></button>
                                     </td>
                                 </tr>
@@ -118,7 +200,10 @@
 
                                 <br>
 
-                                <a href="{{url('sets/add')}}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
+                                <a href="{{ route('sets.create', array_filter([
+                                    'entity_id' => $entityFilterId ?? null,
+                                    'reserve_id' => $reserveFilterId ?? null,
+                                ])) }}" style="border-radius: 30px; width: 150px;" class="btn btn-md btn-dark mt-2"><i style="position: relative; top: 2px;" class="ri-add-line"></i> Añadir</a>
                             </div>
 
                         </div>
@@ -261,6 +346,8 @@
     e.stopPropagation();
     var id = $(this).data('id');
     var name = $(this).data('name');
+    $('#delete-reason').val('');
+    $('#delete-warning').addClass('d-none');
     $('#delete-modal').modal('show');
     $('#delete-item-name').text(name);
     $('#confirm-delete').data('id', id).data('type', 'set');
@@ -278,6 +365,11 @@
       </div>
       <div class="modal-body">
         <p>¿Estás seguro de que quieres eliminar <strong id="delete-item-name"></strong>?</p>
+        <div class="mb-3">
+          <label for="delete-reason" class="form-label">Motivo</label>
+          <textarea id="delete-reason" class="form-control" rows="3" maxlength="2000" placeholder="Ej.: Cambio de número por orden de la entidad"></textarea>
+          <small class="text-muted">Este motivo se incluirá en el email al gestor de la entidad. No se guarda en el sistema.</small>
+        </div>
         <div id="delete-warning" class="alert alert-warning d-none" role="alert">
           <strong>Advertencia:</strong> <span id="delete-message"></span>
         </div>
@@ -322,6 +414,9 @@ function deleteItem(type, id) {
   $.ajax({
     url: '/api/delete/' + type + '/' + id,
     method: 'DELETE',
+    data: {
+      deletion_reason: $('#delete-reason').val()
+    },
     headers: {
       'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
     },

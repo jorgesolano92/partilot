@@ -74,7 +74,7 @@
                                     <img src="{{url('assets/entidad.svg')}}" alt="">
 
                                     <label>
-                                        Selección Entidad/es
+                                        Destino
                                     </label>
 
                                 </div>
@@ -129,7 +129,7 @@
                                                     <td>{{$administration->name}}</td>
                                                     <td>{{$administration->province ?? 'Sin provincia'}}</td>
                                                     <td>{{$administration->city ?? 'Sin localidad'}}</td>
-                                                    <td><label class="badge bg-success">Activo</label></td>
+                                                    <td><label class="badge bg-{{ $administration->status_class }}">{{ $administration->status_text }}</label></td>
                                                     <td class="d-none">
                                                         <div class="form-check">
                                                             <input class="form-check-input" type="radio" name="administration_id" value="{{$administration->id}}" id="administration_{{$administration->id}}" required>

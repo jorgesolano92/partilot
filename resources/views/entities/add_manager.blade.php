@@ -94,9 +94,14 @@
                     			
                     			<div class="row">
                 					<div class="col-4">
-                						@php $entityImg = data_get(session('entity_information'), 'image'); @endphp
-	                    				<div class="photo-preview-3" @if($entityImg) style="background-image: url('{{ asset('uploads/' . $entityImg) }}'); background-size: cover; background-position: center;" @endif>
-	                    					@if(!$entityImg)
+                						@php
+                							$adminImg = data_get(session('selected_administration'), 'image');
+                							$adminLogoUrl = ($adminImg && is_file(public_path('images/'.$adminImg)))
+                								? asset('images/'.$adminImg)
+                								: null;
+                						@endphp
+	                    				<div class="photo-preview-3 logo-round" @if($adminLogoUrl) style="background-image: url('{{ $adminLogoUrl }}'); background-size: cover; background-position: center;" @endif>
+	                    					@if(!$adminLogoUrl)
 	                    						<i class="ri-account-circle-fill"></i>
 	                    					@endif
 	                    				</div>
@@ -126,12 +131,21 @@
                     				Email de invitación
                     			</h4>
                     			<small><i>Asegúrese de que el email sea el correcto</i></small>
-                    			<p class="text-muted small mt-2 mb-0">El <strong>gestor responsable</strong> recibirá un <strong>correo</strong> para aceptar el cargo. La cuenta de acceso al <strong>panel de la entidad</strong> (email de la entidad) puede usarse desde ya para datos e invitaciones; las <strong>devoluciones y anulaciones</strong> solo las podrá tramitar el responsable una vez aceptada la invitación (o un usuario de la administración).</p>
+                    			@if(session('entity_manager.prefilled_from_signer'))
+                    				<div class="alert alert-info mt-2 mb-2 py-2">
+                    					Datos del gestor precargados desde el firmante autorizado. Indique un <strong>email de acceso distinto</strong> al del panel de la entidad. La invitación al gestor se enviará cuando el firmante firme el contrato marco.
+                    				</div>
+                    			@else
+                    				<p class="text-muted small mt-2 mb-0">El <strong>gestor responsable</strong> quedará designado ahora; recibirá el correo para <strong>aceptar o rechazar</strong> el cargo cuando el firmante autorizado firme el contrato marco. Si es usuario nuevo (registrar gestor), ese correo incluirá también email y contraseña provisional. La cuenta de panel de la entidad recibe su contraseña provisional por correo por separado.</p>
+                    			@endif
 
                     			<div class="form-group mt-2 mb-3 admin-box">
 
                     				<div class="row">
                     					<div class="col-1">
+                    						@php
+                    							$entityImg = data_get(session('entity_information'), 'image');
+                    						@endphp
 		                    				<div class="photo-preview-3" @if($entityImg) style="background-image: url('{{ asset('uploads/' . $entityImg) }}'); background-size: cover; background-position: center;" @endif>
 		                    					@if(!$entityImg)
 		                    						<i class="ri-account-circle-fill"></i>
@@ -178,7 +192,7 @@
                     						
                     						<div class="mt-4 text-center">
 
-                    							<div class="" id="manager-buttons">
+                    						<div class="" id="manager-buttons">
 
 	                    							<button class="btn btn-light btn-xl text-center m-2 bs" id="invite-manager" style="border: 1px solid #f0f0f0; padding: 16px; width: 150px; border-radius: 16px;">
 	                    								<img class="mt-2" src="{{url('assets/invite.svg')}}" alt="">
@@ -192,14 +206,19 @@
 
                     							</div>
 
+                    							<form action="{{ route('entities.skip-manager-invitation') }}" method="POST" class="mt-3" id="skip-manager-form">
+                    								@csrf
+                    								<button type="submit" class="btn btn-outline-secondary btn-md" style="border-radius: 30px; padding: 8px 24px;">
+                    									Guardar entidad y omitir invitación
+                    								</button>
+                    								<small class="d-block text-muted mt-1">La entidad quedará en estado Pendiente. Podrá invitar al gestor más tarde desde su ficha.</small>
+                    							</form>
+
                     							<div class="d-none" id="invite-form">
 
                     								<div class="row">
                     									
                     									<div class="col-7">
-										<button type="button" class="btn btn-light btn-sm mb-2 return-manager-options" style="border-radius:30px;">
-											<i class="ri-arrow-left-circle-line"></i> Volver a opciones
-										</button>
 		                    								<div class="card bs" style="border-radius: 16px;">
 		                    									<div class="card-body">
 		                    										<h4 class="mb-0 mt-1">
@@ -285,6 +304,15 @@
 
 
 
+                    								<div class="row mt-3">
+                    									<div class="col-12 text-end">
+                    										<button type="button" class="btn btn-md btn-light mt-2 return-manager-options" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;">
+                    											<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i>
+                    											<span style="display: block; margin-left: 16px;">Volver</span>
+                    										</button>
+                    									</div>
+                    								</div>
+
                     							</div>
 
                     							<div class="d-none" id="accept-invite">
@@ -295,7 +323,7 @@
 		                    								<h2>¡Hay 0 coincidencias!</h2>
 
 		                    								<p>
-		                    									No hemos encontrado un <b>usuario registrado con el email "<span id="no-coincidence-email"></span>"</b>. Si haces clic en <b>Aceptar</b>, se guardará la invitación: al <b>registrarse con ese mismo email</b> (web o app) recibirá el correo para aceptar y <b>definir su contraseña</b> de acceso al panel.
+		                    									No hemos encontrado un <b>usuario registrado con el email "<span id="no-coincidence-email"></span>"</b>. Si haces clic en <b>Aceptar</b>, se enviará un correo con enlaces para <b>aceptar y registrarse</b> o <b>rechazar</b> la invitación como gestor.
 		                    								</p>
                     									</div>
 
@@ -305,6 +333,7 @@
 		                    								<p>
 		                    									Hemos encontrado un <b>usuario registrado con el email "<span id="coincidence-email"></span>"</b>. Si haces clic en <b>Aceptar</b>, se le enviará una invitación para unirse a la entidad y <b>definir su contraseña</b> al aceptar.
 		                    								</p>
+		                    								<p class="d-none small text-muted" id="coincidence-admin-contact"></p>
                     									</div>
 
 	                    								<div class="row">
@@ -324,9 +353,10 @@
                     						<!-- Formularios ocultos para manejar las invitaciones -->
                     						<form id="invite-manager-form" action="{{url('entities/invite-manager')}}" method="POST" style="display: none;">
                     							@csrf()
-                    							<input type="hidden" name="entity_id" id="invite-entity-id-input" value="{{ data_get(session('entity_information'), 'id', '') }}">
-                    							<input type="hidden" name="user_id" id="user-id-input">
-                    							<input type="hidden" name="invite_email" id="invite-email-input">
+                    							{{-- En el alta, la entidad ya está en sesión (wizard); no enviar entity_id vacío. --}}
+                    							<input type="hidden" name="user_id" id="user-id-input" value="">
+                    							<input type="hidden" name="pending_invite_email" id="pending-invite-email-for-invite" value="">
+                    							<input type="hidden" name="invite_email" id="invite-email-input" value="">
                     							<input type="hidden" name="permission_sellers" id="invite-permission-sellers" value="1">
                     							<input type="hidden" name="permission_design" id="invite-permission-design" value="1">
                     							<input type="hidden" name="permission_statistics" id="invite-permission-statistics" value="1">
@@ -346,9 +376,6 @@
                     			<div id="register-manager-selected" class="d-none">
                     				<form action="{{url('entities/store-manager')}}" method="POST" enctype="multipart/form-data">
                     					@csrf()
-	                    					<button type="button" class="btn btn-light btn-sm mb-3 return-manager-options" style="border-radius:30px; display:block;">
-	                    						<i class="ri-arrow-left-circle-line"></i> Volver a opciones
-	                    					</button>
                     					<div class="row">
                     						
                     						<div class="col-4">
@@ -420,7 +447,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input class="form-control" type="date" name="manager_birthday" value="{{ old('manager_birthday', session('entity_manager.manager_birthday', '')) }}" placeholder="01/01/1990" required style="border-radius: 0 30px 30px 0;">
+				                                    <input class="form-control" type="date" name="manager_birthday" value="{{ old('manager_birthday', session('entity_manager.manager_birthday', '')) }}" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" required style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     						</div>
@@ -528,8 +555,12 @@
             								</div>
     									</div>
 
-	                    				<div class="col-4 text-end">
-	                    					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative; top: calc(100% - 51px);" class="btn btn-md btn-light mt-2">Guardar
+	                    				<div class="col-8 text-end">
+	                    					<button type="button" class="btn btn-md btn-light mt-2 return-manager-options" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative; margin-right: 12px;">
+	                    						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i>
+	                    						<span style="display: block; margin-left: 16px;">Volver</span>
+	                    					</button>
+	                    					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2">Guardar
 	                    						<i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
 	                    				</div>
 
@@ -631,30 +662,41 @@ $('#invite-button').click(function (e) {
 			_token: '{{csrf_token()}}'
 		},
 		success: function(response) {
+			if (response.is_panel_account) {
+				alert(response.message || 'Ese correo corresponde a una cuenta de acceso al panel y no puede usarse como gestor.');
+				return;
+			}
+
 			$('#invite-form').addClass('d-none');
 			$('#accept-invite').removeClass('d-none');
 
-			if (response.exists) {
-				// Hay coincidencia
+			if (response.exists && response.user_id) {
+				// Coincidencia con usuario real invitable (INC-013 / INC-015)
 				$('#coincidence').removeClass('d-none');
 				$('#no-coincidence').addClass('d-none');
 				$('#coincidence-email').text(email);
-				
-				// Guardar datos para el formulario
-				                    $('#user-id-input').val(response.user_id);
+				$('#coincidence-admin-contact').toggleClass('d-none', !response.is_administration_contact).text(response.is_administration_contact ? (response.message || '') : '');
+				$('#user-id-input').val(response.user_id);
 				$('#invite-email-input').val(email);
+				$('#pending-invite-email-for-invite').val('');
+				$('#pending-invite-email-input').val('');
 			} else {
-				// No hay coincidencia
+				// Sin usuario registrado: invitación pendiente
 				$('#coincidence').addClass('d-none');
 				$('#no-coincidence').removeClass('d-none');
 				$('#no-coincidence-email').text(email);
-				
-				// Guardar email para el formulario de entidad pendiente
+				$('#user-id-input').val('');
+				$('#invite-email-input').val(email);
+				$('#pending-invite-email-for-invite').val(email);
 				$('#pending-invite-email-input').val(email);
 			}
 		},
-		error: function() {
-			alert('Error al verificar el email. Por favor, intente nuevamente.');
+		error: function(xhr) {
+			var msg = 'Error al verificar el email. Por favor, intente nuevamente.';
+			if (xhr.responseJSON && xhr.responseJSON.message) {
+				msg = xhr.responseJSON.message;
+			}
+			alert(msg);
 		},
 		complete: function() {
 			$('#invite-button').prop('disabled', false).text('Invitar');
@@ -709,15 +751,22 @@ $('#register-manager').click(function (e) {
 $('#accept-invite-btn').click(function (e) {
 	e.preventDefault();
 	syncInvitePermissions();
-	
-	// Determinar qué formulario enviar basado en si hay coincidencia o no
-	if ($('#coincidence').is(':visible')) {
-		// Hay coincidencia - enviar formulario de invitación
+
+	var userId = $('#user-id-input').val();
+	if (userId) {
+		$('#pending-invite-email-for-invite').val('');
 		$('#invite-manager-form').submit();
-	} else {
-		// No hay coincidencia - enviar formulario de entidad pendiente
-		$('#create-pending-entity-form').submit();
+		return;
 	}
+
+	var pendingEmail = $('#pending-invite-email-input').val() || $('#invite-email-input').val();
+	if (!pendingEmail) {
+		alert('Indique un email válido para continuar la invitación.');
+		return;
+	}
+
+	$('#pending-invite-email-input').val(pendingEmail);
+	$('#create-pending-entity-form').submit();
 });
 
 // Inicializar validación de documento español

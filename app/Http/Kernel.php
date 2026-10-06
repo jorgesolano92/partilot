@@ -36,9 +36,11 @@ class Kernel extends HttpKernel
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\SecurityHeaders::class,
         ],
 
         'api' => [
+            \App\Http\Middleware\ForceJsonResponse::class,
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
@@ -70,6 +72,11 @@ class Kernel extends HttpKernel
         'active_entity.context' => \App\Http\Middleware\EnsureActiveEntityContext::class,
         'entity_panel.readonly' => \App\Http\Middleware\EntityPanelReadOnly::class,
         'entity_manager.legacy_password' => \App\Http\Middleware\RedirectIfEntityManagerLegacyPassword::class,
+        'provisional_password.changed' => \App\Http\Middleware\RedirectIfProvisionalPassword::class,
         'print_shop.scope' => \App\Http\Middleware\EnsurePrintShopPanelScope::class,
+        'administration_saas_contract' => \App\Http\Middleware\EnsureAdministrationSaasContractSigned::class,
+        'entity_framework_contract' => \App\Http\Middleware\EnsureEntityFrameworkContractSigned::class,
+        'panel_legal_accepted' => \App\Http\Middleware\EnsurePanelLegalAccepted::class,
+        'panel_account_active' => \App\Http\Middleware\EnsureAssociatedPanelAccountActive::class,
     ];
 }

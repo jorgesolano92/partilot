@@ -14,6 +14,7 @@ use App\Http\Controllers\ReserveController;
 use App\Http\Controllers\SetController;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\PanelMagicLinkController;
 use App\Http\Controllers\ApiController;
@@ -25,8 +26,13 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\CommunicationEmailController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\SepaPaymentOrderController;
+use App\Http\Controllers\BillingDirectDebitController;
+use App\Http\Controllers\PrizePaymentSuperAdminController;
+use App\Http\Controllers\EntityLotteryPrizeSettingsController;
 use App\Http\Controllers\BackgroundTaskController;
 use App\Http\Controllers\LegalController;
+use App\Http\Controllers\AdministrationContractController;
+use App\Http\Controllers\EntityContractController;
 use App\Models\Administration;
 use App\Models\User;
 /*
@@ -81,6 +87,7 @@ Route::get('/storage/{path}', function ($path) {
 
 Route::get('comprobar-participacion', [App\Http\Controllers\ApiController::class, 'showParticipationTicket']);
 Route::get('comprobar-participaciones', [App\Http\Controllers\ApiController::class, 'showParticipationTicket']);
+Route::get('comprobar-participaciones/imagen', [App\Http\Controllers\ApiController::class, 'showParticipationCheckImage']);
 Route::get('/participation-ticket', [ApiController::class, 'showParticipationTicket']);
 
 // Rutas de autenticación
@@ -92,8 +99,23 @@ Route::get('login', [AuthController::class, 'showLoginForm'])->name('login')->mi
 Route::post('login', [AuthController::class, 'login']);
 Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
+Route::middleware('guest')->group(function () {
+    Route::get('password/forgot', [PasswordResetController::class, 'showForgotForm'])->name('password.request');
+    Route::post('password/forgot', [PasswordResetController::class, 'sendResetLink'])
+        ->middleware('throttle:6,1')
+        ->name('password.email');
+    Route::get('password/reset/{token}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
+    Route::post('password/reset', [PasswordResetController::class, 'resetPassword'])
+        ->middleware('throttle:6,1')
+        ->name('password.update');
+});
+
 Route::get('panel/acceso/{token}', [PanelMagicLinkController::class, 'show'])->name('panel.access');
 Route::post('panel/acceso/{token}', [PanelMagicLinkController::class, 'update'])->name('panel.access.submit');
+Route::get('acceso/crear-contrasena/{token}', [\App\Http\Controllers\AccountSetPasswordController::class, 'show'])->name('account.set-password');
+Route::post('acceso/crear-contrasena/{token}', [\App\Http\Controllers\AccountSetPasswordController::class, 'update'])
+    ->middleware('throttle:10,1')
+    ->name('account.set-password.submit');
 
 // Ruta para crear usuario administrador por defecto (solo en desarrollo)
 Route::get('create-admin', [AuthController::class, 'createDefaultAdmin']);
@@ -115,14 +137,37 @@ Route::get('firebase-messaging-sw.js', function () {
 
 // Rutas públicas de confirmación de vendedores (sin autenticación)
 Route::get('/sellers/confirm/accept/{token}', [SellerController::class, 'confirmAccept'])->name('sellers.confirm-accept');
+Route::post('/sellers/confirm/accept/{token}', [SellerController::class, 'confirmAcceptStore'])->name('sellers.confirm-accept.store');
 Route::get('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmReject'])->name('sellers.confirm-reject');
+Route::post('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmRejectStore'])->name('sellers.confirm-reject.store');
+Route::get('/asignacion-participaciones/aceptar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'accept'])->name('participation-assignment.accept');
+Route::get('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'confirmReject'])->name('participation-assignment.reject');
+Route::post('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'reject'])->name('participation-assignment.reject.store');
 Route::get('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAccept'])->name('entity-managers.confirm-accept');
 Route::post('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAcceptStore'])->name('entity-managers.confirm-accept.store');
+Route::post('/entity-managers/confirm/respond/{token}', [EntityController::class, 'confirmManagerRespond'])->name('entity-managers.confirm-respond');
 Route::get('/entity-managers/confirm/reject/{token}', [EntityController::class, 'confirmManagerReject'])->name('entity-managers.confirm-reject');
 
+Route::get('/entity-managers/pending/register/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'showRegister'])->name('entity-managers.pending.register');
+Route::post('/entity-managers/pending/register/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'storeRegister'])->name('entity-managers.pending.register.store');
+Route::get('/entity-managers/pending/reject/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'confirmReject'])->name('entity-managers.pending.reject');
+Route::post('/entity-managers/pending/reject/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'reject'])->name('entity-managers.pending.reject.store');
+
 // Confirmación doble opt-in cobro por transferencia (sin autenticación)
-Route::get('/cobro-transferencia/confirmar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'confirm'])->name('transfer-collection.confirm');
-Route::get('/cobro-transferencia/cancelar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'cancel'])->name('transfer-collection.cancel');
+Route::middleware(['throttle:20,1'])->group(function () {
+    Route::get('/cobro-transferencia/confirmar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'confirm'])->name('transfer-collection.confirm');
+    Route::get('/cobro-transferencia/cancelar/{token}', [\App\Http\Controllers\TransferCollectionVerificationController::class, 'cancel'])->name('transfer-collection.cancel');
+});
+Route::get('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'show'])->name('prize-contract.sign');
+Route::post('/contrato-premio/firmar/{token}', [\App\Http\Controllers\PrizePaymentContractController::class, 'store'])->name('prize-contract.sign.submit');
+Route::get('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'show'])->name('administration-contract.sign');
+Route::post('/contrato-administracion/firmar/{token}', [AdministrationContractController::class, 'store'])->name('administration-contract.sign.submit');
+Route::get('/contrato-administracion/ir-al-panel/{administration}', [AdministrationContractController::class, 'goToPanel'])
+    ->name('administration-contract.go-to-panel');
+Route::get('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'acceptPrimaryManager'])->name('entity-contract.accept-primary');
+Route::post('/contrato-entidad/aceptar/{token}', [EntityContractController::class, 'storePrimaryManagerAcceptance'])->name('entity-contract.accept-primary.store');
+Route::get('/contrato-entidad/firmar/{token}', [EntityContractController::class, 'sign'])->name('entity-contract.sign');
+Route::post('/contrato-entidad/firmar/{token}', [EntityContractController::class, 'storeSign'])->name('entity-contract.sign.store');
 
 // Registro web comprador (venta digital pendiente)
 Route::get('/registro-comprador/{token}', [\App\Http\Controllers\DigitalBuyerRegistrationController::class, 'show'])->name('digital-buyer.register');
@@ -144,11 +189,21 @@ Route::get('/terminos-y-condiciones', [LegalController::class, 'terminosYCondici
 Route::get('/design/external/invite/{token}', [\App\Http\Controllers\DesignController::class, 'externalInviteByToken'])->name('design.external.invite');
 Route::get('/design/external/editor', [\App\Http\Controllers\DesignController::class, 'externalEditor'])->name('design.external.editor');
 Route::post('/design/external/save-format', [\App\Http\Controllers\DesignController::class, 'externalSaveFormat'])->name('design.external.saveFormat');
+Route::post('/design/external/upload-image', [\App\Http\Controllers\DesignController::class, 'uploadImage'])->name('design.external.uploadImage');
+Route::post('/design/external/save-snapshot', [\App\Http\Controllers\DesignController::class, 'saveSnapshot'])->name('design.external.saveSnapshot');
+Route::post('/design/external/generate-qr', [\App\Http\Controllers\BackController::class, 'generarQr'])->name('design.external.generateQr');
 Route::get('/design/external/thank-you', [\App\Http\Controllers\DesignController::class, 'externalThankYou'])->name('design.external.thankYou');
 Route::get('/design/external/file/{id}/download', [\App\Http\Controllers\DesignController::class, 'externalDownloadFileSession'])->name('design.external.downloadFile');
 
 // Rutas protegidas por autenticación (cuenta panel entidad: solo lectura vía entity_panel.readonly)
-Route::middleware(['auth', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'print_shop.scope'])->group(function () {
+Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_contract', 'panel_legal_accepted', 'panel_account_active', 'active_entity.context', 'entity_panel.readonly', 'entity_manager.legacy_password', 'provisional_password.changed', 'print_shop.scope'])->group(function () {
+
+    Route::get('/contrato-administracion/pendiente', [AdministrationContractController::class, 'pending'])->name('administration-contract.pending');
+    Route::post('/contrato-administracion/reenviar', [AdministrationContractController::class, 'resend'])->name('administration-contract.resend');
+    Route::get('/contrato-entidad/pendiente', [EntityContractController::class, 'pending'])->name('entity-contract.pending');
+    Route::get('/contrato-entidad/{entity}/preview', [EntityContractController::class, 'preview'])->name('entity-contract.preview');
+    Route::get('/contrato-entidad/{entity}/download', [EntityContractController::class, 'download'])->name('entity-contract.download');
+    Route::post('/panel/aceptacion-legal', [\App\Http\Controllers\PanelLegalAcceptanceController::class, 'store'])->name('panel-legal.submit');
     
     Route::get('dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     Route::post('panel/switch-entity', [\App\Http\Controllers\PanelEntitySwitchController::class, 'switch'])
@@ -160,14 +215,26 @@ Route::middleware(['auth', 'active_entity.context', 'entity_panel.readonly', 'en
     Route::post('lottery-deadline-decisions/annul', [\App\Http\Controllers\LotteryDeadlineAdminDecisionController::class, 'annul'])
         ->name('lottery-deadline-decisions.annul');
 
+    Route::post('/design-editor/upload-image', [\App\Http\Controllers\DesignController::class, 'uploadImage'])->name('design.uploadImage');
+    Route::post('/design-editor/save-snapshot', [\App\Http\Controllers\DesignController::class, 'saveSnapshot'])->name('design.saveSnapshot');
+    Route::post('/design-editor/generate-qr', [\App\Http\Controllers\BackController::class, 'generarQr'])->name('design.generateQr');
+
     Route::prefix('print-shop')->middleware('role:super_admin,print_shop')->group(function () {
         Route::get('/', [\App\Http\Controllers\PrintShopController::class, 'index'])->name('print-shop.index');
         Route::get('/orders/{printOrder}', [\App\Http\Controllers\PrintShopController::class, 'show'])->name('print-shop.orders.show');
+        Route::get('/orders/{printOrder}/design', [\App\Http\Controllers\PrintShopController::class, 'editDesign'])->name('print-shop.orders.design');
+        Route::get('/orders/{printOrder}/briefing-files/{file}', [\App\Http\Controllers\PrintShopController::class, 'downloadBriefingFile'])->name('print-shop.orders.briefing-file');
+        Route::post('/orders/{printOrder}/save-format', [\App\Http\Controllers\DesignController::class, 'printShopSaveFormat'])->name('print-shop.orders.save-design');
+        Route::put('/orders/{printOrder}/update-format', [\App\Http\Controllers\DesignController::class, 'printShopUpdateFormat'])->name('print-shop.orders.update-design');
+        Route::post('/orders/{printOrder}/submit-approval', [\App\Http\Controllers\PrintShopController::class, 'submitDesignForApproval'])->name('print-shop.orders.submit-approval');
         Route::post('/orders/{printOrder}/status', [\App\Http\Controllers\PrintShopController::class, 'updateStatus'])->name('print-shop.orders.status');
     });
 
     Route::get('gestor/establecer-contrasena', [AuthController::class, 'showEntityManagerLegacyPassword'])->name('entity-manager.legacy-password.show');
     Route::post('gestor/establecer-contrasena', [AuthController::class, 'updateEntityManagerLegacyPassword'])->name('entity-manager.legacy-password.update');
+
+    Route::get('panel/contrasena-provisional', [AuthController::class, 'showProvisionalPassword'])->name('provisional-password.show');
+    Route::post('panel/contrasena-provisional', [AuthController::class, 'updateProvisionalPassword'])->name('provisional-password.update');
 
     Route::get('cuenta/mis-datos', [AccountController::class, 'myData'])->name('account.my-data');
     Route::post('cuenta/contrasena', [AccountController::class, 'updatePassword'])->name('account.update-password');
@@ -199,13 +266,24 @@ Route::group(['prefix' => 'administrations', 'middleware' => 'role:super_admin']
             ->where('panel_account_id', $administration->id)
             ->first();
 
-        return view('admins.show', compact('administration', 'panelUser'));
+        $billingService = app(\App\Services\AdministrationBillingService::class);
+        $pendingBillingCharges = $billingService->pendingChargesForAdministration($administration->id);
+        $pendingBillingTotal = $pendingBillingCharges->sum('amount');
+
+        return view('admins.show', compact('administration', 'panelUser', 'pendingBillingCharges', 'pendingBillingTotal'));
     })->name('administrations.show');
     Route::post('/{administration}/send-panel-access', [AdministratorController::class, 'sendPanelAccessEmail'])
         ->name('administrations.send-panel-access');
+    Route::post('/{administration}/send-contract', [AdministratorController::class, 'sendContract'])
+        ->name('administrations.send-contract');
+    Route::get('/{administration}/contract-preview', [AdministrationContractController::class, 'preview'])
+        ->name('administrations.contract-preview');
+    Route::get('/{administration}/contract-download', [AdministrationContractController::class, 'download'])
+        ->name('administrations.contract-download');
     Route::get('/edit/{id}', [AdministratorController::class, 'edit'])->name('administrations.edit');
     Route::put('/update/{id}', [AdministratorController::class, 'update'])->name('administrations.update');
     Route::post('/{administration}/toggle-status', [AdministratorController::class, 'toggleStatus'])->name('administrations.toggle-status');
+    Route::post('/{administration}/billing-payment', [AdministratorController::class, 'updateBillingPayment'])->name('administrations.update-billing-payment');
     Route::post('/check-email', [AdministratorController::class, 'checkEmail'])->name('administrations.check-email');
     Route::post('/assign-primary-manager/{id}', [AdministratorController::class, 'assignPrimaryManager'])->name('administrations.assign-primary-manager');
     Route::get('/edit/manager/{id}', function($id) {
@@ -219,10 +297,29 @@ Route::group(['prefix' => 'administrations', 'middleware' => 'role:super_admin']
     Route::put('/update/api/{id}', [AdministratorController::class, 'updateApi'])->name('administrations.update-api');
 });
 
+Route::group(['prefix' => 'billing-direct-debits', 'middleware' => 'role:super_admin'], function () {
+    Route::get('/', [BillingDirectDebitController::class, 'index'])->name('billing-direct-debits.index');
+    Route::get('/{billingDirectDebit}', [BillingDirectDebitController::class, 'show'])->name('billing-direct-debits.show');
+    Route::get('/{billingDirectDebit}/generate-xml', [BillingDirectDebitController::class, 'generateXml'])->name('billing-direct-debits.generate-xml');
+});
+
+Route::group(['prefix' => 'prize-payments', 'middleware' => 'role:super_admin', 'as' => 'prize-payments.'], function () {
+    Route::get('/', [PrizePaymentSuperAdminController::class, 'index'])->name('index');
+    Route::get('/{prizePayment}', [PrizePaymentSuperAdminController::class, 'show'])->name('show');
+    Route::post('/{prizePayment}/confirm-funds', [PrizePaymentSuperAdminController::class, 'confirmFunds'])->name('confirm-funds');
+    Route::post('/{prizePayment}/mark-contract-signed', [PrizePaymentSuperAdminController::class, 'markContractSigned'])->name('mark-contract-signed');
+    Route::post('/{prizePayment}/activate-online', [PrizePaymentSuperAdminController::class, 'activateOnline'])->name('activate-online');
+    Route::post('/{prizePayment}/activate-presencial', [PrizePaymentSuperAdminController::class, 'activatePresencial'])->name('activate-presencial');
+    Route::put('/{prizePayment}/messages', [PrizePaymentSuperAdminController::class, 'updateMessages'])->name('update-messages');
+    Route::post('/{prizePayment}/send-contract', [PrizePaymentSuperAdminController::class, 'sendContract'])->name('send-contract');
+    Route::put('/{prizePayment}/change-mode', [PrizePaymentSuperAdminController::class, 'changeMode'])->name('change-mode');
+    Route::post('/{prizePayment}/block-payments', [PrizePaymentSuperAdminController::class, 'blockPayments'])->name('block-payments');
+});
+
 Route::group(['prefix' => 'entities'], function() {
     //
     Route::get('/', [EntityController::class, 'index'])->name('entities.index');
-    Route::get('/add', [EntityController::class, 'create']);
+    Route::get('/add', [EntityController::class, 'create'])->name('entities.create');
     Route::post('/store-administration', [EntityController::class, 'store_administration']);
     Route::get('/add/information', [EntityController::class, 'create_information'])->name('entities.add-information');
     Route::post('/store-information', [EntityController::class, 'store_information']);
@@ -235,13 +332,15 @@ Route::group(['prefix' => 'entities'], function() {
     Route::post('/invite-manager', [EntityController::class, 'invite_manager'])->name('entities.invite-manager');
     Route::post('/register-manager/{id}', [EntityController::class, 'register_manager'])->name('entities.register-manager');
     Route::post('/create-pending-entity', [EntityController::class, 'create_pending_entity'])->name('entities.create-pending-entity');
-    
+    Route::post('/skip-manager-invitation', [EntityController::class, 'skip_manager_invitation'])->name('entities.skip-manager-invitation');
+
     // Ruta temporal para crear gestor de prueba
     Route::get('/create-test-manager', [EntityController::class, 'create_test_manager'])->name('entities.create-test-manager');
 
     Route::get('/view/{id}', [EntityController::class, 'show'])->name('entities.show');
     Route::get('/edit/{id}', [EntityController::class, 'edit'])->name('entities.edit');
     Route::put('/update/{id}', [EntityController::class, 'update'])->name('entities.update');
+    Route::post('/dismiss-billing-switches-modal', [EntityController::class, 'dismissBillingSwitchesModal'])->name('entities.dismiss-billing-switches-modal');
     Route::post('/{entity}/toggle-status', [EntityController::class, 'toggleStatus'])->name('entities.toggle-status');
     Route::post('/check-email', [EntityController::class, 'checkEmail'])->name('entities.check-email');
     Route::delete('/destroy/{id}', [EntityController::class, 'destroy']);
@@ -250,10 +349,15 @@ Route::group(['prefix' => 'entities'], function() {
     // Rutas para editar manager
     Route::get('/edit/manager/{id}', [EntityController::class, 'edit_manager'])->name('entities.edit-manager');
     Route::put('/update/manager/{id}', [EntityController::class, 'update_manager'])->name('entities.update-manager');
+    Route::get('/edit/signer/{id}', [EntityController::class, 'edit_signer'])->name('entities.edit-signer');
+    Route::put('/update/signer/{id}', [EntityController::class, 'update_signer'])->name('entities.update-signer');
     Route::get('/edit/manager-permissions/{entity_id}/{manager_id}', [EntityController::class, 'edit_manager_permissions'])->name('entities.edit-manager-permissions');
     Route::put('/update/manager-permissions/{entity_id}/{manager_id}', [EntityController::class, 'update_manager_permissions'])->name('entities.update-manager-permissions');
     Route::post('/set-primary-manager', [EntityController::class, 'set_primary_manager'])->name('entities.set-primary-manager');
     Route::post('/toggle-manager-status', [EntityController::class, 'toggle_manager_status'])->name('entities.toggle-manager-status');
+    Route::post('/resend-manager-invitation', [EntityController::class, 'resend_manager_invitation'])->name('entities.resend-manager-invitation');
+    Route::delete('/destroy/pending-manager-invitation', [EntityController::class, 'destroy_pending_manager_invitation'])->name('entities.destroy-pending-manager-invitation');
+    Route::post('/{entity}/resend-contract', [EntityController::class, 'resendContract'])->name('entities.resend-contract');
     Route::delete('/destroy/manager/{entity_id}/{manager_id}', [EntityController::class, 'destroy_manager'])->name('entities.destroy-manager');
     
 });
@@ -322,6 +426,8 @@ Route::group(['prefix' => 'lottery'], function() {
     Route::get('/add', [LotteryController::class, 'create'])->name('lotteries.create');
     Route::post('/store', [LotteryController::class, 'store'])->name('lotteries.store');
     Route::get('/view/{lottery}', [LotteryController::class, 'show'])->name('lotteries.show');
+    Route::put('/view/{lottery}/prize-presencial-contact', [EntityLotteryPrizeSettingsController::class, 'updatePresencialContactWeb'])
+        ->name('lotteries.update-prize-presencial-contact');
     Route::get('/edit/{lottery}', [LotteryController::class, 'edit'])->name('lotteries.edit');
     Route::put('/update/{lottery}', [LotteryController::class, 'update'])->name('lotteries.update');
     Route::delete('/destroy/{lottery}', [LotteryController::class, 'destroy'])->name('lotteries.destroy');
@@ -449,14 +555,18 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::post('/choose-type', [\App\Http\Controllers\DesignController::class, 'chooseType'])->name('design.chooseType');
     Route::get('/choose-type', [\App\Http\Controllers\DesignController::class, 'showChooseType'])->name('design.showChooseType');
     Route::post('/add/format', [\App\Http\Controllers\DesignController::class, 'format'])->name('design.format');
+    Route::post('/save-format', [\App\Http\Controllers\DesignController::class, 'saveFormat'])->name('design.saveFormat');
     Route::get('/list-formats', [\App\Http\Controllers\DesignController::class, 'listFormats'])->name('design.listFormats');
     Route::get('/digital/participation-image/{id}', [\App\Http\Controllers\DesignController::class, 'digitalParticipationImage'])->name('design.digitalParticipationImage');
+    Route::get('/marketing/participation-image/{id}', [\App\Http\Controllers\DesignController::class, 'marketingParticipationImage'])->name('design.marketingParticipationImage');
 
     // Diseño e impresión externo (tarea 9)
     Route::get('/external/step1', [\App\Http\Controllers\DesignController::class, 'externalStep1'])->name('design.external.step1');
     Route::get('/external/step2', [\App\Http\Controllers\DesignController::class, 'externalStep2'])->name('design.external.step2');
     Route::get('/external/step3', [\App\Http\Controllers\DesignController::class, 'externalStep3'])->name('design.external.step3');
-    Route::post('/external/create-payment-intent', [\App\Http\Controllers\DesignController::class, 'externalCreatePaymentIntent'])->name('design.external.createPaymentIntent');
+    Route::post('/external/create-payment-intent', [\App\Http\Controllers\DesignController::class, 'externalCreatePaymentIntent'])
+        ->middleware('throttle:15,1')
+        ->name('design.external.createPaymentIntent');
     Route::post('/external/preview-quote', [\App\Http\Controllers\DesignController::class, 'externalPreviewQuote'])->name('design.external.previewQuote');
     Route::post('/external/accept-summary', [\App\Http\Controllers\DesignController::class, 'externalAcceptSummary'])->name('design.external.acceptSummary');
     Route::post('/external/store-step1', [\App\Http\Controllers\DesignController::class, 'externalStoreStep1'])->name('design.external.storeStep1');
@@ -466,14 +576,37 @@ Route::group(['prefix' => 'design', 'middleware' => 'entity.permission:design'],
     Route::delete('/external/{id}', [\App\Http\Controllers\DesignController::class, 'externalDestroy'])->name('design.external.destroy');
     Route::get('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'sendToPrint'])->name('design.sendToPrint');
     Route::post('/send-to-print/{id}/quote', [\App\Http\Controllers\DesignController::class, 'previewPrintOrderQuote'])->name('design.previewPrintOrderQuote');
-    Route::post('/send-to-print/{id}/payment-intent', [\App\Http\Controllers\DesignController::class, 'createPrintOrderPaymentIntent'])->name('design.createPrintOrderPaymentIntent');
+    Route::post('/send-to-print/{id}/payment-intent', [\App\Http\Controllers\DesignController::class, 'createPrintOrderPaymentIntent'])
+        ->middleware('throttle:15,1')
+        ->name('design.createPrintOrderPaymentIntent');
     Route::post('/send-to-print/{id}', [\App\Http\Controllers\DesignController::class, 'submitPrintOrder'])->name('design.submitPrintOrder');
+    Route::get('/print-orders/{printOrder}/pay', [\App\Http\Controllers\DesignController::class, 'payPrintOrder'])->name('design.payPrintOrder');
+    Route::post('/print-orders/{printOrder}/pay/payment-intent', [\App\Http\Controllers\DesignController::class, 'createAcceptedPrintOrderPaymentIntent'])
+        ->name('design.payPrintOrder.paymentIntent');
+    Route::post('/print-orders/{printOrder}/pay', [\App\Http\Controllers\DesignController::class, 'submitPrintOrderPayment'])->name('design.submitPrintOrderPayment');
+    Route::post('/sets/{set}/mark-management-fee-paid', [\App\Http\Controllers\DesignController::class, 'markManagementFeePaid'])->name('design.markManagementFeePaid');
+    Route::get('/management-fee/pay/{set}', [\App\Http\Controllers\DesignController::class, 'payManagementFee'])->name('design.managementFee.pay');
+    Route::get('/sets/{set}/start', [\App\Http\Controllers\DesignController::class, 'openChooseType'])->name('design.openChooseType');
+    Route::get('/editor/{set}', [\App\Http\Controllers\DesignController::class, 'openEditor'])->name('design.openEditor');
+    Route::post('/sets/{set}/management-fee/payment-intent', [\App\Http\Controllers\DesignController::class, 'createManagementFeePaymentIntent'])
+        ->middleware('throttle:15,1')
+        ->name('design.managementFee.paymentIntent');
+    Route::post('/sets/{set}/management-fee/confirm-stripe', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeStripe'])->name('design.managementFee.confirmStripe');
+    Route::post('/sets/{set}/management-fee/confirm-remittance', [\App\Http\Controllers\DesignController::class, 'confirmManagementFeeRemittance'])->name('design.managementFee.confirmRemittance');
+    Route::get('/approvals', [\App\Http\Controllers\DesignController::class, 'approvalsIndex'])->name('design.approvals.index');
+    Route::get('/{id}/preview', [\App\Http\Controllers\DesignController::class, 'participationPreview'])->name('design.participationPreview');
+    Route::get('/{id}/approval', [\App\Http\Controllers\DesignController::class, 'approvalReview'])->name('design.approval.review');
+    Route::post('/{id}/submit-for-approval', [\App\Http\Controllers\DesignController::class, 'submitForApproval'])->name('design.submitForApproval');
+    Route::post('/{id}/resend-approval', [\App\Http\Controllers\DesignController::class, 'resendApprovalNotification'])->name('design.resendApproval');
+    Route::post('/{id}/approve', [\App\Http\Controllers\DesignController::class, 'approveDesign'])->name('design.approve');
+    Route::post('/{id}/reject', [\App\Http\Controllers\DesignController::class, 'rejectDesign'])->name('design.reject');
     // Route::post('design/format', [App\Http\Controllers\DesignController::class, 'storeFormat'])->name('design.storeFormat');
 
 });
 
 Route::get('/design/pdf/participation/{id}', [App\Http\Controllers\DesignController::class, 'exportParticipationPdf'])->name('design.exportParticipationPdf');
 Route::get('/design/pdf/participation-async/{id}', [App\Http\Controllers\DesignController::class, 'exportParticipationPdfAsync'])->name('design.exportParticipationPdfAsync');
+Route::get('/design/pdf/participation-sample/{id}', [App\Http\Controllers\DesignController::class, 'exportParticipationSamplePdf'])->name('design.exportParticipationSamplePdf');
 Route::get('/design/pdf/status/{job_id}', [App\Http\Controllers\DesignController::class, 'checkPdfStatus'])->name('design.checkPdfStatus');
 Route::get('/design/pdf/download/{job_id}', [App\Http\Controllers\DesignController::class, 'downloadPdf'])->name('design.downloadPdf');
 Route::get('/design/pdf/cover/{id}', [App\Http\Controllers\DesignController::class, 'exportCoverPdf'])->name('design.exportCoverPdf');
@@ -482,6 +615,8 @@ Route::get('/design/pdf/back/{id}', [App\Http\Controllers\DesignController::clas
 Route::get('/design/pdf/back-async/{id}', [App\Http\Controllers\DesignController::class, 'exportBackPdfAsync'])->name('design.exportBackPdfAsync');
 Route::get('/design/pdf/cover-back/{id}', [App\Http\Controllers\DesignController::class, 'exportCoverAndBackPdf'])->name('design.exportCoverAndBackPdf');
 Route::get('/design/pdf/cover-back-async/{id}', [App\Http\Controllers\DesignController::class, 'exportCoverBackPdfAsync'])->name('design.exportCoverBackPdfAsync');
+Route::post('/design/pdf/preview-step', [App\Http\Controllers\DesignController::class, 'previewDesignStepPdf'])->name('design.previewStepPdf');
+Route::post('/design/external/pdf/preview-step', [App\Http\Controllers\DesignController::class, 'previewDesignStepPdf'])->name('design.external.previewStepPdf');
 Route::get('/design/pdf/export-async', [App\Http\Controllers\DesignController::class, 'exportPdf'])->name('design.exportPdfAsync');
 Route::post('/design/export-pdf', [App\Http\Controllers\DesignController::class, 'exportPdf']);
 Route::get('/design/format/edit/{id}', [App\Http\Controllers\DesignController::class, 'editFormat'])->name('design.editFormat');
@@ -489,7 +624,7 @@ Route::put('/design/format/update/{id}', [App\Http\Controllers\DesignController:
 Route::get('/design/summary/{id}', [App\Http\Controllers\DesignController::class, 'summary'])->name('design.summary');
 Route::delete('/design/format/{id}', [App\Http\Controllers\DesignController::class, 'destroy'])->name('design.destroy');
 
-Route::group(['prefix' => 'social'], function() {
+Route::group(['prefix' => 'social', 'middleware' => 'role:super_admin'], function() {
     Route::get('/', [App\Http\Controllers\SocialWebController::class, 'index'])->name('social.index');
     Route::get('/add', [App\Http\Controllers\SocialWebController::class, 'create'])->name('social.create');
     Route::post('/add/design', [App\Http\Controllers\SocialWebController::class, 'storeEntity'])->name('social.store-entity');
@@ -500,9 +635,9 @@ Route::group(['prefix' => 'social'], function() {
     Route::delete('/{id}', [App\Http\Controllers\SocialWebController::class, 'destroy'])->name('social.destroy');
     Route::post('/{id}/change-status', [App\Http\Controllers\SocialWebController::class, 'changeStatus'])->name('social.change-status');
 });
-Route::get('requests',function() {
+Route::get('requests', function () {
     return view('requests.index');
-});
+})->middleware('role:super_admin')->name('requests.index');
 
 // Rutas de configuración/ajustes
 Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:payments'], function() {
@@ -513,9 +648,15 @@ Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:pa
     Route::post('/administration-settings', [App\Http\Controllers\ConfigurationController::class, 'updateAdministrationSettings'])->name('configuration.administration-settings.update');
     Route::post('/administration-settings/billing', [App\Http\Controllers\ConfigurationController::class, 'updateAdministrationBilling'])->name('configuration.administration-billing.update');
     Route::post('/imprenta', [App\Http\Controllers\ConfigurationController::class, 'updateImprenta'])->name('configuration.imprenta.update');
+    Route::post('/partilot-billing', [App\Http\Controllers\ConfigurationController::class, 'updatePartilotBilling'])->name('configuration.partilot-billing.update');
+    Route::post('/partilot-profile', [App\Http\Controllers\ConfigurationController::class, 'updatePartilotProfile'])->name('configuration.partilot-profile.update');
     Route::post('/imprenta/panel-access', [App\Http\Controllers\ConfigurationController::class, 'updatePrintShopPanelAccess'])->name('configuration.imprenta.panel-access');
     Route::post('/print-orders/{printOrder}/status', [App\Http\Controllers\ConfigurationController::class, 'updatePrintOrderStatus'])->name('configuration.print-orders.status');
     Route::post('/print-orders/{printOrder}/reconcile-payment', [App\Http\Controllers\ConfigurationController::class, 'reconcilePrintOrderPayment'])->name('configuration.print-orders.reconcile-payment');
+    Route::post('/billing-remittance/{administration}', [BillingDirectDebitController::class, 'store'])->name('configuration.billing-remittance.store');
+    Route::get('/billing-remittance/orders/{billingDirectDebit}/xml', [BillingDirectDebitController::class, 'generateXml'])->name('configuration.billing-remittance.generate-xml');
+    Route::post('/billing-remittance/orders/{billingDirectDebit}/mark-collected', [BillingDirectDebitController::class, 'markCollected'])->name('configuration.billing-remittance.mark-collected');
+    Route::post('/billing-remittance/orders/{billingDirectDebit}/cancel', [BillingDirectDebitController::class, 'cancel'])->name('configuration.billing-remittance.cancel');
     Route::delete('ordenes-pago-entidades/collections/{participationCollection}', [App\Http\Controllers\ConfigurationController::class, 'destroyCollection'])->name('ordenes-pago-entidades.collections.destroy');
     Route::post('ordenes-pago-entidades/crear-sepa', [App\Http\Controllers\ConfigurationController::class, 'crearSepa'])->name('ordenes-pago-entidades.crear-sepa');
     Route::get('ordenes-pago-entidades/nueva-orden', [App\Http\Controllers\ConfigurationController::class, 'nuevaOrdenSepa'])->name('ordenes-pago-entidades.nueva-orden');
@@ -524,6 +665,7 @@ Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:pa
 });
 Route::group(['prefix' => 'communications', 'middleware' => 'role:super_admin,administration,entity'], function() {
     Route::get('/', [CommunicationEmailController::class, 'index'])->name('communications.index');
+    Route::get('/{id}/preview', [CommunicationEmailController::class, 'preview'])->name('communications.preview');
     Route::post('/{id}/resend', [CommunicationEmailController::class, 'resend'])->name('communications.resend');
     Route::delete('/{id}', [CommunicationEmailController::class, 'destroy'])->name('communications.destroy');
 });
@@ -580,10 +722,16 @@ Route::group(['prefix' => 'notifications'], function() {
     // Rutas para selección de administración
     Route::get('/select-administration', [NotificationController::class, 'selectAdministration'])->name('notifications.select-administration');
     Route::post('/store-administration', [NotificationController::class, 'storeAdministration'])->name('notifications.store-administration');
+
+    Route::get('/select-administration-target', [NotificationController::class, 'selectAdministrationTarget'])->name('notifications.select-administration-target');
+    Route::post('/store-administration-target', [NotificationController::class, 'storeAdministrationTarget'])->name('notifications.store-administration-target');
     
     // Rutas para selección de entidades de administración
     Route::get('/select-administration-entities', [NotificationController::class, 'selectAdministrationEntities'])->name('notifications.select-administration-entities');
     Route::post('/store-administration-entities', [NotificationController::class, 'storeAdministrationEntities'])->name('notifications.store-administration-entities');
+
+    Route::get('/select-recipients', [NotificationController::class, 'selectRecipients'])->name('notifications.select-recipients');
+    Route::post('/store-recipients', [NotificationController::class, 'storeRecipients'])->name('notifications.store-recipients');
     
     // Ruta para formulario de mensaje
     Route::get('/message', [NotificationController::class, 'message'])->name('notifications.message');
@@ -600,9 +748,13 @@ Route::group(['prefix' => 'notifications'], function() {
 
     Route::post('/unregister-token', [NotificationController::class, 'unregisterToken'])->name('notifications.unregister-token');
 
-    // Ruta para enviar notificación de prueba
     Route::post('/send-test', [NotificationController::class, 'sendTest'])->name('notifications.send-test');
     
+    // Bandeja campana (cuentas panel administración / entidad)
+    Route::get('/panel-inbox', [NotificationController::class, 'panelInboxFeed'])->name('notifications.panel-inbox');
+    Route::post('/panel-inbox/{id}/read', [NotificationController::class, 'panelInboxMarkRead'])->name('notifications.panel-inbox-read');
+    Route::post('/panel-inbox/read-all', [NotificationController::class, 'panelInboxMarkAllRead'])->name('notifications.panel-inbox-read-all');
+
     // Ruta para eliminar notificación (al final para evitar conflictos)
     Route::delete('/delete/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 });

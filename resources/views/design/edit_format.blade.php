@@ -4,6 +4,9 @@
 
 @section('content')
 
+<link rel="stylesheet" href="{{ asset('assets/css/design-editor-ui.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/css/design-editor-fonts.css') }}">
+
 @php
     if (!function_exists('getNumberFontSize')) {
         function getNumberFontSize($numbers) {
@@ -39,9 +42,14 @@
             return $doFormat($numbers);
         }
     }
+    $useDefaultBackCanvas = !($isDigitalSet ?? false)
+        && !($format->back_skipped ?? false)
+        && empty(trim(strip_tags((string) ($format->back_html ?? ''))));
 @endphp
 
 <style>
+    @include('design.partials.design_canvas_styles')
+
     input[disabled],select[disabled] {
         background-color: #cfcfcf !important;
     }
@@ -90,6 +98,16 @@
     .elements.element-critical {
         z-index: 10000 !important;
     }
+    .elements.element-critical.participation,
+    .elements.element-critical.reference {
+        z-index: 10002 !important;
+    }
+    .elements.element-critical.qr {
+        z-index: 10001 !important;
+    }
+    .elements.element-critical.context.cover-taco-label {
+        z-index: 10001 !important;
+    }
     .qr span {
         width: 100%;
         height: 100%;
@@ -103,6 +121,11 @@
     .text-style-btn {
         display: inline-block;
     }
+    .text-style-btn.text-vertical-btn.active {
+        background-color: #e78307 !important;
+        border-color: #e78307 !important;
+        color: #333 !important;
+    }
     .text-bold { font-weight: bold; }
     .text-italic { font-style: italic; }
     .text-underline { text-decoration: underline; }
@@ -112,7 +135,9 @@
     .text-right { text-align: right; }
 
     .format-btn-group button, .format-btn-group label {
-      max-width: 55px;
+      flex: 1 1 0;
+      min-width: 36px;
+      max-width: none;
     }
     
     /* Centrar el formato */
@@ -165,23 +190,42 @@
         z-index: -1;
         pointer-events: none;
     }
+
+    /* Guías y capas de fondo son solo visuales: los clics deben llegar a textos e imágenes. */
+    .guide2, .guide3, .guide4,
+    .design-margin-bg, #design-participation-bg, #design-cover-bg, #design-back-bg {
+        pointer-events: none !important;
+    }
 </style>
 
-<div class="container-fluid">
+<div class="container-fluid design-editor-page">
     <div class="row">
         <div class="col-12">
             <div class="page-title-box">
                 <div class="page-title-right">
                     <ol class="breadcrumb m-0">
-                        <li class="breadcrumb-item"><a href="javascript: void(0);">Diseño e Impresión</a></li>
-                        <li class="breadcrumb-item active">Editar Formato</li>
+                        @if(!empty($printShopOrder))
+                            <li class="breadcrumb-item"><a href="{{ route('print-shop.index') }}">Panel Imprenta</a></li>
+                            <li class="breadcrumb-item"><a href="{{ route('print-shop.orders.show', $printShopOrder->id) }}">{{ $printShopOrder->order_code }}</a></li>
+                            <li class="breadcrumb-item active">Editar diseño</li>
+                        @else
+                            <li class="breadcrumb-item"><a href="javascript: void(0);">Diseño e Impresión</a></li>
+                            <li class="breadcrumb-item active">Editar Formato</li>
+                        @endif
                     </ol>
                 </div>
-                <h4 class="page-title">Editar Formato</h4>
+                <h4 class="page-title">{{ !empty($printShopOrder) ? 'Editar diseño — '.$printShopOrder->order_code : 'Editar Formato' }}</h4>
             </div>
+            @if(($format->approval_status ?? null) === \App\Services\DesignApprovalService::STATUS_REJECTED && filled($format->approval_rejection_reason))
+                <div class="alert alert-danger">
+                    <strong>Diseño rechazado por la entidad.</strong>
+                    <div class="mt-1">Motivo / observaciones: {{ $format->approval_rejection_reason }}</div>
+                    <div class="small mt-2 mb-0">Corrija el diseño y, al terminar, vuelva al resumen para reenviarlo a aprobación.</div>
+                </div>
+            @endif
         </div>
     </div>
-    <form method="POST" action="{{ route('design.updateFormat', $format->id) }}" id="edit-format-form">
+    <form method="POST" action="{{ $update_format_url ?? route('design.updateFormat', $format->id) }}" id="edit-format-form">
         @csrf
         @method('PUT')
         <div class="row">
@@ -227,15 +271,18 @@
                                                 <div class="row">
                                                     <div class="col-12">
                                                         <div class="form-group mt-2 mb-3">
-                                                            <label class="label-control">Plantilla rápida</label>
-                                                            <div class="input-group input-group-merge group-form">
-                                                                <select class="form-control" name="format" id="format" style="border-radius: 30px;">
+                                                            <label class="label-control" for="format">Plantilla rápida</label>
+                                                            <div class="input-group input-group-merge group-form plantilla-rapida-select">
+                                                                <select class="form-control form-select" name="format" id="format" aria-label="Plantilla rápida" style="border-radius: 30px 0 0 30px; appearance: none; -webkit-appearance: none; -moz-appearance: none; padding-right: 0.75rem;">
                                                                     <option value="a3-h-3x2" @if($format->format == 'a3-h-3x2') selected @endif>A3 - Apaisado - (3x2)</option>
                                                                     <option value="a3-h-4x2" @if($format->format == 'a3-h-4x2') selected @endif>A3 - Apaisado - (4x2)</option>
                                                                     <option value="a4-v-3x1" @if($format->format == 'a4-v-3x1') selected @endif>A4 - Vertical - (3x1)</option>
                                                                     <option value="a4-v-4x1" @if($format->format == 'a4-v-4x1') selected @endif>A4 - Vertical - (4x1)</option>
                                                                     <option value="custom" @if($format->format == 'custom') selected @endif>Personalizado</option>
                                                                 </select>
+                                                                <span class="input-group-text plantilla-rapida-chevron" aria-hidden="true" style="border-radius: 0 30px 30px 0; background: #fff; border-left: 0; pointer-events: none; color: #333;">
+                                                                    <i class="ri-arrow-down-s-line fs-5"></i>
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -298,28 +345,34 @@
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Márgenes de la página (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_up" type="number" id="margin-up" value="{{ old('margin_up', $format->margins['up'] ?? '') }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_up" type="number" id="margin-up" value="{{ old('margin_up', $format->margins['up'] ?? $format->margin_up ?? 1) }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_right" type="number" id="margin-right" value="{{ old('margin_right', $format->margins['right'] ?? '') }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_right" type="number" id="margin-right" value="{{ old('margin_right', $format->margins['right'] ?? $format->margin_right ?? 1) }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_left" type="number" id="margin-left" value="{{ old('margin_left', $format->margins['left'] ?? '') }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_left" type="number" id="margin-left" value="{{ old('margin_left', $format->margins['left'] ?? $format->margin_left ?? 1) }}" step="0.1" placeholder="0,00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="margin_top" type="number" id="margin-top" value="{{ old('margin_top', $format->margins['top'] ?? '') }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="margin_top" type="number" id="margin-top" value="{{ old('margin_top', $format->margins['top'] ?? $format->margin_top ?? 1) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Sangres de la imagen (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="identation" type="number" id="identation" value="{{ old('identation', $format->identation) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="identation" type="number" id="identation" value="{{ old('identation', $format->identation ?? 0) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                            </div>
+                                                        </div>
+                                                        <div class="row mb-3">
+                                                            <label class="col-form-label label-control col-4 text-end">Líneas de corte (mm)</label>
+                                                            <div class="col-sm-2">
+                                                                <input class="form-control" name="cut_lines" type="number" id="cut-lines" value="{{ old('cut_lines', $format->cut_lines ?? 2.5) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Anchura de la matriz (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="matrix_box" type="number" id="matrix-box" value="{{ old('matrix_box', $format->matrix_box) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="matrix_box" type="number" id="matrix-box" value="{{ old('matrix_box', $format->matrix_box ?? 40) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                             <div class="col-sm-6">
                                                                 <span class="d-block mt-1">(Incluyendo sangres)</span>
@@ -328,19 +381,19 @@
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Márgenes de la página (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" id="margin-custom" name="margin_custom" type="number" value="{{ old('margin_custom', $format->margin_custom ?? '') }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" id="margin-custom" name="margin_custom" type="number" value="{{ old('margin_custom', $format->margin_custom ?? 1) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Espacio horizontal entre participaciones (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="horizontal_space" type="number" id="page-rigth" value="{{ old('horizontal_space', $format->horizontal_space) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="horizontal_space" type="number" id="page-rigth" value="{{ old('horizontal_space', $format->horizontal_space ?? 0) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mb-3">
                                                             <label class="col-form-label label-control col-4 text-end">Espacio vertical entre participaciones (mm)</label>
                                                             <div class="col-sm-2">
-                                                                <input class="form-control" name="vertical_space" type="number" id="page-bottom" value="{{ old('vertical_space', $format->vertical_space) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
+                                                                <input class="form-control" name="vertical_space" type="number" id="page-bottom" value="{{ old('vertical_space', $format->vertical_space ?? 0) }}" step="0.1" placeholder="0.00" style="border-radius: 30px">
                                                             </div>
                                                         </div>
                                                         <div class="row mt-3">
@@ -369,18 +422,24 @@
                                     </div>
                                 </div>
                             <div class="form-card fade bs d-none" id="step-2" style="min-height: 658px;">
+                                @if($isDigitalSet ?? false)
+                                <div class="design-digital-banner alert alert-info py-2 px-3 mx-auto" style="max-width: 270mm;">
+                                    <strong>Set digital.</strong> Solo se diseña la participación; la venta usa imagen PNG (sin portada ni trasera).
+                                </div>
+                                @endif
                                 <h4 class="mb-0 mt-1">Diseñar Participación</h4>
                                 <small><i>Edita el diseño de la participación</i></small>
                                 <br>
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
                                     <br>
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="2"><i class="ri-zoom-out-line"></i></button>
                                         <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="2"><i class="ri-zoom-in-line"></i></button>
                                         <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
                                         <button title="Agregar texto" class="btn btn-sm btn-dark add-text" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-edit-line"></i></button>
                                         <button title="Agregar imagen" class="btn btn-sm btn-dark add-image" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-image-line"></i></button>
                                         <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" title="Elimina los campos de ejemplo y deja solo los obligatorios (número, participación, referencia, QR). Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                         <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                         <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                             <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -399,6 +458,7 @@
                                         <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                         <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -415,30 +475,14 @@
                                 </div>
                                 <div class="mt-2 p-2 small text-muted border-top" id="dimensions-info-step2"></div>
                             </div>
-                            @if($isDigitalSet ?? false)
-                            <div class="row mt-3 mb-3">
-                                <div class="col-6 text-start">
-                                    <a href="javascript:;" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 prev-step">
-                                        <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
-                                </div>
-                                <div class="col-6 text-end">
-                                    <div class="d-inline-block position-relative" style="min-width: 200px; min-height: 46px;">
-                                        <button type="button" id="step-edit-next" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 next-step">Siguiente
-                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i></button>
-                                        <button type="button" id="save-step" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: absolute; left: 0; top: 8px;" class="btn btn-md btn-light mt-2 d-none">Guardar
-                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
-                                    </div>
-                                </div>
-                            </div>
-                            @endif
                             @if(!($isDigitalSet ?? false))
                             <div class="form-card fade bs d-none" id="step-3" style="min-height: 658px;">
                                 <h4 class="mb-0 mt-1">Diseñar Portada</h4>
                                 <small><i>Edita el diseño de la portada</i></small>
                                 <br>
-                                <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                <div class="format-box-btn">
                                     <br>
-                                    <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                    <div class="btn-group format-btn-group">
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="3"><i class="ri-zoom-out-line"></i></button>
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="3"><i class="ri-zoom-in-line"></i></button>
                                             <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -447,6 +491,7 @@
                                             <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
                                             <button title="Agregar barra superior" class="btn btn-sm btn-dark add-top" data-id="3" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-top-line"></i></button>
                                             <button title="Agregar barra inferior" class="btn btn-sm btn-dark add-bottom" data-id="3" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-bottom-line"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" title="Elimina los campos de ejemplo y deja solo los obligatorios. Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                             <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                             <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                                 <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -465,6 +510,7 @@
                                             <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                             <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                             <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
@@ -475,12 +521,18 @@
                                 <div class="mt-2 p-2 small text-muted border-top" id="dimensions-info-step3"></div>
                             </div>
                                 <div class="form-card fade bs d-none" id="step-4" style="min-height: 658px;">
+                                    <div class="design-skip-back-banner alert py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" id="skip-back-banner">
+                                        <span class="mb-0 skip-back-msg"><strong>¿No necesitas diseñar la trasera?</strong> Puedes omitir este paso.</span>
+                                        <span class="mb-0 restore-back-msg d-none"><strong>Trasera omitida.</strong> Puedes volver a activarla para diseñar y generar PDF de traseras.</span>
+                                        <button type="button" class="btn btn-dark btn-sm rounded-pill px-3" id="btn-skip-back-design"><i class="ri-skip-forward-line me-1"></i> Omitir trasera</button>
+                                        <button type="button" class="btn btn-success btn-sm rounded-pill px-3 d-none" id="btn-restore-back-design"><i class="ri-arrow-go-back-line me-1"></i> Usar trasera</button>
+                                    </div>
                                     <h4 class="mb-0 mt-1">Diseñar Trasera</h4>
                                     <small><i>Edita el diseño de la trasera</i></small>
                                     <br>
-                                    <div class="format-box-btn" style="max-width: 100%; width: 270mm; height: 54px; margin: auto; padding: 0 10px; box-sizing: border-box;">
+                                    <div class="format-box-btn">
                                         <br>
-                                        <div class="btn-group format-btn-group" style="max-width: 100%; width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px;">
+                                        <div class="btn-group format-btn-group">
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-out" title="Alejar" data-step="4"><i class="ri-zoom-out-line"></i></button>
                                             <button type="button" class="btn btn-sm btn-secondary design-zoom-in" title="Acercar" data-step="4"><i class="ri-zoom-in-line"></i></button>
                                             <span class="align-self-center px-1 design-zoom-label" style="font-size: 12px;">100%</span>
@@ -489,6 +541,7 @@
                                             <button title="Fondo de la participación" class="btn btn-sm btn-dark" id="open-bg-modal" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-palette-line"></i></button>
                                             <button title="Agregar barra superior" class="btn btn-sm btn-dark add-top" data-id="4" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-top-line"></i></button>
                                             <button title="Agregar barra inferior" class="btn btn-sm btn-dark add-bottom" data-id="4" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-layout-bottom-line"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger reset-mandatory-canvas" title="Elimina los campos de ejemplo y deja solo los obligatorios. Se puede deshacer." style="padding-left: 12px; padding-right: 12px;"><i class="ri-eraser-line"></i></button>
                                             <button title="Mostrar/ocultar guías" class="btn btn-sm btn-dark toggle-guide" data-id="2" type="button" style="padding-left: 12px; padding-right: 12px;"><i class="ri-ruler-line"></i></button>
                                             <label title="Color de guías" class="btn btn-sm btn-dark color-guide" style="position: relative; padding-left: 12px; padding-right: 12px;" data-id="2" type="button">
                                                 <i class="ri-palette-line"></i><input type="color" style="left: 0; opacity: 0; position: absolute; top: 0;">
@@ -507,11 +560,16 @@
                                             <button class="btn btn-sm btn-dark text-style-btn align-right-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Alinear derecha"><i class="ri-align-right"></i></button>
                                             <button class="btn btn-sm btn-dark text-style-btn font-size-up-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Aumentar tamaño"><i class="ri-font-size"></i>+</button>
                                             <button class="btn btn-sm btn-dark text-style-btn font-size-down-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Disminuir tamaño"><i class="ri-font-size"></i>-</button>
+                                        <button class="btn btn-sm btn-dark text-style-btn text-vertical-btn" disabled style="padding-left: 12px; padding-right: 12px;" title="Texto vertical" aria-pressed="false"><i class="ri-text" style="display:inline-block;transform:rotate(-90deg)"></i></button>
                                     </div>
                                 </div>
                                 <div class="design-zoom-scroll">
                                     <div class="design-zoom-container" id="design-zoom-wrapper-4" style="transform-origin: top center;">
-                                        {!! $format->back_html ?? '' !!}
+                                        @if($useDefaultBackCanvas)
+                                            @include('design.partials.default_back_canvas')
+                                        @else
+                                            {!! $format->back_html ?? '' !!}
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="mt-2 p-2 small text-muted border-top" id="dimensions-info-step4"></div>
@@ -566,11 +624,11 @@
                                         <div class="form-group mb-3">
                                             <div class="form-check form-switch mt-3">
                                                 <input style="float: left;" class="form-check-input bg-dark" type="radio" name="generate_mode" value="1" role="switch" id="generate1" @if(($format->output['generate_mode'] ?? '1') == '1') checked @endif>
-                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate1"><b>Generar todas las participaciones (600)</b></label>
+                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate1"><b>Generar todas las participaciones ({{ $set->total_participations ?? 0 }})</b></label>
                                             </div>
                                             <div class="form-check form-switch mt-3">
                                                 <input style="float: left;" class="form-check-input bg-dark" type="radio" name="generate_mode" value="2" role="switch" id="generate" @if(($format->output['generate_mode'] ?? '1') == '2') checked @endif>
-                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="generate"><b>Generar un rango de participaciones</b></label>
                                             </div>
                                         </div>
                                         <div class="row mb-3">
@@ -586,6 +644,7 @@
                                         </div>
                                         <br>
                                         <h4 class="mb-0 mt-1">Número de documentos</h4>
+                                        <p class="text-muted small mb-2">Valores por defecto al imprimir. Al generar el PDF podrá elegir en ese momento si quiere un único documento o un ZIP (sin necesidad de reaprobar el diseño).</p>
                                         <div class="form-group mb-3">
                                             <div class="form-check form-switch mt-3">
                                                 <input style="float: left;" class="form-check-input bg-dark" type="radio" name="documents_mode" value="1" role="switch" id="documents1" @if(($format->output['documents_mode'] ?? '1') == '1') checked @endif>
@@ -593,33 +652,52 @@
                                             </div>
                                             <div class="form-check form-switch mt-3">
                                                 <input style="float: left;" class="form-check-input bg-dark" type="radio" name="documents_mode" value="2" role="switch" id="documents" @if(($format->output['documents_mode'] ?? '1') == '2') checked @endif>
-                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Seperar las participaciones en múltiples documentos</b></label>
+                                                <label style="float: left; margin-left: 50px;" class="form-check-label" for="documents"><b>Separar las participaciones en múltiples documentos</b></label>
                                             </div>
                                         </div>
                                         <div class="row mb-3">
                                             <label class="col-form-label label-control col-3 text-start">Número de páginas por documento:</label>
                                             <div class="col-sm-1">
-                                                <input class="form-control" type="number" name="pages_per_document" value="{{ old('pages_per_document', $format->output['pages_per_document'] ?? 150) }}" id="participation_page" style="border-radius: 30px">
+                                                <input class="form-control" type="number" name="pages_per_document" value="{{ old('pages_per_document', $format->output['pages_per_document'] ?? 150) }}" id="participation_page" min="1" style="border-radius: 30px">
                                             </div>
-                                            <label class="col-form-label label-control col-8 text-start">(6 participaciones por página, 1 documento)</label>
+                                            <label class="col-form-label label-control col-8 text-start" id="pages-per-document-hint">(6 participaciones por página, 1 documento)</label>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="row">
+                                @endif
+
+                            <div class="row mt-3 mb-3">
                                   <div class="col-6 text-start">
-                                      <a href="javascript:;" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 prev-step">
-                                          <i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
+                                      <a href="javascript:;" class="btn btn-md btn-light mt-2 prev-step design-wizard-nav-btn design-wizard-nav-btn--dark">
+                                          <i class="ri-arrow-left-circle-line" aria-hidden="true"></i>
+                                          <span>Atrás</span>
+                                      </a>
                                   </div>
                                   <div class="col-6 text-end">
-                                      <button id="step" type="button" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 next-step">Siguiente
-                                          <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-arrow-right-circle-line"></i></button>
-                                      <button id="save-step" type="button" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light mt-2 d-none">Guardar
-                                          <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
+                                      <div class="d-inline-flex flex-wrap align-items-end justify-content-end gap-2">
+                                      <button type="button" id="design-preview-pdf-btn" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--dark" title="Vista previa del PDF del paso actual">
+                                          <i class="ri-file-pdf-line" aria-hidden="true"></i>
+                                          <span>Previsualizar PDF</span>
+                                      </button>
+                                      <div class="d-inline-flex flex-column align-items-end gap-1" id="design-step-actions" style="min-width: 200px;">
+                                      <button type="button" id="step" class="btn btn-md btn-light mt-2 next-step design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                          <span>Siguiente</span>
+                                          <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                      </button>
+                                      <button type="button" id="save-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--primary">
+                                          <span>Guardar</span>
+                                          <i class="ri-save-line" aria-hidden="true"></i>
+                                      </button>
+                                      <button type="button" id="save-continue-step" class="btn btn-md btn-light mt-2 d-none design-wizard-nav-btn design-wizard-nav-btn--continue">
+                                          <span>Guardar y continuar</span>
+                                          <i class="ri-arrow-right-circle-line" aria-hidden="true"></i>
+                                      </button>
+                                      </div>
+                                      </div>
                                   </div>
                               </div>
                             </div>
-                            @endif
                         </div>
                     </div> <!-- end card body-->
                 </div> <!-- end card -->
@@ -637,6 +715,9 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
+        <p class="text-muted small mb-2 mb-md-3" style="margin-bottom: 0.75rem;">
+          Mientras editas, el texto se muestra en negro para que se lea bien. El color real (p. ej. blanco) se verá en el diseño al aceptar.
+        </p>
         <div class="editor-container__editor"><div id="editor" style="height: 200px;"></div></div>
       </div>
       <div class="modal-footer">
@@ -763,11 +844,12 @@
         <div class="mb-3">
           <label for="background-image" class="form-label">Imagen de fondo</label>
           <input class="form-control" type="file" id="background-image" accept="image/*">
+          <small class="text-muted">JPG, PNG, GIF o WebP. Máximo {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB.</small>
         </div>
         <div class="mb-3">
           <button class="btn btn-secondary" id="remove-bg-image">Quitar imagen de fondo</button>
         </div>
-        <div id="bg-preview" style="width:100%;height:80px;border:1px solid #ccc;background-size:cover;background-position:center;"></div>
+        <div id="bg-preview" class="design-bg-preview"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -777,21 +859,178 @@
   </div>
 </div>
 
+<div class="modal fade" id="design-name-modal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nombre del diseño</h5>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Asigne un nombre para identificar este diseño en el listado de la entidad.</p>
+        <input type="text" class="form-control" id="design-name-input" maxlength="120" placeholder="Nombre del diseño">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="design-name-confirm">Guardar diseño</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @endsection
 
 @section('scripts')
+<script src="{{ asset('assets/libs/html2canvas/html2canvas.min.js') }}"></script>
 <script>
 window.__formatBackgrounds = @json($format->backgrounds ?? []);
 // --- Funciones de edición visual (copiadas de la vista original) ---
+function getTextContentWrapper($element) {
+    if (!$element || !$element.length) {
+        return $element;
+    }
+    var $wrapper = $element.children('span').first();
+    if (!$wrapper.length) {
+        $wrapper = $element.find('> span').first();
+    }
+    return $wrapper.length ? $wrapper : $element;
+}
+
+function normalizeAlignValue(ta) {
+    ta = String(ta || '').toLowerCase();
+    if (!ta || ta === 'start') {
+        return 'left';
+    }
+    if (ta === 'end') {
+        return 'right';
+    }
+    if (ta.indexOf('left') >= 0) {
+        return 'left';
+    }
+    if (ta.indexOf('right') >= 0) {
+        return 'right';
+    }
+    if (ta.indexOf('center') >= 0) {
+        return 'center';
+    }
+    return null;
+}
+
+function detectAlignmentFromHtml(html) {
+    if (!html) {
+        return null;
+    }
+    var $tmp = $('<div>').html(html);
+    var $block = $tmp.children('h1, h2, h3, h4, h5, h6, p, div').first();
+    if (!$block.length) {
+        $block = $tmp.find('h1, h2, h3, h4, h5, h6, p, div').first();
+    }
+    if ($block.length) {
+        var blockAlign = normalizeAlignValue($block.css('text-align') || $block.attr('align'));
+        if (blockAlign) {
+            return blockAlign;
+        }
+    }
+    var styleMatch = html.match(/text-align\s*:\s*(left|right|center|start|end)/i);
+    if (styleMatch) {
+        return normalizeAlignValue(styleMatch[1]);
+    }
+    var alignMatch = html.match(/\balign\s*=\s*["']?(left|right|center)\b/i);
+    if (alignMatch) {
+        return normalizeAlignValue(alignMatch[1]);
+    }
+    return null;
+}
+
+function stripInlineTextAlign($root) {
+    if (!$root || !$root.length) {
+        return;
+    }
+    $root.add($root.find('*')).each(function() {
+        if (this.style && this.style.textAlign) {
+            this.style.removeProperty('text-align');
+            if (!this.getAttribute('style') || !this.getAttribute('style').trim()) {
+                this.removeAttribute('style');
+            }
+        }
+        if (this.hasAttribute('align')) {
+            this.removeAttribute('align');
+        }
+    });
+}
+
+function detectAlignmentFromContent($wrapper) {
+    if (!$wrapper || !$wrapper.length) {
+        return null;
+    }
+    var $block = $wrapper.children('h1, h2, h3, h4, h5, h6, p, div').first();
+    if (!$block.length) {
+        $block = $wrapper.find('h1, h2, h3, h4, h5, h6, p, div').first();
+    }
+    if ($block.length) {
+        var fromBlock = normalizeAlignValue($block.css('text-align') || $block.attr('align'));
+        if (fromBlock) {
+            return fromBlock;
+        }
+    }
+    return normalizeAlignValue($wrapper.css('text-align') || $wrapper.attr('align'));
+}
+
+function getTextElementAlignment($element) {
+    if (!$element || !$element.length) {
+        return null;
+    }
+    if ($element.hasClass('text-left')) {
+        return 'left';
+    }
+    if ($element.hasClass('text-right')) {
+        return 'right';
+    }
+    if ($element.hasClass('text-center')) {
+        return 'center';
+    }
+    return detectAlignmentFromContent(getTextContentWrapper($element));
+}
+
+function syncTextElementAlignment($element, align) {
+    if (!$element || !$element.length || !$element.hasClass('text')) {
+        return;
+    }
+
+    align = normalizeAlignValue(align) || 'left';
+    $element.removeClass('text-left text-center text-right');
+    if (align === 'left') {
+        $element.addClass('text-left');
+    } else if (align === 'center') {
+        $element.addClass('text-center');
+    } else if (align === 'right') {
+        $element.addClass('text-right');
+    }
+
+    var $wrapper = getTextContentWrapper($element);
+    stripInlineTextAlign($wrapper);
+
+    var $blocks = $wrapper.children('h1, h2, h3, h4, h5, h6, p, div');
+    if (!$blocks.length) {
+        $blocks = $wrapper.find('h1, h2, h3, h4, h5, h6, p, div');
+    }
+    if ($blocks.length) {
+        $blocks.css('text-align', align);
+    } else {
+        $wrapper.css('text-align', align);
+    }
+}
+
 function editelements(event) {
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
     actualElement = $(this).closest('.elements.text');
+    selectDesignElement(actualElement);
     
     // Obtener el contenido del span (sin el botón de editar)
-    var contenidoHTML = $(actualElement).find('span').html() || '';
+    var $wrapper = getTextContentWrapper($(actualElement));
+    var contenidoHTML = $wrapper.html() || '';
 
     // Destruir instancia previa si existe
     if (editor && CKEDITOR.instances['editor']) {
@@ -801,26 +1040,8 @@ function editelements(event) {
     // Limpiar el contenido del div
     $('#editor').html('');
 
-    addEventsElement();
-
     // Inicializar CKEditor
-    editor = CKEDITOR.replace('editor', {
-        enterMode: CKEDITOR.ENTER_BR,
-        shiftEnterMode: CKEDITOR.ENTER_P,
-        // Toolbar básico
-        toolbar: [
-            { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
-            { name: 'paragraph', items: [ 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
-            { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
-            { name: 'styles', items: [ 'FontSize' ] }
-        ],
-        on: {
-            instanceReady: function() {
-                // Establecer el contenido cuando CKEditor esté listo
-                this.setData(contenidoHTML);
-            }
-        }
-    });
+    editor = CKEDITOR.replace('editor', buildCKEditorConfig(contenidoHTML));
 
     $('#ckeditor-modal').modal('show');
     return false;
@@ -837,8 +1058,7 @@ function deleteElements(event) {
     }
     if (confirm('¿Desea eliminar el elemento seleccionado?')) {
         element.remove();
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         saveHistoryState();
         updateUndoRedoButtons();
@@ -894,31 +1114,40 @@ function getCustomDimensions() {
 }
 
 function recalculateDesign() {
-    let cols = $('#cols').val();
-    let rows = $('#rows').val();
-    let orientation = $('#orientation').val();
-    let page = $('#page').val();
+    let cols = Math.max(1, parseInt($('#cols').val(), 10) || 1);
+    let rows = Math.max(1, parseInt($('#rows').val(), 10) || 1);
+    let orientation = $('#orientation').val() || 'h';
+    let page = $('#page').val() || 'a3';
 
-    if (orientation == 'h') {
-        $('.preview-design > div').css('width','100%');
-    }else{
-        $('.preview-design > div').css('width','60%');
+    const paper = page === 'a4'
+        ? { shortSide: 210, longSide: 297 }
+        : { shortSide: 297, longSide: 420 };
+    const sheetW = orientation === 'h' ? paper.longSide : paper.shortSide;
+    const sheetH = orientation === 'h' ? paper.shortSide : paper.longSide;
+
+    let $sheet = $('.preview-design > div');
+    if (!$sheet.length) {
+        $('.preview-design').html('<div class="' + page + '"></div>');
+        $sheet = $('.preview-design > div');
     }
+    $sheet.removeClass('a3 a4').addClass(page);
+    $sheet.css({
+        width: orientation === 'h' ? '100%' : '62%',
+        maxWidth: '100%',
+        aspectRatio: sheetW + ' / ' + sheetH,
+        height: 'auto',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignContent: 'stretch',
+        boxSizing: 'border-box'
+    });
 
-    let h = 216 / rows;
-    let html = "";
     let percent = 100 / cols;
-    let margin = 1 / cols;
-    for (var i = 0; i < cols*rows; i++) {
-        html+=`<div style="height: ${h}px; width: ${percent-1}%; margin-left: ${margin}%"></div>`;
+    let html = '';
+    for (var i = 0; i < cols * rows; i++) {
+        html += '<div style="height: ' + (100 / rows) + '%; width: ' + (percent - 1) + '%; margin-left: 0.5%; margin-right: 0.5%; box-sizing: border-box;"></div>';
     }
-    $('.preview-design > div').html(html);
-
-    // Eliminado: cambio de tamaño de .format-box aquí
-    // if($('#format').val() === 'custom') {
-    //     const {w, h} = getCustomDimensions();
-    //     $('.format-box').css({width: w+'mm', height: h+'mm'});
-    // }
+    $sheet.html(html);
 }
 
 $('#cols,#rows').change(function (e) {
@@ -940,84 +1169,40 @@ $('#orientation').change(function(event) {
 
 $('#format').change(function (e) {
     e.preventDefault();
-    let html = "";
     restoreValues();
     if($(this).val() == 'a3-h-3x2') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a3">
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-            </div>`;
+        $('#page').val('a3');
+        $('#orientation').val('h');
+        $('#rows').val(2);
+        $('#cols').val(3);
     } else if($(this).val() == 'a3-h-4x2') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a3">
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-            </div>`;
+        $('#page').val('a3');
+        $('#orientation').val('h');
+        $('#rows').val(2);
+        $('#cols').val(4);
     } else if($(this).val() == 'a4-v-3x1') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a4">
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-                <div style="height: 72px;"></div>
-            </div>`;
+        $('#page').val('a4');
+        $('#orientation').val('v');
+        $('#rows').val(3);
+        $('#cols').val(1);
     } else if($(this).val() == 'a4-v-4x1') {
         $('.custom').prop('disabled', true);
-        html = `<div class="a4">
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-                <div style="height: 54px;"></div>
-            </div>`;
+        $('#page').val('a4');
+        $('#orientation').val('v');
+        $('#rows').val(4);
+        $('#cols').val(1);
     } else if($(this).val() == 'custom') {
         $('.custom').prop('disabled', false);
-        html = `<div class="a3">
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                    <div style="height: 72px;"></div>
-                </div>`;
-        // Actualizar el tamaño del format-box en tiempo real para personalizado
-        const {w, h} = getCustomDimensions();
-        console.log(w,h)
-        {{-- $('.format-box').css({width: w+'mm', height: h+'mm'}); --}}
     }
-    $('.preview-design').html(html);
+    recalculateDesign();
 });
 
   /** Inicializa la miniatura de participaciones con los valores actuales del formulario (sin resetear campos). Usar al cargar la pantalla de edición. */
   function initPreviewFromFormat() {
-    var format = $('#format').val();
-    var html = "";
-    if (format == 'a3-h-3x2') {
-      html = '<div class="a3"><div style="height: 72px;"></div><div style="height: 72px;"></div><div style="height: 72px;"></div><div style="height: 72px;"></div><div style="height: 72px;"></div><div style="height: 72px;"></div></div>';
-    } else if (format == 'a3-h-4x2') {
-      html = '<div class="a3"><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div></div>';
-    } else if (format == 'a4-v-3x1') {
-      html = '<div class="a4"><div style="height: 72px;"></div><div style="height: 72px;"></div><div style="height: 72px;"></div></div>';
-    } else if (format == 'a4-v-4x1') {
-      html = '<div class="a4"><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div><div style="height: 54px;"></div></div>';
-    } else if (format == 'custom') {
-      var page = $('#page').val();
-      var cls = (page == 'a4') ? 'a4' : 'a3';
-      html = '<div class="' + cls + '"></div>';
-      $('.preview-design').html(html);
-      recalculateDesign();
-      return;
-    }
-    $('.preview-design').html(html);
+    recalculateDesign();
   }
 
   function restoreValues()
@@ -1030,6 +1215,9 @@ $('#format').change(function (e) {
 
 var step = 1;
 var isDigitalSet = {{ ($isDigitalSet ?? false) ? 'true' : 'false' }};
+window.__backSkipped = @json((bool) ($format->back_skipped ?? false));
+window.__defaultDesignName = @json($format->design_name ?: ('Diseño ' . ($set->set_name ?? ('Set ' . $set->id)) . ' ' . now()->format('d/m/Y')));
+window.__pendingDesignName = null;
 var editor;
 var actualElement;
 var selectedElement = null;
@@ -1043,13 +1231,102 @@ function applyDigitalFormatBoxStep2() {
   $fb.css({ position: 'absolute', right: '0', top: '0', margin: '0' });
 }
 
+var designDirty = false;
+var historyByStep = {};
+var historyIndexByStep = {};
+var designEditorFonts = 'Asgonlae/Asgonlae, sans-serif;Arial/Arial, Helvetica, sans-serif;Georgia/Georgia, serif;Times New Roman/Times New Roman, Times, serif;Verdana/Verdana, Geneva, sans-serif;Courier New/Courier New, Courier, monospace;Tahoma/Tahoma, Geneva, sans-serif;Trebuchet MS/Trebuchet MS, Helvetica, sans-serif';
+
+function syncCurrentStepToLocalStorage() {
+  if (step >= 2 && step <= 4 && $('#containment-wrapper' + step).length) {
+    localStorage.setItem('step' + step, $('#containment-wrapper' + step).html());
+  }
+}
+
+function updateDesignActionButtons() {
+  if (designDirty) {
+    $('#step, #step-edit-next').addClass('d-none');
+    $('#save-step, #save-continue-step').removeClass('d-none');
+  } else {
+    $('#step, #step-edit-next').removeClass('d-none');
+    $('#save-step, #save-continue-step').addClass('d-none');
+  }
+  if (typeof window.syncDesignPreviewPdfButton === 'function') {
+    window.syncDesignPreviewPdfButton();
+  }
+}
+
+function markDesignDirty() {
+  designDirty = true;
+  updateDesignActionButtons();
+}
+
+function markDesignSaved() {
+  designDirty = false;
+  updateDesignActionButtons();
+}
+
+function confirmLeaveWithUnsaved(callback) {
+  if (!designDirty) {
+    callback();
+    return;
+  }
+  if (confirm('Tienes cambios sin guardar en este paso. ¿Quieres continuar sin guardar?')) {
+    callback();
+  }
+}
+
+function stashStepHistory(stepNum) {
+  if (stepNum < 2) return;
+  historyByStep[stepNum] = historyStates.slice();
+  historyIndexByStep[stepNum] = currentHistoryIndex;
+}
+
+function loadStepHistory(stepNum) {
+  historyStates = (historyByStep[stepNum] || []).slice();
+  currentHistoryIndex = typeof historyIndexByStep[stepNum] === 'number' ? historyIndexByStep[stepNum] : -1;
+  updateUndoRedoButtons();
+}
+
+function ensureStepHistoryInitialized() {
+  if (step < 2 || !$('#containment-wrapper' + step).length) return;
+  if (!historyByStep[step] || historyByStep[step].length === 0) {
+    saveHistoryState();
+  }
+}
+
+function buildCKEditorConfig(contenidoHTML) {
+  return {
+    enterMode: CKEDITOR.ENTER_BR,
+    shiftEnterMode: CKEDITOR.ENTER_P,
+    allowedContent: true,
+    font_names: designEditorFonts,
+    contentsCss: [
+      CKEDITOR.getUrl('contents.css'),
+      '{{ asset('assets/css/design-editor-fonts.css') }}',
+      '{{ asset('assets/css/design-ckeditor-edit.css') }}'
+    ],
+    toolbar: [
+      { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike' ] },
+      { name: 'paragraph', items: [ 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
+      { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
+      { name: 'styles', items: [ 'Font', 'FontSize' ] }
+    ],
+    on: {
+      instanceReady: function() {
+        this.setData(contenidoHTML);
+      }
+    }
+  };
+}
+
 // Sistema de Undo/Redo limitado
 var historyStates = [];
 var currentHistoryIndex = -1;
-var maxHistoryStates = 10;
+var maxHistoryStates = 30;
 var isRestoringState = false;
 var resizeTimeout;
 
+/** Clona .format-box y elimina resize del HTML exportado (no altera left/top). */
 function getFormatBoxHtmlForSave(selector) {
   var el = document.querySelector(selector);
   if (!el) return '';
@@ -1066,7 +1343,36 @@ function enableDesignElementsResize($scope) {
     : $('[id^="containment-wrapper"] .elements, #design-back-bg .elements');
   $els.each(function() {
     this.style.setProperty('resize', 'both', 'important');
-    this.style.setProperty('overflow', 'hidden', 'important');
+    // Texto vertical necesita overflow visible en CSS; no forzar hidden ahí.
+    if (!$(this).hasClass('text-vertical') && $(this).attr('data-text-vertical') !== '1') {
+      this.style.setProperty('overflow', 'hidden', 'important');
+    }
+  });
+  enforceQrMinSize($scope);
+  if (typeof normalizeVerticalTextBoxes === 'function') {
+    normalizeVerticalTextBoxes($scope);
+  }
+}
+
+/** Mínimo 0,9×0,9 cm (9 mm ≈ 35px @ 96dpi). Amplía sin mover left/top. */
+function enforceQrMinSize($scope) {
+  var minPx = Math.ceil(9 * 96 / 25.4);
+  var $root = ($scope && $scope.length) ? $scope : $(document);
+  $root.find('.elements.qr').each(function () {
+    var el = this;
+    var $el = $(el);
+    var w = parseFloat(el.style.width);
+    var h = parseFloat(el.style.height);
+    if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+    if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+    var side = Math.max(w, h, minPx);
+    // No recentrar: al mínimo el recentrado hacía «saltar» el QR al soltarlo.
+    if (Math.abs(w - side) > 0.5 || Math.abs(h - side) > 0.5) {
+      el.style.width = side + 'px';
+      el.style.height = side + 'px';
+    }
+    el.style.minWidth = minPx + 'px';
+    el.style.minHeight = minPx + 'px';
   });
 }
 
@@ -1113,6 +1419,8 @@ function saveHistoryState() {
     historyStates.shift();
     currentHistoryIndex--;
   }
+  historyByStep[step] = historyStates.slice();
+  historyIndexByStep[step] = currentHistoryIndex;
   updateUndoRedoButtons();
 }
 
@@ -1124,6 +1432,8 @@ function restoreHistoryState(targetIndex) {
     $('#containment-wrapper' + step).html(targetState.html);
     reapplyElementEvents();
     currentHistoryIndex = targetIndex;
+    historyByStep[step] = historyStates.slice();
+    historyIndexByStep[step] = currentHistoryIndex;
     updateUndoRedoButtons();
   }
   isRestoringState = false;
@@ -1210,8 +1520,14 @@ function uploadImage(file) {
     return;
   }
   
-  fetch('{{url('api/upload-image')}}', {
+  fetch(@json(route('design.uploadImage')), {
     method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    },
     body: formData
   })
   .then(response => response.json())
@@ -1224,8 +1540,7 @@ function uploadImage(file) {
       $('#imagen-modal').modal('hide');
       const input = document.getElementById('imageInput');
       if (input) input.value = null;
-      $('#step').addClass('d-none');
-      $('#save-step').removeClass('d-none');
+      markDesignDirty();
       $('#step-edit-next').addClass('d-none');
       saveHistoryState();
       updateUndoRedoButtons();
@@ -1248,12 +1563,9 @@ function showStep(newStep) {
     $('.form-wizard-element').removeClass('active');
     $(`#bc-step-${newStep}`).addClass('active');
     if (newStep === 5) {
-        {{-- $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none'); --}}
+        {{-- paso final --}}
     } else {
-        $('#step').removeClass('d-none');
-        $('#save-step').addClass('d-none');
-        $('#step-edit-next').removeClass('d-none');
+        updateDesignActionButtons();
     }
     // Aplicar zoom al cambiar de paso
     if (typeof applyDesignZoom === 'function') {
@@ -1261,6 +1573,9 @@ function showStep(newStep) {
     }
     if (newStep === 2 && typeof applyDigitalFormatBoxStep2 === 'function') {
         applyDigitalFormatBoxStep2();
+    }
+    if (newStep === 3 && typeof ensurePortadaQrPlaceholder === 'function') {
+        ensurePortadaQrPlaceholder();
     }
     // Tarea 8: aplicar reescalado pendiente al entrar en paso 2 (participación)
     if (newStep === 2 && pendingRescale && $('#step-2 .format-box .elements').length > 0) {
@@ -1279,36 +1594,95 @@ function showStep(newStep) {
     }
 }
 
-function addEventsElement() {
-    $('.elements').unbind('contextmenu',changePositionElement);
-    $('.elements').contextmenu(changePositionElement);
-    $('.elements').unbind('click.select');
-    $('.elements').bind('click.select', function(e) {
-      e.stopPropagation();
-      $('.elements').removeClass('selected');
-      $(this).addClass('selected');
-      selectedElement = $(this);
-      actualElement = $(this); // Mantener compatibilidad
-      $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
-      if ($(this).hasClass('text')) {
+/** Intercambia width/height preservando el centro (layout = caja visible en PDF). */
+function swapElementBoxPreserveCenter(el) {
+  if (!el) return;
+  var w = parseFloat(el.style.width);
+  var h = parseFloat(el.style.height);
+  var $el = $(el);
+  if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+  if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+  var left = parseFloat(el.style.left);
+  var top = parseFloat(el.style.top);
+  if (!isFinite(left)) left = 0;
+  if (!isFinite(top)) top = 0;
+  var cx = left + w / 2;
+  var cy = top + h / 2;
+  var nw = h;
+  var nh = w;
+  el.style.width = nw + 'px';
+  el.style.height = nh + 'px';
+  el.style.left = (cx - nw / 2) + 'px';
+  el.style.top = (cy - nh / 2) + 'px';
+}
+
+function setTextElementVertical($el, enable) {
+  if (!$el || !$el.length) return;
+  var el = $el[0];
+  var isOn = $el.hasClass('text-vertical') || $el.attr('data-text-vertical') === '1';
+  if (enable === isOn) return;
+  swapElementBoxPreserveCenter(el);
+  if (enable) {
+    $el.addClass('text-vertical').attr('data-text-vertical', '1');
+  } else {
+    $el.removeClass('text-vertical').removeAttr('data-text-vertical');
+  }
+}
+
+function normalizeVerticalTextBoxes($scope) {
+  var $root = ($scope && $scope.length) ? $scope : $(document);
+  $root.find('.elements.text.text-vertical, .elements.text[data-text-vertical="1"]').each(function () {
+    var el = this;
+    var w = parseFloat(el.style.width);
+    var h = parseFloat(el.style.height);
+    var $el = $(el);
+    if (!isFinite(w) || w <= 0) w = $el.outerWidth() || 0;
+    if (!isFinite(h) || h <= 0) h = $el.outerHeight() || 0;
+    if (w > h * 1.15) {
+      swapElementBoxPreserveCenter(el);
+      $el.addClass('text-vertical').attr('data-text-vertical', '1');
+    }
+  });
+}
+
+function selectDesignElement($el) {
+    if (!$el || !$el.length) return;
+    $el = $($el).closest('.elements');
+    if (!$el.length) return;
+    $('.elements').removeClass('selected');
+    $el.addClass('selected');
+    selectedElement = $el;
+    actualElement = $el;
+    $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
+    if ($el.hasClass('text')) {
         $('.text-style-btn').prop('disabled', false);
-      } else {
+        var isVertical = $el.hasClass('text-vertical') || $el.attr('data-text-vertical') === '1';
+        $('.text-vertical-btn').toggleClass('active', isVertical).attr('aria-pressed', isVertical ? 'true' : 'false');
+    } else {
         $('.text-style-btn').prop('disabled', true);
-      }
-      updateUndoRedoButtons();
+        $('.text-vertical-btn').removeClass('active').attr('aria-pressed', 'false');
+    }
+    if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
+}
+
+function addEventsElement() {
+    $(document).off('mousedown.designSelect', '.elements');
+    $(document).on('mousedown.designSelect', '.elements', function(e) {
+      if (e.which !== 1) return;
+      if ($(e.target).closest('.edit-btn').length) return;
+      selectDesignElement($(this));
     });
+    $(document).off('contextmenu.designElement', '.elements');
+    $(document).on('contextmenu.designElement', '.elements', changePositionElement);
     
     // Deseleccionar al hacer clic fuera (pero no si el modal está abierto)
-    $('body').unbind('click.deselect');
-    $('body').bind('click.deselect', function(e) {
-      // No deseleccionar si algún modal está abierto
+    $('body').off('click.deselect').on('click.deselect', function(e) {
       if ($('#imagen-modal').hasClass('show') || $('#ckeditor-modal').hasClass('show') || $('#qr-modal').hasClass('show') || $('#position-modal').hasClass('show') || $('#bar-options-modal').hasClass('show')) {
         return;
       }
       if (!$(e.target).closest('.elements').length && !$(e.target).closest('.up-layer, .down-layer, .text-style-btn, .delete-element-btn, .undo-btn, #bar-options-modal').length) {
         $('.elements').removeClass('selected');
         selectedElement = null;
-        // Solo limpiar actualElement si no hay un elemento guardado en el modal
         if (!$('#imagen-modal').data('imageElement')) {
           actualElement = null;
         }
@@ -1356,6 +1730,10 @@ $('#bar-modal-bg, #bar-modal-border-width, #bar-modal-border-color').on('input c
 });
 $('#bar-modal-delete').off('click').on('click', function() {
   if (!barModalElement || !barModalElement.length) return;
+  if (barModalElement.hasClass('element-critical') || elementHasCoverMandatoryToken(barModalElement)) {
+    alert('Este elemento es obligatorio y no se puede eliminar.');
+    return;
+  }
   if (!confirm('¿Eliminar esta barra?')) return;
   barModalElement.remove();
   barModalElement = null;
@@ -1389,92 +1767,190 @@ function changePositionElement(event) {
 }); --}}
 
 var snapshot_path = null;
-  $('#save-step').click(function(event) {
 
-    if (step != 1) {
-
-        let guardarSnapshotTriggered = false;
-        
-        if(step == 2 && !guardarSnapshotTriggered) {
-            guardarSnapshotTriggered = true;
-            html2canvas(document.querySelector('#step-2 .format-box')).then(function(canvas) {
-                // Thumbnail solo zona participación (sin la matriz), igual que en format; set digital sin recorte
-                var isDigitalSet = {{ ($set->digital_participations > 0 && (int)($set->physical_participations ?? 0) === 0) ? 'true' : 'false' }};
-                if (!isDigitalSet) {
-                    var identationMm = parseFloat($('#identation').val()) || 2.5;
-                    var matrixMm = parseFloat($('#matrix-box').val()) || 40;
-                    var boxWidthMm = 200;
-                    var leftStripMm = identationMm + matrixMm;
-                    var cropRatio = Math.min(1, Math.max(0, leftStripMm / boxWidthMm));
-                    var cropX = Math.floor(canvas.width * cropRatio);
-                    var cropW = canvas.width - cropX;
-                    if (cropW > 0 && cropX < canvas.width) {
-                        var cropped = document.createElement('canvas');
-                        cropped.width = cropW;
-                        cropped.height = canvas.height;
-                        var ctx = cropped.getContext('2d');
-                        ctx.drawImage(canvas, cropX, 0, cropW, canvas.height, 0, 0, cropW, canvas.height);
-                        canvas = cropped;
-                    }
-                }
-                let imageData = canvas.toDataURL('image/png');
-                
-                var formData = new FormData();
-
-                formData.append('design_id', {{ $set->id }});
-                formData.append('snapshot', imageData);
-
-                $.ajax({
-                    type: "POST",
-                    url: "{{url('/')}}/api/design/save-snapshot",
-                    data: formData,
-                    contentType: false,
-                    processData: false,
-                    success: function (response) {
-                        
-                        snapshot_path = response.path;
-                        console.log(snapshot_path);
-
-                        guardarSnapshotTriggered = false;
-                        // Ahora sí avanza al submit normal/flujo de guardar! Activa el clic de nuevo.
-                        let html = $('#containment-wrapper'+step).html();
-
-                        localStorage.setItem('step'+step,html);
-
-                        $('#step').removeClass('d-none');
-                        $('#save-step').addClass('d-none');
-                        $('#step-edit-next').removeClass('d-none');
-                    },error: function (response) {
-                        console.log(response);
-                        guardarSnapshotTriggered = false;
-                        alert('Error al guardar snapshot');
-                    }
-                });
-            });
-        } else {
-            let html = $('#containment-wrapper'+step).html();
-
-            localStorage.setItem('step'+step,html);
-
-            $('#step').removeClass('d-none');
-            $('#save-step').addClass('d-none');
-            $('#step-edit-next').removeClass('d-none');
-        }
-
+function parseDesignApiResponse(response) {
+  return response.text().then(function(text) {
+    var trimmed = (text || '').trim();
+    if (!trimmed) return {};
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
+      var start = trimmed.indexOf('{');
+      var end = trimmed.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        try {
+          return JSON.parse(trimmed.slice(start, end + 1));
+        } catch (e2) {}
+      }
+      return {};
     }
   });
+}
+
+function isDesignApiSuccess(result) {
+  if (!result || typeof result !== 'object') return false;
+  return result.success === true || result.success === 1 || result.success === '1' || result.success === 'true';
+}
+
+function submitEditFormatToServer(options) {
+  options = options || {};
+  var data = collectDesignData();
+  if (options.fromStep5) {
+    data.from_step_5 = true;
+  }
+  var loadingMsg = (typeof step !== 'undefined' && step === 1) ? 'Guardando márgenes...' : 'Guardando diseño...';
+  showDesignLoading(loadingMsg);
+
+  return fetch($('#edit-format-form').attr('action'), {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    },
+    body: JSON.stringify(data)
+  })
+  .then(function(response) {
+    return parseDesignApiResponse(response).then(function(result) {
+      return { ok: response.ok, status: response.status, result: result };
+    });
+  })
+  .then(function(payload) {
+    var result = payload.result || {};
+    if (!isDesignApiSuccess(result)) {
+      console.error('Edit design save failed', payload);
+      alert(result.message || 'Error al guardar el diseño.');
+      return false;
+    }
+
+    markDesignSaved();
+
+    if (options.fromStep5 && result.redirect) {
+      window.location.href = result.redirect;
+      return true;
+    }
+
+    var msg = (typeof step !== 'undefined' && step === 1) ? 'Márgenes aplicados correctamente.' : 'Diseño guardado correctamente.';
+    if (!options.skipSuccessAlert) {
+      alert(msg);
+    }
+
+    if (typeof options.onSuccess === 'function') {
+      try {
+        options.onSuccess();
+      } catch (e) {
+        console.error('Post-save callback failed', e);
+      }
+    }
+    return true;
+  })
+  .catch(function(error) {
+    console.error('Edit design save request failed', error);
+    alert('Error al guardar el diseño.');
+    return false;
+  })
+  .finally(function() {
+    hideDesignLoading();
+  });
+}
+
+function performLocalStepSave(options) {
+  options = options || {};
+  if (step == 1) {
+    submitEditFormatToServer(options);
+    return;
+  }
+
+  syncCurrentStepToLocalStorage();
+
+  var finishSave = function() {
+    syncCurrentStepToLocalStorage();
+    submitEditFormatToServer($.extend({}, options, {
+      skipSuccessAlert: typeof options.onSuccess === 'function'
+    }));
+  };
+
+  if (step == 2) {
+    html2canvas(document.querySelector('#step-2 .format-box')).then(function(canvas) {
+      var isDigitalSetLocal = {{ ($set->digital_participations > 0 && (int)($set->physical_participations ?? 0) === 0) ? 'true' : 'false' }};
+      if (!isDigitalSetLocal) {
+        var identationMm = parseIdentationMm();
+        var matrixMm = parseFloat($('#matrix-box').val()) || 40;
+        var boxWidthMm = 200;
+        var leftStripMm = identationMm + matrixMm;
+        var cropRatio = Math.min(1, Math.max(0, leftStripMm / boxWidthMm));
+        var cropX = Math.floor(canvas.width * cropRatio);
+        var cropW = canvas.width - cropX;
+        if (cropW > 0 && cropX < canvas.width) {
+          var cropped = document.createElement('canvas');
+          cropped.width = cropW;
+          cropped.height = canvas.height;
+          var ctx = cropped.getContext('2d');
+          ctx.drawImage(canvas, cropX, 0, cropW, canvas.height, 0, 0, cropW, canvas.height);
+          canvas = cropped;
+        }
+      }
+      var formData = new FormData();
+      formData.append('design_id', {{ $set->id }});
+      formData.append('snapshot', canvas.toDataURL('image/png'));
+      $.ajax({
+        type: 'POST',
+        url: @json(route('design.saveSnapshot')),
+        data: formData,
+        contentType: false,
+        processData: false,
+        headers: {
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+          snapshot_path = response.path;
+          finishSave();
+        },
+        error: function() {
+          alert('Error al guardar snapshot');
+        }
+      });
+    });
+    return;
+  }
+
+  finishSave();
+}
+
+$('#save-step').click(function(event) {
+  performLocalStepSave();
+});
+
+$('#save-continue-step').click(function(event) {
+  performLocalStepSave({
+    onSuccess: function() {
+      $('.next-step').first().trigger('click');
+    }
+  });
+});
 
 /**/
 
 function getMarginBoundsPx() {
     var $box = $('#step-' + step + ' .format-box');
     if (!$box.length) return null;
-    var r = $box[0].getBoundingClientRect();
-    var boxW = r.width, boxH = r.height;
+    // offsetWidth/Height ignoran el zoom (transform); getBoundingClientRect lo incluye y afloja los límites.
+    var el = $box[0];
+    var boxW = el.offsetWidth;
+    var boxH = el.offsetHeight;
+    if (!(boxW > 0) || !(boxH > 0)) {
+      var r = el.getBoundingClientRect();
+      var z = (typeof designZoom === 'number' && designZoom > 0) ? designZoom : 1;
+      boxW = r.width / z;
+      boxH = r.height / z;
+    }
     var ticketW = parseFloat($('#ticket-size').data('w')) || 200;
     var ticketH = parseFloat($('#ticket-size').data('h')) || 92;
     var scaleX = boxW / ticketW, scaleY = boxH / ticketH;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var minLeft = identation * scaleX;
     var minTop = identation * scaleY;
@@ -1493,11 +1969,101 @@ function getMarginBoundsPx() {
     var h = $el.outerHeight() || 0;
     left = Math.max(bounds.minLeft, Math.min(bounds.maxRight - w, left));
     top = Math.max(bounds.minTop, Math.min(bounds.maxBottom - h, top));
+    // Fijar solo top/left: bottom/right/inset del placeholder QR/barra rompen el PDF
+    el.style.removeProperty('bottom');
+    el.style.removeProperty('right');
+    el.style.removeProperty('inset');
     $el.css({ left: left + 'px', top: top + 'px' });
   }
+  /** Sangres: 0 es válido; solo default 0 si el campo está vacío o no es número. */
+  function parseIdentationMm() {
+    var v = parseFloat($('#identation').val());
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  function marginBgLayerId(stepNum) {
+    if (stepNum === 2) return 'design-participation-bg';
+    if (stepNum === 3) return 'design-cover-bg';
+    if (stepNum === 4) return 'design-back-bg';
+    return null;
+  }
+
+  function ensureMarginBgLayer(stepNum) {
+    var $wrap = $('#containment-wrapper' + stepNum);
+    if (!$wrap.length) return $();
+    var bgId = marginBgLayerId(stepNum);
+    if (!bgId) return $wrap;
+
+    var identationMm = parseIdentationMm();
+    var matrixMm = parseFloat($('#matrix-box').val()) || 40;
+    var $bg = $('#' + bgId);
+
+    if (stepNum === 4) {
+      // Trasera: fondo en todo el canvas salvo la franja de matriz.
+      var rightMm = matrixMm;
+      if (!$bg.length) {
+        var bgColor4 = $wrap.css('background-color') || '#dfdfdf';
+        var bgImg4 = $wrap.css('background-image');
+        $wrap.prepend(
+          '<div id="design-back-bg" style="position:absolute;left:0;top:0;right:' + rightMm +
+          'mm;bottom:0;z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+        );
+        $bg = $('#design-back-bg');
+        if (bgColor4 && bgColor4 !== 'rgba(0, 0, 0, 0)' && bgColor4 !== 'transparent') {
+          $bg.css('background-color', bgColor4);
+        }
+        if (bgImg4 && bgImg4 !== 'none') $bg.css('background-image', bgImg4);
+        $wrap.css({ 'background-color': '', 'background-image': 'none' });
+      } else {
+        $bg.css({ left: '0', top: '0', right: rightMm + 'mm', bottom: '0' });
+      }
+      return $bg;
+    }
+
+    // Fondo en todo el canvas (incluye sangres). Las guías moradas solo marcan zona segura.
+    if (!$bg.length) {
+      var bgColor = $wrap.css('background-color');
+      var bgImg = $wrap.css('background-image');
+      $wrap.prepend(
+        '<div id="' + bgId + '" class="design-margin-bg" style="position:absolute;left:0;top:0;right:0;bottom:0;' +
+        'z-index:0;pointer-events:none;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>'
+      );
+      $bg = $('#' + bgId);
+      if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+        $bg.css('background-color', bgColor);
+      }
+      if (bgImg && bgImg !== 'none') $bg.css('background-image', bgImg);
+      $wrap.css({ 'background-color': '#ffffff', 'background-image': 'none' });
+    } else {
+      $bg.css({
+        left: '0',
+        top: '0',
+        right: '0',
+        bottom: '0',
+        position: 'absolute',
+        zIndex: 0,
+        pointerEvents: 'none'
+      });
+      $wrap.css({ 'background-image': 'none' });
+    }
+    return $bg;
+  }
+
+  function syncMarginBgLayers() {
+    [2, 3, 4].forEach(function (n) {
+      if ($('#containment-wrapper' + n).length) ensureMarginBgLayer(n);
+    });
+  }
+
+  function getBackgroundTargetEl(stepNum) {
+    if (stepNum === 4) return ensureMarginBgLayer(4);
+    if (stepNum === 2 || stepNum === 3) return ensureMarginBgLayer(stepNum);
+    return $('#containment-wrapper' + stepNum);
+  }
+
   function configMargins()
   {
-    let identation = $('#identation').val() ?? 2.5;
+    let identation = parseIdentationMm();
     let matrix = $('#matrix-box').val() ?? 40;
     $('.margen-izquierdo').css('left',identation+'mm')
     $('.margen-arriba').css('top',identation+'mm')
@@ -1507,16 +2073,7 @@ function getMarginBoundsPx() {
     $('.caja-matriz').css('width',matrix+'mm')
     $('.caja-matriz-2').css('right',identation+'mm')
     $('.caja-matriz-2').css('width',matrix+'mm')
-    if ($('#containment-wrapper4').length && !$('#design-back-bg').length) {
-      var rightMm = parseFloat(identation) + parseFloat(matrix);
-      var $wrap = $('#containment-wrapper4');
-      var bgColor = $wrap.css('background-color') || '#dfdfdf';
-      var bgImg = $wrap.css('background-image');
-      $wrap.prepend('<div id="design-back-bg" style="position:absolute;left:0;top:0;right:'+rightMm+'mm;bottom:0;z-index:0;pointer-events:none;background-color:'+bgColor+';background-size:cover;background-position:center;"></div>');
-      if (bgImg && bgImg !== 'none') $('#design-back-bg').css('background-image', bgImg);
-      $wrap.css('background-color','').css('background-image','none');
-    }
-    $('#design-back-bg').css('right', (parseFloat(identation) + parseFloat(matrix)) + 'mm');
+    syncMarginBgLayers();
     if (step >= 2 && step <= 4) {
       $('#containment-wrapper'+step+' .elements').each(function() { clampElementToMargins(this); });
     }
@@ -1531,7 +2088,7 @@ function getMarginBoundsPx() {
     var marginUp = parseFloat($('#margin-up').val()) || 0;
     var marginLeft = parseFloat($('#margin-left').val()) || 0;
     var marginRight = parseFloat($('#margin-right').val()) || 0;
-    var identation = parseFloat($('#identation').val()) || 2.5;
+    var identation = parseIdentationMm();
     var matrix = parseFloat($('#matrix-box').val()) || 40;
     var marginCustom = parseFloat($('#margin-custom').val()) || 0;
     var pageRight = parseFloat($('#page-rigth').val()) || 0;
@@ -1716,27 +2273,55 @@ function getMarginBoundsPx() {
                   var oldBoxPx = { w: $box.width(), h: $box.height() };
                   if (oldBoxPx.w > 0 && oldBoxPx.h > 0) {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       var newBoxPx = { w: $box.width(), h: $box.height() };
                       repositionParticipationElementsByScale($box, oldBoxPx, newBoxPx);
                   } else {
                       $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                      $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                       pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
                   }
               } else {
                   $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-                  $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
                   pendingRescale = { oldW: prevW, oldH: prevH, newW: ticketW, newH: ticketH };
               }
           } else {
               $('.format-box').css({width: ticketW+'mm', height: ticketH+'mm'});
-              $('.format-box-btn').css({width: Math.max(ticketW + 20, 270)+'mm'});
           }
       }
       lastTicketDimensions = { w: ticketW, h: ticketH };
       if (typeof applyDigitalFormatBoxStep2 === 'function') applyDigitalFormatBoxStep2();
       if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
+      if (typeof updatePagesPerDocumentHint === 'function') updatePagesPerDocumentHint();
+  }
+
+  function updatePagesPerDocumentHint() {
+    var $hint = $('#pages-per-document-hint');
+    if (!$hint.length) return;
+    var rows = Math.max(1, parseInt($('#rows').val(), 10) || 1);
+    var cols = Math.max(1, parseInt($('#cols').val(), 10) || 1);
+    var pp = rows * cols;
+    var pagesPerDoc = Math.max(1, parseInt($('#participation_page').val(), 10) || 1);
+    var docsMode = $('input[name="documents_mode"]:checked').val()
+      || $('input[name="documents"]:checked').val()
+      || '1';
+    var genMode = $('input[name="generate_mode"]:checked').val()
+      || $('input[name="generate"]:checked').val()
+      || '1';
+    var total = 0;
+    if (genMode === '2') {
+      var from = Math.max(1, parseInt($('#participation_from').val(), 10) || 1);
+      var to = Math.max(from, parseInt($('#participation_to').val(), 10) || from);
+      total = to - from + 1;
+    } else {
+      total = Math.max(0, parseInt(@json((int) ($set->total_participations ?? 0)), 10) || 0);
+      var toVal = parseInt($('#participation_to').val(), 10);
+      if (Number.isFinite(toVal) && toVal > 0) total = toVal;
+    }
+    var docs = 1;
+    if (String(docsMode) === '2' && total > 0 && pp > 0) {
+      var ticketsPerDoc = pagesPerDoc * pp;
+      docs = Math.max(1, Math.ceil(total / ticketsPerDoc));
+    }
+    $hint.text('(' + pp + ' participaciones por página, ' + docs + (docs === 1 ? ' documento' : ' documentos') + ')');
   }
 
   // Llamar al cargar y al cambiar cualquier campo relevante
@@ -1745,9 +2330,13 @@ function getMarginBoundsPx() {
       if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
       if (typeof initPreviewFromFormat === 'function') initPreviewFromFormat();
       $('#format,#page,#rows,#cols,#orientation').on('change keyup', updateTicketInfo);
-      $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#matrix-box,#margin-custom,#page-rigth,#page-bottom').on('change keyup', function() {
-        if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
+      $('#margin-top,#margin-up,#margin-left,#margin-right,#identation,#cut-lines,#matrix-box,#margin-custom,#page-rigth,#page-bottom').on('change keyup', function() {
+        if (typeof configMargins === 'function') configMargins();
+        else if (typeof updateDimensionsInfo === 'function') updateDimensionsInfo();
       });
+      $('#participation_page,#participation_from,#participation_to').on('change keyup input', updatePagesPerDocumentHint);
+      $('input[name="documents_mode"],input[name="documents"],input[name="generate_mode"],input[name="generate"]').on('change', updatePagesPerDocumentHint);
+      updatePagesPerDocumentHint();
   });
   // === FIN BLOQUE NUEVO ===
 
@@ -1764,18 +2353,26 @@ function collectDesignData() {
   const margin_left = parseFloat($('#margin-left').val());
   const margin_top = parseFloat($('#margin-top').val());
   const identation = parseFloat($('#identation').val());
+  const cut_lines = (function(){ var v = parseFloat($('#cut-lines').val()); return Number.isFinite(v) ? v : null; })();
   const matrix_box = parseFloat($('#matrix-box').val());
   const margin_custom = parseFloat($('#margin-custom').val());
   const horizontal_space = parseFloat($('#page-rigth').val());
   const vertical_space = parseFloat($('#page-bottom').val());
 
+  enforceQrMinSize($('#step-2 .format-box'));
+  enforceQrMinSize($('#step-3 .format-box'));
+  if (!window.__backSkipped) {
+    enforceQrMinSize($('#step-4 .format-box'));
+  }
   const participation_html = getFormatBoxHtmlForSave('#step-2 .format-box');
   const cover_html = getFormatBoxHtmlForSave('#step-3 .format-box');
-  const back_html = getFormatBoxHtmlForSave('#step-4 .format-box');
+  const back_html = window.__backSkipped ? '' : getFormatBoxHtmlForSave('#step-4 .format-box');
 
   // Fondos: leer del DOM (lo que ve el usuario) para guardar siempre los valores reales
   function getBackgroundFromDom(stepNum) {
-    var $el = (stepNum === 4) ? $('#design-back-bg') : $('#containment-wrapper' + stepNum);
+    var $el = (typeof getBackgroundTargetEl === 'function')
+      ? getBackgroundTargetEl(stepNum)
+      : ((stepNum === 4) ? $('#design-back-bg') : $('#containment-wrapper' + stepNum));
     if (!$el.length) return { color: '#dfdfdf', image: null };
     var color = $el.css('background-color');
     if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') color = '#dfdfdf';
@@ -1827,6 +2424,7 @@ function collectDesignData() {
       top: margin_top
     },
     identation,
+    cut_lines,
     matrix_box,
     margin_custom,
     horizontal_space,
@@ -1835,6 +2433,8 @@ function collectDesignData() {
     snapshot_path,
     cover_html,
     back_html,
+    back_skipped: !!window.__backSkipped,
+    design_name: window.__pendingDesignName || window.__defaultDesignName || null,
     backgrounds,
     output: {
       draw_guides,
@@ -1861,70 +2461,11 @@ function hideDesignLoading() {
 // --- Enviar datos al backend al guardar ---
 $('#edit-format-form').on('submit', function(e) {
   e.preventDefault();
-  const data = collectDesignData();
-  
-  // Si viene del paso 5, agregar el flag
-  const isFromStep5 = $(this).data('from-step-5') === true;
-  if (isFromStep5) {
-    data.from_step_5 = true;
-  }
-
-  var loadingMsg = (typeof step !== 'undefined' && step === 1) ? 'Guardando márgenes...' : 'Guardando diseño...';
-  showDesignLoading(loadingMsg);
-  fetch($(this).attr('action'), {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-    },
-    body: JSON.stringify(data)
-  })
-  .then(response => response.json())
-  .then(result => {
-    if(result.success) {
-      if (isFromStep5 && result.redirect) {
-        hideDesignLoading();
-        window.location.href = result.redirect;
-        return;
-      } else {
-        var msg = (typeof step !== 'undefined' && step === 1) ? 'Márgenes aplicados correctamente.' : 'Diseño guardado correctamente.';
-        alert(msg);
-        if (typeof step !== 'undefined' && step === 1) {
-          var $feedback = $('#ticket-info');
-          if ($feedback.length) {
-            $feedback.addClass('alert-success').removeClass('alert-info');
-            setTimeout(function() { $feedback.removeClass('alert-success').addClass('alert-info'); }, 2500);
-          }
-        }
-      }
-    } else {
-      alert('Error al guardar el diseño.');
-    }
-  })
-  .catch(() => alert('Error al guardar el diseño.'))
-  .finally(() => hideDesignLoading());
-
-  {{-- $.ajax({
-    url: $(this).attr('action'),
-    method: 'POST',
-    data: {
-      _token: $('input[name="_token"]').val(),
-      _method: 'PUT',
-      data: JSON.stringify(data)
-    },
-    success: function(resp) {
-      // Redirigir o mostrar mensaje
-        alert('Diseño guardado correctamente');
-      if(resp.success) {
-        window.location.href = resp.redirect || window.location.href;
-      } else {
-        alert('Error al guardar el diseño.');
-      }
-    },
-    error: function() {
-      alert('Error al guardar el diseño.');
-    }
-  }); --}}
+  var isFromStep5 = $(this).data('from-step-5') === true;
+  $(this).data('from-step-5', false);
+  submitEditFormatToServer({
+    fromStep5: isFromStep5
+  });
 });
 
 $(document).ready(function() {
@@ -1966,13 +2507,16 @@ $(document).ready(function() {
             return;
         }
         if (step < 5) {
+            syncCurrentStepToLocalStorage();
+            stashStepHistory(step);
             step++;
+            loadStepHistory(step);
             showStep(step);
             setTimeout(function() {
                 reapplyElementEvents();
                 if ($('#containment-wrapper'+step).length) {
-                    setTimeout(() => {
-                        saveHistoryState();
+                    setTimeout(function() {
+                        ensureStepHistoryInitialized();
                         updateUndoRedoButtons();
                     }, 100);
                 }
@@ -2005,34 +2549,53 @@ $(document).ready(function() {
                         width: w+'mm',
                         height: h+'mm'
                     });
-                    $('.format-box-btn').css('width', '250mm');
                 }
                 let matrix = $('#matrix-box').val() ?? 40;
                 $('#containment-wrapper4').css('padding-right', matrix+'mm');
             }
         }else{
-            // Marcar que viene del paso 5 antes de enviar
-            $('#edit-format-form').data('from-step-5', true);
-            $('#edit-format-form').submit();
+            $('#design-name-input').val(window.__pendingDesignName || window.__defaultDesignName || '');
+            $('#design-name-modal').modal('show');
         }
+    });
+    $('#design-name-modal').on('shown.bs.modal', function() {
+        $('#design-name-input').trigger('focus').select();
+    });
+    $('#design-name-input').on('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            $('#design-name-confirm').trigger('click');
+        }
+    });
+    $('#design-name-confirm').click(function() {
+        window.__pendingDesignName = ($('#design-name-input').val() || '').trim() || window.__defaultDesignName;
+        $('#design-name-modal').modal('hide');
+        $('#edit-format-form').data('from-step-5', true);
+        $('#edit-format-form').submit();
     });
     $('.prev-step').click(function(e) {
         e.preventDefault();
-        if (step > 1) {
-            step--;
-            showStep(step);
-            setTimeout(function() {
-                reapplyElementEvents();
-                if ($('#containment-wrapper'+step).length) {
-                    setTimeout(() => {
-                        saveHistoryState();
-                        updateUndoRedoButtons();
-                    }, 100);
-                }
-            }, 100);
-        }else{
-            window.open('{{url('design')}}','_self');
-        }
+        var navigateBack = function() {
+            if (step > 1) {
+                syncCurrentStepToLocalStorage();
+                stashStepHistory(step);
+                step--;
+                loadStepHistory(step);
+                showStep(step);
+                setTimeout(function() {
+                    reapplyElementEvents();
+                    if ($('#containment-wrapper'+step).length) {
+                        setTimeout(function() {
+                            ensureStepHistoryInitialized();
+                            updateUndoRedoButtons();
+                        }, 100);
+                    }
+                }, 100);
+            } else {
+                window.open('{{url('design')}}','_self');
+            }
+        };
+        confirmLeaveWithUnsaved(navigateBack);
     });
     $('.form-wizard-element').click(function() {
         const id = $(this).attr('id');
@@ -2073,12 +2636,85 @@ $(document).ready(function() {
     $('.add-text').off('click').on('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $('#containment-wrapper'+step).append(`<div class="elements text" style="padding: 10px; width: 200px; height: 120px; resize: both; overflow: hidden; position: absolute; top: 0"><button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button><span>Escribe aquí...</span></div>`);
+        var $box = $('#step-' + step + ' .format-box');
+        var boxW = $box.length ? $box.width() : 400;
+        var boxH = $box.length ? $box.height() : 300;
+        var left = Math.max(20, Math.round((boxW - 220) / 2));
+        var top = Math.max(20, Math.round((boxH - 100) / 2));
+        var $newEl = $(`<div class="elements text text-placeholder-new selected" style="padding: 12px; width: 220px; height: 100px; resize: both; overflow: hidden; position: absolute; top: ${top}px; left: ${left}px; z-index: 5000;"><button class="edit-btn" title="Editar texto"><i class="ri-edit-line"></i></button><span><strong>Escribe aquí...</strong></span></div>`);
+        $('#containment-wrapper'+step).append($newEl);
+        $('.elements').removeClass('selected');
+        selectedElement = $newEl;
+        $('.up-layer, .down-layer, .delete-element-btn').prop('disabled', false);
+        $('.text-style-btn').prop('disabled', false);
         reapplyElementEvents();
+        markDesignDirty();
         saveHistoryState();
         updateUndoRedoButtons();
         return false;
     });
+    $('.reset-mandatory-canvas').off('click').on('click', function (e) {
+        e.preventDefault();
+        var $wrap = $('#containment-wrapper' + step);
+        if (!$wrap.length) return;
+        $wrap.find('.elements.participation, .elements.reference, .elements.qr')
+          .addClass('element-critical');
+        $wrap.find('.elements.number, .elements.mini').removeClass('element-critical');
+        markCriticalDesignElements($wrap);
+        var $removable = $wrap.find('.elements').not('.element-critical');
+        var count = $removable.length;
+        if (count === 0) {
+          alert('No hay campos de ejemplo que limpiar. Solo quedan los obligatorios.');
+          return;
+        }
+        if (!confirm(
+          'Se eliminarán ' + count + ' campo(s) de ejemplo de este paso.\n\n' +
+          'Se conservan los obligatorios (nº participación, referencia, QR; en portada taco/participaciones).\n' +
+          'Puedes deshacer con el botón Deshacer.\n\n¿Continuar?'
+        )) return;
+        $removable.remove();
+        $('.elements').removeClass('selected');
+        selectedElement = null;
+        $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
+        reapplyElementEvents();
+        markDesignDirty();
+        saveHistoryState();
+        updateUndoRedoButtons();
+    });
+    function syncSkipBackBannerUi() {
+        var skipped = !!window.__backSkipped;
+        $('#skip-back-banner').removeClass('d-none');
+        $('#skip-back-banner .skip-back-msg').toggleClass('d-none', skipped);
+        $('#skip-back-banner .restore-back-msg').toggleClass('d-none', !skipped);
+        $('#btn-skip-back-design').toggleClass('d-none', skipped);
+        $('#btn-restore-back-design').toggleClass('d-none', !skipped);
+    }
+
+    $('#btn-skip-back-design').off('click').on('click', function (e) {
+        e.preventDefault();
+        if (!confirm('¿Omitir el diseño de trasera? No podrá descargar PDF de traseras.')) return;
+        window.__backSkipped = true;
+        $('#containment-wrapper4 .elements').remove();
+        syncSkipBackBannerUi();
+        markDesignDirty();
+        step = 5;
+        showStep(step);
+        reapplyElementEvents();
+    });
+
+    $('#btn-restore-back-design').off('click').on('click', function (e) {
+        e.preventDefault();
+        window.__backSkipped = false;
+        if (typeof ensureMarginBgLayer === 'function') {
+            ensureMarginBgLayer(4);
+        }
+        syncSkipBackBannerUi();
+        markDesignDirty();
+    });
+
+    if (window.__backSkipped) {
+        syncSkipBackBannerUi();
+    }
     $('.add-image').off('click').on('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -2105,7 +2741,8 @@ $(document).ready(function() {
     });
     $('.add-bottom').off('click').on('click', function (e) {
         e.preventDefault();
-        $('#containment-wrapper'+step).append(`<div class="elements context" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 20px; display: block;"></span></div>`);
+        var criticalClass = (step === 3) ? ' element-critical cover-taco-label' : '';
+        $('#containment-wrapper'+step).append(`<div class="elements context${criticalClass}" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;"><span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">@{{taco_label}}</span></div>`);
         reapplyElementEvents();
         saveHistoryState();
         updateUndoRedoButtons();
@@ -2181,8 +2818,7 @@ $(document).ready(function() {
         selectedElement.remove();
         selectedElement = null;
         $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-        $('#save-step').removeClass('d-none');
-        $('#step').addClass('d-none');
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         saveHistoryState();
         updateUndoRedoButtons();
@@ -2218,25 +2854,32 @@ $(document).ready(function() {
       }
     });
     
+    function applyTextElementAlignment(align) {
+      if (!selectedElement || !selectedElement.hasClass('text')) {
+        return;
+      }
+      syncTextElementAlignment(selectedElement, align);
+      if (typeof markDesignDirty === 'function') {
+        markDesignDirty();
+      }
+      if (typeof saveHistoryState === 'function') {
+        saveHistoryState();
+      }
+    }
+
     $('.align-left-btn').off('click').on('click', function(e) {
       e.preventDefault();
-      if (selectedElement && selectedElement.hasClass('text')) {
-        selectedElement.removeClass('text-center text-right').addClass('text-left');
-      }
+      applyTextElementAlignment('left');
     });
     
     $('.align-center-btn').off('click').on('click', function(e) {
       e.preventDefault();
-      if (selectedElement && selectedElement.hasClass('text')) {
-        selectedElement.removeClass('text-left text-right').addClass('text-center');
-      }
+      applyTextElementAlignment('center');
     });
     
     $('.align-right-btn').off('click').on('click', function(e) {
       e.preventDefault();
-      if (selectedElement && selectedElement.hasClass('text')) {
-        selectedElement.removeClass('text-left text-center').addClass('text-right');
-      }
+      applyTextElementAlignment('right');
     });
     
     $('.font-size-up-btn').off('click').on('click', function(e) {
@@ -2254,6 +2897,30 @@ $(document).ready(function() {
         let span = selectedElement.find('span');
         let currentSize = parseInt(span.css('font-size')) || 14;
         span.css('font-size', Math.max(8, currentSize - 2) + 'px');
+      }
+    });
+
+    $('.text-vertical-btn').off('click').on('click', function(e) {
+      e.preventDefault();
+      if (!selectedElement || !selectedElement.hasClass('text')) {
+        return;
+      }
+      var enable = !selectedElement.hasClass('text-vertical') && selectedElement.attr('data-text-vertical') !== '1';
+      if (typeof setTextElementVertical === 'function') {
+        setTextElementVertical(selectedElement, enable);
+      } else {
+        if (enable) {
+          selectedElement.addClass('text-vertical').attr('data-text-vertical', '1');
+        } else {
+          selectedElement.removeClass('text-vertical').removeAttr('data-text-vertical');
+        }
+      }
+      $('.text-vertical-btn').toggleClass('active', enable).attr('aria-pressed', enable ? 'true' : 'false');
+      if (typeof markDesignDirty === 'function') {
+        markDesignDirty();
+      }
+      if (typeof saveHistoryState === 'function') {
+        saveHistoryState();
       }
     });
     
@@ -2279,8 +2946,7 @@ $(document).ready(function() {
         }
         if (confirm('¿Desea eliminar el elemento seleccionado?')) {
             if (actualElement) actualElement.remove();
-            $('#step').addClass('d-none');
-            $('#save-step').removeClass('d-none');
+            markDesignDirty();
             $('#step-edit-next').addClass('d-none');
         }
     });
@@ -2300,8 +2966,7 @@ $(document).ready(function() {
             selectedElement = null;
             actualElement = null;
             $('.up-layer, .down-layer, .delete-element-btn, .text-style-btn').prop('disabled', true);
-            $('#step').addClass('d-none');
-            $('#save-step').removeClass('d-none');
+            markDesignDirty();
             $('#step-edit-next').addClass('d-none');
             saveHistoryState();
             updateUndoRedoButtons();
@@ -2311,12 +2976,17 @@ $(document).ready(function() {
         if (editor && CKEDITOR.instances['editor']) {
             var data = CKEDITOR.instances['editor'].getData();
             data = data.replace(/<p>&nbsp;<\/p>/gi, '').replace(/<p><\/p>/gi, '');
-            $(actualElement).find('span').html(data);
+            var $element = $(actualElement);
+            var $wrapper = getTextContentWrapper($element);
+            var detectedAlign = detectAlignmentFromHtml(data) || getTextElementAlignment($element);
+            $wrapper.html(data);
+            syncTextElementAlignment($element, detectedAlign || 'left');
+            // Quitar marcador naranja de “texto nuevo” al editar
+            $element.removeClass('text-placeholder-new');
             CKEDITOR.instances['editor'].destroy(true);
         }
         $('#ckeditor-modal').modal('hide');
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         saveHistoryState();
         updateUndoRedoButtons();
@@ -2354,8 +3024,14 @@ $(document).ready(function() {
         const formData = new FormData();
         formData.append('text', $('#qr-text').val());
         showDesignLoading('Generando código QR...');
-        fetch('{{url('api/generarQr')}}', {
+        fetch(@json(route('design.generateQr')), {
             method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
             body: formData
         })
         .then(response => response.json())
@@ -2364,8 +3040,7 @@ $(document).ready(function() {
                 $(actualElement).find('img').attr('src', data.url);
                 $('#qr-modal').modal('hide');
                 $('#qr-text').val("");
-                $('#step').addClass('d-none');
-                $('#save-step').removeClass('d-none');
+                markDesignDirty();
                 $('#step-edit-next').addClass('d-none');
             }
         })
@@ -2374,8 +3049,109 @@ $(document).ready(function() {
     });
 });
 
+function coverMandatoryTokens() {
+    return ['taco_label', 'taco_number', 'taco_total', 'participation_from', 'participation_to', '__TACO_LABEL__', '%%TACO_LABEL%%'];
+}
+
+function elementHasCoverMandatoryToken($el) {
+    if (!$el || !$el.length) return false;
+    if ($el.hasClass('cover-taco-qr') || $el.hasClass('cover-taco-label') || $el.hasClass('qr')) return true;
+    var haystack = ($el.html() || '') + ' ' + ($el.text() || '');
+    var tokens = coverMandatoryTokens();
+    for (var i = 0; i < tokens.length; i++) {
+        if (haystack.indexOf(tokens[i]) !== -1) return true;
+    }
+    return /\{\{\s*taco[_\-\s]*(label|number|total)\s*\}\}/i.test(haystack)
+        || /\{\{\s*participation_(from|to)\s*\}\}/i.test(haystack);
+}
+
+function markCoverCriticalElements($root) {
+    var $scope = ($root && $root.length) ? $root : $('#containment-wrapper3');
+    if (!$scope.length) return;
+    $scope.find('.elements.qr, .elements.cover-taco-qr, .elements.cover-taco-label').addClass('element-critical');
+    $scope.find('.elements').each(function() {
+        if (elementHasCoverMandatoryToken($(this))) {
+            $(this).addClass('element-critical');
+        }
+    });
+}
+
+function markCriticalDesignElements($root) {
+    var $scope = $root && $root.length ? $root : $('#containment-wrapper' + step);
+    // Obligatorios: nº participación (x2), referencia y QR. El nº de lotería (number/mini) es opcional.
+    $scope.find('.elements.number, .elements.mini').removeClass('element-critical');
+    $scope.find('.elements.participation, .elements.reference, .elements.qr')
+        .addClass('element-critical');
+    if (step === 3 || ($scope.attr('id') === 'containment-wrapper3')) {
+        markCoverCriticalElements($scope);
+    }
+}
+
+function ensurePortadaQrPlaceholder() {
+    var $wrap = $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    if ($wrap.find('.elements.qr').length === 0) {
+        var qrMinPx = Math.ceil(9 * 96 / 25.4);
+        var qrHtml = '<div class="elements element-critical qr cover-taco-qr" style="resize:both;overflow:hidden;position:absolute;bottom:50px;right:15px;width:'+qrMinPx+'px;height:'+qrMinPx+'px;min-width:'+qrMinPx+'px;min-height:'+qrMinPx+'px;background:#fff;border:2px solid #ccc;z-index:5;"><span></span></div>';
+        $wrap.append(qrHtml);
+    }
+
+    ensurePortadaTacoLabelBar($wrap);
+}
+
+function ensurePortadaTacoLabelBar($wrap) {
+    $wrap = $wrap && $wrap.length ? $wrap : $('#containment-wrapper3');
+    if (!$wrap.length) return;
+
+    var labelToken = '{' + '{taco_label}' + '}';
+    var $ctx = $wrap.find('.elements.context');
+    var $withLabel = $ctx.filter(function() {
+        var html = ($(this).html() || '');
+        return html.indexOf(labelToken) !== -1 || html.indexOf('__TACO_LABEL__') !== -1;
+    });
+    if ($withLabel.length) {
+        $withLabel.addClass('element-critical cover-taco-label');
+        markCoverCriticalElements($wrap);
+        return;
+    }
+
+    var $emptyBottom = $ctx.filter(function() {
+        var text = $.trim($(this).find('span').first().text());
+        var style = ($(this).attr('style') || '');
+        return text === '' && (/bottom\s*:/i.test(style) || /inset\s*:/i.test(style));
+    }).first();
+
+    if ($emptyBottom.length) {
+        $emptyBottom.addClass('element-critical cover-taco-label');
+        $emptyBottom.find('span').first()
+            .attr('style', 'padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;')
+            .text(labelToken);
+        markCoverCriticalElements($wrap);
+        return;
+    }
+
+    $wrap.append(
+        '<div class="elements element-critical context cover-taco-label" style="width: calc(100% - 60px); border-radius: 10px; height: 10%; resize: both; overflow: hidden; position: absolute; bottom: 20px; left: 0; right: 0; margin: auto; background-color: #dfdfdf; border: 2px solid #333;">'
+        + '<span style="padding: 8px; display: block; text-align: center; font-size: 12px; font-weight: 700;">' + labelToken + '</span></div>'
+    );
+    markCoverCriticalElements($wrap);
+}
+
+function clearStaleTextPlaceholders($root) {
+    var $scope = $root && $root.length ? $root : $(document);
+    $scope.find('.elements.text.text-placeholder-new').each(function() {
+      var $el = $(this);
+      var plain = $.trim($el.find('span').first().text() || '');
+      if (plain && plain !== 'Escribe aquí...') {
+        $el.removeClass('text-placeholder-new');
+      }
+    });
+}
+
 function reapplyElementEvents() {
     enableDesignElementsResize($('#containment-wrapper' + step));
+    clearStaleTextPlaceholders($('#containment-wrapper' + step));
     destroyStepDraggables(step);
 
     // Asegurar que los botones edit-btn existan en los elementos
@@ -2395,11 +3171,12 @@ function reapplyElementEvents() {
     var dragClickOffsetX, dragClickOffsetY;
     $('#containment-wrapper' + step).find('.elements').draggable({ 
       handle: 'span', 
-      containment: "#containment-wrapper"+step, 
+      // Con zoom, el containment nativo de jQuery UI usa coords escaladas y falla.
+      containment: (typeof designZoom === 'number' && designZoom !== 1) ? false : "#containment-wrapper"+step, 
       scroll: false, 
       start: function(event, ui){
-        $('#step').addClass('d-none');
-        $('#save-step').removeClass('d-none');
+        selectDesignElement($(this));
+        markDesignDirty();
         $('#step-edit-next').addClass('d-none');
         if (typeof designZoom !== 'undefined' && designZoom !== 1) {
           var el = ui.helper[0];
@@ -2434,7 +3211,9 @@ function reapplyElementEvents() {
         updateUndoRedoButtons();
       }
     });
-    $('.elements.participation, .elements.reference, .elements.qr, .elements.number, .elements.mini').addClass('element-critical');
+    $('.elements.participation, .elements.reference, .elements.qr').addClass('element-critical');
+    $('.elements.number, .elements.mini').removeClass('element-critical');
+    markCriticalDesignElements($('#containment-wrapper' + step));
     
     // Vincular eventos de los botones edit-btn (con prevención de propagación)
     $('.elements.text .edit-btn').off('click', editelements).on('click', function(e) {
@@ -2502,23 +3281,55 @@ $(document).on('click', '#apply-bg', function() {
   let img = '';
   if($('#background-image')[0].files && $('#background-image')[0].files[0]) {
     const file = $('#background-image')[0].files[0];
+    const maxBytes = {{ (int) \App\Support\SecureImageUpload::MAX_KB }} * 1024;
+    if (file.size > maxBytes) {
+      alert('La imagen pesa demasiado (' + (file.size / (1024 * 1024)).toFixed(1) + ' MB). El máximo es {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB. Comprima el PNG o use JPG.');
+      return;
+    }
     const formData = new FormData();
     formData.append('image', file);
     showDesignLoading('Subiendo imagen...');
-    fetch('{{url('api/upload-image')}}', {
+    fetch(@json(route('design.uploadImage')), {
       method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+      },
       body: formData
     })
-    .then(response => response.json())
-    .then(data => {
-      if(data.url) {
-        img = data.url;
+    .then(function(response) {
+      return response.json().then(function(data) {
+        return { ok: response.ok, status: response.status, data: data };
+      }).catch(function() {
+        return { ok: false, status: response.status, data: null };
+      });
+    })
+    .then(function(result) {
+      if (result.ok && result.data && result.data.url) {
+        img = result.data.url;
         localStorage.setItem('bgimg-step'+step, img);
         setBgToContainment(color, img);
         $('#background-modal').modal('hide');
+        return;
       }
+      var msg = 'No se pudo subir la imagen de fondo.';
+      if (result.data) {
+        if (result.data.message) msg = result.data.message;
+        else if (result.data.errors && result.data.errors.image) {
+          msg = [].concat(result.data.errors.image).join('\n');
+        }
+      }
+      if (result.status === 413) {
+        msg = 'El archivo es demasiado grande para el servidor. Comprima la imagen (máx. {{ (int) (\App\Support\SecureImageUpload::MAX_KB / 1024) }} MB).';
+      }
+      alert(msg);
     })
-    .finally(() => hideDesignLoading());
+    .catch(function() {
+      alert('Error de red al subir la imagen. Inténtelo de nuevo.');
+    })
+    .finally(function() { hideDesignLoading(); });
   } else {
     img = localStorage.getItem('bgimg-step'+step) || '';
     setBgToContainment(color, img);
@@ -2527,9 +3338,11 @@ $(document).on('click', '#apply-bg', function() {
   localStorage.setItem('bg-step'+step, color);
 });
 function setBgToContainment(color, img) {
-  var $cont = (step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step);
+  var $cont = (typeof getBackgroundTargetEl === 'function')
+    ? getBackgroundTargetEl(step)
+    : ((step === 4) ? $('#design-back-bg') : $('#containment-wrapper'+step));
   if (!$cont.length) $cont = $('#containment-wrapper'+step);
-  $cont.css('background-color', color);
+  $cont.css('background-color', color || '#ffffff');
   if(img) {
     let imageUrl = img;
     if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
@@ -2543,6 +3356,7 @@ function setBgToContainment(color, img) {
   } else {
     $cont.css('background-image', 'none');
   }
+  if (typeof syncMarginBgLayers === 'function') syncMarginBgLayers();
 }
 
 enableDesignElementsResize();
@@ -2555,7 +3369,9 @@ function loadExistingBackgrounds() {
     const img = localStorage.getItem('bgimg-step' + i);
     
     if (img || color !== '#dfdfdf') {
-      var $cont = (i === 4) ? $('#design-back-bg') : $('#containment-wrapper' + i);
+      var $cont = (typeof getBackgroundTargetEl === 'function')
+        ? getBackgroundTargetEl(i)
+        : ((i === 4) ? $('#design-back-bg') : $('#containment-wrapper' + i));
       if (!$cont.length) $cont = $('#containment-wrapper' + i);
       if ($cont.length) {
         $cont.css('background-color', color);
@@ -2597,5 +3413,5 @@ $(document).on('click', '#open-bg-modal', function() {
   debugBackgroundImage(step);
 });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+@include('design.partials.preview_pdf_button')
 @endsection 

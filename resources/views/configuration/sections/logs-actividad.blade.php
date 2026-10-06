@@ -27,7 +27,7 @@
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
         <div>
             <h4 class="mb-0">Logs de Actividad</h4>
-            <small class="text-muted">Consulta por ámbito. Las filas de actividad son datos de demostración hasta conectar auditoría real.</small>
+            <small class="text-muted">Consulta por ámbito. Solo eventos de auditoría reales (aceptaciones legales y cambios de configuración).</small>
         </div>
     </div>
 
@@ -61,12 +61,11 @@
     @if($logTab === 'partilot')
         <div class="form-card bs mt-3">
             <h5 class="mb-0 mt-1">Actividad global del panel</h5>
-            <small><i>Desde el inicio de sesión del administrador y acciones en el sistema (demostración ampliada).</i></small>
+            <small><i>Actividad global auditada del panel Partilot.</i></small>
         </div>
         @include('configuration.sections.logs-actividad-activity', [
-            'mockVariant' => 'partilot',
             'activityTitle' => 'Actividad administrador',
-            'activitySubtitle' => 'Revisa la actividad del rol administrador Partilot (datos mock).',
+            'activitySubtitle' => 'Aceptaciones legales y cambios de configuración registrados.',
         ])
     @endif
 
@@ -148,9 +147,8 @@
                 <a href="{{ $url(['log_tab' => 'administracion']) }}" class="btn btn-sm btn-outline-secondary">Cambiar administración</a>
             </div>
             @include('configuration.sections.logs-actividad-activity', [
-                'mockVariant' => 'default',
                 'activityTitle' => 'Actividad administración',
-                'activitySubtitle' => 'Mismo formato de eventos filtrado conceptualmente a esta administración (mock).',
+                'activitySubtitle' => 'Aceptaciones legales y cambios auditados de esta administración.',
             ])
         @endif
     @endif
@@ -295,9 +293,8 @@
                 <a href="{{ $url(['log_tab' => 'entidades']) }}" class="btn btn-sm btn-link">Otra entidad</a>
             </div>
             @include('configuration.sections.logs-actividad-activity', [
-                'mockVariant' => 'default',
                 'activityTitle' => 'Actividad gestor',
-                'activitySubtitle' => 'Revisa la actividad del gestor (datos mock).',
+                'activitySubtitle' => 'Eventos auditados del gestor en la entidad seleccionada.',
             ])
         @endif
     @endif
@@ -446,9 +443,8 @@
                 <a href="{{ $url(['log_tab' => 'vendedores']) }}" class="btn btn-sm btn-link">Otra entidad</a>
             </div>
             @include('configuration.sections.logs-actividad-activity', [
-                'mockVariant' => 'default',
                 'activityTitle' => 'Actividad vendedor',
-                'activitySubtitle' => 'Revisa la actividad del vendedor (datos mock).',
+                'activitySubtitle' => 'Eventos auditados del vendedor en la entidad seleccionada.',
             ])
         @endif
     @endif
@@ -535,9 +531,8 @@
                 <a href="{{ $url(['log_tab' => 'usuarios']) }}" class="btn btn-sm btn-outline-secondary">Cambiar usuario</a>
             </div>
             @include('configuration.sections.logs-actividad-activity', [
-                'mockVariant' => 'default',
                 'activityTitle' => 'Actividad usuario',
-                'activitySubtitle' => 'Revisa la actividad del usuario (datos mock).',
+                'activitySubtitle' => 'Aceptaciones legales y operaciones auditadas del usuario.',
             ])
         @endif
     @endif

@@ -12,15 +12,20 @@ return [
 
     // Optimización de imágenes en HTML
     'optimize_images' => env('QR_OPTIMIZE_IMAGES', false),
+
+    // Si true, no genera ni inyecta QR en PDFs de participación (más rápido para probar maquetación).
+    'skip_in_pdf' => env('PDF_SKIP_QR', false),
     
     // Límite de imágenes para optimizar (para evitar ralentizar)
     'max_images_to_optimize' => env('QR_MAX_IMAGES_OPTIMIZE', 5),
     
     // Configuración de QR codes
     'qr_code' => [
-        'size' => env('QR_CODE_SIZE', 120),
+        'size' => env('QR_CODE_SIZE', 100),
         'margin' => env('QR_CODE_MARGIN', 0),
         'cache_ttl' => env('QR_CODE_CACHE_TTL', 1800), // 30 minutos
+        // Tamaño mínimo de la caja QR en impresión (mm). 9 mm ≈ 0,9×0,9 cm.
+        'min_print_size_mm' => (float) env('QR_MIN_PRINT_SIZE_MM', 9),
     ],
     
     // Configuración de rendimiento

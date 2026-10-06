@@ -12,8 +12,15 @@ use App\Models\Manager;
 use App\Mail\UserWelcomeMail;
 use App\Models\ParticipationGift;
 use App\Services\CommunicationEmailService;
+use App\Services\DashboardService;
+use App\Services\PanelLegalAcceptanceService;
 use App\Services\ParticipationGiftService;
+use App\Services\PendingDigitalSaleService;
+use App\Services\RoleLegalAcceptanceService;
+use App\Services\UserConsentService;
 use App\Support\ActiveEntityContext;
+use App\Support\PanelAuthContext;
+use App\Support\PasswordRules;
 
 class AuthController extends Controller
 {
@@ -22,11 +29,11 @@ class AuthController extends Controller
      */
     public function showLoginForm()
     {
-        // Si ya está autenticado, redirigir al dashboard
+        // Si ya está autenticado, ir al home de ese rol (nunca heredar otro contexto).
         if (Auth::check()) {
-            return redirect('/dashboard');
+            return PanelAuthContext::redirectHome(Auth::user());
         }
-        
+
         return view('login');
     }
 
@@ -53,10 +60,31 @@ class AuthController extends Controller
                     ->orWhere('panel_login_username', $login);
             })
             ->first();
+        // Modificar esta condición para acceder tanto con email como con usuario
+        if ($user && $user->isAdministrationPanelAccount()) {
+            $panelUsername = trim((string) ($user->panel_login_username ?? ''));
+            if ($panelUsername === '' || strcasecmp($login, $panelUsername) !== 0) {
+                return back()->withErrors([
+                    'email' => 'Para acceder al panel use el usuario asignado en el correo de bienvenida, no el email de la administración.',
+                ])->withInput($request->only('email'));
+            }
+        }
 
-        if (! $user || ! Hash::check($password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             return back()->withErrors([
                 'email' => 'Las credenciales proporcionadas no coinciden con nuestros registros.',
+            ])->withInput($request->only('email'));
+        }
+
+        if ($user->isAdministrationContactOnly()) {
+            return back()->withErrors([
+                'email' => 'Esta cuenta no tiene acceso al panel.',
+            ])->withInput($request->only('email'));
+        }
+
+        if ($user->deletion_requested_at) {
+            return back()->withErrors([
+                'email' => 'Esta cuenta está desactivada por solicitud de baja.',
             ])->withInput($request->only('email'));
         }
 
@@ -65,17 +93,32 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        // Bloquear login si la administración/entidad asociada está pendiente o inactiva.
-        // Regla: solo se permite acceso si el panel asociado tiene status == 1 (Activo).
+        // Cuenta panel de entidad: al primer acceso con credenciales válidas, activar entidad pendiente
+        // (sustituye la activación que antes hacía el enlace mágico al establecer contraseña).
+        if ($user->isPanelAccount() && $user->panel_account_type === 'entity') {
+            $entity = \App\Models\Entity::query()->find($user->panel_account_id);
+            if ($entity && ($entity->status === null || (int) $entity->status === -1)) {
+                $entity->update(['status' => 1]);
+            }
+        }
+
+        // Bloquear login si la administración/entidad asociada no permite acceso.
+        // INC-006: Pendiente puede completar primer acceso + condiciones; Inactivo = genérico; Bloqueado = aviso específico.
         if (! $user->isSuperAdmin()) {
                 $hasActiveAccess = false;
+                $deniedMessage = 'Las credenciales proporcionadas no coinciden con nuestros registros.';
 
                 if ($user->isPanelAccount()) {
                     if ($user->panel_account_type === 'administration') {
-                        $hasActiveAccess = \App\Models\Administration::query()
-                            ->whereKey($user->panel_account_id)
-                            ->where('status', 1)
-                            ->exists();
+                        $administration = \App\Models\Administration::query()->find($user->panel_account_id);
+                        if ($administration && $administration->isActive()) {
+                            $hasActiveAccess = true;
+                        } elseif ($administration && $administration->isPending()) {
+                            // Primer acceso / aceptación de condiciones (INC-006).
+                            $hasActiveAccess = true;
+                        } elseif ($administration && $administration->isBlocked()) {
+                            $deniedMessage = 'Tu cuenta de Partilot ha sido bloqueada. Para obtener más información, ponte en contacto con Partilot';
+                        }
                     } elseif ($user->panel_account_type === 'entity') {
                         $hasActiveAccess = \App\Models\Entity::query()
                             ->whereKey($user->panel_account_id)
@@ -89,8 +132,17 @@ class AuthController extends Controller
                     if ($user->isAdministration()) {
                         $hasActiveAccess = $user->managers()
                             ->where('status', 1)
-                            ->whereHas('administration', fn ($q) => $q->where('status', 1))
+                            ->whereHas('administration', fn ($q) => $q->where('status', \App\Models\Administration::STATUS_ACTIVE))
                             ->exists();
+
+                        if (! $hasActiveAccess) {
+                            $blocked = $user->managers()
+                                ->whereHas('administration', fn ($q) => $q->where('status', \App\Models\Administration::STATUS_BLOCKED))
+                                ->exists();
+                            if ($blocked) {
+                                $deniedMessage = 'Tu cuenta de Partilot ha sido bloqueada. Para obtener más información, ponte en contacto con Partilot';
+                            }
+                        }
                     }
 
                     if (! $hasActiveAccess && $user->isEntity()) {
@@ -99,37 +151,64 @@ class AuthController extends Controller
                             ->whereHas('entity', fn ($q) => $q->where('status', 1))
                             ->exists();
                     }
+
+                    // Contraseña correcta pero cuenta de vendedor/usuario de app: indicarlo en vez de «credenciales».
+                    if (! $hasActiveAccess && ! $user->isAdministration() && ! $user->isEntity()) {
+                        $deniedMessage = 'Tu cuenta es de vendedor o usuario de Partilot y no tiene acceso al panel de control. Accede desde la app o web app de Partilot con este mismo email y contraseña.';
+                    }
                 }
 
                 if (! $hasActiveAccess) {
                     Auth::logout();
+
                     return back()->withErrors([
-                        'email' => 'Tu administración o entidad asociada no está activa (pendiente o inactiva).',
+                        'email' => $deniedMessage,
                     ])->withInput($request->only('email'));
                 }
         }
 
-        // Superadmin, cuentas panel (administración/entidad) y gestores de entidad (tienen entity_id)
-        // acceden al panel web.
-        if (! $user->isSuperAdmin() && ! $user->isPanelAccount() && ! $user->isEntity()) {
-            Auth::logout();
+        app(\App\Services\AdministrationSessionInvalidationService::class)
+            ->markSessionValidated((int) $user->id);
 
-            return back()->withErrors([
-                'email' => 'Tu cuenta no tiene acceso al panel. Use el usuario o email y contraseña de su administración o entidad.',
-            ])->withInput($request->only('email'));
+        // Superadmin, cuentas panel (administración/entidad) y gestor responsable acceden al panel web.
+        // Gestores no responsables (solo secundarios) usan la web app / app Ionic.
+        if (! $user->isSuperAdmin() && ! $user->isPanelAccount() && ! $user->isAdministration()) {
+            if ($user->isEntity()) {
+                $isResponsibleManager = $user->managers()
+                    ->whereNotNull('entity_id')
+                    ->where('is_primary', true)
+                    ->where('status', 1)
+                    ->whereHas('entity', fn ($q) => $q->where('status', 1))
+                    ->exists();
+
+                if (! $isResponsibleManager) {
+                    Auth::logout();
+
+                    return back()->withErrors([
+                        'email' => 'Los gestores que no son responsables deben acceder a través de la aplicación / web app Partilot, no del panel de administración.',
+                    ])->withInput($request->only('email'));
+                }
+            } else {
+                Auth::logout();
+
+                return back()->withErrors([
+                    'email' => 'Tu cuenta no tiene acceso al panel. Use el usuario o email y contraseña de su administración o entidad.',
+                ])->withInput($request->only('email'));
+            }
         }
 
         if ($user->mustChangeEntityManagerLegacyPassword()) {
             return redirect()->route('entity-manager.legacy-password.show');
         }
 
-        if ($user->isPrintShop()) {
-            return redirect()->intended(route('print-shop.index'));
+        if ($user->mustChangeProvisionalPassword()) {
+            return redirect()->route('provisional-password.show');
         }
 
         ActiveEntityContext::bootstrapSession($request, $user);
+        PanelAuthContext::clearIntended($request);
 
-        return redirect()->intended('/dashboard');
+        return PanelAuthContext::redirectHome($user);
     }
 
     /**
@@ -152,7 +231,7 @@ class AuthController extends Controller
     {
         $user = Auth::user();
         if (! $user || ! $user->mustChangeEntityManagerLegacyPassword()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         return view('auth.entity-manager-legacy-password');
@@ -165,7 +244,7 @@ class AuthController extends Controller
     {
         $user = Auth::user();
         if (! $user || ! $user->mustChangeEntityManagerLegacyPassword()) {
-            return redirect()->route('dashboard');
+            return PanelAuthContext::redirectHome($user);
         }
 
         $request->validate([
@@ -192,20 +271,61 @@ class AuthController extends Controller
 
         Auth::login($user);
         ActiveEntityContext::bootstrapSession($request, $user);
+        PanelAuthContext::clearIntended($request);
 
-        return redirect()->route('dashboard')->with('success', 'Contraseña actualizada correctamente.');
+        return PanelAuthContext::redirectHome($user, 'success', 'Contraseña actualizada correctamente.');
+    }
+
+    public function showProvisionalPassword()
+    {
+        $user = Auth::user();
+        if (! $user || ! $user->mustChangeProvisionalPassword()) {
+            return PanelAuthContext::redirectHome($user);
+        }
+
+        return view('auth.provisional-password');
+    }
+
+    public function updateProvisionalPassword(Request $request)
+    {
+        $user = Auth::user();
+        if (! $user || ! $user->mustChangeProvisionalPassword()) {
+            return PanelAuthContext::redirectHome($user);
+        }
+
+        $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ], [
+            'password.required' => 'Indique la nueva contraseña.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed' => 'La confirmación no coincide.',
+        ]);
+
+        $user->password = $request->input('password');
+        $user->must_change_password = false;
+        $user->save();
+
+        PanelAuthContext::clearIntended($request);
+
+        $user = $user->fresh();
+        app(PanelLegalAcceptanceService::class)->activatePendingAdministrationIfReady($user);
+
+        return PanelAuthContext::redirectHome($user, 'success', 'Contraseña actualizada correctamente.');
     }
 
     /**
      * Mostrar el dashboard
      */
-    public function dashboard()
+    public function dashboard(DashboardService $dashboardService)
     {
-        if (auth()->user()?->isPrintShop()) {
-            return redirect()->route('print-shop.index');
+        $user = auth()->user();
+        if ($user?->isPrintShop()) {
+            return PanelAuthContext::redirectHome($user);
         }
 
-        return view('welcome');
+        $dashboard = $dashboardService->build($user);
+
+        return view('welcome', compact('dashboard'));
     }
 
     /**
@@ -247,6 +367,13 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Las credenciales proporcionadas no coinciden con nuestros registros.'
             ], 401);
+        }
+
+        if ($user->deletion_requested_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta cuenta está desactivada por solicitud de baja.',
+            ], 403);
         }
 
         // Obtener el vendedor vinculado al usuario (por tabla sellers, no por rol en users)
@@ -311,6 +438,20 @@ class AuthController extends Controller
             ], 401);
         }
 
+        if ($user->isAdministrationContactOnly()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta cuenta no tiene acceso a la aplicación.',
+            ], 403);
+        }
+
+        if ($user->deletion_requested_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Esta cuenta está desactivada por solicitud de baja.',
+            ], 403);
+        }
+
         $payload = [
             'user_id' => $user->id,
             'exp' => now()->addDays(30)->timestamp,
@@ -330,10 +471,9 @@ class AuthController extends Controller
             $response['seller'] = $seller->load('entities');
         }
 
-        // Capacidades por tablas: presencia en managers → puede actuar como gestor
-        $manager = Manager::where('user_id', $user->id)->first();
-        if ($manager) {
-            $response['manager'] = $manager;
+        $managerPayload = $this->managerPayloadForUser($user);
+        if ($managerPayload) {
+            $response['manager'] = $managerPayload;
         }
 
         app(ParticipationGiftService::class)->attachPendingGiftsToUser($user);
@@ -341,6 +481,9 @@ class AuthController extends Controller
             ->where('to_user_id', $user->id)
             ->where('status', ParticipationGift::STATUS_PENDING)
             ->count();
+
+        $response['pending_role_invitations'] = app(RoleLegalAcceptanceService::class)
+            ->pendingInvitationsForUser($user);
 
         return response()->json($response);
     }
@@ -355,7 +498,8 @@ class AuthController extends Controller
 
         $request->validate([
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
+            // App móvil (stores en revisión): sin campo confirmación; reactivar confirmed cuando la app lo envíe.
+            'password' => PasswordRules::registration(confirmed: false),
             'phone' => 'nullable|string|max:20',
             'sms_code' => [
                 \Illuminate\Validation\Rule::requiredIf(fn () => app(\App\Services\PhoneVerificationService::class)
@@ -372,7 +516,7 @@ class AuthController extends Controller
             'email.email' => 'El formato del email no es válido.',
             'email.unique' => 'Ya existe una cuenta con este email.',
             'password.required' => 'La contraseña es obligatoria.',
-            'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
+            ...PasswordRules::messages(),
             'fecha_nacimiento.required' => 'La fecha de nacimiento es obligatoria.',
             'fecha_nacimiento.date' => 'La fecha de nacimiento no es válida.',
             'fecha_nacimiento.before' => 'La fecha de nacimiento debe ser anterior a hoy.',
@@ -416,7 +560,33 @@ class AuthController extends Controller
             'status' => true,
         ]);
 
+        app(UserConsentService::class)->record(
+            $user,
+            \App\Models\UserConsent::TYPE_REGISTRATION_TERMS,
+            $request,
+            ['source' => 'api_register']
+        );
+
         app(ParticipationGiftService::class)->attachPendingGiftsToUser($user);
+
+        $claimedByCode = 0;
+        $linkCode = trim((string) $request->input('link_code', ''));
+        if ($linkCode !== '') {
+            try {
+                $pending = app(PendingDigitalSaleService::class)->claimByLinkCode($user, $linkCode);
+                $claimedByCode = (int) $pending->quantity;
+            } catch (\InvalidArgumentException $e) {
+                \Log::info('apiRegister: link_code no vinculado tras registro', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            } catch (\Throwable $e) {
+                \Log::warning('apiRegister: error vinculando link_code', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
 
         try {
             app(CommunicationEmailService::class)->sendAndLog(
@@ -480,11 +650,47 @@ class AuthController extends Controller
             $response['seller'] = $seller;
         }
 
-        $manager = Manager::where('user_id', $user->id)->first();
-        if ($manager) {
-            $response['manager'] = $manager;
+        $managerPayload = $this->managerPayloadForUser($user);
+        if ($managerPayload) {
+            $response['manager'] = $managerPayload;
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * Payload de gestor para app/web app: incluye todas las entidades activas del usuario.
+     *
+     * @return array{id: int, entity_id: int|null, is_primary: bool, entities: list<array{id: int, name: string, is_primary: bool, manager_id: int}>}|null
+     */
+    private function managerPayloadForUser(User $user): ?array
+    {
+        $managers = Manager::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('entity_id')
+            ->where('status', 1)
+            ->whereHas('entity', fn ($q) => $q->where('status', 1))
+            ->with('entity:id,name')
+            ->orderByDesc('is_primary')
+            ->orderBy('id')
+            ->get();
+
+        if ($managers->isEmpty()) {
+            return null;
+        }
+
+        $primary = $managers->firstWhere('is_primary', true) ?? $managers->first();
+
+        return [
+            'id' => (int) $primary->id,
+            'entity_id' => $primary->entity_id ? (int) $primary->entity_id : null,
+            'is_primary' => (bool) $primary->is_primary,
+            'entities' => $managers->map(fn (Manager $m) => [
+                'id' => (int) $m->entity_id,
+                'name' => trim((string) ($m->entity?->name ?? 'Entidad')),
+                'is_primary' => (bool) $m->is_primary,
+                'manager_id' => (int) $m->id,
+            ])->values()->all(),
+        ];
     }
 } 

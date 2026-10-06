@@ -86,6 +86,17 @@ class PrepagoCodigosService
             return null;
         }
 
+        $maxAmount = (float) config('prize_wallet.max_prepago_code_amount', 10000);
+        if ($importe > $maxAmount) {
+            Log::warning('Prepago códigos: importe supera el límite permitido', [
+                'administration_id' => $administration?->id,
+                'importe' => $importe,
+                'max' => $maxAmount,
+            ]);
+
+            return null;
+        }
+
         $config = $this->resolveConfig($administration);
         if (! $config) {
             Log::warning('Prepago códigos: sin configuración para la administración', [

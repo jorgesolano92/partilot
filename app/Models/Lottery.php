@@ -17,6 +17,8 @@ class Lottery extends Model
         'draw_date',
         'draw_time',
         'deadline_date',
+        'deadline_time',
+        'digitalization_closed_at',
         'ticket_price',
         'total_tickets',
         'sold_tickets',
@@ -32,7 +34,9 @@ class Lottery extends Model
     protected $casts = [
         'draw_date' => 'date',
         'deadline_date' => 'date',
-        'draw_time' => 'datetime',
+        'deadline_time' => 'datetime:H:i:s',
+        'digitalization_closed_at' => 'datetime',
+        'draw_time' => 'datetime:H:i:s',
         'ticket_price' => 'decimal:2',
         'prize_value' => 'decimal:2',
         'is_special' => 'boolean',
@@ -75,6 +79,20 @@ class Lottery extends Model
     public function result()
     {
         return $this->hasOne(LotteryResult::class);
+    }
+
+    public function hasImage(): bool
+    {
+        return filled($this->image);
+    }
+
+    public function imageUrl(): ?string
+    {
+        if (! $this->hasImage()) {
+            return null;
+        }
+
+        return url('uploads/'.ltrim((string) $this->image, '/'));
     }
 
     // Relación con los escrutinios de administraciones
@@ -120,6 +138,18 @@ class Lottery extends Model
         }
 
         return 'Sorteo #'.$this->id;
+    }
+
+    /**
+     * Hora de cierre de venta formateada (HH:mm).
+     */
+    public function deadlineTimeLabel(): string
+    {
+        if (! $this->deadline_time) {
+            return '23:59';
+        }
+
+        return \Carbon\Carbon::parse($this->deadline_time)->format('H:i');
     }
 
     /**

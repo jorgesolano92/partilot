@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\PendingDigitalSaleLinkCode;
+use App\Support\PendingDigitalSaleContactMask;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -19,6 +20,8 @@ class PendingDigitalSale extends Model
 
     protected $fillable = [
         'email',
+        'buyer_phone',
+        'notify_channel',
         'seller_id',
         'entity_id',
         'lottery_id',
@@ -131,5 +134,24 @@ class PendingDigitalSale extends Model
         }
 
         return $this;
+    }
+
+    public function maskedBuyerContact(): ?string
+    {
+        return PendingDigitalSaleContactMask::forPending(
+            $this->email,
+            $this->buyer_phone,
+            $this->notify_channel
+        );
+    }
+
+    public function usesPhoneChannel(): bool
+    {
+        return in_array($this->notify_channel, ['sms', 'whatsapp'], true);
+    }
+
+    public function usesEmailChannel(): bool
+    {
+        return $this->notify_channel === 'email' || ($this->email && ! $this->usesPhoneChannel());
     }
 }

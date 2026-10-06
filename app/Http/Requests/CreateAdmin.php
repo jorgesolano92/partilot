@@ -25,7 +25,7 @@ class CreateAdmin extends FormRequest
         return [
             //
             "web"=>"nullable|string|max:255",
-            // "image"=>"required|string|max:255",
+            ...\App\Support\SecureImageUpload::rules('image'),
             "name"=>"required|string|max:255",
             "receiving"=>["required", "string", "regex:/^[0-9]{5}$/"],
             "admin_number"=>["nullable", "string", "regex:/^[0-9]{9}$/"],
@@ -33,7 +33,7 @@ class CreateAdmin extends FormRequest
             "nif_cif"=>"required|string|max:255",
             "province"=>"required|string|max:255",
             "city"=>"required|string|max:255",
-            "postal_code"=>"required|string|max:255",
+            "postal_code"=>["required", "string", "regex:/^[0-9]{5}$/"],
             "address"=>"required|string|max:255",
             'email' => [
                 'required',
@@ -69,5 +69,26 @@ class CreateAdmin extends FormRequest
                 },
             ],
         ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'admin_number.regex' => 'Se requieren exactamente 9 dígitos numéricos (ejemplo: 260000001). No se admiten letras, espacios ni símbolos.',
+            'receiving.regex' => 'El número de receptor debe tener exactamente 5 dígitos.',
+            'postal_code.regex' => 'El código postal debe tener exactamente 5 dígitos.',
+        ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('admin_number')) {
+            $raw = (string) $this->input('admin_number');
+            // Conservar ceros iniciales: solo eliminar no-dígitos, sin convertir a int.
+            $digits = preg_replace('/\D/', '', $raw);
+            $this->merge([
+                'admin_number' => $digits === '' ? null : $digits,
+            ]);
+        }
     }
 }

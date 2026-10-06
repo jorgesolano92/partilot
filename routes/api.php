@@ -13,10 +13,15 @@ use App\Http\Controllers\LotteryController;
 use App\Http\Controllers\DevolutionsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\EntityLotteryPrizeSettingsController;
 use App\Http\Controllers\ManagerController;
 use App\Http\Controllers\ScrutinyController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\BackgroundTaskController;
+use App\Http\Controllers\ReserveController;
+use App\Http\Controllers\SetController;
+use App\Http\Controllers\LegalApiController;
+use App\Http\Controllers\AccountDeletionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,38 +35,29 @@ use App\Http\Controllers\BackgroundTaskController;
 */
 
 
-Route::post('upload-image', function(Request $request) {
-    //
-    if ($request->hasFile('image') && $request->file('image')->isValid()) {
-        $file = $request->file('image');
+Route::get('test', [ApiController::class,'test']);
 
-        $filename = time() . '_' . $file->getClientOriginalName();
-        $destinationPath = public_path('uploads');
-
-        // Asegúrate de que la carpeta exista
-        if (!file_exists($destinationPath)) {
-            mkdir($destinationPath, 0755, true);
-        }
-
-        $file->move($destinationPath, $filename);
-
-        $url = url("uploads/{$filename}");
-        return response()->json(['url' => $url]);
-    }
-
-    return response()->json(['error' => 'Imagen no válida'], 422);
+Route::prefix('legal')->group(function () {
+    Route::get('/config', [LegalApiController::class, 'config']);
+    Route::get('/documents', [LegalApiController::class, 'documents']);
+    Route::get('/documents/{slug}', [LegalApiController::class, 'document']);
+    Route::get('/cookies/status', [LegalApiController::class, 'cookieStatus']);
+    Route::post('/cookies', [LegalApiController::class, 'storeCookieConsent']);
+    Route::middleware('auth.api')->group(function () {
+        Route::get('/pending-acceptances', [LegalApiController::class, 'pendingAcceptances']);
+        Route::get('/role-invitations/{key}', [LegalApiController::class, 'showRoleInvitation']);
+        Route::post('/role-invitations/{key}/respond', [LegalApiController::class, 'respondRoleInvitation']);
+    });
 });
 
-Route::post('generarQr', [BackController::class,'generarQr']);
-
-Route::post('/design/save-format', [App\Http\Controllers\DesignController::class, 'saveFormat']);
-
-Route::get('test', [ApiController::class,'test']);
+Route::middleware('auth.api')->prefix('account')->group(function () {
+    Route::get('/deletion/status', [AccountDeletionController::class, 'status']);
+    Route::post('/deletion/request', [AccountDeletionController::class, 'request']);
+});
 
 Route::get('/check-delete/{type}/{id}', [ApiController::class, 'checkDelete']);
 Route::delete('/delete/{type}/{id}', [ApiController::class, 'deleteItem']);
 
-Route::post('/design/save-snapshot', [\App\Http\Controllers\DesignController::class, 'saveSnapshot']);
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name('api.stripe.webhook');
 
 // ============================================================================
@@ -71,6 +67,7 @@ Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name
 // Verificar participación por referencia (pública)
 Route::get('/participation/check', [ApiController::class, 'checkParticipation']);
 Route::get('/participation-ticket', [ApiController::class, 'showParticipationTicket']);
+Route::get('/public/participation-check', [ApiController::class, 'publicParticipationCheckJson']);
 
 // Configuración de Firebase (pública para inicialización)
 Route::get('/notifications/firebase-config', [NotificationController::class, 'getFirebaseConfig']);
@@ -96,6 +93,11 @@ Route::prefix('auth')->group(function () {
     Route::get('/sms/config', [\App\Http\Controllers\PhoneVerificationController::class, 'config']);
     Route::post('/sms/send-code', [\App\Http\Controllers\PhoneVerificationController::class, 'sendCode'])
         ->middleware('throttle:6,1');
+
+    Route::post('/password/forgot', [\App\Http\Controllers\AppPasswordResetController::class, 'forgot'])
+        ->middleware('throttle:5,1');
+    Route::post('/password/reset', [\App\Http\Controllers\AppPasswordResetController::class, 'reset'])
+        ->middleware('throttle:10,1');
     
     // Obtener usuario autenticado
     Route::middleware('auth.api')->get('/user', function (Request $request) {
@@ -190,6 +192,8 @@ Route::middleware('auth.api')->group(function () {
         Route::post('/digital', [ParticipationController::class, 'apiSellDigital']);
         Route::post('/digital/pending', [ParticipationController::class, 'apiSellDigitalPending']);
         Route::post('/digital/pending/{pendingId}/notify', [ParticipationController::class, 'apiSendPendingDigitalNotify']);
+        Route::post('/digital/pending/{pendingId}/resend-email', [ParticipationController::class, 'apiResendPendingDigitalEmail']);
+        Route::get('/digital/pending/{pendingId}/whatsapp-link', [ParticipationController::class, 'apiGetPendingDigitalWhatsAppLink']);
         Route::post('/digital/pending/{pendingId}/whatsapp', [ParticipationController::class, 'apiSendPendingDigitalWhatsApp']);
 
         // Historial de ventas del vendedor autenticado (para app móvil)
@@ -282,6 +286,7 @@ Route::middleware('auth.api')->group(function () {
         Route::post('/me/store-existing-user', [SellerController::class, 'apiManagerStoreExistingUser']);
         Route::post('/me/store-new-user', [SellerController::class, 'apiManagerStoreNewUser']);
         Route::post('/me/store-external-seller', [SellerController::class, 'apiManagerStoreExternalSeller']);
+        Route::post('/me/entities/{entityId}/sellers/{sellerId}/notify-invitation', [SellerController::class, 'apiManagerNotifySellerInvitation']);
     });
     
     // ========================================================================
@@ -303,6 +308,8 @@ Route::middleware('auth.api')->group(function () {
         Route::put('/{id}/read', [NotificationController::class, 'apiMarkAsRead'])->whereNumber('id');
 
         Route::delete('/{id}', [NotificationController::class, 'apiDestroy'])->whereNumber('id');
+
+        Route::post('/seller-invitations/{sellerId}/notify', [SellerController::class, 'apiNotifySellerInvitationForUser']);
     });
     
     // ========================================================================
@@ -367,6 +374,7 @@ Route::middleware('auth.api')->group(function () {
         Route::get('/participations/check', [ParticipationController::class, 'apiCheckByReference']);
         // Vincular participación a la cartera (guardar user id en buyer_name)
         Route::post('/participations/link', [ParticipationController::class, 'apiLinkToWallet']);
+        Route::post('/participations/store-warehouse', [ParticipationController::class, 'apiStoreInWarehouse']);
         // Vincular venta digital pendiente por código (email erróneo o registro tardío)
         Route::post('/digital-pending/claim', [ParticipationController::class, 'apiClaimPendingDigitalByCode']);
         // Regalar participación a otro usuario (por email)
@@ -456,6 +464,8 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('entities')->group(function () {
         Route::get('/', [EntityController::class, 'apiIndex']);
+        Route::get('/{entity}/lottery/{lottery}/prize-settings', [EntityLotteryPrizeSettingsController::class, 'apiShow']);
+        Route::put('/{entity}/lottery/{lottery}/prize-settings/contact', [EntityLotteryPrizeSettingsController::class, 'apiUpdatePresencialContact']);
         Route::get('/{id}', [EntityController::class, 'apiShow']);
         Route::get('/{id}/lotteries', [EntityController::class, 'apiGetLotteries']);
         Route::get('/{id}/sellers', [EntityController::class, 'apiGetSellers']);
@@ -482,24 +492,7 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('utils')->group(function () {
         // Subir imagen (versión para app móvil)
-        Route::post('/upload-image', function(Request $request) {
-            if ($request->hasFile('image') && $request->file('image')->isValid()) {
-                $file = $request->file('image');
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $destinationPath = public_path('uploads');
-                
-                if (!file_exists($destinationPath)) {
-                    mkdir($destinationPath, 0755, true);
-                }
-                
-                $file->move($destinationPath, $filename);
-                $url = url("uploads/{$filename}");
-                
-                return response()->json(['url' => $url]);
-            }
-            
-            return response()->json(['error' => 'Imagen no válida'], 422);
-        });
+        Route::post('/upload-image', [\App\Http\Controllers\DesignController::class, 'uploadImage']);
         
         // Generar QR (versión para app móvil)
         Route::post('/generate-qr', [BackController::class, 'generarQr']);

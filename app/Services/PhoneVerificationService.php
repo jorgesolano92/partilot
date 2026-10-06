@@ -57,11 +57,37 @@ class PhoneVerificationService
             ->latest('id')
             ->first();
 
-        if (! $row || ! Hash::check($code, $row->code_hash)) {
+        if (! $row) {
             return false;
         }
 
-        $row->update(['verified_at' => now()]);
+        if ($row->locked_until && $row->locked_until->isFuture()) {
+            return false;
+        }
+
+        if (! Hash::check($code, $row->code_hash)) {
+            $attempts = (int) $row->failed_attempts + 1;
+            $maxAttempts = max(1, (int) config('sms.max_verify_attempts', 5));
+            $updates = ['failed_attempts' => $attempts];
+
+            if ($attempts >= $maxAttempts) {
+                $updates['locked_until'] = now()->addMinutes((int) config('sms.verify_lockout_minutes', 15));
+                Log::warning('SMS verification locked after failed attempts', [
+                    'phone' => $phone,
+                    'attempts' => $attempts,
+                ]);
+            }
+
+            $row->update($updates);
+
+            return false;
+        }
+
+        $row->update([
+            'verified_at' => now(),
+            'failed_attempts' => 0,
+            'locked_until' => null,
+        ]);
 
         return true;
     }

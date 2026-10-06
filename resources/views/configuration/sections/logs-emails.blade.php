@@ -19,7 +19,9 @@
                     <tr>
                         <td>{{ $log->sent_at?->format('d/m/Y H:i') ?? $log->created_at?->format('d/m/Y H:i') ?? '—' }}</td>
                         <td>{{ $log->recipient_email ?? '—' }}</td>
-                        <td><code>{{ $log->template_key ?? '—' }}</code></td>
+                        <td>
+                            <span @if($log->messageTypeKey()) title="Key: {{ $log->messageTypeKey() }}" @endif>{{ $log->displayMessageType() }}</span>
+                        </td>
                         <td><span class="badge bg-secondary">{{ $log->status ?? '—' }}</span></td>
                     </tr>
                 @empty
@@ -65,7 +67,9 @@
                         <tr>
                             <td>{{ $log->sent_at?->format('d/m/Y H:i') ?? $log->created_at?->format('d/m/Y H:i') ?? '—' }}</td>
                             <td>{{ $log->recipient_email ?? '—' }}</td>
-                            <td><code>{{ $log->template_key ?? '—' }}</code></td>
+                            <td>
+                            <span @if($log->messageTypeKey()) title="Key: {{ $log->messageTypeKey() }}" @endif>{{ $log->displayMessageType() }}</span>
+                        </td>
                             <td><span class="badge bg-secondary">{{ $log->status ?? '—' }}</span></td>
                         </tr>
                     @empty

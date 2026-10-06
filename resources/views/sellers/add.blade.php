@@ -73,7 +73,7 @@
                     						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                     	</div>
                     	<div class="col-md-9">
-                    		<div class="form-card bs" style="min-height: 658px;">
+                    		<div class="form-card bs wizard-entity-step" style="min-height: 658px;">
                     			<h4 class="mb-0 mt-1">
                     				Entidad en la que realizar la búsqueda
                     			</h4>
@@ -82,7 +82,7 @@
                     			<br>
                     			<br>
 
-                    			<div style="min-height: 505px; max-height: 656px;">
+                    			<div class="wizard-table-scroll">
 
 	                    			<table id="example2" class="table table-striped nowrap w-100">
 			                            <thead class="">
@@ -123,7 +123,7 @@
 
 		                        </div>
 
-                    			<div class="row">
+                    			<div class="row wizard-form-actions">
 
                     				<div class="col-12 text-end">
                     					<form action="{{ route('sellers.store-entity') }}" method="POST" id="entity-form">

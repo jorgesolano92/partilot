@@ -12,7 +12,10 @@ use App\Models\Administration;
 use App\Models\Entity;
 use App\Models\Manager;
 use App\Models\Seller;
+use App\Support\ContactEmailRegistry;
+use App\Mail\PanelPasswordResetMail;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 class User extends Authenticatable
 {
@@ -59,6 +62,11 @@ class User extends Authenticatable
         'panel_account_id',
         'panel_login_username',
         'password',
+        'must_change_password',
+        'hide_entity_billing_switches_modal',
+        'deletion_requested_at',
+        'deletion_scheduled_at',
+        'deletion_status',
     ];
 
     /**
@@ -80,8 +88,21 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'status' => 'boolean',
+        'must_change_password' => 'boolean',
         'birthday' => 'date',
+        'hide_entity_billing_switches_modal' => 'boolean',
+        'deletion_requested_at' => 'datetime',
+        'deletion_scheduled_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (User $user) {
+            if ($user->isDirty('email') && $user->email !== null) {
+                $user->email = ContactEmailRegistry::normalize($user->email);
+            }
+        });
+    }
 
     /**
      * Comprobar si el usuario tiene un rol específico.
@@ -94,6 +115,42 @@ class User extends Authenticatable
     {
         return $this->panel_account_type !== null && $this->panel_account_type !== ''
             && $this->panel_account_id !== null;
+    }
+
+    /**
+     * Registro legacy o técnico usado solo como gestor de contacto de administración.
+     * No debe listarse, iniciar sesión ni reutilizarse como vendedor/gestor de entidad.
+     */
+    public function isAdministrationContactOnly(): bool
+    {
+        if (str_ends_with(strtolower((string) $this->email), '@no-login.partilot.local')) {
+            return true;
+        }
+
+        if ($this->isPanelAccount() || $this->sellers()->exists()) {
+            return false;
+        }
+
+        return $this->managers()
+            ->whereNotNull('administration_id')
+            ->whereNull('entity_id')
+            ->where('is_primary', true)
+            ->exists()
+            && ! $this->managers()->whereNotNull('entity_id')->exists();
+    }
+
+    public function scopeExcludingAdministrationContactRecords(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereDoesntHave('managers', function (Builder $m) {
+                $m->whereNotNull('administration_id')
+                    ->whereNull('entity_id')
+                    ->where('is_primary', true);
+            })->where(function (Builder $inner) {
+                $inner->whereNull('email')
+                    ->orWhere('email', 'not like', '%@no-login.partilot.local');
+            });
+        });
     }
 
     /**
@@ -283,22 +340,73 @@ class User extends Authenticatable
         return $this->isSuperAdmin() || $this->isPrintShop();
     }
 
+    /** Cuentas que pueden iniciar sesión en el panel web. */
+    public function canAccessWebPanel(): bool
+    {
+        if ($this->isAdministrationContactOnly() || $this->deletion_requested_at) {
+            return false;
+        }
+
+        return $this->isSuperAdmin() || $this->isPanelAccount() || $this->isEntity();
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $resetUrl = url(route('password.reset', [
+            'token' => $token,
+            'email' => $this->email,
+        ], false));
+
+        Mail::to($this->email)->send(new PanelPasswordResetMail($this, $resetUrl));
+    }
+
     /**
-     * Descarga de PDF de diseño: entidad con acceso, super admin o imprenta con orden vinculada.
+     * PDF completo con QR real: tras aprobación (si aplica), solo el lado que diseña.
+     * Antes de aprobar un diseño de administración, esta regla no bloquea al diseñador
+     * (blocksQrExport + muestra/preview cubren ese periodo). Superadmin e imprenta con orden siempre.
      */
     public function canExportDesignPdf(DesignFormat $design): bool
     {
-        if ($this->isSuperAdmin() || $this->canAccessEntity((int) $design->entity_id)) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
 
         if ($this->isPrintShop()) {
+            $panelShopId = (int) ($this->panel_account_id ?? 0);
+            if ($panelShopId <= 0) {
+                return false;
+            }
+
             return PrintOrder::query()
                 ->where('design_format_id', $design->id)
+                ->where('print_configuration_id', $panelShopId)
                 ->exists();
         }
 
-        return false;
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+
+        if (! $approvalService->appliesDesignerSidePdfExportRestriction($design)) {
+            if ($approvalService->userActsAsAdministration($this)) {
+                return $this->canAccessEntity((int) $design->entity_id);
+            }
+
+            return false;
+        }
+
+        if ($approvalService->designUsesEntityDesigner($design)) {
+            if ($approvalService->userActsAsAdministration($this)) {
+                return false;
+            }
+
+            return $this->canAccessEntity((int) $design->entity_id);
+        }
+
+        if ($this->isEntity() && ! $approvalService->userActsAsAdministration($this)) {
+            return false;
+        }
+
+        return $approvalService->userActsAsAdministration($this)
+            && $this->canAccessEntity((int) $design->entity_id);
     }
 
     /** Panel: ver código de vinculación de ventas digitales pendientes (no vendedor ni gestor). */
@@ -889,6 +997,14 @@ class User extends Authenticatable
         }
 
         return Hash::check(self::ENTITY_MANAGER_LEGACY_DEFAULT_PASSWORD, $hash);
+    }
+
+    /**
+     * True si el usuario debe cambiar la contraseña provisional enviada por correo.
+     */
+    public function mustChangeProvisionalPassword(): bool
+    {
+        return (bool) $this->must_change_password;
     }
 
     /**

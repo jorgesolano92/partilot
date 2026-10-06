@@ -5,39 +5,74 @@ return [
     |--------------------------------------------------------------------------
     | Configuración de Optimización de PDFs
     |--------------------------------------------------------------------------
-    |
-    | Configuraciones para optimizar el rendimiento de generación de PDFs
-    | con muchas participaciones.
-    |
     */
 
-    // Límites para procesamiento síncrono vs asíncrono
-    'sync_limit' => 500,        // Hasta 500 participaciones se procesan síncronamente
-    'async_limit' => 1000,      // Más de 1000 participaciones se procesan asíncronamente
-    
-    // Tamaño de chunks para procesamiento por lotes
-    'chunk_size' => 100,        // Procesar de 100 en 100 participaciones
-    'job_chunk_size' => 50,     // Para jobs asíncronos, chunks más pequeños
-    
-    // Configuración de memoria y tiempo
-    'memory_limit' => '2048M',  // Límite de memoria para PDFs grandes
-    'max_execution_time' => 300, // 5 minutos para PDFs síncronos
-    'job_timeout' => 0,         // Sin límite de tiempo para jobs
-    
-    // Cache
-    'cache_ttl' => 3600,        // TTL del cache en segundos (1 hora)
-    'cache_prefix' => 'pdf_',   // Prefijo para las claves de cache
-    
-    // Configuración de archivos temporales
+    'sync_limit' => 500,
+    'async_limit' => 1000,
+
+    // Chunks más grandes = menos renders DomPDF + menos re-embebidos al unir con FPDI
+    'chunk_size' => (int) env('PDF_CHUNK_SIZE', 250),
+    'job_chunk_size' => (int) env('PDF_JOB_CHUNK_SIZE', 250),
+
+    'queue' => env('PDF_QUEUE', 'default'),
+
+    'memory_limit' => env('PDF_MEMORY_LIMIT', '2048M'),
+    // Límite orientativo del path síncrono antiguo; la generación diferida usa set_time_limit(0).
+    // En producción el proxy (nginx/Apache) o PHP-FPM request_terminate_timeout pueden cortar antes.
+    'max_execution_time' => (int) env('PDF_MAX_EXECUTION_TIME', 300),
+    'job_timeout' => 0,
+    'job_timeout_per_chunk' => 120,
+    'job_timeout_min' => 900,
+    'job_timeout_max' => 7200,
+
+    'cache_ttl' => 3600,
+    'cache_prefix' => 'pdf_',
+
     'temp_path' => 'temp_pdfs/',
     'generated_path' => 'generated_pdfs/',
-    'cleanup_temp' => true,     // Limpiar archivos temporales automáticamente
-    
-    // Configuración de DomPDF
+    'cleanup_temp' => true,
+
     'dompdf_options' => [
         'defaultFont' => 'Arial',
         'isRemoteEnabled' => true,
         'isHtml5ParserEnabled' => true,
         'isPhpEnabled' => true,
     ],
+
+    // DPI DomPDF: debe ser 96 (px del diseño ↔ ticket en mm).
+    'dpi' => 96,
+
+    // Ratio de altura de fuente DomPDF (default librería ~1.1 → más line-height que el editor).
+    'font_height_ratio' => (float) env('PDF_FONT_HEIGHT_RATIO', 1.0),
+
+    // Subsetting reduce mucho el peso cuando hay muchas páginas.
+    'font_subsetting' => env('PDF_FONT_SUBSETTING', true),
+
+    // Fondo materializado: 1.0 ≈ tamaño CSS; subir infla MB y tiempo.
+    'bg_pixel_scale' => (float) env('PDF_BG_PIXEL_SCALE', 1.5),
+    'bg_jpeg_quality' => (int) env('PDF_BG_JPEG_QUALITY', 90),
+
+    // QR como ficheros en disco (DomPDF reutiliza XObject por ruta) en vez de data-URI.
+    'qr_as_files' => env('PDF_QR_AS_FILES', true),
+
+    // Plantilla: DomPDF renderiza 1 celda; FPDI la repite en rejilla fija + estampa ref/nº/QR.
+    'use_stamp_template' => env('PDF_USE_STAMP_TEMPLATE', false),
+
+    // Origen de la rejilla en la hoja (mm).
+    'stamp_offset_x' => (float) env('PDF_STAMP_OFFSET_X', 0),
+    'stamp_offset_y' => (float) env('PDF_STAMP_OFFSET_Y', 0),
+
+    // Desplazamiento fino SOLO de overlays (imgs/ref/nº/QR) respecto al arte (mm).
+    // Positivo Y = bajar. Tras escala X/Y correcta suele bastar 0 (o un ajuste mínimo ~0–0.5).
+    'stamp_content_offset_x' => (float) env('PDF_STAMP_CONTENT_OFFSET_X', 0),
+    'stamp_content_offset_y' => (float) env('PDF_STAMP_CONTENT_OFFSET_Y', 0),
+
+    // Borde fino alrededor de cada participación (solo depuración; no imprimir).
+    'stamp_cell_border' => env('PDF_STAMP_CELL_BORDER', false),
+
+    // Bordes rosa de depuración en cajas de elementos / stamps (padding vs posición).
+    'debug_element_borders' => filter_var(env('PDF_DEBUG_ELEMENT_BORDERS', false), FILTER_VALIDATE_BOOLEAN),
+
+    // Enviar email con enlace de descarga al terminar el PDF (por defecto no).
+    'send_email' => env('PDF_SEND_EMAIL', false),
 ];

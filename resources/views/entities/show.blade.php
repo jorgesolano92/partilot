@@ -12,6 +12,21 @@
 	.form-check-input:checked {
 		border-color: #333;
 	}
+	.entity-detail-row {
+		align-items: stretch;
+		min-height: 658px;
+	}
+	.entity-detail-sidebar {
+		display: flex !important;
+		flex-direction: column;
+		min-height: 100%;
+	}
+	.entity-detail-sidebar .entity-detail-back {
+		margin-top: auto !important;
+		margin-bottom: 4px;
+		align-self: flex-start;
+		position: relative !important;
+	}
 </style>
 
 <!-- Start Content-->
@@ -44,9 +59,9 @@
 
                     <br>
 
-                    <div class="row">
+                    <div class="row entity-detail-row">
                     	
-                    	<div class="col-md-3" style="position: relative;">
+                    	<div class="col-md-3 entity-detail-sidebar">
 
                     		<ul class="form-card bs mb-3 nav">
 
@@ -136,24 +151,54 @@
 	                    			</div>
 	                    			<span class="badge badge-lg {{ $statusClass }} mt-2" id="entity-status-badge" style="display: none;">{{ $statusText }}</span>
 	                    			<div style="clear: both;"></div>
+	                    			@php
+	                    				$entityContractSigned = $entity->hasSignedFrameworkContract();
+	                    			@endphp
+	                    			@if(! $entityContractSigned)
+	                    				<p class="small text-warning mb-0 mt-2">
+	                    					<i class="ri-file-warning-line"></i> Contrato marco pendiente de firma del representante autorizado.
+	                    				</p>
+	                    				@if($canEditEntityData ?? false)
+	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2" id="entity-resend-contract-form"
+	                    					data-partilot-confirm="¿Reenviar el email de firma a {{ $entity->signer_email ?: $entity->email }}?"
+	                    					data-partilot-confirm-title="Reenviar contrato"
+	                    					data-partilot-confirm-ok="Reenviar">
+	                    					@csrf
+	                    					<button type="submit" id="entity-resend-contract-submit" class="btn btn-sm btn-outline-warning" style="border-radius: 20px;">Reenviar email de firma</button>
+	                    				</form>
+	                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-sm btn-outline-secondary mt-1" style="border-radius: 20px;">Corregir firmante</a>
+	                    				@endif
+	                    			@else
+	                    				<p class="small text-success mb-0 mt-2">
+	                    					<i class="ri-checkbox-circle-line"></i> Contrato marco firmado
+	                    					@if($entity->contract_signer_name)
+	                    						por {{ $entity->contract_signer_name }}
+	                    					@endif
+	                    				</p>
+	                    			@endif
                     			</div>
                     		</div>
 
-                    		<div class="form-card mb-3 bs @if($entityPanelReadOnly ?? false) entity-config-locked @endif">
-                    			
-                    			<div class="form-check form-switch mt-2 mb-2">
-									<input class="form-check-input bg-dark" type="checkbox" role="switch" id="fin" checked @if($entityPanelReadOnly ?? false) disabled @endif>
-									<label class="form-check-label" for="fin"><b>Entidad sin fin lucrativo</b></label>
-								</div>
+                    		@if($canManageBillingSwitches ?? false)
+                    		@include('entities.partials.billing_switches_card', ['entity' => $entity, 'readonly' => true])
+                    		@endif
 
-								<div class="form-check form-switch mt-2 mb-2">
-									<input class="form-check-input bg-dark" type="checkbox" role="switch" id="coste" checked @if($entityPanelReadOnly ?? false) disabled @endif>
-									<label class="form-check-label" for="coste"><b>Coste gestión</b></label>
-								</div>
-
+                    		@if(!empty($entityLotteries) && $entityLotteries->isNotEmpty())
+                    		<div class="form-card mb-3 bs">
+                    			<h4 class="mb-1 mt-1">Sorteos</h4>
+                    			<small><i>Décimos vinculados a esta entidad</i></small>
+                    			<div class="d-flex flex-wrap gap-3 mt-3">
+                    				@foreach($entityLotteries as $entityLottery)
+                    					<div class="text-center" style="width: 88px;">
+                    						@include('partials.lottery_image', ['lotteryImageModel' => $entityLottery, 'lotteryImageSize' => 72])
+                    						<div class="small mt-1 text-truncate" title="{{ $entityLottery->name }}">{{ $entityLottery->name }}</div>
+                    					</div>
+                    				@endforeach
+                    			</div>
                     		</div>
+                    		@endif
 
-                    		<a href="{{url('entities?table=1')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
+                    		<a href="{{url('entities?table=1')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder;" class="btn btn-md btn-light entity-detail-back">
                     						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                     	</div>
                     	<div class="col-md-9">
@@ -324,6 +369,68 @@
 			                    				</div>
 			                    			</div>
 
+			                    			<h4 class="mb-0 mt-3">
+			                    				Tipo de cliente y firmante
+			                    				@if(($canEditEntityData ?? false) && ! $entity->hasSignedFrameworkContract())
+			                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-light float-end" style="border: 1px solid silver; border-radius: 30px;">
+			                    					<img src="{{url('assets/form-groups/edit.svg')}}" alt="">
+			                    					Editar firmante
+			                    				</a>
+			                    				@endif
+			                    			</h4>
+			                    			<small><i>
+			                    				Datos del representante autorizado para el contrato marco (sin cuenta de usuario).
+			                    				@if(($canEditEntityData ?? false) && ! $entity->hasSignedFrameworkContract())
+			                    					Puedes corregirlos y reenviar el email de firma mientras el contrato no esté firmado.
+			                    				@endif
+			                    			</i></small>
+			                    			<div class="row mt-2">
+			                    				<div class="col-6">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Tipo de cliente</label>
+			                    						<input class="form-control" readonly value="{{ $entity->clientTypeLabel() }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-6">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">¿Firmante = gestor responsable?</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_is_primary_manager ? 'Sí' : 'No' }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Nombre firmante</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_name ?? '' }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Apellidos</label>
+			                    						<input class="form-control" readonly value="{{ trim(($entity->signer_last_name ?? '').' '.($entity->signer_last_name2 ?? '')) }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">DNI/NIE</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_nif ?? '' }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				<div class="col-4">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Email firmante</label>
+			                    						<input class="form-control" readonly value="{{ $entity->signer_email ?? '' }}" type="email" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				@if($entity->contract_status)
+			                    				<div class="col-6">
+			                    					<div class="form-group mt-2 mb-3">
+			                    						<label class="label-control">Estado contrato</label>
+			                    						<input class="form-control" readonly value="{{ $entity->contractStatusLabel() }}" type="text" style="border-radius: 30px;">
+			                    					</div>
+			                    				</div>
+			                    				@endif
+			                    			</div>
+
 
 			                    			@if($canSeeAdminComments ?? false)
 			                    			<h4 class="mb-0 mt-1">
@@ -359,12 +466,77 @@
 			                    					Editar</a>
 			                    				@endif
 			                    			</h4>
-			                    			<small><i>@if($entity->manager && $entity->manager->user)Todos los campos son obligatorios@elseif($canManageManagers ?? false) Esta entidad no tiene gestor principal asignado. Puedes seleccionar uno de la lista de gestores en la pestaña "Gestores".@else Esta entidad no tiene gestor principal asignado.@endif</i></small>
+			                    			<small><i>
+			                    				@if($entity->manager && $entity->manager->user)
+			                    					Todos los campos son obligatorios
+			                    				@elseif(!empty($canManageManagers))
+			                    					Esta entidad no tiene gestor principal asignado. Usa <strong>Añadir</strong> en la pestaña Gestores para invitar o registrar al gestor responsable.
+			                    				@else
+			                    					Esta entidad no tiene gestor principal asignado.
+			                    				@endif
+			                    			</i></small>
 			                    			<div style="clear: both;"></div>
 			                    			
-			                    			@if(!$entity->manager || !$entity->manager->user)
+			                    				@if(!$entity->manager || !$entity->manager->user)
 			                    				<div class="alert alert-warning mt-3">
-			                    					<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal asignado. Por favor, agrega un gestor para poder gestionar esta entidad correctamente.
+			                    					@if($primaryPendingInvitation ?? null)
+			                    						<strong>Gestor responsable pendiente:</strong> Se ha enviado una invitación a <strong>{{ $primaryPendingInvitation->email }}</strong>. El destinatario debe aceptar y completar el registro desde el correo recibido.
+			                    						@if($primaryPendingInvitation->confirmation_sent_at)
+			                    							<br><small class="text-muted">Invitación enviada: {{ $primaryPendingInvitation->confirmation_sent_at->format('d/m/Y H:i') }}</small>
+			                    						@endif
+			                    						@if(!empty($canResendManagerInvitations))
+			                    							<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2"
+			                    								data-partilot-confirm="¿Reenviar la invitación a {{ $primaryPendingInvitation->email }}?"
+			                    								data-partilot-confirm-title="Reenviar invitación"
+			                    								data-partilot-confirm-ok="Reenviar">
+			                    								@csrf
+			                    								<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+			                    								<input type="hidden" name="pending_invitation_id" value="{{ $primaryPendingInvitation->id }}">
+			                    								<button type="submit" class="btn btn-sm btn-outline-warning">
+			                    									<i class="ri-mail-send-line"></i> Reenviar invitación
+			                    								</button>
+			                    							</form>
+			                    						@endif
+			                    					@elseif($rejectedPrimaryManager ?? null)
+			                    						<strong>Invitación rechazada:</strong>
+			                    						{{ $rejectedPrimaryManager->user->name ?? '' }} {{ $rejectedPrimaryManager->user->last_name ?? '' }}
+			                    						(<strong>{{ $rejectedPrimaryManager->user->email ?? '—' }}</strong>)
+			                    						rechazó el cargo de gestor responsable.
+			                    						Los datos se conservan: puede reenviar la misma invitación sin volver a introducirlos.
+			                    						@if(!empty($canResendManagerInvitations))
+			                    							<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2 d-inline-block me-2"
+			                    								data-partilot-confirm="¿Reenviar la invitación a {{ $rejectedPrimaryManager->user->email ?? 'este gestor' }}?"
+			                    								data-partilot-confirm-title="Reenviar invitación"
+			                    								data-partilot-confirm-ok="Reenviar">
+			                    								@csrf
+			                    								<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+			                    								<input type="hidden" name="manager_id" value="{{ $rejectedPrimaryManager->id }}">
+			                    								<button type="submit" class="btn btn-sm btn-outline-warning">
+			                    									<i class="ri-mail-send-line"></i> Reenviar invitación
+			                    								</button>
+			                    							</form>
+			                    						@endif
+			                    						@if(!empty($canManageManagers))
+			                    							<a href="#" class="btn btn-sm btn-outline-danger mt-2 delete-manager" data-manager-id="{{ $rejectedPrimaryManager->id }}" data-invitation-rejected="1">
+			                    								<i class="ri-delete-bin-6-line"></i> Eliminar e invitar a otra persona
+			                    							</a>
+			                    						@endif
+			                    					@elseif($latestRejectedPrimaryInvitation ?? null)
+			                    						<strong>Invitación rechazada:</strong>
+			                    						@if(!empty($latestRejectedPrimaryInvitation['name']))
+			                    							{{ $latestRejectedPrimaryInvitation['name'] }}
+			                    						@endif
+			                    						(<strong>{{ $latestRejectedPrimaryInvitation['email'] }}</strong>)
+			                    						rechazó el cargo de {{ strtolower($latestRejectedPrimaryInvitation['role_label']) }}
+			                    						@if(!empty($latestRejectedPrimaryInvitation['at']))
+			                    							el {{ $latestRejectedPrimaryInvitation['at']->format('d/m/Y H:i') }}
+			                    						@endif.
+			                    						@if(!empty($canManageManagers))
+			                    							Puede volver a invitar a esa persona u otra desde la pestaña <strong>Gestores</strong> → <strong>Añadir</strong>.
+			                    						@endif
+			                    					@else
+			                    						<strong>Sin gestor asignado:</strong> Esta entidad no tiene un gestor principal. @if(!empty($canManageManagers)) Abre la pestaña <strong>Gestores</strong> y pulsa <strong>Añadir</strong> para invitar o registrar al gestor responsable. @endif
+			                    					@endif
 			                    				</div>
 			                    			@endif
 
@@ -576,7 +748,7 @@
 				                    			</h4>
 				                    			<small><i>Todos los campos son obligatorios</i></small>
 				                    			@if(empty($canManageManagers))
-				                    			<small class="d-block text-muted mt-1"><i>Solo el gestor responsable aceptado puede crear y gestionar gestores secundarios.</i></small>
+				                    			<small class="d-block text-muted mt-1"><i>Solo la administración o el gestor responsable aceptado pueden crear y gestionar gestores secundarios.</i></small>
 				                    			@endif
 				                    			<div style="clear: both;"></div>
 
@@ -594,6 +766,83 @@
 							                    
 							                    
 							                        <tbody>
+							                            @foreach($pendingManagerInvitations ?? [] as $pendingInvite)
+							                            <tr class="{{ $pendingInvite->isRejected() ? 'table-danger' : 'table-warning' }}">
+							                                <td>#IN{{ str_pad($pendingInvite->id, 4, '0', STR_PAD_LEFT) }}</td>
+							                                <td>
+							                                	{{ $pendingInvite->email }}
+							                                	<br><small class="text-muted">Sin cuenta registrada</small>
+							                                </td>
+							                                <td>
+							                                	@if($pendingInvite->is_primary)
+							                                		<span class="badge bg-primary">Gestor responsable</span>
+							                                	@else
+							                                		Gestor
+							                                	@endif
+							                                	@if($pendingInvite->isRejected())
+							                                		<span class="badge bg-danger ms-1">Rechazada</span>
+							                                	@else
+							                                		<span class="badge bg-warning text-dark ms-1">Invitación enviada</span>
+							                                	@endif
+							                                </td>
+							                                <td>
+							                                	@php
+							                                		$allPermissions = $pendingInvite->permission_sellers
+							                                			&& $pendingInvite->permission_design
+							                                			&& $pendingInvite->permission_statistics
+							                                			&& $pendingInvite->permission_payments;
+							                                	@endphp
+							                                	{{ $pendingInvite->is_primary ? 'Total' : ($allPermissions ? 'Total' : 'Parcial') }}
+							                                </td>
+							                                <td>
+							                                	@if($pendingInvite->isRejected())
+							                                		<label class="badge bg-danger">Rechazada</label>
+							                                		@if($pendingInvite->rejected_at)
+							                                			<br><small class="text-muted">{{ $pendingInvite->rejected_at->format('d/m/Y H:i') }}</small>
+							                                		@endif
+							                                	@else
+							                                		<label class="badge bg-secondary">Pendiente registro</label>
+							                                	@endif
+							                                </td>
+							                                <td>
+							                                	@if($pendingInvite->isRejected())
+							                                		<span class="text-danger fw-semibold">Invitación rechazada</span>
+							                                	@else
+							                                		<span class="text-warning fw-semibold">Esperando aceptación</span>
+							                                		@if($pendingInvite->confirmation_sent_at)
+							                                			<br><small class="text-muted">{{ $pendingInvite->confirmation_sent_at->format('d/m/Y H:i') }}</small>
+							                                		@endif
+							                                	@endif
+							                                	@if(!empty($canResendManagerInvitations))
+							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="mt-2 d-inline-block"
+							                                			data-partilot-confirm="¿Reenviar la invitación a {{ $pendingInvite->email }}?"
+							                                			data-partilot-confirm-title="Reenviar invitación"
+							                                			data-partilot-confirm-ok="Reenviar">
+							                                			@csrf
+							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+							                                			<input type="hidden" name="pending_invitation_id" value="{{ $pendingInvite->id }}">
+							                                			<button type="submit" class="btn btn-sm btn-outline-warning" title="Reenviar invitación">
+							                                				<i class="ri-mail-send-line"></i> Reenviar invitación
+							                                			</button>
+							                                		</form>
+							                                	@endif
+							                                	@if(!empty($canManageManagers))
+							                                		<form action="{{ route('entities.destroy-pending-manager-invitation') }}" method="POST" class="mt-2 d-inline-block"
+							                                			data-partilot-confirm="¿Eliminar la invitación a {{ $pendingInvite->email }}? Podrá invitar a otra persona después."
+							                                			data-partilot-confirm-title="Eliminar invitación"
+							                                			data-partilot-confirm-ok="Eliminar">
+							                                			@csrf
+							                                			@method('DELETE')
+							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+							                                			<input type="hidden" name="pending_invitation_id" value="{{ $pendingInvite->id }}">
+							                                			<button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar invitación">
+							                                				<i class="ri-delete-bin-6-line"></i> Eliminar
+							                                			</button>
+							                                		</form>
+							                                	@endif
+							                                </td>
+							                            </tr>
+							                            @endforeach
 							                            @forelse($managersVisible ?? $entity->managers as $manager)
 							                            <tr>
 							                                <td>#GE{{ str_pad($manager->id, 4, '0', STR_PAD_LEFT) }}</td>
@@ -626,32 +875,37 @@
 							                                </td>
 							                                <td>
 							                                	@php
-							                                		$status = $manager->status;
-							                                		if ($status === null || $status == -1) {
-							                                			$statusText = 'Pendiente';
-							                                			$statusClass = 'bg-secondary';
-							                                			$newStatus = 1; // Cambiar a Activo
+							                                		$statusText = $manager->statusLabel();
+							                                		$statusClass = $manager->statusBadgeClass();
+							                                		$managerPending = $manager->isPendingActivation();
+							                                		$managerRoleLegalOk = $manager->hasAcceptedRoleLegal();
+							                                		if ($managerPending) {
+							                                			$newStatus = 1;
 							                                			$newStatusText = 'Activar';
 							                                			$newStatusIcon = 'ri-check-line';
 							                                			$newStatusBtnClass = 'btn-success';
-							                                		} elseif ($status == 1) {
-							                                			$statusText = 'Activo';
-							                                			$statusClass = 'bg-success';
-							                                			$newStatus = 0; // Cambiar a Inactivo
+							                                		} elseif ((int) $manager->status === 1) {
+							                                			$newStatus = 0;
 							                                			$newStatusText = 'Desactivar';
 							                                			$newStatusIcon = 'ri-close-line';
 							                                			$newStatusBtnClass = 'btn-danger';
 							                                		} else {
-							                                			$statusText = 'Inactivo';
-							                                			$statusClass = 'bg-danger';
-							                                			$newStatus = 1; // Cambiar a Activo
+							                                			$newStatus = 1;
 							                                			$newStatusText = 'Activar';
 							                                			$newStatusIcon = 'ri-check-line';
 							                                			$newStatusBtnClass = 'btn-success';
 							                                		}
 							                                	@endphp
 							                                	<label class="badge {{ $statusClass }}">{{ $statusText }}</label>
-							                                	@if(!$manager->is_primary && !$manager->pending_primary && !empty($canManageManagers))
+							                                	@if($manager->isInvitationRejected())
+							                                		<br><small class="text-danger">Puede reenviar la invitación sin volver a introducir los datos</small>
+							                                	@elseif($managerPending)
+							                                		<br><small class="text-warning">Pendiente de aceptación</small>
+							                                	@endif
+							                                	@if(! $managerRoleLegalOk && ! $manager->isInvitationRejected())
+							                                		<br><small class="text-warning">Marco legal no firmado</small>
+							                                	@endif
+							                                	@if(!$manager->is_primary && !$manager->pending_primary && ! $manager->isInvitationRejected() && !empty($canManageManagers))
 							                                		<button class="btn btn-sm {{ $newStatusBtnClass }} toggle-manager-status ms-2" 
 							                                		        data-manager-id="{{ $manager->id }}" 
 							                                		        data-new-status="{{ $newStatus }}"
@@ -661,16 +915,37 @@
 							                                	@endif
 							                                </td>
 							                                <td>
-							                                	@if($manager->pending_primary)
-							                                		<span class="text-warning fw-semibold">Pendiente de aceptación</span>
-							                                	@elseif(!$manager->is_primary && !empty($canManageManagers))
+							                                	@if(($managerPending || $manager->isInvitationRejected()) && !empty($canResendManagerInvitations))
+							                                		<form action="{{ route('entities.resend-manager-invitation') }}" method="POST" class="d-inline-block mb-1"
+							                                			data-partilot-confirm="¿Reenviar la invitación a {{ $manager->user->email ?? 'este gestor' }}?"
+							                                			data-partilot-confirm-title="Reenviar invitación"
+							                                			data-partilot-confirm-ok="Reenviar">
+							                                			@csrf
+							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
+							                                			<input type="hidden" name="manager_id" value="{{ $manager->id }}">
+							                                			<button type="submit" class="btn btn-sm btn-outline-warning" title="Reenviar invitación">
+							                                				<i class="ri-mail-send-line"></i> Reenviar invitación
+							                                			</button>
+							                                		</form>
+							                                	@endif
+							                                	@if($manager->isInvitationRejected() && !empty($canManageManagers))
+							                                		<a href="#" class="btn btn-sm btn-danger delete-manager mb-1" data-manager-id="{{ $manager->id }}" data-invitation-rejected="1" title="Eliminar invitación rechazada"><i class="ri-delete-bin-6-line"></i> Eliminar</a>
+							                                		<span class="text-danger fw-semibold d-block">Invitación rechazada</span>
+							                                	@elseif($manager->pending_primary)
+							                                		@if(!($managerPending && !empty($canResendManagerInvitations)))
+							                                			<span class="text-warning fw-semibold">Pendiente de aceptación</span>
+							                                		@endif
+							                                	@elseif(!$manager->is_primary && !empty($canManageManagers) && ! $managerPending)
 							                                		@php
 							                                			$hasPrimary = $entity->managers->where('is_primary', true)->count() > 0;
 							                                			$confirmMessage = $hasPrimary 
 							                                				? '¿Asignar a este gestor como principal? El actual principal pasará a ser gestor secundario.' 
 							                                				: '¿Asignar a este gestor como principal?';
 							                                		@endphp
-							                                		<form action="{{ route('entities.set-primary-manager') }}" method="POST" class="d-inline" onsubmit="return confirm('{{ $confirmMessage }}');">
+							                                		<form action="{{ route('entities.set-primary-manager') }}" method="POST" class="d-inline"
+							                                			data-partilot-confirm="{{ $confirmMessage }}"
+							                                			data-partilot-confirm-title="Cambiar gestor principal"
+							                                			data-partilot-confirm-ok="Confirmar">
 							                                			@csrf
 							                                			<input type="hidden" name="entity_id" value="{{ $entity->id }}">
 							                                			<input type="hidden" name="new_primary_manager_id" value="{{ $manager->id }}">
@@ -678,11 +953,15 @@
 							                                		</form>
 							                                		<a href="{{ route('entities.edit-manager-permissions', ['entity_id' => $entity->id, 'manager_id' => $manager->id]) }}" class="btn btn-sm btn-warning" title="Editar permisos"><i class="ri-settings-3-line"></i></a>
 							                                		<a href="#" class="btn btn-sm btn-danger delete-manager" data-manager-id="{{ $manager->id }}" title="Eliminar"><i class="ri-delete-bin-6-line"></i></a>
+							                                	@elseif(!$manager->is_primary && $managerPending && !empty($canManageManagers))
+							                                		<a href="#" class="btn btn-sm btn-danger delete-manager" data-manager-id="{{ $manager->id }}" title="Eliminar"><i class="ri-delete-bin-6-line"></i></a>
 							                                	@elseif(!$manager->is_primary)
-							                                		<span class="text-muted">-</span>
+							                                		@if(!($managerPending && !empty($canResendManagerInvitations)))
+							                                			<span class="text-muted">-</span>
+							                                		@endif
 							                                	@else
 	                                		@if($managersVisible->where('is_primary', false)->count() > 0)
-	                                			@if(!empty($canManageManagers))
+	                                			@if(!empty($canManageManagers) && ! $managerPending)
 							                                			<form action="{{ route('entities.set-primary-manager') }}" method="POST" class="d-inline-flex align-items-center gap-1" id="change-primary-form-{{ $manager->id }}" onsubmit="return validatePrimaryChange(event, {{ $manager->id }});">
 							                                				@csrf
 							                                				<input type="hidden" name="entity_id" value="{{ $entity->id }}">
@@ -696,28 +975,54 @@
 							                                					<i class="ri-user-shared-line"></i>
 							                                				</button>
 							                                			</form>
-	                                			@else
+	                                			@elseif(!($managerPending && !empty($canResendManagerInvitations)))
 	                                				<span class="text-muted">-</span>
 	                                			@endif
-							                                		@else
+							                                		@elseif(!($managerPending && !empty($canResendManagerInvitations)))
 							                                			<span class="text-muted" title="No hay otros gestores disponibles para asignar como principal">-</span>
 							                                		@endif
 							                                	@endif
 							                                </td>
 							                            </tr>
 							                            @empty
+							                            @if(($pendingManagerInvitations ?? collect())->isEmpty())
 							                            <tr>
 							                                <td colspan="6" class="text-center">
 									@if(!empty($entityPanelUser))
-										No hay gestores adicionales. La cuenta de acceso al panel de la entidad no se muestra en esta lista. Use <strong>Añadir</strong> para invitar gestores secundarios.
+										No hay gestores adicionales. La cuenta de acceso al panel de la entidad no se muestra en esta lista. Use <strong>Añadir</strong> para invitar al gestor responsable (si aún no hay) o a gestores secundarios.
 									@else
 										No hay gestores asignados
 									@endif
 								</td>
 							                            </tr>
+							                            @endif
 							                            @endforelse
 							                        </tbody>
 						                        </table>
+
+						                        @if(($rejectedManagerInvitations ?? collect())->isNotEmpty())
+						                        <div class="alert alert-light border mt-3 text-start">
+						                        	<h5 class="mb-2"><i class="ri-history-line me-1"></i> Historial de invitaciones rechazadas</h5>
+						                        	<ul class="mb-0 ps-3">
+						                        		@foreach($rejectedManagerInvitations as $rejection)
+						                        		<li class="mb-1">
+						                        			<span class="badge bg-danger me-1">Rechazado</span>
+						                        			<strong>{{ $rejection['role_label'] }}</strong>
+						                        			@if(!empty($rejection['name']))
+						                        				{{ $rejection['name'] }} —
+						                        			@endif
+						                        			{{ $rejection['email'] }}
+						                        			@if(!empty($rejection['at']))
+						                        				<small class="text-muted">({{ $rejection['at']->format('d/m/Y H:i') }})</small>
+						                        			@endif
+						                        		</li>
+						                        		@endforeach
+						                        	</ul>
+						                        	@if(!empty($canManageManagers))
+						                        	<p class="small text-muted mb-0 mt-2">Si necesita un gestor, use <strong>Añadir</strong> para volver a invitar.</p>
+						                        	@endif
+						                        </div>
+						                        @endif
 						                    </div>
                     					</div>
 
@@ -917,6 +1222,7 @@
 					                    								<p>
 					                    									Hemos encontrado un <b>usuario registrado con el email “<span id="coincidence-email"></span>”</b>. Si haces clic en <b>Aceptar</b>, se le enviará una invitación para <b>unirse a tu entidad</b> y <b>definir su contraseña</b> al aceptar.
 					                    								</p>
+					                    								<p class="d-none small text-muted" id="coincidence-admin-contact"></p>
 			                    									</div>
 
 				                    								<div class="row">
@@ -1197,8 +1503,6 @@
 			                </div>
                     	</div>
 
-                    </div>
-
                     
                 </div> <!-- end card body-->
             </div> <!-- end card -->
@@ -1276,6 +1580,7 @@ $('#invite-button').click(function (e) {
 				$('#coincidence').removeClass('d-none');
 				$('#no-coincidence').addClass('d-none');
 				$('#coincidence-email').text(email);
+				$('#coincidence-admin-contact').toggleClass('d-none', !response.is_administration_contact).text(response.is_administration_contact ? (response.message || '') : '');
 				$('#invite-user-id').val(response.user_id);
 				$('#invite-pending-email').val('');
 			} else {
@@ -1431,25 +1736,40 @@ function validatePrimaryChange(event, managerId) {
     const form = document.getElementById('change-primary-form-' + managerId);
     const select = form.querySelector('.primary-manager-select');
     const selectedValue = select.value;
-    
+
     if (!selectedValue || selectedValue === '') {
         event.preventDefault();
-        alert('Debe seleccionar un gestor para asignar como principal. No puede quedar la entidad sin gestor principal.');
+        if (typeof window.partilotNotify === 'function') {
+            window.partilotNotify('warning', 'Debe seleccionar un gestor para asignar como principal. No puede quedar la entidad sin gestor principal.');
+        }
         return false;
     }
-    
+
+    if (form.getAttribute('data-partilot-confirmed') === '1') {
+        form.removeAttribute('data-partilot-confirmed');
+        return true;
+    }
+
+    event.preventDefault();
     const selectedText = select.options[select.selectedIndex].text;
-    const confirmMessage = '¿Está seguro de cambiar el gestor principal?\n\n' +
-                          'El gestor actual pasará a ser gestor secundario y podrá tener permisos restringidos.\n' +
-                          'El nuevo gestor principal será: ' + selectedText + '\n\n' +
+    const confirmMessage = '¿Está seguro de cambiar el gestor principal?<br><br>' +
+                          'El gestor actual pasará a ser gestor secundario y podrá tener permisos restringidos.<br>' +
+                          'El nuevo gestor principal será: <strong>' + selectedText + '</strong><br><br>' +
                           'Esta acción no se puede deshacer automáticamente.';
-    
-    if (!confirm(confirmMessage)) {
-        event.preventDefault();
-        return false;
+
+    if (typeof window.partilotConfirm === 'function') {
+        window.partilotConfirm({
+            title: 'Cambiar gestor principal',
+            message: confirmMessage,
+            confirmText: 'Confirmar'
+        }).then(function (ok) {
+            if (!ok) return;
+            form.setAttribute('data-partilot-confirmed', '1');
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.submit();
+        });
     }
-    
-    return true;
+    return false;
 }
 
 // Habilitar/deshabilitar botón de cambiar según selección
@@ -1474,45 +1794,52 @@ $(document).on('click', '.delete-manager', function(e) {
     const entityId = {{ $entity->id }};
     const managerRow = $(this).closest('tr');
     const managerName = managerRow.find('td').eq(1).text().trim() || 'Gestor';
-    const isPrimary = managerRow.find('.badge').text().includes('Principal');
+    const isPrimary = managerRow.find('.badge').text().includes('Principal') || managerRow.find('.badge').text().includes('responsable');
+    const isRejected = String($(this).data('invitation-rejected') || '') === '1';
     
-    let confirmMessage = '¿Está seguro de eliminar este gestor?\n\n';
-    confirmMessage += 'Gestor: ' + managerName + '\n\n';
+    let confirmMessage = '¿Está seguro de eliminar este gestor?<br><br>';
+    confirmMessage += 'Gestor: <strong>' + managerName + '</strong><br><br>';
     
-    if (isPrimary) {
-        confirmMessage += '⚠️ ADVERTENCIA: Este gestor es el principal.\n';
-        confirmMessage += 'Si es el único gestor disponible, no se podrá eliminar.\n\n';
+    if (isRejected) {
+        confirmMessage += 'Se eliminará la invitación rechazada de la lista. Después podrá invitar a otra persona.<br><br>';
+        confirmMessage += 'Si el usuario se creó solo para esta invitación, también se eliminará esa cuenta temporal.';
+    } else {
+        if (isPrimary) {
+            confirmMessage += '<strong>ADVERTENCIA:</strong> Este gestor es el principal.<br>';
+            confirmMessage += 'Si es el único gestor disponible, no se podrá eliminar.<br><br>';
+        }
+        confirmMessage += 'Esta acción eliminará la relación del gestor con la entidad, pero NO eliminará el usuario asociado (salvo cuentas creadas solo para la invitación).';
     }
-    
-    confirmMessage += 'Esta acción eliminará la relación del gestor con la entidad, pero NO eliminará el usuario asociado.';
-    
-    if (!confirm(confirmMessage)) {
-        return false;
+
+    function doDelete() {
+        const deleteUrl = '{{ url("entities/destroy/manager") }}/' + entityId + '/' + managerId;
+        const form = $('<form>', { 'method': 'POST', 'action': deleteUrl });
+        form.append($('<input>', { 'type': 'hidden', 'name': '_token', 'value': '{{ csrf_token() }}' }));
+        form.append($('<input>', { 'type': 'hidden', 'name': '_method', 'value': 'DELETE' }));
+        $('body').append(form);
+        form.submit();
     }
-    
-    // Construir URL usando la ruta de Laravel
-    const deleteUrl = '{{ url("entities/destroy/manager") }}/' + entityId + '/' + managerId;
-    
-    // Crear formulario para enviar DELETE
-    const form = $('<form>', {
-        'method': 'POST',
-        'action': deleteUrl
-    });
-    
-    form.append($('<input>', {
-        'type': 'hidden',
-        'name': '_token',
-        'value': '{{ csrf_token() }}'
-    }));
-    
-    form.append($('<input>', {
-        'type': 'hidden',
-        'name': '_method',
-        'value': 'DELETE'
-    }));
-    
-    $('body').append(form);
-    form.submit();
+
+    if (typeof window.partilotConfirm === 'function') {
+        window.partilotConfirm({
+            title: isRejected ? 'Eliminar invitación rechazada' : 'Eliminar gestor',
+            message: confirmMessage,
+            confirmText: 'Eliminar'
+        }).then(function (ok) {
+            if (ok) doDelete();
+        });
+    } else {
+        doDelete();
+    }
+});
+
+
+document.getElementById('entity-resend-contract-form')?.addEventListener('submit', function () {
+    var btn = document.getElementById('entity-resend-contract-submit');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Reenviando…';
+    }
 });
 
 </script>

@@ -40,7 +40,8 @@ class PendingDigitalSaleService
         int $quantity,
         ?int $setId,
         ?int $entityId,
-        ?int $lotteryId
+        ?int $lotteryId,
+        ?int $reserveId = null
     ) {
         $this->releaseExpiredForDigitalContext($entityId, $lotteryId, $setId);
 
@@ -67,7 +68,27 @@ class PendingDigitalSaleService
             throw new \InvalidArgumentException('No tienes acceso a esta entidad.');
         }
 
-        $ids = Participation::query()
+        $ids = $this->queryDigitalDisponiblePool($entityId, $lotteryId, $reserveId)
+            ->select('participations.id')
+            ->orderBy('participations.id')
+            ->limit($quantity)
+            ->pluck('participations.id');
+
+        return Participation::with('set.reserve')->whereIn('id', $ids)->orderBy('id')->get();
+    }
+
+    public function countDigitalDisponibleForPool(int $entityId, int $lotteryId, ?int $reserveId = null): int
+    {
+        $this->releaseExpiredForDigitalContext($entityId, $lotteryId, null);
+
+        return $this->queryDigitalDisponiblePool($entityId, $lotteryId, $reserveId)->count();
+    }
+
+    protected function queryDigitalDisponiblePool(int $entityId, int $lotteryId, ?int $reserveId = null)
+    {
+        $feeService = app(ManagementFeeService::class);
+
+        $query = Participation::query()
             ->join('sets', 'participations.set_id', '=', 'sets.id')
             ->join('reserves', 'sets.reserve_id', '=', 'reserves.id')
             ->where('participations.entity_id', $entityId)
@@ -75,13 +96,15 @@ class PendingDigitalSaleService
             ->where('sets.physical_participations', '<=', 0)
             ->whereRaw('sets.digital_participations > 0')
             ->whereRaw("participations.participation_code LIKE '1D/%'")
-            ->where('participations.status', 'disponible')
-            ->select('participations.id')
-            ->orderBy('participations.id')
-            ->limit($quantity)
-            ->pluck('participations.id');
+            ->where('participations.status', 'disponible');
 
-        return Participation::with('set.reserve')->whereIn('id', $ids)->orderBy('id')->get();
+        $feeService->applyDigitalSaleEligibleConstraint($query, 'sets.management_fee_status');
+
+        if ($reserveId) {
+            $query->where('sets.reserve_id', $reserveId);
+        }
+
+        return $query;
     }
 
     public function createPendingSale(
@@ -92,11 +115,46 @@ class PendingDigitalSaleService
         ?string $paymentMethod,
         ?int $setId,
         ?int $entityId,
-        ?int $lotteryId
+        ?int $lotteryId,
+        ?string $buyerPhone = null,
+        ?string $notifyChannel = null,
+        ?int $reserveId = null
     ): PendingDigitalSale {
         $rawEmail = trim((string) ($buyerEmail ?? ''));
-        $sendInviteEmail = $rawEmail !== '';
+        $rawPhone = trim((string) ($buyerPhone ?? ''));
 
+        if ($rawEmail !== '' && $rawPhone !== '') {
+            throw new \InvalidArgumentException('Indica solo email o teléfono del comprador, no ambos.');
+        }
+
+        if ($rawEmail === '' && $rawPhone === '') {
+            throw new \InvalidArgumentException('Debes indicar el email o el teléfono del comprador para enviar la venta.');
+        }
+
+        $channel = $notifyChannel ?? ($rawEmail !== '' ? 'email' : 'sms');
+        if (! in_array($channel, ['email', 'sms', 'whatsapp'], true)) {
+            throw new \InvalidArgumentException('Canal de notificación no válido.');
+        }
+
+        if ($channel === 'email' && $rawEmail === '') {
+            throw new \InvalidArgumentException('Indica el email del comprador.');
+        }
+
+        if (in_array($channel, ['sms', 'whatsapp'], true) && $rawPhone === '') {
+            throw new \InvalidArgumentException('Indica el teléfono del comprador.');
+        }
+
+        $smsService = app(DigitalSaleSmsService::class);
+        $normalizedPhone = null;
+        if ($rawPhone !== '') {
+            $normalizedPhone = $smsService->normalizeSmsAddress($rawPhone);
+            if (! $normalizedPhone) {
+                throw new \InvalidArgumentException('Teléfono no válido. Usa prefijo internacional (ej. 34600111222).');
+            }
+            $normalizedPhone = ltrim($normalizedPhone, '+');
+        }
+
+        $sendInviteEmail = $channel === 'email';
         if ($sendInviteEmail) {
             $email = PendingDigitalSale::normalizeEmail($rawEmail);
             if (User::where('email', $email)->exists()) {
@@ -106,7 +164,7 @@ class PendingDigitalSaleService
             $email = null;
         }
 
-        $participations = $this->selectDigitalParticipations($seller, $quantity, $setId, $entityId, $lotteryId);
+        $participations = $this->selectDigitalParticipations($seller, $quantity, $setId, $entityId, $lotteryId, $reserveId);
         if ($participations->count() < $quantity) {
             throw new \InvalidArgumentException(
                 'No hay suficientes participaciones digitales disponibles. Disponibles: '.$participations->count()
@@ -115,8 +173,8 @@ class PendingDigitalSaleService
 
         $set = $participations->first()->set;
         $resolvedLotteryId = $lotteryId ?? $set->reserve->lottery_id;
-        $pricePer = (float) ($set->played_amount ?? $set->total_participation_amount ?? 0);
-        $saleAmount = $participations->count() * $pricePer;
+        $unitTotal = $set->pricePerParticipation();
+        $saleAmount = round($participations->count() * $unitTotal, 2);
 
         return DB::transaction(function () use (
             $email,
@@ -131,10 +189,14 @@ class PendingDigitalSaleService
             $lotteryId,
             $saleAmount,
             $set,
-            $resolvedLotteryId
+            $resolvedLotteryId,
+            $normalizedPhone,
+            $channel
         ) {
             $pending = PendingDigitalSale::create([
                 'email' => $email,
+                'buyer_phone' => $normalizedPhone,
+                'notify_channel' => $channel,
                 'seller_id' => $seller->id,
                 'entity_id' => $entityId ?? $set->entity_id ?? $participations->first()->entity_id,
                 'lottery_id' => $lotteryId ?? $set->reserve->lottery_id,
@@ -149,7 +211,10 @@ class PendingDigitalSaleService
             ]);
 
             foreach ($participations as $p) {
-                $p->update(['status' => 'reserva_venta_digital']);
+                $p->update([
+                    'status' => 'reserva_venta_digital',
+                    'seller_id' => $seller->id,
+                ]);
                 $pending->participations()->attach($p->id);
             }
 
@@ -169,6 +234,51 @@ class PendingDigitalSaleService
 
             return $pending->fresh(['entity', 'lottery', 'seller']);
         });
+    }
+
+    /**
+     * Envía el SMS inicial tras crear la venta (canal sms con httpSMS activo).
+     */
+    public function sendInitialSmsIfNeeded(PendingDigitalSale $pending): bool
+    {
+        if ($pending->notify_channel !== 'sms') {
+            return false;
+        }
+
+        $sms = app(DigitalSaleSmsService::class);
+        if (! $sms->isEnabled() || ! $pending->buyer_phone) {
+            return false;
+        }
+
+        $sms->sendToBuyer($pending, $pending->buyer_phone);
+
+        return true;
+    }
+
+    /**
+     * Reenvía el correo de registro al email fijado en la venta.
+     */
+    public function resendRegistrationEmail(PendingDigitalSale $pending): void
+    {
+        if (! $pending->email || ! $pending->usesEmailChannel()) {
+            throw new \InvalidArgumentException('Esta venta no tiene un email de comprador registrado.');
+        }
+
+        if (! $pending->isStillValid()) {
+            throw new \InvalidArgumentException('Esta venta pendiente ya no está disponible o ha caducado.');
+        }
+
+        $pending->ensureLinkCode();
+        app(CommunicationEmailService::class)->sendAndLog(
+            recipientEmail: $pending->email,
+            recipientRole: 'usuario',
+            recipientUser: null,
+            messageType: 'digital_sale_registration_invite',
+            templateKey: null,
+            mailClass: DigitalSaleRegistrationInviteMail::class,
+            mailPayload: ['pending_digital_sale_id' => $pending->id],
+            context: ['pending_digital_sale_id' => $pending->id, 'seller_id' => $pending->seller_id, 'resend' => true],
+        );
     }
 
     /**
@@ -299,7 +409,12 @@ class PendingDigitalSaleService
             $restoreStatus = $pending->set_id ? 'asignada' : 'disponible';
             foreach ($pending->participations as $p) {
                 if ($p->status === 'reserva_venta_digital') {
-                    $p->update(['status' => $restoreStatus]);
+                    Participation::withoutEvents(function () use ($p, $restoreStatus) {
+                        $p->update([
+                            'status' => $restoreStatus,
+                            'seller_id' => null,
+                        ]);
+                    });
                 }
             }
             $pending->update(['status' => $status]);
@@ -383,6 +498,11 @@ class PendingDigitalSaleService
      */
     public function queryDigitalDisponibleForSet(int $setId)
     {
+        $set = Set::query()->find($setId);
+        if (! $set || ! app(ManagementFeeService::class)->allowsDigitalSale($set)) {
+            return Participation::query()->whereRaw('1 = 0');
+        }
+
         return Participation::query()
             ->where('set_id', $setId)
             ->whereRaw("participation_code LIKE '1D/%'")

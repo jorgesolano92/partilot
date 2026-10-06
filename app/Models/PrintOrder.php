@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PrintOrder extends Model
 {
     public const STATUS_PENDING_REVIEW = 'pendiente_revision';
+    public const STATUS_ACCEPTED = 'aceptada';
     public const STATUS_IN_PRODUCTION = 'en_produccion';
     public const STATUS_SENT = 'enviada';
     public const STATUS_REJECTED = 'rechazada';
@@ -22,6 +23,10 @@ class PrintOrder extends Model
 
     /** Pago Stripe fallido o cancelado. */
     public const PAYMENT_STATUS_FAILED = 'failed';
+
+    public const PAYMENT_PROVIDER_STRIPE = 'stripe';
+
+    public const PAYMENT_PROVIDER_REMITTANCE = 'remittance';
 
     protected $fillable = [
         'print_configuration_id',
@@ -41,14 +46,18 @@ class PrintOrder extends Model
         'quoted_amount',
         'quote_breakdown',
         'notes',
+        'rejection_reason',
         'sent_at',
+        'accepted_at',
         'paid_at',
+        'billing_charge_id',
     ];
 
     protected $casts = [
         'quoted_amount' => 'decimal:2',
         'quote_breakdown' => 'array',
         'sent_at' => 'datetime',
+        'accepted_at' => 'datetime',
         'paid_at' => 'datetime',
     ];
 
@@ -72,6 +81,11 @@ class PrintOrder extends Model
         return $this->belongsTo(Set::class);
     }
 
+    public function billingCharge()
+    {
+        return $this->belongsTo(BillingCharge::class);
+    }
+
     public function lottery()
     {
         return $this->belongsTo(Lottery::class);
@@ -81,6 +95,7 @@ class PrintOrder extends Model
     {
         return match ($status) {
             self::STATUS_PENDING_REVIEW => 'Pendiente revisión',
+            self::STATUS_ACCEPTED => 'Aceptada (pendiente de pago)',
             self::STATUS_IN_PRODUCTION => 'En producción',
             self::STATUS_SENT => 'Enviada',
             self::STATUS_REJECTED => 'Rechazada',
@@ -92,6 +107,7 @@ class PrintOrder extends Model
     {
         return match ($status) {
             self::STATUS_PENDING_REVIEW => 'bg-warning text-dark',
+            self::STATUS_ACCEPTED => 'bg-primary',
             self::STATUS_IN_PRODUCTION => 'bg-info text-dark',
             self::STATUS_SENT => 'bg-success',
             self::STATUS_REJECTED => 'bg-danger',
@@ -106,11 +122,17 @@ class PrintOrder extends Model
     {
         $s = $paymentStatus ?: '';
         return match ($s) {
-            self::PAYMENT_STATUS_PAID, 'succeeded' => $paymentProvider === 'stripe'
-                ? 'Cobrado (Stripe)'
-                : 'Cobrado',
+            self::PAYMENT_STATUS_PAID, 'succeeded' => match ($paymentProvider) {
+                self::PAYMENT_PROVIDER_STRIPE => 'Cobrado (Stripe)',
+                self::PAYMENT_PROVIDER_REMITTANCE => 'Encolado en remesa',
+                default => 'Cobrado',
+            },
             self::PAYMENT_STATUS_NOT_REQUIRED => 'Sin cobro online',
-            self::PAYMENT_STATUS_PENDING => $paymentProvider ? 'Pago pendiente / revisar' : 'Pendiente',
+            self::PAYMENT_STATUS_PENDING => match ($paymentProvider) {
+                self::PAYMENT_PROVIDER_STRIPE => 'Pendiente de pago (tarjeta)',
+                self::PAYMENT_PROVIDER_REMITTANCE => 'Pendiente de confirmar en remesa',
+                default => 'Pendiente de pago',
+            },
             self::PAYMENT_STATUS_FAILED => 'Pago fallido',
             default => $s !== '' ? ucfirst(str_replace('_', ' ', $s)) : '—',
         };
@@ -130,11 +152,18 @@ class PrintOrder extends Model
 
     public function requiresOnlinePayment(): bool
     {
-        return (string) ($this->payment_provider ?? '') === 'stripe';
+        return (string) ($this->payment_provider ?? '') === self::PAYMENT_PROVIDER_STRIPE;
     }
 
     public function isPaymentSettled(): bool
     {
+        $provider = (string) ($this->payment_provider ?? '');
+
+        if ($provider === self::PAYMENT_PROVIDER_REMITTANCE) {
+            return (string) ($this->payment_status ?? '') === self::PAYMENT_STATUS_PAID
+                && $this->billing_charge_id !== null;
+        }
+
         if (! $this->requiresOnlinePayment()) {
             return in_array((string) ($this->payment_status ?? ''), [
                 self::PAYMENT_STATUS_NOT_REQUIRED,
@@ -146,16 +175,38 @@ class PrintOrder extends Model
             && trim((string) ($this->payment_intent_id ?? '')) !== '';
     }
 
+    public function isAwaitingPrintShopReview(): bool
+    {
+        return (string) $this->status === self::STATUS_PENDING_REVIEW
+            && (string) ($this->payment_status ?? '') === self::PAYMENT_STATUS_PENDING;
+    }
+
+    public function isAwaitingClientPayment(): bool
+    {
+        return (string) $this->status === self::STATUS_ACCEPTED
+            && (string) ($this->payment_status ?? '') === self::PAYMENT_STATUS_PENDING;
+    }
+
     public function canTransitionTo(string $targetStatus): bool
     {
+        if ((string) $this->status === self::STATUS_SENT
+            && $targetStatus === self::STATUS_PENDING_REVIEW) {
+            return $this->isDesignRejectedByEntity();
+        }
+
         $transitions = [
-            self::STATUS_PENDING_REVIEW => [self::STATUS_IN_PRODUCTION, self::STATUS_REJECTED],
+            self::STATUS_PENDING_REVIEW => [self::STATUS_ACCEPTED, self::STATUS_REJECTED],
+            self::STATUS_ACCEPTED => [self::STATUS_IN_PRODUCTION],
             self::STATUS_IN_PRODUCTION => [self::STATUS_SENT, self::STATUS_REJECTED],
             self::STATUS_REJECTED => [self::STATUS_PENDING_REVIEW],
             self::STATUS_SENT => [],
         ];
 
         if (! in_array($targetStatus, $transitions[$this->status] ?? [], true)) {
+            return false;
+        }
+
+        if ($this->designApprovalTransitionBlockReason($targetStatus)) {
             return false;
         }
 
@@ -166,10 +217,111 @@ class PrintOrder extends Model
         return true;
     }
 
+    public function transitionBlockReason(string $targetStatus): ?string
+    {
+        if ($reason = $this->designApprovalTransitionBlockReason($targetStatus)) {
+            return $reason;
+        }
+
+        if (in_array($targetStatus, [self::STATUS_IN_PRODUCTION, self::STATUS_SENT], true) && ! $this->isPaymentSettled()) {
+            return $this->paymentTransitionBlockReason();
+        }
+
+        return null;
+    }
+
+    public function isDesignApprovedByEntity(): bool
+    {
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return true;
+        }
+
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+        if (! $approvalService->requiresEntityApproval($this->design)) {
+            return true;
+        }
+
+        return $approvalService->normalizedApprovalStatus($this->design->approval_status)
+            === \App\Services\DesignApprovalService::STATUS_APPROVED;
+    }
+
+    public function isDesignRejectedByEntity(): bool
+    {
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return false;
+        }
+
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+
+        return $approvalService->requiresEntityApproval($this->design)
+            && $approvalService->normalizedApprovalStatus($this->design->approval_status)
+                === \App\Services\DesignApprovalService::STATUS_REJECTED;
+    }
+
+    public function designApprovalTransitionBlockReason(string $targetStatus): ?string
+    {
+        if (! in_array($targetStatus, [self::STATUS_IN_PRODUCTION, self::STATUS_SENT], true)) {
+            return null;
+        }
+
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return null;
+        }
+
+        $approvalService = app(\App\Services\DesignApprovalService::class);
+        if (! $approvalService->requiresEntityApproval($this->design) || $this->isDesignApprovedByEntity()) {
+            return null;
+        }
+
+        return match ($approvalService->normalizedApprovalStatus($this->design->approval_status)) {
+            \App\Services\DesignApprovalService::STATUS_PENDING => 'La entidad debe aprobar el diseño antes de continuar.',
+            \App\Services\DesignApprovalService::STATUS_REJECTED => 'El diseño fue rechazado. Corríjalo y reenvíelo a la entidad.',
+            default => 'El diseño debe enviarse y ser aprobado por la entidad antes de continuar.',
+        };
+    }
+
+    /**
+     * Vuelve el pedido a revisión cuando la entidad rechaza el diseño (p. ej. si se marcó enviado antes de tiempo).
+     */
+    public function reopenForDesignCorrection(?int $userId = null, ?string $message = null): bool
+    {
+        if (! in_array((string) $this->status, [self::STATUS_SENT, self::STATUS_IN_PRODUCTION], true)) {
+            return false;
+        }
+
+        $from = (string) $this->status;
+        $this->forceFill([
+            'status' => self::STATUS_PENDING_REVIEW,
+            'sent_at' => null,
+        ])->save();
+
+        \Illuminate\Support\Facades\DB::table('print_order_status_audits')->insert([
+            'print_order_id' => $this->id,
+            'entity_id' => $this->entity_id,
+            'set_id' => $this->set_id,
+            'design_format_id' => $this->design_format_id,
+            'user_id' => $userId,
+            'action' => 'status_change',
+            'from_status' => $from,
+            'to_status' => self::STATUS_PENDING_REVIEW,
+            'message' => $message ?? 'Pedido reabierto: la entidad rechazó el diseño',
+            'created_at' => now(),
+        ]);
+
+        return true;
+    }
+
     public function paymentTransitionBlockReason(): ?string
     {
         if ($this->isPaymentSettled()) {
             return null;
+        }
+
+        if ((string) ($this->payment_provider ?? '') === self::PAYMENT_PROVIDER_REMITTANCE) {
+            return 'No se puede avanzar: falta confirmar el cargo en remesa.';
         }
 
         if ($this->requiresOnlinePayment()) {
@@ -181,6 +333,110 @@ class PrintOrder extends Model
         }
 
         return 'No se puede avanzar: el estado de cobro no está resuelto.';
+    }
+
+    /**
+     * Bloquea edición del diseño en panel admin/entidad mientras la imprenta trabaja.
+     */
+    public function isEditingBlockedForDesign(): bool
+    {
+        return in_array((string) $this->status, [
+            self::STATUS_PENDING_REVIEW,
+            self::STATUS_IN_PRODUCTION,
+        ], true);
+    }
+
+    public function isWorkflowComplete(): bool
+    {
+        return (string) $this->status === self::STATUS_SENT;
+    }
+
+    /**
+     * La imprenta puede abrir el editor mientras el pedido está activo.
+     */
+    public function printShopCanEditDesign(): bool
+    {
+        $this->loadMissing('design');
+        if ($this->design) {
+            $approvalService = app(\App\Services\DesignApprovalService::class);
+
+            if ($this->isDesignRejectedByEntity()) {
+                return true;
+            }
+
+            if (! $approvalService->printShopCanEditDesign($this->design)) {
+                return false;
+            }
+        }
+
+        if ((string) $this->status === self::STATUS_SENT) {
+            return false;
+        }
+
+        return in_array((string) $this->status, [
+            self::STATUS_PENDING_REVIEW,
+            self::STATUS_IN_PRODUCTION,
+            self::STATUS_REJECTED,
+        ], true);
+    }
+
+    /**
+     * Pedido con diseño pendiente de elaborar por la imprenta.
+     */
+    public function requiresPrintShopDesign(): bool
+    {
+        if (! $this->design_format_id) {
+            return true;
+        }
+
+        $this->loadMissing('design');
+        if (! $this->design) {
+            return true;
+        }
+
+        return ! app(\App\Services\DesignApprovalService::class)->designHasParticipationContent($this->design);
+    }
+
+    /**
+     * La imprenta no debe ver ni trabajar pedidos retenidos por cuota de gestión pendiente de la entidad.
+     */
+    public function isVisibleToPrintShop(): bool
+    {
+        if (! $this->set_id) {
+            return true;
+        }
+
+        $this->loadMissing('set');
+
+        return ! app(\App\Services\ManagementFeeService::class)
+            ->blocksPrintShopUntilEntityPaysManagementFee($this->set);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<static>
+     */
+    public function scopeVisibleToPrintShop($query)
+    {
+        $paid = \App\Services\ManagementFeeService::STATUS_PAID;
+        $queued = \App\Services\ManagementFeeService::STATUS_QUEUED_REMITTANCE;
+
+        return $query->whereHas('set', function ($setQuery) use ($paid, $queued) {
+            $setQuery->where(function ($visibilityQuery) use ($paid, $queued) {
+                // La administración paga la gestión → visible para imprenta.
+                $visibilityQuery->whereHas('entity', function ($entityQuery) {
+                    $entityQuery->where('entity_pays_management_fee', false);
+                })
+                // La entidad paga la gestión → solo si la cuota ya está liquidada.
+                ->orWhere(function ($entityPaysQuery) use ($paid, $queued) {
+                    $entityPaysQuery
+                        ->whereHas('entity', function ($entityQuery) {
+                            $entityQuery->where('entity_pays_management_fee', true);
+                        })
+                        ->whereIn('management_fee_status', [$paid, $queued]);
+                });
+            });
+        });
     }
 }
 

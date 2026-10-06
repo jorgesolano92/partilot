@@ -1,0 +1,172 @@
+CONTRATO DE PRESTACIÓN DE SERVICIOS SAAS
+ENTRE PARTILOT, S.L.U. Y EL PUNTO DE VENTA AUTORIZADO
+En Logroño, en la fecha de firma electrónica que se indica en el Anexo I
+REUNIDOS
+De una parte, PARTILOT, SOCIEDAD LIMITADA UNIPERSONAL (en adelante, «PARTILOT»), con NIF B26681551 y domicilio social en Calle Lope de Vega, 5, 1º B, 26007 Logroño (La Rioja), inscrita en el Registro Mercantil de La Rioja, Hoja LO-21703, Inscripción 1, representada en este acto por su Administrador Único.
+De otra parte, el Punto de Venta Autorizado identificado en el Anexo I del presente contrato, en su modalidad de Administración de Lotería o de Punto Mixto según se indique en dicho Anexo (en adelante, «el Punto de Venta Autorizado»), representado por la persona cuyos datos figuran en el mismo, quien declara bajo su exclusiva responsabilidad, personal y, en su caso, penal, contar con capacidad y poder suficiente para suscribir el presente contrato.
+Ambas partes se reconocen mutuamente la capacidad legal necesaria para suscribir el presente contrato y, a tal efecto,
+EXPONEN
+I. Que PARTILOT es titular y opera una plataforma tecnológica de gestión integral denominada PARTILOT (en adelante, «la Plataforma»), orientada a la digitalización y automatización de los procesos de gestión de participaciones de lotería para Puntos de Venta Autorizados, Entidades, Vendedores y Usuarios Finales.
+II. Que el Punto de Venta Autorizado es titular de un punto de venta autorizado por Loterías y Apuestas del Estado (SELAE), ya sea en su modalidad de Administración de Lotería o de Punto Mixto, y desea incorporar la Plataforma como herramienta de gestión de sus operaciones de participaciones de lotería.
+III. Que ambas partes desean regular mediante el presente contrato los derechos, obligaciones y responsabilidades derivados de la prestación del servicio.
+En su virtud, las partes suscriben el presente contrato con arreglo a las siguientes
+CLÁUSULAS
+CLÁUSULA 1 — OBJETO
+El presente contrato tiene por objeto la prestación por PARTILOT al Punto de Venta Autorizado del servicio de acceso y uso de la Plataforma (en adelante, «el Servicio»), en la modalidad de software como servicio, que comprende:
+El acceso al panel de gestión web y a la aplicación móvil de PARTILOT, con las funcionalidades disponibles según su modalidad (Administración de Lotería o Punto Mixto) y la versión vigente en cada momento.
+La creación y gestión de reservas de decimos de lotería y de los conjuntos de participaciones (Sets) vinculados a las Entidades que el Punto de Venta Autorizado incorpore a la Plataforma.
+El acceso a las herramientas de escrutinio, liquidación y cierre del ciclo comercial de cada sorteo.
+El acceso a las herramientas de soporte técnico y documentación de usuario disponibles en la Plataforma.
+Las Administraciones de Lotería podrán gestionar reservas tanto sobre décimos físicos preimpresos como sobre lotería por terminal. Los Puntos Mixtos únicamente podrán gestionar reservas sobre lotería por terminal, al no estar autorizados por SELAE a la venta de décimos físicos preimpresos, función reservada en exclusiva a las Administraciones de Lotería. Esta limitación es de naturaleza exclusivamente técnica y operativa, sin que suponga diferencia alguna en el régimen de obligaciones y responsabilidades contractuales entre ambas modalidades.
+PARTILOT actúa en todo momento como proveedor tecnológico. No interviene en las relaciones comerciales entre el Punto de Venta Autorizado, las Entidades, los Vendedores y los Usuarios Finales, ni asume responsabilidad alguna sobre las obligaciones derivadas de la comercialización de lotería.
+CLÁUSULA 2 — DESLINDE DE RESPONSABILIDAD SOBRE LA RELACIÓN OPERATIVA CON LAS ENTIDADES
+2.1  El presente contrato regula exclusivamente el acceso y uso por el Punto de Venta Autorizado de la Plataforma como herramienta tecnológica. Los procesos operativos que el Punto de Venta Autorizado realice a través de la Plataforma en su relación con cada Entidad —incluyendo, sin carácter limitativo, la reserva de números y cantidades de lotería, el diseño de las participaciones, y el proceso de devolución y liquidación— constituyen una relación jurídica y operativa exclusivamente entre el Punto de Venta Autorizado y la Entidad, de la que PARTILOT no es parte.
+2.2  PARTILOT actúa en dichos procesos como proveedor de una herramienta técnica neutral que registra, documenta y da soporte a las decisiones e instrucciones introducidas por el Punto de Venta Autorizado y la Entidad, sin intervenir en su contenido, corrección, adecuación o conveniencia. En consecuencia, PARTILOT no asume responsabilidad alguna por errores, discrepancias, defectos o incumplimientos derivados de dichos procesos, incluyendo entre otros: reservas de números o cantidades incorrectas, diseños de participaciones con errores, o devoluciones y liquidaciones incorrectas entre el Punto de Venta Autorizado y la Entidad, con independencia de que dichos errores se hayan producido en el uso de la Plataforma.
+2.3  En particular, el cobro del importe de la lotería adquirida por cada Entidad, la gestión de la devolución de las participaciones no vendidas y el cumplimiento de los términos económicos de la liquidación con cada Entidad son obligaciones y facultades que corresponden al Punto de Venta Autorizado frente a la Entidad, no a PARTILOT. PARTILOT no es acreedora de dichas obligaciones, no interviene en su exigencia ni cumplimiento, y no asume responsabilidad alguna derivada de su incumplimiento por cualquiera de las partes de dicha relación.
+CLÁUSULA 3 — DURACIÓN Y ENTRADA EN VIGOR
+3.1  El presente contrato entra en vigor en la fecha de su firma electrónica por ambas partes, o en la fecha de activación de las credenciales de acceso del Punto de Venta Autorizado si esta fuera posterior. La firma electrónica queda registrada por el sistema con identificación del firmante, marca temporal y dirección IP, conforme al Reglamento (UE) nº 910/2014 y la Ley 6/2020, de 11 de noviembre.
+3.2  El contrato tiene una duración inicial de un (1) año desde su entrada en vigor, renovándose automáticamente por períodos anuales sucesivos salvo denuncia expresa de cualquiera de las partes con un preaviso mínimo de treinta (30) días naturales antes del vencimiento.
+3.3  Cualquiera de las partes podrá resolver el contrato antes de su vencimiento con un preaviso mínimo de noventa (90) días naturales. La resolución anticipada no exime al Punto de Venta Autorizado del pago de las cuotas devengadas hasta la fecha efectiva de extinción.
+CLÁUSULA 4 — CONDICIONES ECONÓMICAS Y FORMA DE PAGO
+4.1  La incorporación del Punto de Venta Autorizado a la Plataforma es gratuita. No se devengará cuota de incorporación.
+4.2  El uso del Servicio se retribuye mediante una cuota de gestión que se devenga en el momento en que el Punto de Venta Autorizado o la Entidad, según la configuración descrita en la Cláusula 4.3, solicita la generación de un Set de participaciones. El importe de dicha cuota es el vigente en la Plataforma en el momento de la generación del Set.
+4.3  En el momento de crear cada Set, la Plataforma permite configurar si la cuota de gestión correrá a cargo del Punto de Venta Autorizado o de la Entidad destinataria. Esta configuración queda registrada de forma individual para cada Set.
+4.4  La cuota se devenga en el momento de la generación del Set. El cobro se realizará, a elección de la parte obligada, mediante alguna de las siguientes modalidades, ambas disponibles de forma simultánea en la Plataforma: (a) pago puntual por terminal de pago virtual integrado en la Plataforma; o (b) domiciliación bancaria conforme al esquema SEPA Core. La modalidad de cobro podrá modificarse en cualquier momento para Sets futuros, sin efectos retroactivos sobre las cuotas ya devengadas.
+4.5  Cuando participaciones generadas y abonadas no sean vendidas y sean debidamente declaradas en el cierre del ciclo, PARTILOT generará un saldo de servicio conforme al Marco Legal Integral de la Plataforma, no reembolsable en efectivo y con caducidad a los quince (15) meses.
+4.6  Todos los importes indicados se entienden sin Impuesto sobre el Valor Añadido. Las facturas estarán disponibles en el panel de gestión del Punto de Venta Autorizado.
+4.7  El impago de cualquier cuota devengada y vencida facultará a PARTILOT para suspender el acceso a la Plataforma, previa notificación con un mínimo de diez (10) días hábiles.
+CLÁUSULA 5 — OBLIGACIONES DE PARTILOT
+PARTILOT se compromete a:
+Prestar el Servicio con la diligencia debida, manteniendo la Plataforma operativa y accesible, sin garantizar disponibilidad ininterrumpida del cien por cien.
+Notificar con un mínimo de veinticuatro (24) horas de antelación cualquier mantenimiento programado que pueda afectar a la disponibilidad del Servicio.
+Incorporar automáticamente los resultados oficiales de los sorteos publicados por SELAE, sin responsabilidad sobre la veracidad de los datos de origen.
+Mantener las medidas de seguridad técnica y organizativa descritas en el Marco Legal Integral de la Plataforma.
+Notificar cualquier brecha de seguridad en el plazo máximo de setenta y dos (72) horas desde su conocimiento.
+Proporcionar soporte técnico a través de los canales habilitados en la Plataforma.
+Conservar los datos durante la vigencia del contrato y los plazos legalmente exigibles tras su extinción, conforme al Acuerdo de Tratamiento de Datos.
+CLÁUSULA 6 — OBLIGACIONES DEL PUNTO DE VENTA AUTORIZADO
+El Punto de Venta Autorizado se compromete a:
+Proporcionar información veraz, completa y actualizada en el proceso de alta y durante toda la vigencia del contrato, notificando cualquier cambio relevante en el plazo de diez (10) días hábiles.
+Custodiar con la máxima diligencia sus credenciales de acceso, respondiendo de todas las operaciones realizadas desde su cuenta hasta la notificación de pérdida o sustracción.
+Utilizar la Plataforma exclusivamente para los fines previstos en el presente contrato y en los Términos y Condiciones de Uso.
+Verificar y validar los resultados del escrutinio de cada sorteo antes de su confirmación, asumiendo plena responsabilidad sobre dicha validación y sus consecuencias económicas.
+Gestionar las Entidades vinculadas con diligencia y buena fe, dentro del marco de deslinde de responsabilidad establecido en la Cláusula 2.
+Abonar puntualmente las cuotas devengadas conforme a la Cláusula 4.
+No ceder ni sublicenciar el acceso a la Plataforma a terceros no autorizados.
+Cumplir la normativa vigente aplicable a su actividad como punto de venta autorizado por SELAE, siendo la única responsable frente a dicho organismo.
+Custodiar con la máxima diligencia los archivos digitales de participaciones físicas descargados desde la Plataforma, limitando su impresión y distribución a las copias estrictamente necesarias, siendo responsable exclusivo de cualquier duplicación o reproducción no autorizada conforme al Marco Legal Integral.
+6.1  Responsabilidad sobre contenidos y diseños creados en la Plataforma. PARTILOT pone a disposición del Punto de Venta Autorizado herramientas de diseño, proporcionando con carácter general una plantilla orientativa con los datos técnicos mínimos del Set. Más allá de dicha plantilla, el diseño, los textos, las imágenes y cualquier otro contenido son de libre elección de quien los crea, que asume plena responsabilidad sobre el resultado si la modifica o sustituye.
+6.2  PARTILOT actúa en este contexto como proveedor técnico de herramientas de diseño, sin supervisar, revisar ni moderar previamente ningún contenido creado por sus usuarios. La responsabilidad sobre la legalidad, veracidad, adecuación y respeto a los derechos de terceros recae íntegra y exclusivamente en quien los crea y publica.
+6.3  Queda expresamente prohibido incluir en los diseños: obras protegidas por propiedad intelectual o industrial sin autorización; imágenes de personas físicas sin consentimiento; contenidos engañosos o falsos; contenidos que vulneren el honor o la intimidad de terceros; y contenidos contrarios al orden público o a la normativa de publicidad.
+6.4  El Punto de Venta Autorizado garantiza que los contenidos que cree cumplen con la normativa vigente y que cuenta con las autorizaciones necesarias. En caso contrario, asumirá íntegramente la responsabilidad frente a PARTILOT y terceros.
+6.5  PARTILOT se reserva el derecho a retirar o bloquear cualquier contenido manifiestamente ilegal del que tenga conocimiento, sin obligación general de supervisión.
+CLÁUSULA 7 — LIMITACIÓN DE RESPONSABILIDAD
+7.1  PARTILOT no será responsable de los daños derivados de: el uso incorrecto o fraudulento de la Plataforma por parte del Punto de Venta Autorizado, las Entidades, los Vendedores o los Usuarios Finales; errores en los datos de escrutinio obtenidos de SELAE; interrupciones causadas por terceros o fuerza mayor; decisiones del Punto de Venta Autorizado de su exclusiva competencia; y daños indirectos o lucro cesante de cualquier naturaleza.
+7.2  La responsabilidad máxima de PARTILOT frente al Punto de Venta Autorizado por cualquier causa quedará limitada al importe total abonado por este en concepto de cuotas de gestión durante los doce (12) meses anteriores al evento causante del daño.
+7.3  El Punto de Venta Autorizado responderá íntegramente frente a PARTILOT y frente a terceros por los daños ocasionados como consecuencia de su incumplimiento contractual o del uso ilícito de la Plataforma.
+CLÁUSULA 8 — PROPIEDAD INTELECTUAL Y CONFIDENCIALIDAD
+8.1  Todos los derechos de propiedad intelectual e industrial sobre la Plataforma son titularidad exclusiva de PARTILOT o de sus licenciantes. El presente contrato no supone la cesión de ninguno de estos derechos.
+8.2  Ambas partes se comprometen a mantener en estricta confidencialidad la información técnica, comercial y operativa de la otra parte, durante la vigencia del contrato y los cinco (5) años posteriores a su extinción.
+CLÁUSULA 9 — SERVICIO OPCIONAL DE GESTIÓN TÉCNICA DE PAGOS DE PREMIOS
+9.1  PARTILOT podrá activar, para las Entidades que lo soliciten, el servicio opcional de gestión técnica de pagos de premios menores, mediante el cual PARTILOT ejecuta, por cuenta y en nombre de la Entidad, el pago de los premios correspondientes a las participaciones premiadas de cada sorteo.
+9.2  La activación de este servicio para cada sorteo con premios requiere la suscripción de un Acuerdo Específico de Mandato de Pago entre la Entidad y PARTILOT, formalizado de forma independiente al presente contrato y firmado por el Firmante Autorizado de la Entidad conforme al Contrato Marco suscrito entre esta y PARTILOT.
+9.3  PARTILOT no ostenta en ningún momento la titularidad de los fondos destinados al pago de premios. Dichos fondos son propiedad de la Entidad, y PARTILOT actúa exclusivamente como gestor técnico de pago por encargo documentado.
+9.4  El Punto de Venta Autorizado no asume responsabilidad directa frente a PARTILOT por la ejecución de este servicio con las Entidades, siendo la relación jurídica del mandato de pago exclusivamente entre la Entidad y PARTILOT.
+CLÁUSULA 10 — MODIFICACIÓN DEL SERVICIO Y DE LAS CONDICIONES
+10.1  PARTILOT podrá modificar las funcionalidades de la Plataforma, notificándolo con un preaviso mínimo de treinta (30) días cuando la modificación suponga una reducción significativa de las prestaciones contratadas.
+10.2  PARTILOT podrá modificar las tarifas del Servicio con un preaviso mínimo de treinta (30) días naturales. Si el Punto de Venta Autorizado no aceptase la modificación, podrá resolver el contrato sin penalización dentro de los treinta (30) días siguientes.
+10.3  PARTILOT podrá discontinuar el Servicio con un preaviso mínimo de noventa (90) días naturales, procediendo a la devolución de los importes prepagados no consumidos.
+CLÁUSULA 11 — PROTECCIÓN DE DATOS
+11.1  El tratamiento de datos personales se rige por el Reglamento (UE) 2016/679, la Ley Orgánica 3/2018 y el Acuerdo de Tratamiento de Datos que forma parte integrante del Marco Legal Integral de la Plataforma.
+11.2  El Punto de Venta Autorizado actúa como responsable del tratamiento respecto a los datos de las Entidades, Vendedores y Usuarios Finales que gestione a través de la Plataforma. PARTILOT actúa como encargada del tratamiento.
+11.3  Cada parte es individualmente responsable del cumplimiento de la normativa de protección de datos en el ámbito de sus respectivas competencias.
+CLÁUSULA 12 — CAUSAS DE RESOLUCIÓN
+Son causas de resolución del presente contrato, además de las previstas en la legislación aplicable:
+El incumplimiento grave o reiterado de cualquiera de las obligaciones del presente contrato, siempre que la parte incumplidora no subsane el incumplimiento en el plazo de quince (15) días hábiles desde la notificación fehaciente.
+El impago de dos (2) o más cuotas consecutivas.
+La pérdida de la autorización como punto de venta de SELAE.
+La declaración de concurso de acreedores, disolución o cese de actividad de cualquiera de las partes.
+El uso de la Plataforma para actividades ilícitas, fraudulentas o contrarias a la normativa de blanqueo de capitales, financiación del terrorismo o normativa de juego.
+La resolución del contrato no afectará a los sorteos en curso, que se completarán en los términos pactados salvo que la causa de resolución sea imputable al Punto de Venta Autorizado. Los derechos de los Usuarios Finales sobre participaciones adquiridas se mantendrán durante el plazo legal de cobro de premios.
+CLÁUSULA 13 — COMUNICACIONES Y NOTIFICACIONES
+Las comunicaciones entre las partes se realizarán preferentemente por medios electrónicos a las direcciones designadas en el Anexo I. Las comunicaciones enviadas a la última dirección notificada tendrán plena validez jurídica.
+CLÁUSULA 14 — LEGISLACIÓN APLICABLE Y JURISDICCIÓN
+14.1  El presente contrato se rige íntegramente por la legislación española.
+14.2  Para la resolución de cualquier controversia, las partes se someten expresamente a la jurisdicción de los Juzgados y Tribunales de Logroño, con renuncia expresa a cualquier otro fuero.
+14.3  Con carácter previo al ejercicio de cualquier acción judicial, las partes intentarán resolver la controversia de forma amistosa durante un plazo de treinta (30) días desde la notificación por escrito del desacuerdo.
+FIRMA DEL CONTRATO
+En prueba de conformidad con todo lo anterior, ambas partes suscriben el presente contrato en la fecha y lugar indicados en el Anexo I, habiendo leído íntegramente su contenido y entendido su alcance y consecuencias.
+La firma electrónica del presente documento a través del sistema habilitado por PARTILOT tiene plena validez jurídica conforme al Reglamento (UE) nº 910/2014 y la Ley 6/2020, de 11 de noviembre. El sistema registrará la identidad del firmante, la marca temporal, la dirección IP y la versión del documento suscrito.
+Por PARTILOT, S.L.U.
+Nombre y apellidos: ______________________
+Cargo: ______________________
+Fecha: ______________________
+Por el Punto de Venta Autorizado
+Nombre y apellidos: ______________________
+Cargo: ______________________
+Fecha: ______________________
+ANEXO I — IDENTIFICACIÓN DE LAS PARTES Y CONDICIONES INICIALES
+El presente Anexo forma parte integrante del contrato y debe completarse y firmarse conjuntamente con el documento principal.
+Datos de PARTILOT (Proveedor)
+Razón social
+PARTILOT, SOCIEDAD LIMITADA UNIPERSONAL
+NIF
+B26681551
+Domicilio fiscal
+Calle Lope de Vega, 5, 1º B, 26007 Logroño (La Rioja)
+Registro Mercantil
+Registro Mercantil de La Rioja, Hoja LO-21703, Inscripción 1
+Email legal
+[EMAIL LEGAL]
+Email de soporte
+[EMAIL SOPORTE]
+Teléfono de contacto
+[TELÉFONO]
+Datos del Punto de Venta Autorizado (Cliente)
+Modalidad
+[Administración de Lotería / Punto Mixto]
+Nombre comercial
+[NOMBRE]
+Código SELAE
+[CÓDIGO DE ADMINISTRACIÓN O DE PUNTO MIXTO]
+Código de receptor
+[CÓDIGO DE RECEPTOR, si aplica]
+NIF / CIF titular
+[NIF/CIF]
+Domicilio
+[DIRECCIÓN COMPLETA]
+Municipio y provincia
+[MUNICIPIO], [PROVINCIA]
+Código postal
+[C.P.]
+Email de contacto
+[EMAIL]
+Teléfono
+[TELÉFONO]
+Titular / Representante
+[NOMBRE Y APELLIDOS]
+DNI / NIE del titular
+[DNI/NIE]
+Configuración inicial del servicio
+Cuota de incorporación
+Sin coste
+Modalidad de cobro habilitada
+Pago puntual por TPV y domiciliación bancaria, configurable
+IBAN para domiciliación (si se activa)
+[IBAN]
+Switch de facturación por defecto
+[Punto de Venta Autorizado / Entidad — configurable por Set]
+Tarifa por Set
+Conforme a las tarifas vigentes publicadas en la Plataforma
+Fecha de activación prevista
+[FECHA]
+Ambas partes declaran que los datos anteriores son correctos y completos.
+Por PARTILOT
+Nombre y apellidos: ______________________
+Cargo: ______________________
+Fecha: ______________________
+Por el Punto de Venta Autorizado
+Nombre y apellidos: ______________________
+Cargo: ______________________
+Fecha: ______________________
+© PARTILOT, S.L.U. — Contrato de Prestación de Servicios SaaS con Punto de Venta Autorizado — Versión 3.0

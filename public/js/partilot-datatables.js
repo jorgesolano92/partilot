@@ -3,7 +3,7 @@
  * Evita doble barra por scrollX + overflow en card-body/table-responsive.
  */
 (function ($) {
-    if (typeof $.fn.dataTable !== 'function') {
+    if (!$ || typeof $.fn.dataTable !== 'function') {
         return;
     }
 
@@ -29,6 +29,22 @@
         },
     };
 
+    function adjustTableColumns(api) {
+        if (!api || typeof api.columns !== 'function') {
+            return;
+        }
+        api.columns.adjust();
+        setTimeout(function () {
+            api.columns.adjust();
+        }, 50);
+    }
+
+    var PARTILOT_DT_PAGE_LENGTH = 20;
+    var PARTILOT_DT_LENGTH_MENU = [
+        [20, 50, 100, -1],
+        [20, 50, 100, 'Todos'],
+    ];
+
     function normalizeListTableOptions(opts) {
         if (!opts || typeof opts !== 'object') {
             return opts;
@@ -40,13 +56,31 @@
         if (o.autoWidth === undefined) {
             o.autoWidth = false;
         }
+        if (o.pageLength === undefined) {
+            o.pageLength = PARTILOT_DT_PAGE_LENGTH;
+        }
+        if (o.lengthMenu === undefined) {
+            o.lengthMenu = PARTILOT_DT_LENGTH_MENU;
+        }
         o.language = $.extend(true, {}, PARTILOT_DT_LANG, o.language || {});
+
+        var userInitComplete = o.initComplete;
+        o.initComplete = function (settings, json) {
+            if (typeof userInitComplete === 'function') {
+                userInitComplete.call(this, settings, json);
+            }
+            adjustTableColumns(this.api());
+        };
+
         return o;
     }
 
     if ($.fn.dataTable.defaults) {
         $.extend(true, $.fn.dataTable.defaults, {
             language: PARTILOT_DT_LANG,
+            autoWidth: false,
+            pageLength: PARTILOT_DT_PAGE_LENGTH,
+            lengthMenu: PARTILOT_DT_LENGTH_MENU,
         });
     }
 
@@ -61,13 +95,16 @@
 
     $.extend($.fn.DataTable, originalDataTable);
     $.fn.DataTable.Api = originalDataTable.Api;
-    $.fn.dataTable = $.fn.DataTable;
 
-    $(window).on('resize', function () {
-        $('.dataTable').each(function () {
-            if ($.fn.DataTable.isDataTable(this)) {
-                $(this).DataTable().columns.adjust();
-            }
-        });
+    var resizeTimer;
+    $(window).on('resize.partilotDatatables', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            $('.dataTable').each(function () {
+                if ($.fn.DataTable.isDataTable(this)) {
+                    adjustTableColumns($(this).DataTable());
+                }
+            });
+        }, 120);
     });
-})();
+})(typeof jQuery !== 'undefined' ? jQuery : null);

@@ -64,10 +64,13 @@
                                     <td>{{ $group->province ?? 'N/A' }}</td>
                                     <td class="text-end">
                                         <a href="{{ route('groups.edit', $group->id) }}" class="btn btn-sm btn-light"><img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12"></a>
-                                        <form action="{{ route('groups.destroy', $group->id) }}" method="POST" style="display: inline;">
+                                        <form action="{{ route('groups.destroy', $group->id) }}" method="POST" style="display: inline;"
+                                            data-partilot-confirm="¿Estás seguro de que quieres eliminar este grupo?"
+                                            data-partilot-confirm-title="Eliminar grupo"
+                                            data-partilot-confirm-ok="Eliminar">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Estás seguro de que quieres eliminar este grupo?')">
+                                            <button type="submit" class="btn btn-sm btn-danger">
                                                 <i class="ri-delete-bin-6-line"></i>
                                             </button>
                                         </form>

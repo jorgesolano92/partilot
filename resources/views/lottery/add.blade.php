@@ -64,7 +64,7 @@
 
                     					<label style="border-radius: 30px; width: 150px; background-color: #333;" class="btn btn-md btn-dark mt-2">
                     						<small>Subir Imágen</small>
-                    						<input type="file" id="imagenInput" name="image" style="display: none;" accept="image/*">
+                    						<input type="file" id="imagenInput" name="image" style="display: none;" accept="image/jpeg,image/png,image/gif,image/webp">
                     					</label>
                     					<label style="border-radius: 30px; width: 150px; background-color: transparent; color: #333;" class="btn btn-md btn-dark mt-2"><small>Eliminar Imágen</small></label>
 
@@ -270,7 +270,25 @@
                                                     <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
                                                 </div>
 
-                                                <input class="form-control" type="time" name="draw_time" placeholder="19:00h" style="border-radius: 0 30px 30px 0;" value="{{ old('draw_time') }}" required>
+                                                <input class="form-control" type="time" name="deadline_time" placeholder="23:45" style="border-radius: 0 30px 30px 0;" value="{{ old('deadline_time', '23:59') }}" required>
+                                            </div>
+                                            @error('deadline_time')
+                                                <small class="text-danger">{{ $message }}</small>
+                                            @enderror
+                                        </div>
+                                    </div>
+
+                                    <div class="col-2">
+                                        <div class="form-group mt-2 mb-3">
+                                            <label class="label-control">Hora Sorteo</label>
+
+                                            <div class="input-group input-group-merge group-form">
+
+                                                <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+                                                    <img src="{{url('assets/form-groups/admin/18.svg')}}" alt="">
+                                                </div>
+
+                                                <input class="form-control" type="time" name="draw_time" placeholder="08:30" style="border-radius: 0 30px 30px 0;" value="{{ old('draw_time') }}">
                                             </div>
                                             @error('draw_time')
                                                 <small class="text-danger">{{ $message }}</small>
@@ -335,13 +353,14 @@
 
 	document.getElementById('imagenInput').addEventListener('change', function(event) {
 	    const archivo = event.target.files[0];
+	    if (archivo && !partilotImageUpload.check(event.target, 2048)) return;
 
 	    if (archivo) {
 	        const lector = new FileReader();
 	        lector.onload = function(e) {
 	        	$('.photo-preview').css('background-image', 'url('+e.target.result+')');
 	        	// Guardar en localStorage para persistencia
-	        	localStorage.setItem('image_lottery_create', e.target.result);
+	        	partilotImageUpload.store('image_lottery_create', e.target.result);
 	        }
 	        lector.readAsDataURL(archivo);
 	    } else {

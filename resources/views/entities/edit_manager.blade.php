@@ -12,6 +12,61 @@
 	.form-check-input:checked {
 		border-color: #333;
 	}
+	/* Solo en ficha entidad/gestor: card-body en columna para alinear Atrás/Guardar */
+	.card > .card-body:has(> .entity-detail-form),
+	.card > .card-body:has(> .entity-detail-row) {
+		display: flex !important;
+		flex-direction: column !important;
+	}
+	.entity-detail-form {
+		display: flex;
+		flex-direction: column;
+		flex: 1 1 auto;
+		min-height: 0;
+		width: 100%;
+	}
+	.entity-detail-row {
+		align-items: stretch;
+		flex: 1 1 auto;
+		min-height: 658px;
+		width: 100%;
+	}
+	.entity-detail-sidebar {
+		display: flex !important;
+		flex-direction: column;
+		min-height: 100%;
+	}
+	.entity-detail-sidebar .entity-detail-back {
+		margin-top: auto !important;
+		margin-bottom: 0;
+		align-self: flex-start;
+		position: relative !important;
+	}
+	.entity-detail-main {
+		display: flex;
+		flex-direction: column;
+		min-height: 100%;
+	}
+	.entity-detail-main > .form-card {
+		flex: 1 1 auto;
+		display: flex;
+		flex-direction: column;
+		min-height: 100%;
+		height: 100%;
+	}
+	.entity-detail-main > .form-card > .row:last-of-type {
+		margin-top: auto;
+		margin-bottom: 0;
+	}
+	.entity-detail-actions {
+		display: flex;
+		justify-content: flex-end;
+		align-items: flex-end;
+		padding-top: 1rem;
+	}
+	.entity-detail-actions .btn {
+		margin-bottom: 0;
+	}
 </style>
 
 <!-- Start Content-->
@@ -45,14 +100,14 @@
 
                     <br>
 
-                    <form action="{{ route('managers.update', $entity->manager->id) }}" method="POST" enctype="multipart/form-data">
+                    <form action="{{ route('managers.update', $entity->manager->id) }}" method="POST" enctype="multipart/form-data" class="entity-detail-form">
                         @csrf
                         @method('PUT')
                         <input type="hidden" name="origin" value="entity">
                         
-                        <div class="row">
+                        <div class="row entity-detail-row">
                     	
-                    	<div class="col-md-3" style="position: relative;">
+                    	<div class="col-md-3 entity-detail-sidebar">
 
                     		<div class="form-card bs mb-3">
                     			<div class="form-wizard-element">
@@ -106,20 +161,66 @@
 
                     		<div class="form-card show-content bs">
                     			<h4 class="mb-0 mt-1">
-                    				Estado Entidad
+                    				Estado
                     			</h4>
-                    			<small><i>Bloquea o desbloquea la entidad</i></small>
+                    			<small><i>Entidad y gestor</i></small>
 
-                    			<div class="form-group mt-2">
-	                    			<label class="">Estado Actual</label> <label class="badge badge-lg bg-success float-end">Activo</label>
+                    			@php
+                    				$entityStatusValue = $entity->status;
+                    				if ($entityStatusValue === null || $entityStatusValue === -1) {
+                    					$entityStatusText = 'Pendiente';
+                    					$entityStatusClass = 'bg-secondary';
+                    				} elseif ((int) $entityStatusValue === 1) {
+                    					$entityStatusText = 'Activa';
+                    					$entityStatusClass = 'bg-success';
+                    				} else {
+                    					$entityStatusText = 'Inactiva';
+                    					$entityStatusClass = 'bg-danger';
+                    				}
+                    				$entityContractSigned = $entity->hasSignedFrameworkContract();
+                    				$editManager = $entity->manager;
+                    				$managerPending = $editManager ? $editManager->isPendingActivation() : false;
+                    				$managerRoleLegalOk = $editManager ? $editManager->hasAcceptedRoleLegal() : false;
+                    			@endphp
+
+                    			<div class="form-group mt-2 mb-2">
+	                    			<label class="">Entidad</label>
+	                    			<label class="badge badge-lg {{ $entityStatusClass }} float-end">{{ $entityStatusText }}</label>
 	                    			<div style="clear: both;"></div>
+	                    			@if(! $entityContractSigned)
+	                    				<p class="small text-warning mb-0 mt-1">
+	                    					<i class="ri-error-warning-line"></i> Contrato marco pendiente de firma.
+	                    				</p>
+	                    			@endif
                     			</div>
+
+                    			@if($editManager)
+                    			<div class="form-group mb-0">
+	                    			<label class="">Gestor</label>
+	                    			<label class="badge badge-lg {{ $editManager->statusBadgeClass() }} float-end">{{ $editManager->statusLabel() }}</label>
+	                    			<div style="clear: both;"></div>
+	                    			@if($managerPending)
+	                    				<p class="small text-warning mb-0 mt-1">
+	                    					<i class="ri-time-line"></i> Pendiente de aceptar la invitación o el cargo.
+	                    				</p>
+	                    			@endif
+	                    			@if(! $managerRoleLegalOk)
+	                    				<p class="small text-warning mb-0 mt-1">
+	                    					<i class="ri-file-warning-line"></i> Marco legal del rol no firmado.
+	                    				</p>
+	                    			@elseif(! $managerPending)
+	                    				<p class="small text-success mb-0 mt-1">
+	                    					<i class="ri-checkbox-circle-line"></i> Marco legal del rol aceptado.
+	                    				</p>
+	                    			@endif
+                    			</div>
+                    			@endif
                     		</div>
 
-                    		<a href="{{ route('entities.show', $entity->id) }}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
+                    		<a href="{{ route('entities.show', $entity->id) }}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder;" class="btn btn-md btn-light entity-detail-back">
                     						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
                     	</div>
-                    	<div class="col-md-9">
+                    	<div class="col-md-9 entity-detail-main">
 
         					<div class="form-card bs" style="min-height: 658px;">
                     			<h4 class="mb-0 mt-1">
@@ -187,7 +288,7 @@
 				                                      	<img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="name" value="{{ $entity->manager->user->name ?? '' }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="name" value="{{ old('name', $entity->manager->user->name ?? '') }}" class="form-control" type="text" placeholder="Nombre" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -201,7 +302,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="last_name" value="{{ $entity->manager->user->last_name ?? '' }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="last_name" value="{{ old('last_name', $entity->manager->user->last_name ?? '') }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -216,7 +317,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="last_name2" value="{{ $entity->manager->user->last_name2 ?? '' }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="last_name2" value="{{ old('last_name2', $entity->manager->user->last_name2 ?? '') }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -231,7 +332,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="nif_cif" id="entity-edit-manager-nif-cif" value="{{ $entity->manager->user->nif_cif ?? '' }}" class="form-control" type="text" placeholder="B26262626" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="nif_cif" id="entity-edit-manager-nif-cif" value="{{ old('nif_cif', $entity->manager->user->nif_cif ?? '') }}" class="form-control" type="text" placeholder="B26262626" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -246,7 +347,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="birthday" value="{{ $entity->manager->user->birthday->format('Y-m-d') ?? '' }}" class="form-control" type="date" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="birthday" value="{{ old('birthday', $entity->manager->user->birthday?->format('Y-m-d') ?? '') }}" class="form-control" type="date" min="1900-01-01" max="{{ now()->toDateString() }}" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -261,7 +362,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/9.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="email" value="{{ $entity->manager->user->email ?? '' }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;" required>
+				                                    <input name="email" value="{{ old('email', $entity->manager->user->email ?? '') }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;" required>
 				                                </div>
 			                    			</div>
                     					</div>
@@ -276,7 +377,7 @@
 				                                        <img src="{{url('assets/form-groups/admin/10.svg')}}" alt="">
 				                                    </div>
 
-				                                    <input name="phone" value="{{ $entity->manager->user->phone ?? '' }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
+				                                    <input name="phone" value="{{ old('phone', $entity->manager->user->phone ?? '') }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
 				                                </div>
 			                    			</div>
                     					</div>
@@ -301,14 +402,14 @@
 
 			                    			<div class="input-group input-group-merge group-form" style="border: none">
 
-			                                    <textarea name="comment" class="form-control" placeholder="Añade tu comentario" rows="6">{{ $entity->manager->user->comment ?? '' }}</textarea>
+			                                    <textarea name="comment" class="form-control" placeholder="Añade tu comentario" rows="6">{{ old('comment', $entity->manager->user->comment ?? '') }}</textarea>
 			                                </div>
 		                    			</div>
 
                     				</div>
 
-                    				<div class="col-4 text-end">
-                    					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative; top: calc(100% - 51px);" class="btn btn-md btn-light mt-2">Guardar
+                    				<div class="col-4 text-end entity-detail-actions">
+                    					<button type="submit" style="border-radius: 30px; width: 200px; background-color: #e78307; color: #333; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-light">Guardar
                     						<i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-save-line"></i></button>
                     				</div>
 
@@ -336,5 +437,10 @@ document.addEventListener('DOMContentLoaded', function() {
         showMessage: true
     });
 });
+</script>
+
+<script>
+	$('footer.footer').css('margin-left', '12px');
+	$('footer.footer').css('margin-right', '12px');
 </script>
 @endsection

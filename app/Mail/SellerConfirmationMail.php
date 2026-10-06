@@ -34,7 +34,7 @@ class SellerConfirmationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Solicitud de Vendedor - Partilot',
+            subject: 'Invitación para vender participaciones — Partilot',
         );
     }
 
