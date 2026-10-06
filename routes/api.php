@@ -93,6 +93,11 @@ Route::prefix('auth')->group(function () {
     Route::get('/sms/config', [\App\Http\Controllers\PhoneVerificationController::class, 'config']);
     Route::post('/sms/send-code', [\App\Http\Controllers\PhoneVerificationController::class, 'sendCode'])
         ->middleware('throttle:6,1');
+
+    Route::post('/password/forgot', [\App\Http\Controllers\AppPasswordResetController::class, 'forgot'])
+        ->middleware('throttle:5,1');
+    Route::post('/password/reset', [\App\Http\Controllers\AppPasswordResetController::class, 'reset'])
+        ->middleware('throttle:10,1');
     
     // Obtener usuario autenticado
     Route::middleware('auth.api')->get('/user', function (Request $request) {
