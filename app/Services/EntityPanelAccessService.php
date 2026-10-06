@@ -201,12 +201,52 @@ class EntityPanelAccessService
     }
 
 
+    public function isPrimaryManagerOf(Entity $entity, User $user): bool
+    {
+        return Manager::query()
+            ->where('entity_id', $entity->id)
+            ->where('user_id', $user->id)
+            ->where(fn ($q) => $q->where('is_primary', true)->orWhere('pending_primary', true))
+            ->where(fn ($q) => $q->whereNull('status')
+                ->orWhere('status', '!=', Manager::STATUS_INVITATION_REJECTED))
+            ->exists();
+    }
+
     /**
-     * Asegura cuenta panel: crea una nueva o vincula al gestor principal aceptado si comparte email.
+     * Si la cuenta panel (solo consulta) de la entidad es también su gestor responsable (mismo email),
+     * la convierte en usuario gestor normal: el gestor responsable debe poder operar (aprobar diseños, etc.).
+     */
+    public function releasePanelAccountIfPrimaryManager(Entity $entity, ?User $panelUser = null): bool
+    {
+        $panelUser ??= $this->findPanelUser($entity);
+        if (! $panelUser
+            || $panelUser->panel_account_type !== 'entity'
+            || (int) $panelUser->panel_account_id !== (int) $entity->id
+            || ! $this->isPrimaryManagerOf($entity, $panelUser)) {
+            return false;
+        }
+
+        $panelUser->forceFill([
+            'panel_account_type' => null,
+            'panel_account_id' => null,
+            'role' => User::ROLE_ENTITY,
+        ])->save();
+
+        Log::info('Entidad '.$entity->id.': la cuenta panel '.$panelUser->id.' es el gestor responsable; pasa a gestor con permisos completos.');
+
+        return true;
+    }
+
+    /**
+     * Asegura la cuenta panel (solo consulta) de la entidad. Si el email de la entidad es el del
+     * gestor responsable no se crea: ese usuario ya accede como gestor con permisos completos.
      */
     public function ensurePanelAccess(Entity $entity): ?User
     {
         $panelUser = $this->findPanelUser($entity);
+        if ($panelUser && $this->releasePanelAccountIfPrimaryManager($entity, $panelUser)) {
+            return null;
+        }
         if ($panelUser) {
             return $panelUser;
         }
@@ -220,31 +260,7 @@ class EntityPanelAccessService
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->first();
 
-        if ($existing && ! $existing->isPanelAccount()) {
-            $isPrimaryManager = Manager::query()
-                ->where('entity_id', $entity->id)
-                ->where('user_id', $existing->id)
-                ->where('is_primary', true)
-                ->where('status', 1)
-                ->exists();
-
-            if ($isPrimaryManager) {
-                $existing->update([
-                    'name' => trim((string) $entity->name) ?: $existing->name,
-                    'role' => User::ROLE_ENTITY,
-                    'panel_account_type' => 'entity',
-                    'panel_account_id' => $entity->id,
-                    'phone' => $entity->phone ?? $existing->phone,
-                    'nif_cif' => $entity->nif_cif ?? $existing->nif_cif,
-                ]);
-
-                return $existing->fresh();
-            }
-
-            return null;
-        }
-
-        if ($existing && $existing->isPanelAccount()) {
+        if ($existing) {
             return null;
         }
 

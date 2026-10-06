@@ -141,7 +141,8 @@ Route::post('/sellers/confirm/accept/{token}', [SellerController::class, 'confir
 Route::get('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmReject'])->name('sellers.confirm-reject');
 Route::post('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmRejectStore'])->name('sellers.confirm-reject.store');
 Route::get('/asignacion-participaciones/aceptar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'accept'])->name('participation-assignment.accept');
-Route::get('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'reject'])->name('participation-assignment.reject');
+Route::get('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'confirmReject'])->name('participation-assignment.reject');
+Route::post('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'reject'])->name('participation-assignment.reject.store');
 Route::get('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAccept'])->name('entity-managers.confirm-accept');
 Route::post('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAcceptStore'])->name('entity-managers.confirm-accept.store');
 Route::post('/entity-managers/confirm/respond/{token}', [EntityController::class, 'confirmManagerRespond'])->name('entity-managers.confirm-respond');
@@ -149,7 +150,8 @@ Route::get('/entity-managers/confirm/reject/{token}', [EntityController::class, 
 
 Route::get('/entity-managers/pending/register/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'showRegister'])->name('entity-managers.pending.register');
 Route::post('/entity-managers/pending/register/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'storeRegister'])->name('entity-managers.pending.register.store');
-Route::get('/entity-managers/pending/reject/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'reject'])->name('entity-managers.pending.reject');
+Route::get('/entity-managers/pending/reject/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'confirmReject'])->name('entity-managers.pending.reject');
+Route::post('/entity-managers/pending/reject/{token}', [\App\Http\Controllers\EntityManagerPendingInvitationController::class, 'reject'])->name('entity-managers.pending.reject.store');
 
 // Confirmación doble opt-in cobro por transferencia (sin autenticación)
 Route::middleware(['throttle:20,1'])->group(function () {

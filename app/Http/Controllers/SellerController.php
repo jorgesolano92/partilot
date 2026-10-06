@@ -3576,11 +3576,26 @@ class SellerController extends Controller
     }
 
     /**
-     * Confirmar rechazo de solicitud de vendedor (enlace directo del email).
+     * Página de confirmación del rechazo (enlace del email). El rechazo real va por POST
+     * para que los escáneres de correo que abren enlaces no rechacen la solicitud solos.
      */
     public function confirmReject($token)
     {
-        return $this->processSellerReject($token, request());
+        $seller = app(RoleLegalAcceptanceService::class)->findSellerByToken($token);
+
+        if (! $seller) {
+            return view('sellers.confirmation-error', [
+                'message' => 'El enlace de confirmación no es válido o ya ha sido utilizado.',
+                'type' => 'error',
+            ]);
+        }
+
+        return view('public.confirm-reject', [
+            'title' => 'Rechazar solicitud de vendedor',
+            'message' => '¿Seguro que quieres rechazar la solicitud para ser vendedor?',
+            'action' => route('sellers.confirm-reject.store', ['token' => $token]),
+            'fields' => ['action' => 'reject'],
+        ]);
     }
 
     /**

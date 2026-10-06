@@ -423,6 +423,10 @@ class EntityController extends Controller
             $managerUser->update(['role' => User::ROLE_ENTITY]);
         }
 
+        if ($managerUser->isPanelAccount()) {
+            app(EntityPanelAccessService::class)->releasePanelAccountIfPrimaryManager($entity, $managerUser);
+        }
+
         $this->forgetWizardSession($request);
 
         if (session('entity_contract_mail_sent') === false) {
@@ -1849,7 +1853,8 @@ class EntityController extends Controller
     }
 
     /**
-     * Confirmar rechazo de invitación como gestor de entidad.
+     * Página de confirmación del rechazo (el enlace del email es GET y los escáneres de correo lo abren solos;
+     * el rechazo real se envía por POST a confirmManagerRespond).
      */
     public function confirmManagerReject(string $token)
     {
@@ -1862,12 +1867,13 @@ class EntityController extends Controller
             ]);
         }
 
-        $roleService->respondManagerInvitation($manager, 'reject', request());
+        $manager->loadMissing('entity');
 
-        return view('entities.manager-confirmation-success', [
-            'message' => 'Solicitud rechazada. No tendrás acceso como gestor a esta entidad.',
-            'type' => 'reject',
-            'manager' => null,
+        return view('public.confirm-reject', [
+            'title' => 'Rechazar invitación de gestor',
+            'message' => '¿Seguro que quieres rechazar la invitación como gestor'.($manager->entity ? ' de '.$manager->entity->name : '').'?',
+            'action' => route('entity-managers.confirm-respond', ['token' => $token]),
+            'fields' => ['action' => 'reject'],
         ]);
     }
 

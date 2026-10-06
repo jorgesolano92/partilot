@@ -154,6 +154,26 @@ class EntityManagerPendingInvitationController extends Controller
         ]);
     }
 
+    public function confirmReject(string $token)
+    {
+        PendingEntityManagerInvitation::ensureRejectedAtColumn();
+
+        $pending = PendingEntityManagerInvitation::findByToken($token);
+        if (! $pending) {
+            return view('entities.manager-confirmation-error', [
+                'message' => 'El enlace de invitación no es válido o ya ha sido utilizado.',
+            ]);
+        }
+
+        $pending->loadMissing('entity');
+
+        return view('public.confirm-reject', [
+            'title' => 'Rechazar invitación de gestor',
+            'message' => '¿Seguro que quieres rechazar la invitación como gestor'.($pending->entity ? ' de '.$pending->entity->name : '').'? No se creará ninguna cuenta.',
+            'action' => route('entity-managers.pending.reject.store', ['token' => $token]),
+        ]);
+    }
+
     public function reject(string $token)
     {
         PendingEntityManagerInvitation::ensureRejectedAtColumn();
