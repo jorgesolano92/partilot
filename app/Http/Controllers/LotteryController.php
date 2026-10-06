@@ -593,21 +593,10 @@ class LotteryController extends Controller
             // Obtener los datos guardados de la base de datos para incluir las pedreas
             $savedResult = LotteryResult::where('lottery_id', $lottery->id)->first();
             
-            // Eliminar duplicados de las extracciones antes de devolver los datos
             $responseData = $filteredData; // Datos originales de la API
-            
-            // Aplicar eliminación de duplicados a las extracciones
+
             if (isset($responseData['extraccionesDeCincoCifras'])) {
                 $responseData['extraccionesDeCincoCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeCincoCifras']);
-            }
-            if (isset($responseData['extraccionesDeCuatroCifras'])) {
-                $responseData['extraccionesDeCuatroCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeCuatroCifras']);
-            }
-            if (isset($responseData['extraccionesDeTresCifras'])) {
-                $responseData['extraccionesDeTresCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeTresCifras']);
-            }
-            if (isset($responseData['extraccionesDeDosCifras'])) {
-                $responseData['extraccionesDeDosCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeDosCifras']);
             }
             
             if ($savedResult) {
@@ -658,11 +647,11 @@ class LotteryController extends Controller
         $resultData['cuartos_premios'] = $data['cuartosPremios'] ?? [];
         $resultData['quintos_premios'] = $data['quintosPremios'] ?? [];
 
-        // Procesar extracciones (eliminar duplicados)
+        // Las bolas repetidas de 4, 3 y 2 cifras son extracciones reales y cobran cada una
         $resultData['extracciones_cinco_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCincoCifras'] ?? []);
-        $resultData['extracciones_cuatro_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCuatroCifras'] ?? []);
-        $resultData['extracciones_tres_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeTresCifras'] ?? []);
-        $resultData['extracciones_dos_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeDosCifras'] ?? []);
+        $resultData['extracciones_cuatro_cifras'] = $data['extraccionesDeCuatroCifras'] ?? [];
+        $resultData['extracciones_tres_cifras'] = $data['extraccionesDeTresCifras'] ?? [];
+        $resultData['extracciones_dos_cifras'] = $data['extraccionesDeDosCifras'] ?? [];
 
         // Procesar reintegros
         $resultData['reintegros'] = $data['reintegros'] ?? [];
@@ -702,11 +691,11 @@ class LotteryController extends Controller
         $updateData['cuartos_premios'] = $data['cuartosPremios'] ?? [];
         $updateData['quintos_premios'] = $data['quintosPremios'] ?? [];
 
-        // Procesar extracciones (eliminar duplicados)
+        // Las bolas repetidas de 4, 3 y 2 cifras son extracciones reales y cobran cada una
         $updateData['extracciones_cinco_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCincoCifras'] ?? []);
-        $updateData['extracciones_cuatro_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeCuatroCifras'] ?? []);
-        $updateData['extracciones_tres_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeTresCifras'] ?? []);
-        $updateData['extracciones_dos_cifras'] = $this->removeDuplicateExtractions($data['extraccionesDeDosCifras'] ?? []);
+        $updateData['extracciones_cuatro_cifras'] = $data['extraccionesDeCuatroCifras'] ?? [];
+        $updateData['extracciones_tres_cifras'] = $data['extraccionesDeTresCifras'] ?? [];
+        $updateData['extracciones_dos_cifras'] = $data['extraccionesDeDosCifras'] ?? [];
 
         // Procesar reintegros
         $updateData['reintegros'] = $data['reintegros'] ?? [];
@@ -1090,7 +1079,8 @@ class LotteryController extends Controller
     }
     
     /**
-     * Eliminar duplicados de las extracciones
+     * Eliminar duplicados de las extracciones de 5 cifras: SELAE envía cada número dos veces
+     * (una con el premio acumulado y otra con el premio base).
      */
     private function removeDuplicateExtractions($extractions)
     {
