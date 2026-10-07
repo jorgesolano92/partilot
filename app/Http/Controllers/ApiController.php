@@ -24,6 +24,38 @@ class ApiController extends Controller
 
     public function test()
     {
+        // Comprobación QR físico (AUD-028/061): cada referencia debe encontrar su participación. Solo lectura.
+        $resumen = ['sets' => 0, 'referencias_ok' => 0, 'referencias_fallan' => 0, 'sets_con_fallos' => []];
+        \App\Models\Set::whereNotNull('tickets')
+            ->where('physical_participations', '>', 0)
+            ->chunkById(20, function ($sets) use (&$resumen) {
+                foreach ($sets as $set) {
+                    if (! is_array($set->tickets) || $set->tickets === []) {
+                        continue;
+                    }
+                    $numeros = $set->participations()->pluck('participation_number')->flip();
+                    if ($numeros->isEmpty()) {
+                        continue;
+                    }
+                    $resumen['sets']++;
+                    $fallos = 0;
+                    foreach ($set->tickets as $ticket) {
+                        $pn = $set->participationNumberForTicket($ticket);
+                        if ($pn !== null && isset($numeros[$pn])) {
+                            $resumen['referencias_ok']++;
+                        } else {
+                            $fallos++;
+                        }
+                    }
+                    if ($fallos > 0) {
+                        $resumen['referencias_fallan'] += $fallos;
+                        if (count($resumen['sets_con_fallos']) < 20) {
+                            $resumen['sets_con_fallos'][] = ['set_id' => $set->id, 'fallos' => $fallos, 'tickets' => count($set->tickets), 'participaciones' => $numeros->count()];
+                        }
+                    }
+                }
+            });
+        return response()->json($resumen);
         Schema::table('pending_entity_manager_invitations', function (Blueprint $table) {
             if (! Schema::hasColumn('pending_entity_manager_invitations', 'rejected_at')) {
                 $table->timestamp('rejected_at')->nullable()->after('confirmation_sent_at');
