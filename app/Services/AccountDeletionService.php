@@ -102,17 +102,11 @@ class AccountDeletionService
 
     protected function referenceFromParticipation(Participation $participation): string
     {
-        if (! $participation->set || ! is_array($participation->set->tickets)) {
+        if (! $participation->set) {
             return '';
         }
 
-        foreach ($participation->set->tickets as $ticket) {
-            if (isset($ticket['n']) && $ticket['n'] == $participation->participation_number) {
-                return $ticket['r'] ?? '';
-            }
-        }
-
-        return '';
+        return $participation->set->referenceForParticipationNumber((int) $participation->participation_number) ?? '';
     }
 
     /**

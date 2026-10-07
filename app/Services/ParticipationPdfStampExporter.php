@@ -508,7 +508,7 @@ class ParticipationPdfStampExporter
     }
 
     /**
-     * @param  array{r?: string, n?: int|string}  $ticket
+     * @param  array{r?: string, n?: int|string, c?: string}  $ticket
      * @param  array<string, string>  $qrCodes
      * @param  array{qr: ?array, references: list, participations: list}  $slots
      */
@@ -530,7 +530,7 @@ class ParticipationPdfStampExporter
         $fontScale = ($scaleX + $scaleY) / 2.0;
 
         $ref = (string) ($ticket['r'] ?? '');
-        $num = '1/'.str_pad((string) ((int) ($ticket['n'] ?? 0)), 4, '0', STR_PAD_LEFT);
+        $num = (string) ($ticket['c'] ?? '1/'.str_pad((string) ((int) ($ticket['n'] ?? 0)), 4, '0', STR_PAD_LEFT));
 
         foreach ($slots['images'] ?? [] as $img) {
             $src = $img['src'] ?? '';

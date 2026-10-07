@@ -196,7 +196,7 @@
                 @php
                     $ticket = $page[$i];
                     $html = $participation_html;
-                    $html = str_replace(['00000000000000000000', '1/0001'], [$ticket['r'], '1/'.str_pad($ticket['n'], 4,'0',STR_PAD_LEFT)], $html);
+                    $html = str_replace(['00000000000000000000', '1/0001'], [$ticket['r'], $ticket['c'] ?? '1/'.str_pad($ticket['n'], 4,'0',STR_PAD_LEFT)], $html);
                     $qrSrc = $qrCodes[$ticket['r']] ?? '';
                     if ($qrSrc !== '') {
                         $html = app(\App\Http\Controllers\DesignController::class)

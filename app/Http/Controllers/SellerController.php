@@ -2008,32 +2008,9 @@ class SellerController extends Controller
         $totalDisponibles = $participations->count();
         $importeTotal = round($totalDisponibles * $pricePerParticipation, 2);
 
-        $primeraReferencia = null;
-        if ($set->tickets && !empty($numbers)) {
-            $tickets = is_array($set->tickets) ? $set->tickets : json_decode($set->tickets, true);
-            if (is_array($tickets)) {
-                $firstNumGlobal = (int) $numbers[0];
-                foreach ($tickets as $ticket) {
-                    if (isset($ticket['n']) && (int) $ticket['n'] === $firstNumGlobal) {
-                        $primeraReferencia = $ticket['r'] ?? null;
-                        break;
-                    }
-                }
-                // Fallback: si no se encontró por n, buscar por participation_code de la primera participación
-                if (!$primeraReferencia && $participations->isNotEmpty()) {
-                    $firstParticipation = $participations->first();
-                    $participationCode = $firstParticipation->participation_code;
-                    if ($participationCode) {
-                        foreach ($tickets as $ticket) {
-                            if (isset($ticket['r']) && $ticket['r'] === $participationCode) {
-                                $primeraReferencia = $ticket['r'];
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        $primeraReferencia = !empty($numbers)
+            ? $set->referenceForParticipationNumber((int) $numbers[0])
+            : null;
 
         return response()->json([
             'success' => true,
@@ -3576,13 +3553,7 @@ class SellerController extends Controller
             return null;
         }
 
-        $participationNumber = null;
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['r']) && $ticket['r'] == $referencia) {
-                $participationNumber = $ticket['n'] ?? null;
-                break;
-            }
-        }
+        $participationNumber = $set->participationNumberForReference($referencia);
 
         return $participationNumber !== null
             ? ['set' => $set, 'participation_number' => $participationNumber]

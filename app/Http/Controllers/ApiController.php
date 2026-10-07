@@ -2190,13 +2190,7 @@ class ApiController extends Controller
             return ['has_won' => false, 'prize_amount' => 0, 'prize_category' => null];
         }
 
-        $participationNumber = null;
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['r']) && $ticket['r'] === $ref) {
-                $participationNumber = $ticket['n'] ?? null;
-                break;
-            }
-        }
+        $participationNumber = $set->participationNumberForReference($ref);
         if ($participationNumber === null) {
             return ['has_won' => false, 'prize_amount' => 0, 'prize_category' => null];
         }

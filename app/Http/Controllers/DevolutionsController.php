@@ -2104,13 +2104,7 @@ class DevolutionsController extends Controller
         if (!$set) {
             return null;
         }
-        $participationNumber = null;
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['r']) && $ticket['r'] == $referencia) {
-                $participationNumber = $ticket['n'] ?? null;
-                break;
-            }
-        }
+        $participationNumber = $set->participationNumberForReference($referencia);
         return $participationNumber !== null ? ['set' => $set, 'participation_number' => $participationNumber] : null;
     }
 

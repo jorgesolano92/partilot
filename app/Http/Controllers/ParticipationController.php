@@ -988,13 +988,7 @@ class ParticipationController extends Controller
         }
 
         // Marcar solo la participación escaneada
-        $participationNumber = null;
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['r']) && $ticket['r'] == $request->referencia) {
-                $participationNumber = $ticket['n'];
-                break;
-            }
-        }
+        $participationNumber = $set->participationNumberForReference((string) $request->referencia);
 
         if (!$participationNumber) {
             return response()->json(['success' => false, 'message' => 'Referencia no encontrada en el set.'], 404);
@@ -1087,14 +1081,7 @@ class ParticipationController extends Controller
             ], 404);
         }
 
-        // Obtener número de participación desde el ticket
-        $participationNumber = null;
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['r']) && $ticket['r'] == $request->referencia) {
-                $participationNumber = $ticket['n'];
-                break;
-            }
-        }
+        $participationNumber = $set->participationNumberForReference((string) $request->referencia);
 
         if (!$participationNumber) {
             return response()->json(['success' => false, 'message' => 'Referencia no encontrada en el set.'], 404);
@@ -1622,7 +1609,7 @@ class ParticipationController extends Controller
                 if ($ref !== null && (str_starts_with((string) $ref, $q) || str_contains((string) $ref, $q))) {
                     $candidates[] = [
                         'set_id' => $set->id,
-                        'participation_number' => $ticket['n'] ?? null,
+                        'participation_number' => $set->participationNumberForTicket($ticket),
                         'referencia' => (string) $ref,
                     ];
                     if (count($candidates) >= $maxResults * 2) {
@@ -1678,13 +1665,7 @@ class ParticipationController extends Controller
         if (!$set) {
             return null;
         }
-        $participationNumber = null;
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['r']) && $ticket['r'] == $referencia) {
-                $participationNumber = $ticket['n'];
-                break;
-            }
-        }
+        $participationNumber = $set->participationNumberForReference($referencia);
         return $participationNumber !== null ? ['set' => $set, 'participation_number' => $participationNumber] : null;
     }
 
@@ -2874,15 +2855,10 @@ class ParticipationController extends Controller
 
     private function getReferenceFromParticipation(Participation $p): string
     {
-        if (!$p->set || !is_array($p->set->tickets)) {
+        if (!$p->set) {
             return '';
         }
-        foreach ($p->set->tickets as $ticket) {
-            if (isset($ticket['n']) && $ticket['n'] == $p->participation_number) {
-                return $ticket['r'] ?? '';
-            }
-        }
-        return '';
+        return $p->set->referenceForParticipationNumber((int) $p->participation_number) ?? '';
     }
 
     /**

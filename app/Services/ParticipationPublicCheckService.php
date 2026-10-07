@@ -62,13 +62,7 @@ class ParticipationPublicCheckService
             ];
         }
 
-        $participationNumber = null;
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['r']) && $ticket['r'] == $ref) {
-                $participationNumber = $ticket['n'];
-                break;
-            }
-        }
+        $participationNumber = $set->participationNumberForReference((string) $ref);
 
         $participation = Participation::query()
             ->where('set_id', $set->id)

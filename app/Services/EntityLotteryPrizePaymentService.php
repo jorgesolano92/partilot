@@ -904,17 +904,11 @@ class EntityLotteryPrizePaymentService
     {
         $participation->loadMissing('set');
         $set = $participation->set;
-        if (! $set || ! is_array($set->tickets)) {
+        if (! $set) {
             return '';
         }
 
-        foreach ($set->tickets as $ticket) {
-            if (isset($ticket['n']) && (int) $ticket['n'] === (int) $participation->participation_number) {
-                return (string) ($ticket['r'] ?? '');
-            }
-        }
-
-        return '';
+        return $set->referenceForParticipationNumber((int) $participation->participation_number) ?? '';
     }
 
     public function entityHasSoldDigitalParticipations(int $entityId, int $lotteryId): bool

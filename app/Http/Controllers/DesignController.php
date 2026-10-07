@@ -3781,7 +3781,7 @@ class DesignController extends Controller
 
         // Obtener tickets del set con eager loading optimizado
         $set = $design->set_id ? Set::select('id', 'tickets', 'total_participations')->find($design->set_id) : null;
-        $tickets = $set && $set->tickets ? $set->tickets : [];
+        $tickets = $set && $set->tickets ? $set->ticketsWithPrintedCodes() : [];
         
         // Calcular filas y columnas
         $rows = $design->rows ?? 1;
@@ -7559,7 +7559,7 @@ class DesignController extends Controller
     public function writeParticipationPdfToFile(DesignFormat $design, int $from, int $to, string $finalPath): void
     {
         $set = $design->set_id ? Set::select('id', 'tickets', 'total_participations')->find($design->set_id) : null;
-        $tickets = $set && $set->tickets ? $set->tickets : [];
+        $tickets = $set && $set->tickets ? $set->ticketsWithPrintedCodes() : [];
 
         $tickets_slice = [];
         if ($from <= $to && $to >= 1) {

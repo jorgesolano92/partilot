@@ -10,6 +10,8 @@ class Set extends Model
 {
     use HasFactory;
 
+    private ?int $ticketNumberBase = null;
+
     protected $fillable = [
         'entity_id',
         'reserve_id',
@@ -174,6 +176,90 @@ class Set extends Model
                 'n' => $i,
                 'r' => $referencia,
             ];
+        }
+
+        return $tickets;
+    }
+
+    /**
+     * Los tickets numeran n = 1..N dentro del set, pero en sets físicos participation_number sigue
+     * la numeración correlativa de la reserva: el ticket n es la participación (mínimo del set + n − 1).
+     */
+    public function ticketNumberBase(): int
+    {
+        if ($this->ticketNumberBase === null) {
+            $min = $this->participations()->min('participation_number');
+            $this->ticketNumberBase = $min !== null ? (int) $min : 1;
+        }
+
+        return $this->ticketNumberBase;
+    }
+
+    public function findTicketByReference(string $reference): ?array
+    {
+        if ($reference === '' || ! is_array($this->tickets)) {
+            return null;
+        }
+        foreach ($this->tickets as $ticket) {
+            if (isset($ticket['r']) && (string) $ticket['r'] === $reference) {
+                return $ticket;
+            }
+        }
+
+        return null;
+    }
+
+    public function participationNumberForTicket(array $ticket): ?int
+    {
+        if (! isset($ticket['n']) || ! is_numeric($ticket['n'])) {
+            return null;
+        }
+
+        return $this->ticketNumberBase() + (int) $ticket['n'] - 1;
+    }
+
+    public function participationNumberForReference(string $reference): ?int
+    {
+        $ticket = $this->findTicketByReference($reference);
+
+        return $ticket !== null ? $this->participationNumberForTicket($ticket) : null;
+    }
+
+    public function referenceForParticipationNumber(int $participationNumber): ?string
+    {
+        if (! is_array($this->tickets)) {
+            return null;
+        }
+        $n = $participationNumber - $this->ticketNumberBase() + 1;
+        foreach ($this->tickets as $ticket) {
+            if (isset($ticket['n']) && (int) $ticket['n'] === $n) {
+                $reference = (string) ($ticket['r'] ?? '');
+
+                return $reference !== '' ? $reference : null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tickets con el código visible de su participación en 'c' (el que se imprime en la papeleta).
+     *
+     * @return list<array{n?: int|string, r?: string, c?: string}>
+     */
+    public function ticketsWithPrintedCodes(): array
+    {
+        $tickets = is_array($this->tickets) ? $this->tickets : [];
+        if ($tickets === []) {
+            return [];
+        }
+        $codes = $this->participations()->pluck('participation_code', 'participation_number');
+        $base = $this->ticketNumberBase();
+        foreach ($tickets as $i => $ticket) {
+            $code = (string) ($codes[$base + (int) ($ticket['n'] ?? 0) - 1] ?? '');
+            if ($code !== '') {
+                $tickets[$i]['c'] = str_starts_with($code, '1D/') ? '1/'.substr($code, 3) : $code;
+            }
         }
 
         return $tickets;
