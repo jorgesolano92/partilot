@@ -287,6 +287,10 @@ class ReserveController extends Controller
         ], [
             'reservation_numbers.*.regex' => 'Cada número de la reserva debe tener como máximo 5 dígitos y solo números.',
         ]);
+        $numbersAsInt = array_map('intval', $validated['reservation_numbers']);
+        if (count($numbersAsInt) !== count(array_unique($numbersAsInt))) {
+            return back()->withInput()->withErrors(['reservation_numbers.0' => 'No se puede repetir un número en la misma reserva.']);
+        }
         $entityId = $request->session()->get('selected_entity_id');
         $lotteryId = $request->session()->get('selected_lottery_id');
 

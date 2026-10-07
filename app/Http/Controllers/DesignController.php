@@ -1297,9 +1297,22 @@ class DesignController extends Controller
             'snapshot_path' => 'nullable|string',
         ]);
 
-        $data['set_id'] = $request->input('set_id', 1);
-        $data['entity_id'] = $request->design_entity_id ?? 1;
-        $data['lottery_id'] = $request->design_lottery_id ?? 1;
+        $setForSave = Set::with('reserve')->find((int) $request->input('set_id'));
+        if (! $setForSave) {
+            return response()->json(['success' => false, 'message' => 'No se ha indicado un set válido para el diseño.'], 422);
+        }
+        if (! auth()->user()->canAccessEntity((int) $setForSave->entity_id)) {
+            return response()->json(['success' => false, 'message' => 'No tienes acceso a esta entidad.'], 403);
+        }
+        if (! empty($data['design_id'])) {
+            $designEntityId = (int) DesignFormat::whereKey((int) $data['design_id'])->value('entity_id');
+            if ($designEntityId !== (int) $setForSave->entity_id) {
+                return response()->json(['success' => false, 'message' => 'El diseño no pertenece a esta entidad.'], 403);
+            }
+        }
+        $data['set_id'] = (int) $setForSave->id;
+        $data['entity_id'] = (int) $setForSave->entity_id;
+        $data['lottery_id'] = (int) ($setForSave->reserve?->lottery_id ?? $request->design_lottery_id);
 
         $entityForSave = Entity::query()->find((int) $data['entity_id']);
         $approvalService = app(DesignApprovalService::class);

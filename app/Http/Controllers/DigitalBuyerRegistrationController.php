@@ -40,13 +40,15 @@ class DigitalBuyerRegistrationController extends Controller
             return back()->withErrors(['token' => 'El enlace ha caducado o ya no es válido.']);
         }
 
-        if (User::where('email', $pending->email)->exists()) {
+        $saleHasEmail = trim((string) $pending->email) !== '';
+        if ($saleHasEmail && User::where('email', $pending->email)->exists()) {
             return redirect()
                 ->route('digital-buyer.register', ['token' => $token])
                 ->with('info', 'Ya existe una cuenta con este correo. Inicia sesión en la app Partilot.');
         }
 
         $request->validate([
+            'email' => [Rule::requiredIf(! $saleHasEmail), 'nullable', 'email', 'max:255', Rule::unique('users', 'email')],
             'name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
             'last_name2' => 'nullable|string|max:255',
@@ -64,6 +66,8 @@ class DigitalBuyerRegistrationController extends Controller
         ], [
             'sms_code.required' => 'Si indicas teléfono, debes verificarlo con el código SMS.',
             'aceptar_condiciones.accepted' => 'Debes aceptar las condiciones de uso.',
+            'email.required' => 'Indica tu correo electrónico.',
+            'email.unique' => 'Ya existe una cuenta con este correo. Inicia sesión en la app Partilot.',
         ]);
 
         $phoneVerification = app(PhoneVerificationService::class);
@@ -83,7 +87,7 @@ class DigitalBuyerRegistrationController extends Controller
             'name' => $request->name,
             'last_name' => $request->last_name,
             'last_name2' => $request->last_name2,
-            'email' => $pending->email,
+            'email' => $saleHasEmail ? $pending->email : PendingDigitalSale::normalizeEmail((string) $request->email),
             'phone' => $phone,
             'password' => Hash::make($request->password),
             'birthday' => $request->birthday,
@@ -99,7 +103,15 @@ class DigitalBuyerRegistrationController extends Controller
         );
 
         // El enlace (token) identifica la venta pendiente: no se pide código en el formulario.
-        $service->completePendingSalesForUser($user);
+        if ($saleHasEmail) {
+            $service->completePendingSalesForUser($user);
+        } else {
+            try {
+                $service->finalizePendingSale($pending, $user);
+            } catch (\Throwable $e) {
+                \Log::error('Error completando venta digital pendiente #'.$pending->id.': '.$e->getMessage());
+            }
+        }
 
         try {
             app(CommunicationEmailService::class)->sendAndLog(

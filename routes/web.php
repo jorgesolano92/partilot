@@ -170,9 +170,9 @@ Route::get('/contrato-entidad/firmar/{token}', [EntityContractController::class,
 Route::post('/contrato-entidad/firmar/{token}', [EntityContractController::class, 'storeSign'])->name('entity-contract.sign.store');
 
 // Registro web comprador (venta digital pendiente)
+Route::post('/registro-comprador/sms-code', [\App\Http\Controllers\PhoneVerificationController::class, 'sendCode'])->name('digital-buyer.sms-code');
 Route::get('/registro-comprador/{token}', [\App\Http\Controllers\DigitalBuyerRegistrationController::class, 'show'])->name('digital-buyer.register');
 Route::post('/registro-comprador/{token}', [\App\Http\Controllers\DigitalBuyerRegistrationController::class, 'store'])->name('digital-buyer.register.store');
-Route::post('/registro-comprador/sms-code', [\App\Http\Controllers\PhoneVerificationController::class, 'sendCode'])->name('digital-buyer.sms-code');
 
 // Registro web destinatario de regalo (email no registrado)
 Route::get('/registro-regalo/{token}', [\App\Http\Controllers\GiftRecipientRegistrationController::class, 'show'])->name('gift-recipient.register');

@@ -526,6 +526,21 @@ class SetController extends Controller
             ]);
         }
 
+        $validated = $this->recalculateSetAmounts($reserve, $validated);
+        $physical = (int) ($validated['physical_participations'] ?? 0);
+        $digital = (int) ($validated['digital_participations'] ?? 0);
+        if ($physical + $digital !== (int) $validated['total_participations']) {
+            if ($request->input('participation_type') === 'digital') {
+                $digital = (int) $validated['total_participations'];
+                $physical = 0;
+            } else {
+                $physical = (int) $validated['total_participations'];
+                $digital = 0;
+            }
+        }
+        $validated['physical_participations'] = $physical;
+        $validated['digital_participations'] = $digital;
+
         // Total reserva = importe por número × cantidad de números
         $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
         $reserveTotalAmount = max(
@@ -578,6 +593,20 @@ class SetController extends Controller
 
         return redirect()->route('sets.index')
             ->with('success', 'Set creado exitosamente');
+    }
+
+    /**
+     * Importes del set calculados en el servidor (mismas fórmulas que el formulario); no se fía de los del navegador.
+     */
+    private function recalculateSetAmounts(Reserve $reserve, array $validated): array
+    {
+        $numbersCount = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
+        $played = (float) ($validated['played_amount'] ?? 0);
+        $playedPerParticipation = $numbersCount <= 1 ? $played : $played * $numbersCount;
+        $validated['total_participation_amount'] = round($playedPerParticipation + (float) ($validated['donation_amount'] ?? 0), 2);
+        $validated['total_amount'] = round((int) $validated['total_participations'] * $playedPerParticipation, 2);
+
+        return $validated;
     }
 
     /**
@@ -669,6 +698,7 @@ class SetController extends Controller
         ]);
 
         $reserve = $set->reserve;
+        $validated = $this->recalculateSetAmounts($reserve, $validated);
         $numNumbers = is_array($reserve->reservation_numbers) ? count($reserve->reservation_numbers) : 0;
         $reserveTotalAmount = max(
             (float) $reserve->total_amount,

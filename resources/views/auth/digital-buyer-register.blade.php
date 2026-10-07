@@ -65,9 +65,16 @@
                 <div class="mb-3">
                     <label class="form-label">Email</label>
                     <div class="group-login">
-                        <input type="email" class="form-control" value="{{ $pending->email }}" readonly>
+                        @if($pending->email)
+                            <input type="email" class="form-control" value="{{ $pending->email }}" readonly>
+                        @else
+                            <input type="email" name="email" class="form-control" value="{{ old('email') }}" required maxlength="255">
+                        @endif
                     </div>
-                    <p class="small text-muted mt-1 mb-0">Debe coincidir con el correo de la reserva de venta.</p>
+                    @error('email')<p class="small text-danger mt-1 mb-0">{{ $message }}</p>@enderror
+                    @if($pending->email)
+                        <p class="small text-muted mt-1 mb-0">Debe coincidir con el correo de la reserva de venta.</p>
+                    @endif
                 </div>
                 <div class="row">
                     <div class="col-md-6 mb-3">
