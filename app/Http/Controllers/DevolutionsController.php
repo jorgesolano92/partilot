@@ -23,6 +23,9 @@ use App\Services\BackgroundTaskService;
 use App\Services\EntityLotteryPrizePaymentService;
 use App\Services\LegalAcceptanceService;
 use App\Services\SellerLiquidationService;
+use App\Services\SellerSettlementRegistrationService;
+use App\Models\SellerSettlement;
+use App\Models\SellerSettlementPayment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -1026,6 +1029,41 @@ class DevolutionsController extends Controller
                 }
             }
 
+            // La deuda del vendedor solo descuenta los apuntes de seller_settlements: los pagos de su devolución también cuentan.
+            $sellerSettlementFromDevolution = null;
+            $devolutionPaid = round((float) collect($data['liquidacion']['pagos'] ?? [])->sum(fn ($p) => max(0, (float) ($p['amount'] ?? 0))), 2);
+            if ($tipoDevolucion === 'vendedor' && $sellerIdForSell && $devolutionPaid > 0) {
+                $settlementService = app(SellerSettlementRegistrationService::class);
+                $sellerParticipations = $settlementService->eligibleParticipations((int) $sellerIdForSell, (int) $data['lottery_id']);
+                $sellerTotal = (float) $sellerParticipations->sum(fn ($p) => SellerSettlementRegistrationService::participationPrice($p));
+                $previousPaid = $settlementService->previousPaid((int) $sellerIdForSell, (int) $data['lottery_id']);
+                $sellerSettlementFromDevolution = SellerSettlement::create([
+                    'seller_id' => $sellerIdForSell,
+                    'lottery_id' => $data['lottery_id'],
+                    'user_id' => $userId,
+                    'total_amount' => $sellerTotal,
+                    'paid_amount' => $devolutionPaid,
+                    'pending_amount' => round($sellerTotal - $previousPaid - $devolutionPaid, 2),
+                    'total_participations' => $sellerParticipations->count(),
+                    'calculated_participations' => 0,
+                    'settlement_date' => $now->format('Y-m-d'),
+                    'settlement_time' => $now->format('H:i:s'),
+                    'notes' => 'Pago en devolución #'.$devolution->id,
+                ]);
+                foreach ($data['liquidacion']['pagos'] as $pago) {
+                    if ((float) ($pago['amount'] ?? 0) <= 0) {
+                        continue;
+                    }
+                    SellerSettlementPayment::create([
+                        'seller_settlement_id' => $sellerSettlementFromDevolution->id,
+                        'amount' => $pago['amount'],
+                        'payment_method' => $pago['payment_method'],
+                        'notes' => 'Pago en devolución #'.$devolution->id,
+                        'payment_date' => $now,
+                    ]);
+                }
+            }
+
             if ($requiresPrizePaymentMode && ! empty($data['prize_payment_mode'])) {
                 $onlinePayer = ($data['prize_payment_mode'] ?? '') === 'online'
                     ? ($data['online_payer'] ?? EntityLotteryPrizeSetting::PAYER_PARTILOT)
@@ -1057,6 +1095,19 @@ class DevolutionsController extends Controller
             }
 
             DB::commit();
+
+            if ($sellerSettlementFromDevolution && ($sellerForNotice = Seller::find($sellerIdForSell))) {
+                try {
+                    app(SellerSettlementRegistrationService::class)->notifySeller(
+                        $sellerForNotice,
+                        $sellerSettlementFromDevolution,
+                        auth()->user(),
+                        Entity::find($data['entity_id'])
+                    );
+                } catch (\Throwable $e) {
+                    \Log::warning('Aviso al vendedor tras devolución #'.$devolution->id.': '.$e->getMessage());
+                }
+            }
 
             // Comunicación pendiente (según especificación):
             // "Transmisión de devolución a la administración" con email a gestor principal de:
@@ -1304,6 +1355,14 @@ class DevolutionsController extends Controller
 
             // Eliminar detalles de devolución
             $devolution->details()->delete();
+
+            if ($sellerId) {
+                $linkedSettlementIds = SellerSettlement::where('seller_id', $sellerId)
+                    ->where('notes', 'Pago en devolución #'.$devolution->id)
+                    ->pluck('id');
+                SellerSettlementPayment::whereIn('seller_settlement_id', $linkedSettlementIds)->delete();
+                SellerSettlement::whereIn('id', $linkedSettlementIds)->delete();
+            }
 
             // Eliminar la devolución
             $devolution->delete();
@@ -2592,6 +2651,10 @@ class DevolutionsController extends Controller
         // Devolución vendedor: mostrar total del vendedor en el set (ej. 100), no solo las devueltas
         $totalParticipationsDisplay = $tipoDevolucion === 'vendedor' ? $totalSellerParticipations : $totalParticipations;
 
+        $registeredPayments = ($tipoDevolucion === 'vendedor' && $sellerId && $lotteryId)
+            ? round(app(SellerSettlementRegistrationService::class)->previousPaid((int) $sellerId, (int) $lotteryId), 2)
+            : 0;
+
         $summary = [
             'total_participations' => $totalParticipationsDisplay,
             'sold_participations' => $totalSold,
@@ -2599,8 +2662,8 @@ class DevolutionsController extends Controller
             'returned_participations' => $totalReturned,
             'available_participations' => 0,
             'total_liquidation' => $totalLiquidation,
-            'registered_payments' => 0, // Por ahora siempre 0
-            'total_to_pay' => $totalLiquidation,
+            'registered_payments' => $registeredPayments,
+            'total_to_pay' => max(0, round($totalLiquidation - $registeredPayments, 2)),
             'sets_info' => $setsInfo,
             'special_prize_requirement' => $specialPrizeRequirement,
         ];
