@@ -687,6 +687,12 @@ class ParticipationController extends Controller
 
         try {
             DB::beginTransaction();
+            try {
+                app(PendingDigitalSaleService::class)->lockStillAvailable($participations);
+            } catch (\InvalidArgumentException $e) {
+                DB::rollBack();
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 409);
+            }
             foreach ($participations as $p) {
                 $p->markAsSold($seller->id, $pricePerParticipation, [
                     'user_id' => $buyer->id,

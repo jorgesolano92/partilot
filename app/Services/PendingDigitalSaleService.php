@@ -35,6 +35,23 @@ class PendingDigitalSaleService
     /**
      * @return \Illuminate\Support\Collection<int, Participation>
      */
+    /**
+     * Dentro de una transacción: bloquea las filas elegidas y comprueba que siguen disponibles,
+     * para que dos ventas simultáneas no se lleven las mismas participaciones.
+     */
+    public function lockStillAvailable($participations): void
+    {
+        $ids = collect($participations)->pluck('id')->all();
+        $available = Participation::query()
+            ->whereIn('id', $ids)
+            ->where('status', 'disponible')
+            ->lockForUpdate()
+            ->count();
+        if ($available !== count($ids)) {
+            throw new \InvalidArgumentException('Algunas participaciones acaban de venderse en otra operación. Vuelve a intentarlo.');
+        }
+    }
+
     public function selectDigitalParticipations(
         Seller $seller,
         int $quantity,
@@ -193,6 +210,7 @@ class PendingDigitalSaleService
             $normalizedPhone,
             $channel
         ) {
+            $this->lockStillAvailable($participations);
             $pending = PendingDigitalSale::create([
                 'email' => $email,
                 'buyer_phone' => $normalizedPhone,
