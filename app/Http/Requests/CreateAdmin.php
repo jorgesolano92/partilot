@@ -30,7 +30,7 @@ class CreateAdmin extends FormRequest
             "receiving"=>["required", "string", "regex:/^[0-9]{5}$/"],
             "admin_number"=>["nullable", "string", "regex:/^[0-9]{9}$/"],
             "society"=>"required|string|max:255",
-            "nif_cif"=>"required|string|max:255",
+            "nif_cif"=>["required", "string", "max:255", new \App\Rules\SpanishDocument],
             "province"=>"required|string|max:255",
             "city"=>"required|string|max:255",
             "postal_code"=>["required", "string", "regex:/^[0-9]{5}$/"],

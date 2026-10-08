@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Devolution;
 use App\Models\DevolutionDetail;
 use App\Models\Entity;
+use App\Models\EntityLotteryPrizeSetting;
 use App\Models\Lottery;
 use App\Models\LotteryDeadlineClosureLog;
 use App\Models\Participation;
@@ -14,6 +15,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LotteryDeadlineClosureService
 {
@@ -114,7 +116,8 @@ class LotteryDeadlineClosureService
 
         $label = "Entidad #{$entity->id} ({$entity->name}) · Sorteo #{$lottery->id} ({$lottery->displayLabel()})";
 
-        if (! $force && $this->wasAlreadyProcessed($entity->id, $lottery->id)) {
+        if (! $force && $this->wasAlreadyProcessed($entity->id, $lottery->id)
+            && ! $this->hasDueSetsStillOpen($entity, $lottery, $asOf)) {
             return $this->result(
                 'skipped',
                 $label,
@@ -156,9 +159,12 @@ class LotteryDeadlineClosureService
             );
         }
 
+        // AUD-046: solo cerrar sets cuya fecha límite ya ha pasado (no la más temprana de todos).
         $setIds = Set::query()
             ->whereIn('reserve_id', $reserveIds)
             ->where('status', 1)
+            ->get()
+            ->filter(fn (Set $set) => $this->setDeadlineHasPassed($set, $lottery, $asOf))
             ->pluck('id')
             ->all();
 
@@ -170,7 +176,7 @@ class LotteryDeadlineClosureService
                 $dryRun,
                 $force,
                 $label,
-                'Sin sets activos en la reserva.',
+                'Sin sets activos con fecha límite vencida.',
                 LotteryDeadlineClosureLog::STATUS_SKIPPED_NO_PENDING
             );
         }
@@ -257,38 +263,55 @@ class LotteryDeadlineClosureService
                     'special_prize_settlement' => null,
                 ]);
 
-                foreach (Participation::query()->whereIn('id', $digitalToReturn)->get() as $participation) {
-                    $participation->update([
-                        'status' => 'devuelta',
-                        'return_date' => $now->format('Y-m-d'),
-                        'return_time' => $now->format('H:i:s'),
-                        'return_reason' => $returnReason.' (digitales no vendidas)',
-                        'returned_by' => $userId,
-                    ]);
+                // AUD-058: actualizar por lotes para no agotar la memoria con miles de observadores.
+                Participation::query()->whereIn('id', $digitalToReturn)->orderBy('id')->chunkById(200, function ($chunk) use ($now, $returnReason, $userId, $devolution) {
+                    $details = [];
+                    foreach ($chunk as $participation) {
+                        Participation::whereKey($participation->id)->update([
+                            'status' => 'devuelta',
+                            'return_date' => $now->format('Y-m-d'),
+                            'return_time' => $now->format('H:i:s'),
+                            'return_reason' => $returnReason.' (digitales no vendidas)',
+                            'returned_by' => $userId,
+                            'updated_at' => $now,
+                        ]);
+                        $details[] = [
+                            'devolution_id' => $devolution->id,
+                            'participation_id' => $participation->id,
+                            'action' => 'devolver',
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                    if ($details !== []) {
+                        DevolutionDetail::insert($details);
+                    }
+                });
 
-                    DevolutionDetail::create([
-                        'devolution_id' => $devolution->id,
-                        'participation_id' => $participation->id,
-                        'action' => 'devolver',
-                    ]);
-                }
-
-                foreach (Participation::with('set')->whereIn('id', $physicalToSell)->get() as $participation) {
-                    $saleAmount = $participation->set ? $this->pricePerParticipationSet($participation->set) : 0;
-                    $participation->update([
-                        'status' => 'vendida',
-                        'sale_date' => $now->format('Y-m-d'),
-                        'sale_time' => $now->format('H:i:s'),
-                        'sale_amount' => $saleAmount,
-                        'notes' => 'Liquidación automática por cierre de fecha límite',
-                    ]);
-
-                    DevolutionDetail::create([
-                        'devolution_id' => $devolution->id,
-                        'participation_id' => $participation->id,
-                        'action' => 'vender',
-                    ]);
-                }
+                Participation::query()->with('set')->whereIn('id', $physicalToSell)->orderBy('id')->chunkById(200, function ($chunk) use ($now, $devolution) {
+                    $details = [];
+                    foreach ($chunk as $participation) {
+                        $saleAmount = $participation->set ? $this->pricePerParticipationSet($participation->set) : 0;
+                        Participation::whereKey($participation->id)->update([
+                            'status' => 'vendida',
+                            'sale_date' => $now->format('Y-m-d'),
+                            'sale_time' => $now->format('H:i:s'),
+                            'sale_amount' => $saleAmount,
+                            'notes' => 'Liquidación automática por cierre de fecha límite',
+                            'updated_at' => $now,
+                        ]);
+                        $details[] = [
+                            'devolution_id' => $devolution->id,
+                            'participation_id' => $participation->id,
+                            'action' => 'vender',
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                    if ($details !== []) {
+                        DevolutionDetail::insert($details);
+                    }
+                });
 
                 LotteryDeadlineClosureLog::create([
                     'entity_id' => $entity->id,
@@ -305,6 +328,25 @@ class LotteryDeadlineClosureService
 
                 return $devolution->id;
             });
+
+            // AUD-054: fijar modalidad de pago de premios para no bloquear el escrutinio.
+            try {
+                $alreadyLocked = EntityLotteryPrizeSetting::query()
+                    ->where('entity_id', $entity->id)
+                    ->where('lottery_id', $lottery->id)
+                    ->whereNotNull('mode_locked_at')
+                    ->exists();
+                if (! $alreadyLocked) {
+                    app(EntityLotteryPrizePaymentService::class)->lockModeFromDevolution(
+                        (int) $entity->id,
+                        (int) $lottery->id,
+                        EntityLotteryPrizeSetting::MODE_PRESENCIAL,
+                        $this->resolveSystemUserId()
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Cierre automático: no se pudo fijar modalidad de premios: '.$e->getMessage());
+            }
 
             return $this->result(
                 'completed',
@@ -436,6 +478,42 @@ class LotteryDeadlineClosureService
                 LotteryDeadlineClosureLog::STATUS_SKIPPED_NO_PENDING,
                 LotteryDeadlineClosureLog::STATUS_SKIPPED_SPECIAL_PRIZE,
             ])
+            ->exists();
+    }
+
+    private function setDeadlineHasPassed(Set $set, Lottery $lottery, Carbon $asOf): bool
+    {
+        $setDeadline = $set->deadline_date
+            ? Carbon::parse($set->deadline_date)->startOfDay()
+            : ($lottery->deadline_date ? $lottery->deadline_date->copy()->startOfDay() : null);
+
+        return $setDeadline !== null && $setDeadline->lt($asOf);
+    }
+
+    private function hasDueSetsStillOpen(Entity $entity, Lottery $lottery, Carbon $asOf): bool
+    {
+        $reserveIds = Reserve::query()
+            ->where('entity_id', $entity->id)
+            ->where('lottery_id', $lottery->id)
+            ->where('status', 1)
+            ->pluck('id');
+
+        $dueSetIds = Set::query()
+            ->whereIn('reserve_id', $reserveIds)
+            ->where('status', 1)
+            ->get()
+            ->filter(fn (Set $set) => $this->setDeadlineHasPassed($set, $lottery, $asOf))
+            ->pluck('id');
+
+        if ($dueSetIds->isEmpty()) {
+            return false;
+        }
+
+        return Participation::query()
+            ->where('entity_id', $entity->id)
+            ->whereIn('set_id', $dueSetIds)
+            ->whereIn('status', ['disponible', 'asignada'])
+            ->where('status', '!=', 'anulada')
             ->exists();
     }
 

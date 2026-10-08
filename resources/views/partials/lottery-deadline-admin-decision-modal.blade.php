@@ -26,20 +26,20 @@
                                 <li>Deuda de liquidación de vendedores: {{ number_format($alert['seller_pending_amount'], 2, ',', '.') }} €</li>
                             @endif
                         </ul>
-                        <p class="mb-0 small text-muted">
-                            Debes registrar una decisión. «Asumir deuda» mantiene las participaciones activas;
+                        <p class="mb-2 small text-muted">
+                            Debes registrar una decisión para esta entidad. «Asumir deuda» mantiene las participaciones activas;
                             «Anular participaciones» registrará la anulación (procesamiento en fase posterior).
                         </p>
+                        <div class="d-flex flex-wrap gap-2 justify-content-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 lottery-deadline-admin-annul-btn">
+                                Anular participaciones
+                            </button>
+                            <button type="button" class="btn btn-dark btn-sm rounded-pill px-3 lottery-deadline-admin-assume-btn">
+                                Asumir deuda
+                            </button>
+                        </div>
                     </div>
                 @endforeach
-            </div>
-            <div class="modal-footer border-0 pt-0 flex-wrap gap-2 justify-content-end">
-                <button type="button" class="btn btn-outline-danger rounded-pill px-4" id="lotteryDeadlineAdminAnnulBtn">
-                    Anular participaciones
-                </button>
-                <button type="button" class="btn btn-dark rounded-pill px-4" id="lotteryDeadlineAdminAssumeDebtBtn">
-                    Asumir deuda
-                </button>
             </div>
         </div>
     </div>

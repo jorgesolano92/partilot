@@ -509,7 +509,7 @@ class AuthController extends Controller
                 'string',
                 'size:'.$codeLength,
             ],
-            'fecha_nacimiento' => 'required|date|before:today',
+            'fecha_nacimiento' => \App\Rules\ValidCalendarDate::birthday(),
             'aceptar_condiciones' => 'required|accepted',
             'link_code' => 'nullable|string|min:5|max:12',
         ], [
