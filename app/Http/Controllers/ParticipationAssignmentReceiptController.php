@@ -8,6 +8,23 @@ use Illuminate\Http\Request;
 
 class ParticipationAssignmentReceiptController extends Controller
 {
+    public function confirmAccept(string $token, ParticipationAssignmentReceiptService $service)
+    {
+        $proposal = ParticipationAssignmentProposal::query()->where('token', $token)->first();
+
+        if (! $proposal || ! $proposal->isPending() || $proposal->isExpired()) {
+            $result = $service->acceptByToken($token, request());
+
+            return view('participation-assignment.result', compact('result'));
+        }
+
+        return view('public.confirm-accept', [
+            'title' => 'Aceptar asignación de participaciones',
+            'message' => '¿Confirmas que aceptas el recibo de '.((int) $proposal->participation_count).' participación(es)? Esta acción registra la entrega a tu nombre.',
+            'action' => route('participation-assignment.accept.store', ['token' => $token]),
+        ]);
+    }
+
     public function accept(string $token, Request $request, ParticipationAssignmentReceiptService $service)
     {
         $result = $service->acceptByToken($token, $request);

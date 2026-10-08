@@ -140,7 +140,8 @@ Route::get('/sellers/confirm/accept/{token}', [SellerController::class, 'confirm
 Route::post('/sellers/confirm/accept/{token}', [SellerController::class, 'confirmAcceptStore'])->name('sellers.confirm-accept.store');
 Route::get('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmReject'])->name('sellers.confirm-reject');
 Route::post('/sellers/confirm/reject/{token}', [SellerController::class, 'confirmRejectStore'])->name('sellers.confirm-reject.store');
-Route::get('/asignacion-participaciones/aceptar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'accept'])->name('participation-assignment.accept');
+Route::get('/asignacion-participaciones/aceptar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'confirmAccept'])->name('participation-assignment.accept');
+Route::post('/asignacion-participaciones/aceptar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'accept'])->name('participation-assignment.accept.store');
 Route::get('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'confirmReject'])->name('participation-assignment.reject');
 Route::post('/asignacion-participaciones/rechazar/{token}', [\App\Http\Controllers\ParticipationAssignmentReceiptController::class, 'reject'])->name('participation-assignment.reject.store');
 Route::get('/entity-managers/confirm/accept/{token}', [EntityController::class, 'confirmManagerAccept'])->name('entity-managers.confirm-accept');
@@ -447,7 +448,6 @@ Route::group(['prefix' => 'lottery'], function() {
     Route::get('/scrutiny/{lottery}/administration/{administration}', [LotteryScrutinyController::class, 'showResults'])->name('lottery.show-administration-scrutiny');
     Route::delete('/scrutiny/{lottery}/administration/{administration}', [LotteryScrutinyController::class, 'delete'])->name('lottery.delete-scrutiny');
     // Ruta para escrutinio por categoría (números individuales)
-    Route::get('/scrutiny/{lottery}/category', [LotteryScrutinyController::class, 'showByCategory'])->name('lottery.scrutiny-category');
     Route::get('/results/edit/{id}', [LotteryController::class, 'editLotteryResults'])->name('lottery.edit-results');
     
     // Rutas para resultados de lotería
@@ -480,7 +480,6 @@ Route::group(['prefix' => 'reserves', 'middleware' => 'role:super_admin,administ
     Route::get('/add', [ReserveController::class, 'create'])->name('reserves.create');
     Route::post('/store-entity', [ReserveController::class, 'store_entity'])->name('reserves.store-entity');
     Route::post('/store-entity-ajax', [ReserveController::class, 'store_entity_ajax'])->name('reserves.store-entity-ajax');
-    Route::get('/add/lottery', [ReserveController::class, 'add_lottery'])->name('reserves.add-lottery');
     Route::post('/store-lottery', [ReserveController::class, 'store_lottery'])->name('reserves.store-lottery');
     Route::post('/store-lottery-ajax', [ReserveController::class, 'store_lottery_ajax'])->name('reserves.store-lottery-ajax');
     Route::get('/add/information', [ReserveController::class, 'add_information'])->name('reserves.add-information');

@@ -55,6 +55,21 @@ class Seller extends Model
     }
 
     /**
+     * AUD-053: user_id 0 (vendedores externos) se trata como null para no disparar avisos de BelongsTo.
+     */
+    public function getUserIdAttribute($value)
+    {
+        return ($value === 0 || $value === '0' || $value === null || $value === '') ? null : (int) $value;
+    }
+
+    public function setUserIdAttribute($value): void
+    {
+        $this->attributes['user_id'] = ($value === 0 || $value === '0' || $value === null || $value === '')
+            ? null
+            : (int) $value;
+    }
+
+    /**
      * Relación con Entities (Many to Many)
      */
     public function entities()

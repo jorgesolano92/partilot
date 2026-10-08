@@ -13,7 +13,9 @@ return new class extends Migration
     {
         Schema::create('scrutiny_entity_results', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('administration_lottery_scrutiny_id')->constrained('administration_lottery_scrutinies')->onDelete('cascade');
+            $table->foreignId('administration_lottery_scrutiny_id')
+                ->constrained('administration_lottery_scrutinies', 'id', 'scr_ent_admin_lottery_fk')
+                ->onDelete('cascade');
             $table->foreignId('entity_id')->constrained('entities')->onDelete('cascade');
             
             // Datos de las reservas de la entidad

@@ -105,23 +105,35 @@ class ParticipationAssignmentReceiptService
         ];
 
         if ($split['physical'] !== []) {
-            $proposal = $this->createProposal($seller, $split['physical'], $createdBy);
-            $result['proposal'] = $proposal;
-            $result['proposal_count'] = (int) $proposal->participation_count;
+            // AUD-025: vendedor externo sin email → asignación directa confirmada por el gestor (sin propuesta por correo).
+            $seller->loadMissing('user');
+            $sellerEmail = trim((string) ($seller->display_email ?? $seller->email ?? ''));
+            if ($sellerEmail === '') {
+                $immediate = $this->assignImmediately($seller, $split['physical']);
+                $result['assigned_count'] = (int) $immediate['assigned_count'];
+                $result['assigned_participation_ids'] = $immediate['assigned_participation_ids'];
+            } else {
+                $proposal = $this->createProposal($seller, $split['physical'], $createdBy);
+                $result['proposal'] = $proposal;
+                $result['proposal_count'] = (int) $proposal->participation_count;
+            }
         }
 
         if ($split['digital'] !== []) {
             $immediate = $this->assignImmediately($seller, $split['digital']);
-            $result['assigned_count'] = (int) $immediate['assigned_count'];
-            $result['assigned_participation_ids'] = $immediate['assigned_participation_ids'];
+            $result['assigned_count'] += (int) $immediate['assigned_count'];
+            $result['assigned_participation_ids'] = array_values(array_unique(array_merge(
+                $result['assigned_participation_ids'],
+                $immediate['assigned_participation_ids']
+            )));
 
-            if ($result['assigned_count'] > 0) {
-                $this->sendAssignmentConfirmationEmail($seller, $result['assigned_participation_ids']);
+            if ((int) $immediate['assigned_count'] > 0) {
+                $this->sendAssignmentConfirmationEmail($seller, $immediate['assigned_participation_ids']);
 
                 try {
                     app(AppInboxNotificationService::class)->notifyParticipationAssigned(
                         $seller,
-                        $result['assigned_count']
+                        (int) $immediate['assigned_count']
                     );
                 } catch (\Throwable $e) {
                     Log::warning('Inbox notify digital assignment: '.$e->getMessage());
@@ -177,6 +189,24 @@ class ParticipationAssignmentReceiptService
 
         if ($physicalIds === []) {
             throw new \InvalidArgumentException('No hay participaciones físicas en la propuesta.');
+        }
+
+        // AUD-026: no ofrecer las mismas papeletas en dos propuestas pendientes a la vez.
+        $overlap = ParticipationAssignmentProposal::query()
+            ->where('status', ParticipationAssignmentProposal::STATUS_PENDING)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->get()
+            ->contains(function (ParticipationAssignmentProposal $existing) use ($physicalIds) {
+                $existingIds = array_map('intval', (array) $existing->participation_ids);
+
+                return count(array_intersect($existingIds, $physicalIds)) > 0;
+            });
+        if ($overlap) {
+            throw new \InvalidArgumentException(
+                'Una o más participaciones ya están en una propuesta de asignación pendiente. Espera a que se acepte o se rechace, o cancélala antes.'
+            );
         }
 
         $entity = $seller->entities->first();
@@ -326,7 +356,10 @@ class ParticipationAssignmentReceiptService
             });
         } catch (\RuntimeException $e) {
             if ($e->getMessage() === 'unavailable') {
-                $proposal->delete();
+                $proposal->update([
+                    'status' => ParticipationAssignmentProposal::STATUS_REJECTED,
+                    'responded_at' => now(),
+                ]);
 
                 return [
                     'type' => 'error',
@@ -376,7 +409,10 @@ class ParticipationAssignmentReceiptService
         }
 
         if ($proposal->isExpired() && $proposal->isPending()) {
-            $proposal->delete();
+            $proposal->update([
+                'status' => ParticipationAssignmentProposal::STATUS_EXPIRED,
+                'responded_at' => now(),
+            ]);
 
             return [
                 'type' => 'error',
@@ -401,7 +437,11 @@ class ParticipationAssignmentReceiptService
             ];
         }
 
-        $proposal->delete();
+        // AUD-026: conservar el registro (no borrar) para auditoría.
+        $proposal->update([
+            'status' => ParticipationAssignmentProposal::STATUS_REJECTED,
+            'responded_at' => now(),
+        ]);
 
         return [
             'type' => 'success',
@@ -517,12 +557,14 @@ class ParticipationAssignmentReceiptService
     private function sendProposalEmail(ParticipationAssignmentProposal $proposal): void
     {
         $seller = $proposal->seller;
-        if (! $seller || empty($seller->email)) {
+        $seller?->loadMissing('user');
+        $sellerEmail = trim((string) ($seller?->display_email ?? $seller?->email ?? ''));
+        if (! $seller || $sellerEmail === '') {
             throw new \RuntimeException('El vendedor no tiene email para enviar la propuesta de asignación.');
         }
 
         $log = $this->communicationEmailService->sendAndLog(
-            recipientEmail: (string) $seller->email,
+            recipientEmail: $sellerEmail,
             recipientRole: 'vendedor',
             recipientUser: $seller->user,
             messageType: 'participation_assignment_proposal',

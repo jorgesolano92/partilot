@@ -2835,7 +2835,9 @@ class SellerController extends Controller
         }
 
         if (($batch['assigned_count'] ?? 0) > 0) {
-            $parts[] = 'Se asignaron '.$batch['assigned_count'].' participación(es) digitales correctamente.';
+            $parts[] = (($batch['proposal_count'] ?? 0) > 0)
+                ? 'Se asignaron '.$batch['assigned_count'].' participación(es) digitales correctamente.'
+                : 'Se asignaron '.$batch['assigned_count'].' participación(es) correctamente (sin email al vendedor: confirmación directa del gestor).';
         }
 
         if ($parts === []) {

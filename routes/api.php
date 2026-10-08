@@ -134,10 +134,6 @@ Route::middleware('auth.api')->group(function () {
     // PERFIL Y USUARIO
     // ========================================================================
     Route::prefix('profile')->group(function () {
-        Route::get('/', [UserController::class, 'apiGetProfile']);
-        Route::put('/', [UserController::class, 'apiUpdateProfile']);
-        Route::post('/change-password', [UserController::class, 'apiChangePassword']);
-        Route::post('/upload-avatar', [UserController::class, 'apiUploadAvatar']);
     });
     
     // ========================================================================
@@ -145,34 +141,26 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('participations')->group(function () {
         // Listar participaciones
-        Route::get('/', [ParticipationController::class, 'apiIndex']);
         
         // Obtener participación específica
-        Route::get('/{id}', [ParticipationController::class, 'apiShow']);
         
         // Crear/Asignar participación
-        Route::post('/', [ParticipationController::class, 'apiStore']);
         
         // Vender participación
-        Route::post('/{id}/sell', [ParticipationController::class, 'apiSell']);
         
         // Digitalizar participación (escanear QR)
         Route::post('/digitalize', [ParticipationController::class, 'apiDigitalize']);
         
         // Regalar participación
-        Route::post('/{id}/gift', [ParticipationController::class, 'apiGift']);
         
         // Obtener participaciones por vendedor
-        Route::get('/seller/{sellerId}', [ParticipationController::class, 'apiGetBySeller']);
         
         // Obtener participaciones por set/libro
         Route::get('/set/{setId}/book/{bookNumber}', [ParticipationController::class, 'getBookParticipations']);
         
         // Historial de participación
-        Route::get('/{id}/history', [ParticipationController::class, 'apiGetHistory']);
         
         // Buscar participación por código/referencia
-        Route::get('/search/{code}', [ParticipationController::class, 'apiSearch']);
     });
     
     // Verificar si existe un usuario por email (para venta digital)
@@ -202,10 +190,8 @@ Route::middleware('auth.api')->group(function () {
         Route::get('/notify/config', [ParticipationController::class, 'apiWhatsAppConfig']);
         
         // Obtener ventas del vendedor (por ID)
-        Route::get('/seller/{sellerId}', [ParticipationController::class, 'apiGetSalesBySeller']);
         
         // Estadísticas de ventas
-        Route::get('/stats', [ParticipationController::class, 'apiGetSalesStats']);
     });
     
     // ========================================================================
@@ -225,19 +211,15 @@ Route::middleware('auth.api')->group(function () {
         Route::get('/me/tacos/{setId}/{bookNumber}/participations', [SellerController::class, 'apiGetTacoParticipations']);
 
         // Listar vendedores
-        Route::get('/', [SellerController::class, 'apiIndex']);
         
         // Rangos disponibles en un set (debe ir antes de /{id} para no capturar como id)
         Route::get('/available-ranges-set', [SellerController::class, 'getAvailableRangesForSet']);
         
         // Obtener vendedor específico
-        Route::get('/{id}', [SellerController::class, 'apiShow']);
         
         // Asignar participaciones a vendedor
-        Route::post('/{id}/assign-participations', [SellerController::class, 'apiAssignParticipations']);
         
         // Obtener participaciones asignadas
-        Route::get('/{id}/participations', [SellerController::class, 'apiGetParticipations']);
         
         // Obtener participaciones por libro
         Route::post('/get-participations-by-book', [SellerController::class, 'getParticipationsByBook']);
@@ -260,7 +242,6 @@ Route::middleware('auth.api')->group(function () {
         Route::get('/{id}/settlement-history', [SellerController::class, 'getSettlementHistory']);
         
         // Estadísticas del vendedor
-        Route::get('/{id}/stats', [SellerController::class, 'apiGetStats']);
         
         // Grupos de vendedores
         Route::get('/by-group', [SellerController::class, 'getByGroup']);
@@ -317,22 +298,16 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('lotteries')->group(function () {
         // Listar loterías
-        Route::get('/', [LotteryController::class, 'apiIndex']);
         
         // Obtener lotería específica
-        Route::get('/{id}', [LotteryController::class, 'apiShow']);
         
         // Obtener resultados de lotería
-        Route::get('/{id}/results', [LotteryController::class, 'apiGetResults']);
         
         // Obtener resultados por administración
-        Route::get('/{id}/results/administration/{administrationId}', [LotteryController::class, 'apiGetResultsByAdministration']);
         
         // Loterías disponibles para venta
-        Route::get('/available', [LotteryController::class, 'apiGetAvailable']);
         
         // Tipos de lotería
-        Route::get('/types', [LotteryController::class, 'apiGetTypes']);
     });
     
     // ========================================================================
@@ -340,13 +315,10 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('results')->group(function () {
         // Verificar si participación ganó
-        Route::post('/check-winning', [ApiController::class, 'apiCheckWinning']);
         
         // Obtener resultados de participación
-        Route::get('/participation/{participationId}', [ApiController::class, 'apiGetParticipationResults']);
         
         // Obtener resultados de sorteo
-        Route::get('/lottery/{lotteryId}', [LotteryController::class, 'apiGetResults']);
     });
     
     // ========================================================================
@@ -354,10 +326,8 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('wallet')->group(function () {
         // Obtener cartera del usuario
-        Route::get('/', [UserController::class, 'apiGetWallet']);
         
         // Obtener movimientos
-        Route::get('/movements', [UserController::class, 'apiGetMovements']);
         
         // Obtener historial (digitalizaciones, regalos; cobros pendiente)
         Route::get('/historial', [ParticipationController::class, 'apiGetUserHistorial']);
@@ -389,16 +359,12 @@ Route::middleware('auth.api')->group(function () {
     // ========================================================================
     Route::prefix('payments')->group(function () {
         // Listar cobros disponibles
-        Route::get('/available', [UserController::class, 'apiGetAvailablePayments']);
         
         // Solicitar cobro
-        Route::post('/request', [UserController::class, 'apiRequestPayment']);
         
         // Historial de cobros
-        Route::get('/history', [UserController::class, 'apiGetPaymentHistory']);
         
         // Obtener detalles de cobro
-        Route::get('/{id}', [UserController::class, 'apiGetPaymentDetails']);
     });
     
     // ========================================================================
@@ -408,9 +374,6 @@ Route::middleware('auth.api')->group(function () {
         
         // Participaciones
         Route::prefix('participations')->group(function () {
-            Route::get('/', [ParticipationController::class, 'apiManagementIndex']);
-            Route::get('/stats', [ParticipationController::class, 'apiGetManagementStats']);
-            Route::post('/bulk-assign', [ParticipationController::class, 'apiBulkAssign']);
             // Pago de premios (gestor): validar participaciones con premio y registrar pago
             Route::post('/validate-for-payment', [ParticipationController::class, 'apiValidateParticipationsForPayment']);
             Route::post('/register-payment', [ParticipationController::class, 'apiRegisterPayment']);
@@ -418,10 +381,6 @@ Route::middleware('auth.api')->group(function () {
         
         // Vendedores
         Route::prefix('sellers')->group(function () {
-            Route::get('/', [SellerController::class, 'apiManagementIndex']);
-            Route::post('/', [SellerController::class, 'apiStore']);
-            Route::put('/{id}', [SellerController::class, 'apiUpdate']);
-            Route::delete('/{id}', [SellerController::class, 'apiDestroy']);
             Route::post('/{id}/toggle-status', [SellerController::class, 'toggleStatus']);
         });
         
@@ -453,9 +412,6 @@ Route::middleware('auth.api')->group(function () {
         // Pagos de gestor (premios)
         Route::prefix('payments')->group(function () {
             Route::get('/entities', [ParticipationController::class, 'apiGetEntitiesForPayment']);
-            Route::get('/', [ManagerController::class, 'apiGetPayments']);
-            Route::post('/', [ManagerController::class, 'apiCreatePayment']);
-            Route::get('/{id}', [ManagerController::class, 'apiGetPaymentDetails']);
         });
     });
     
@@ -463,27 +419,17 @@ Route::middleware('auth.api')->group(function () {
     // ENTIDADES Y ADMINISTRACIONES
     // ========================================================================
     Route::prefix('entities')->group(function () {
-        Route::get('/', [EntityController::class, 'apiIndex']);
         Route::get('/{entity}/lottery/{lottery}/prize-settings', [EntityLotteryPrizeSettingsController::class, 'apiShow']);
         Route::put('/{entity}/lottery/{lottery}/prize-settings/contact', [EntityLotteryPrizeSettingsController::class, 'apiUpdatePresencialContact']);
-        Route::get('/{id}', [EntityController::class, 'apiShow']);
-        Route::get('/{id}/lotteries', [EntityController::class, 'apiGetLotteries']);
-        Route::get('/{id}/sellers', [EntityController::class, 'apiGetSellers']);
     });
     
     // ========================================================================
     // RESERVAS Y SETS
     // ========================================================================
     Route::prefix('reserves')->group(function () {
-        Route::get('/', [ReserveController::class, 'apiIndex']);
-        Route::get('/{id}', [ReserveController::class, 'apiShow']);
-        Route::get('/{id}/sets', [ReserveController::class, 'apiGetSets']);
     });
     
     Route::prefix('sets')->group(function () {
-        Route::get('/', [SetController::class, 'apiIndex']);
-        Route::get('/{id}', [SetController::class, 'apiShow']);
-        Route::get('/{id}/participations', [SetController::class, 'apiGetParticipations']);
         Route::get('/{id}/price', [SetController::class, 'getPrice']);
     });
     

@@ -12,6 +12,7 @@ use App\Support\PendingDigitalSaleLinkCode;
 use App\Services\ParticipationWalletValidityService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PendingDigitalSaleService
@@ -193,11 +194,8 @@ class PendingDigitalSaleService
         $unitTotal = $set->pricePerParticipation();
         $saleAmount = round($participations->count() * $unitTotal, 2);
 
-        return DB::transaction(function () use (
-            $email,
-            $sendInviteEmail,
+        $pending = DB::transaction(function () use (
             $seller,
-            $sellerUser,
             $participations,
             $quantity,
             $paymentMethod,
@@ -208,7 +206,8 @@ class PendingDigitalSaleService
             $set,
             $resolvedLotteryId,
             $normalizedPhone,
-            $channel
+            $channel,
+            $email
         ) {
             $this->lockStillAvailable($participations);
             $pending = PendingDigitalSale::create([
@@ -236,7 +235,12 @@ class PendingDigitalSaleService
                 $pending->participations()->attach($p->id);
             }
 
-            if ($sendInviteEmail && $email) {
+            return $pending->fresh(['entity', 'lottery', 'seller']);
+        });
+
+        // AUD-035: el correo va fuera de la transacción para que un fallo SMTP no anule la venta.
+        if ($sendInviteEmail && $email) {
+            try {
                 $pending->ensureLinkCode();
                 app(CommunicationEmailService::class)->sendAndLog(
                     recipientEmail: $email,
@@ -248,10 +252,12 @@ class PendingDigitalSaleService
                     mailPayload: ['pending_digital_sale_id' => $pending->id],
                     context: ['pending_digital_sale_id' => $pending->id, 'seller_id' => $seller->id],
                 );
+            } catch (\Throwable $e) {
+                Log::warning('Invitación venta digital pendiente #'.$pending->id.': '.$e->getMessage());
             }
+        }
 
-            return $pending->fresh(['entity', 'lottery', 'seller']);
-        });
+        return $pending;
     }
 
     /**
