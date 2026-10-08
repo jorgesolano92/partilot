@@ -480,26 +480,6 @@ class DevolutionsController extends Controller
                 }
             }
 
-            // Si no es solo devolución: exigir al menos un pago con importe para completar la liquidación
-            if (!$soloDevolucion) {
-                $pagos = $data['liquidacion']['pagos'] ?? [];
-                if (empty($pagos) || !is_array($pagos)) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Debes registrar al menos un pago para completar la liquidación.'
-                    ], 422);
-                }
-                $tieneImporte = collect($pagos)->contains(fn ($p) => (float) ($p['amount'] ?? 0) > 0);
-                if (!$tieneImporte) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Debes registrar al menos un pago con importe.'
-                    ], 422);
-                }
-            }
-
             if (!auth()->user()->canAccessEntity((int) $data['entity_id'])) {
                 DB::rollBack();
                 return response()->json([
@@ -817,6 +797,32 @@ class DevolutionsController extends Controller
 
             if ($soloDevolucion) {
                 $totalLiquidation = 0;
+            }
+
+            // AUD-056: los pagos deben cuadrar con lo pendiente; 0 € (todo devuelto o ya liquidado) se admite sin pago.
+            if (! $soloDevolucion) {
+                $pagosSum = round((float) collect($data['liquidacion']['pagos'] ?? [])->sum(fn ($p) => max(0, (float) ($p['amount'] ?? 0))), 2);
+                $expectedPay = round((float) $totalLiquidation, 2);
+                if ($tipoDevolucion === 'vendedor' && ! empty($data['seller_id'])) {
+                    $alreadyPaid = app(SellerSettlementRegistrationService::class)->previousPaid((int) $data['seller_id'], (int) $data['lottery_id']);
+                    $expectedPay = max(0, round($expectedPay - $alreadyPaid, 2));
+                }
+                if ($expectedPay > 0.009 && abs($pagosSum - $expectedPay) > 0.009) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La suma de los pagos ('.number_format($pagosSum, 2, ',', '.').' €) debe coincidir con lo pendiente ('.number_format($expectedPay, 2, ',', '.').' €).',
+                    ], 422);
+                }
+                if ($expectedPay <= 0.009 && $pagosSum > 0.009) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Esta liquidación es de 0,00 €: no registres pagos, o usa solo devolución.',
+                    ], 422);
+                }
             }
 
             $specialPrizeRequirement = $this->buildSpecialPrizeRequirement((int) $data['lottery_id']);
