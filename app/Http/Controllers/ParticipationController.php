@@ -2024,7 +2024,10 @@ class ParticipationController extends Controller
         $userId = (string) $user->id;
 
         $allowedIds = $this->getParticipationIdsOwnedOrReceivedByUser($user);
-        $reservedIds = ParticipationCollection::reservedParticipationIds();
+        $reservedIds = array_merge(
+            ParticipationCollection::reservedParticipationIds(),
+            $this->pendingGiftParticipationIds()
+        );
         $participations = Participation::whereIn('id', $request->participation_ids)
             ->whereIn('id', $allowedIds)
             ->whereNull('collected_at')
@@ -2201,7 +2204,9 @@ class ParticipationController extends Controller
             'apellidos' => 'nullable|string|max:255',
             'nif' => ['nullable', 'string', 'max:20', new \App\Rules\SpanishDocument],
             'confirmacion_operacion_irreversible' => 'required|accepted',
-            'confirmacion_donacion_irreversible' => 'required_if:importe_donacion,>0|accepted',
+            'confirmacion_donacion_irreversible' => (float) $request->input('importe_donacion', 0) > 0
+                ? 'required|accepted'
+                : 'nullable',
             'certificado_fiscal' => 'nullable|boolean',
         ], [
             'confirmacion_operacion_irreversible.accepted' => 'Debe confirmar que entiende que la operación es irreversible.',
@@ -2216,7 +2221,10 @@ class ParticipationController extends Controller
         $userId = (string) $user->id;
 
         $allowedIds = $this->getParticipationIdsOwnedOrReceivedByUser($user);
-        $reservedIds = ParticipationCollection::reservedParticipationIds();
+        $reservedIds = array_merge(
+            ParticipationCollection::reservedParticipationIds(),
+            $this->pendingGiftParticipationIds()
+        );
         $participations = Participation::whereIn('id', $request->participation_ids)
             ->whereIn('id', $allowedIds)
             ->whereNull('collected_at')
@@ -2343,6 +2351,18 @@ class ParticipationController extends Controller
             ? 'DONACION_CODIGO'
             : ($importeDonacion > 0 ? 'DONACION' : 'CODIGO_RECARGA');
 
+        // Generar código de recarga si hay importe para código (API de la administración o PARTILOT por defecto)
+        $codigoRecarga = null;
+        if ($importeCodigo > 0) {
+            $codigoRecarga = $prepagoService->generateCode($administration, $importeCodigo);
+            if ($codigoRecarga === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo generar el código de recarga. Compruebe la configuración del servicio de códigos prepago o intente de nuevo más tarde.',
+                ], 502);
+            }
+        }
+
         app(\App\Services\LegalAcceptanceService::class)->recordPrizeCollectionConfirmation(
             $user,
             $request,
@@ -2369,18 +2389,6 @@ class ParticipationController extends Controller
                     'entity_name' => $entity?->name,
                 ]
             );
-        }
-
-        // Generar código de recarga si hay importe para código (API de la administración o PARTILOT por defecto)
-        $codigoRecarga = null;
-        if ($importeCodigo > 0) {
-            $codigoRecarga = $prepagoService->generateCode($administration, $importeCodigo);
-            if ($codigoRecarga === null) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se pudo generar el código de recarga. Compruebe la configuración del servicio de códigos prepago o intente de nuevo más tarde.',
-                ], 502);
-            }
         }
 
         // Determinar si es anónima (sin datos personales)
@@ -2449,6 +2457,7 @@ class ParticipationController extends Controller
             'message' => 'Donación registrada correctamente.',
             'donation_id' => $donation->id,
             'codigo_recarga' => $codigoRecarga,
+            'administracion_nombre' => $entity?->administration?->name,
             'importe_donacion' => $importeDonacion,
             'importe_codigo' => $importeCodigo,
         ]);
@@ -2779,6 +2788,8 @@ class ParticipationController extends Controller
         }
 
         $collections = ParticipationCollection::where('user_id', $user->id)
+            ->where('status', ParticipationCollection::STATUS_VERIFIED)
+            ->whereNotNull('collected_at')
             ->with(['items.participation.set.reserve.lottery', 'items.participation.set.entity', 'items.participation.set.designFormats'])
             ->orderBy('collected_at', 'desc')
             ->get();
@@ -2870,6 +2881,17 @@ class ParticipationController extends Controller
     /**
      * IDs de participaciones que el usuario puede cobrar/donar: propias (buyer_name) o recibidas como regalo.
      */
+    /** @return array<int, int> */
+    private function pendingGiftParticipationIds(): array
+    {
+        return ParticipationGift::where('status', ParticipationGift::STATUS_PENDING)
+            ->pluck('participation_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     private function getParticipationIdsOwnedOrReceivedByUser(User $user): \Illuminate\Support\Collection
     {
         $userId = (string) $user->id;
@@ -3248,6 +3270,9 @@ class ParticipationController extends Controller
         if ($participation->collected_at) {
             return response()->json(['success' => false, 'message' => 'No se puede regalar una participación ya cobrada.'], 422);
         }
+        if (in_array((int) $participation->id, array_map('intval', ParticipationCollection::reservedParticipationIds()), true)) {
+            return response()->json(['success' => false, 'message' => 'Esta participación tiene una solicitud de cobro en curso.'], 422);
+        }
         if ($participation->donated_at) {
             return response()->json(['success' => false, 'message' => 'No se puede regalar una participación ya donada.'], 422);
         }
@@ -3334,6 +3359,33 @@ class ParticipationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Has rechazado el regalo. La participación vuelve al remitente.',
+        ]);
+    }
+
+    /**
+     * API: El remitente cancela un regalo aún no aceptado; la participación sigue en su cartera.
+     */
+    public function apiCancelGift(Request $request, int $giftId, ParticipationGiftService $giftService)
+    {
+        $user = $request->user();
+        if ($deny = $this->denyUnlessPersonalAppUser($user)) {
+            return $deny;
+        }
+
+        $gift = ParticipationGift::find($giftId);
+        if (! $gift) {
+            return response()->json(['success' => false, 'message' => 'Regalo no encontrado.'], 404);
+        }
+
+        try {
+            $giftService->cancelGift($gift, $user);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Regalo cancelado. La participación sigue en tu cartera.',
         ]);
     }
 

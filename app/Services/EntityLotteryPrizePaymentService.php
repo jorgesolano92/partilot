@@ -308,6 +308,69 @@ class EntityLotteryPrizePaymentService
      */
     public function reserveDepositedFundsForVerifiedCollection(ParticipationCollection $collection): void
     {
+        foreach ($this->partilotPaidAmountsBySetting($collection) as $key => $amount) {
+            [$entityId, $lotteryId] = array_map('intval', explode(':', $key, 2));
+
+            $setting = EntityLotteryPrizeSetting::query()
+                ->where('entity_id', $entityId)
+                ->where('lottery_id', $lotteryId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $setting || $setting->isOnlinePayerEntity()) {
+                continue;
+            }
+
+            $newDeposited = round((float) $setting->funds_deposited_amount - $amount, 2);
+            if ($newDeposited < 0) {
+                throw new \RuntimeException('Fondos de solvencia insuficientes para confirmar el cobro.');
+            }
+
+            $setting->update(['funds_deposited_amount' => $newDeposited]);
+        }
+    }
+
+    /**
+     * Devuelve a la bolsa de solvencia lo descontado al verificar un cobro que luego se revierte (error bancario).
+     */
+    public function releaseDepositedFundsForRevertedCollection(ParticipationCollection $collection): void
+    {
+        foreach ($this->partilotPaidAmountsBySetting($collection) as $key => $amount) {
+            [$entityId, $lotteryId] = array_map('intval', explode(':', $key, 2));
+
+            $setting = EntityLotteryPrizeSetting::query()
+                ->where('entity_id', $entityId)
+                ->where('lottery_id', $lotteryId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $setting || $setting->isOnlinePayerEntity()) {
+                continue;
+            }
+
+            $setting->update([
+                'funds_deposited_amount' => round((float) $setting->funds_deposited_amount + $amount, 2),
+            ]);
+        }
+    }
+
+    /**
+     * Importe ya pagado por PARTILOT en cobros verificados (descontado de la bolsa de solvencia).
+     */
+    public function consumedVerifiedCollectionAmount(int $entityId, int $lotteryId): float
+    {
+        return round((float) ParticipationCollectionItem::query()
+            ->where('participation_collection_items.entity_id', $entityId)
+            ->whereHas('collection', fn ($q) => $q->where('status', ParticipationCollection::STATUS_VERIFIED))
+            ->whereHas('participation.set.reserve', fn ($q) => $q->where('lottery_id', $lotteryId))
+            ->sum('amount'), 2);
+    }
+
+    /**
+     * @return array<string, float> clave "entityId:lotteryId" => importe
+     */
+    protected function partilotPaidAmountsBySetting(ParticipationCollection $collection): array
+    {
         $collection->load(['items.participation.set.reserve']);
 
         $amountsBySettingKey = [];
@@ -338,31 +401,7 @@ class EntityLotteryPrizePaymentService
             $amountsBySettingKey[$key] = ($amountsBySettingKey[$key] ?? 0.0) + $amount;
         }
 
-        foreach ($amountsBySettingKey as $key => $amount) {
-            [$entityId, $lotteryId] = array_map('intval', explode(':', $key, 2));
-
-            $setting = EntityLotteryPrizeSetting::query()
-                ->where('entity_id', $entityId)
-                ->where('lottery_id', $lotteryId)
-                ->lockForUpdate()
-                ->first();
-
-            if (! $setting || $setting->isOnlinePayerEntity()) {
-                continue;
-            }
-
-            $newDeposited = round((float) $setting->funds_deposited_amount - $amount, 2);
-            if ($newDeposited < 0) {
-                throw new \RuntimeException('Fondos de solvencia insuficientes para confirmar el cobro.');
-            }
-
-            $updates = ['funds_deposited_amount' => $newDeposited];
-            if ($newDeposited < (float) $setting->funds_required_amount) {
-                $updates['funds_status'] = EntityLotteryPrizeSetting::FUNDS_PENDING;
-            }
-
-            $setting->update($updates);
-        }
+        return array_map(fn ($amount) => round($amount, 2), $amountsBySettingKey);
     }
 
     /**
@@ -963,7 +1002,11 @@ class EntityLotteryPrizePaymentService
         }
 
         if ($setting->funds_status === EntityLotteryPrizeSetting::FUNDS_CONFIRMED) {
-            if ($fundsRequired > (float) $setting->funds_deposited_amount) {
+            $stillOwed = $fundsRequired - $this->consumedVerifiedCollectionAmount(
+                (int) $setting->entity_id,
+                (int) $setting->lottery_id
+            );
+            if (round($stillOwed, 2) > (float) $setting->funds_deposited_amount) {
                 $updates['funds_status'] = EntityLotteryPrizeSetting::FUNDS_PENDING;
             }
         } else {

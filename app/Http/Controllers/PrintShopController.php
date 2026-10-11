@@ -27,9 +27,10 @@ class PrintShopController extends Controller
         $user = $request->user();
         if ($user && $user->isPrintShop() && ! $user->isSuperAdmin()) {
             $panelShopId = (int) ($user->panel_account_id ?? 0);
-            if ($panelShopId > 0) {
-                $query->where('print_configuration_id', $panelShopId);
+            if ($panelShopId <= 0) {
+                abort(403, 'Cuenta de imprenta sin configuración asignada.');
             }
+            $query->where('print_configuration_id', $panelShopId);
         }
 
         if ($statusFilter !== 'all' && in_array($statusFilter, [
@@ -59,10 +60,7 @@ class PrintShopController extends Controller
 
         $countsQuery = PrintOrder::query()->visibleToPrintShop();
         if ($user && $user->isPrintShop() && ! $user->isSuperAdmin()) {
-            $panelShopId = (int) ($user->panel_account_id ?? 0);
-            if ($panelShopId > 0) {
-                $countsQuery->where('print_configuration_id', $panelShopId);
-            }
+            $countsQuery->where('print_configuration_id', (int) $user->panel_account_id);
         }
         $counts = $countsQuery
             ->selectRaw('status, COUNT(*) as c')

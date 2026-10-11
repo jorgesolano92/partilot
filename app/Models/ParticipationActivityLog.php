@@ -182,6 +182,11 @@ class ParticipationActivityLog extends Model
             'cancelled' => 'Anulada',
             'modified' => 'Modificada',
             'paid' => 'Pagada',
+            'gift_sent' => 'Regalo enviado',
+            'gift_accepted' => 'Regalo aceptado',
+            'gift_rejected' => 'Regalo rechazado',
+            'gift_expired' => 'Regalo caducado',
+            'gift_cancelled' => 'Regalo cancelado',
         ];
 
         return $types[$this->activity_type] ?? $this->activity_type;
@@ -202,6 +207,11 @@ class ParticipationActivityLog extends Model
             'cancelled' => 'bg-danger',
             'modified' => 'bg-secondary',
             'paid' => 'bg-success',
+            'gift_sent' => 'bg-info',
+            'gift_accepted' => 'bg-success',
+            'gift_rejected' => 'bg-warning',
+            'gift_expired' => 'bg-secondary',
+            'gift_cancelled' => 'bg-secondary',
         ];
 
         return $badges[$this->activity_type] ?? 'bg-secondary';

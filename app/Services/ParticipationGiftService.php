@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Mail\ParticipationGiftRecipientMail;
 use App\Mail\ParticipationGiftSenderMail;
 use App\Models\Participation;
+use App\Models\ParticipationActivityLog;
 use App\Models\ParticipationGift;
 use App\Models\User;
 use Carbon\Carbon;
@@ -42,6 +43,7 @@ class ParticipationGiftService
 
         $gift->load(['fromUser', 'toUser', 'participation.set.entity']);
 
+        $this->logGiftActivity($gift, 'gift_sent', (int) $fromUser->id, 'Regalo enviado a '.$gift->recipientEmail());
         $this->sendGiftEmails($gift);
         $this->notifyGiftReceived($gift);
 
@@ -65,8 +67,11 @@ class ParticipationGiftService
             throw new \InvalidArgumentException('Este regalo no está dirigido a tu cuenta.');
         }
 
-        return DB::transaction(function () use ($gift, $user) {
+        $accepted = DB::transaction(function () use ($gift, $user) {
             $gift = ParticipationGift::whereKey($gift->id)->lockForUpdate()->firstOrFail();
+            if (! $gift->isPending()) {
+                throw new \InvalidArgumentException('Este regalo ya no está pendiente de aceptación.');
+            }
             $participation = Participation::whereKey($gift->participation_id)->lockForUpdate()->firstOrFail();
 
             $gift->to_user_id = $user->id;
@@ -78,8 +83,38 @@ class ParticipationGiftService
             $participation->buyer_name = (string) $user->id;
             $participation->save();
 
-            return $gift->fresh(['fromUser', 'toUser', 'participation']);
+            return $gift->fresh(['fromUser', 'toUser', 'participation.set.entity']);
         });
+
+        $this->logGiftActivity($accepted, 'gift_accepted', (int) $user->id, 'Regalo aceptado por '.$user->email);
+        $this->notifyGiftAccepted($accepted);
+
+        return $accepted;
+    }
+
+    /**
+     * El remitente anula un regalo que el destinatario aún no ha aceptado.
+     */
+    public function cancelGift(ParticipationGift $gift, User $user): void
+    {
+        if ((int) $gift->from_user_id !== (int) $user->id) {
+            throw new \InvalidArgumentException('Solo quien envió el regalo puede cancelarlo.');
+        }
+
+        $cancelled = DB::transaction(function () use ($gift) {
+            $gift = ParticipationGift::whereKey($gift->id)->lockForUpdate()->firstOrFail();
+            if (! $gift->isPending()) {
+                throw new \InvalidArgumentException('El regalo ya no está pendiente; no se puede cancelar.');
+            }
+
+            $gift->status = ParticipationGift::STATUS_CANCELLED;
+            $gift->claim_token = null;
+            $gift->save();
+
+            return $gift;
+        });
+
+        $this->logGiftActivity($cancelled, 'gift_cancelled', (int) $user->id, 'Regalo cancelado por el remitente');
     }
 
     public function rejectGift(ParticipationGift $gift, User $user): void
@@ -107,6 +142,7 @@ class ParticipationGiftService
             $gift->to_user_id = $user->id;
             $gift->save();
 
+            $this->logGiftActivity($gift, 'gift_rejected', (int) $user->id, 'Regalo rechazado por '.$user->email);
             $this->notifyGiftRejected($gift->fresh(['fromUser', 'toUser']));
         });
     }
@@ -139,11 +175,12 @@ class ParticipationGiftService
     }
 
     /**
-     * Devuelve regalos no aceptados el día anterior al sorteo.
+     * Devuelve regalos no aceptados a partir del día anterior al sorteo
+     * (incluye los enviados más tarde o que se escaparon de ejecuciones anteriores).
      */
     public function expirePendingBeforeDraw(): int
     {
-        $deadline = Carbon::today()->addDay()->toDateString();
+        $deadline = Carbon::today()->toDateString();
         $count = 0;
 
         ParticipationGift::query()
@@ -156,11 +193,12 @@ class ParticipationGiftService
                         continue;
                     }
                     $expireOn = Carbon::parse($drawDate)->subDay()->toDateString();
-                    if ($expireOn !== $deadline) {
+                    if ($expireOn > $deadline) {
                         continue;
                     }
                     $gift->status = ParticipationGift::STATUS_EXPIRED;
                     $gift->save();
+                    $this->logGiftActivity($gift, 'gift_expired', (int) $gift->from_user_id, 'Regalo caducado sin aceptar antes del sorteo');
                     $count++;
                 }
             });
@@ -195,6 +233,49 @@ class ParticipationGiftService
             );
         } catch (\Throwable $e) {
             Log::warning('Inbox regalo recibido: '.$e->getMessage());
+        }
+    }
+
+    public function notifyGiftAccepted(ParticipationGift $gift): void
+    {
+        try {
+            $entity = $gift->participation?->set?->entity;
+            $accepterName = $gift->toUser?->name ?? $gift->toUser?->email ?? 'El destinatario';
+            $this->inbox->notifyUser(
+                recipientUserId: (int) $gift->from_user_id,
+                entityId: $entity ? (int) $entity->id : null,
+                administrationId: $entity?->administration_id ? (int) $entity->administration_id : null,
+                senderId: (int) ($gift->to_user_id ?? $gift->from_user_id),
+                kind: 'regalo_aceptado',
+                title: 'Regalo aceptado',
+                message: $accepterName.' ha aceptado la participación que le regalaste.',
+                meta: [
+                    'gift_id' => $gift->id,
+                    'participation_id' => $gift->participation_id,
+                    'rol_context' => 'usuario',
+                    'screen' => 'cartera',
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Inbox regalo aceptado: '.$e->getMessage());
+        }
+    }
+
+    protected function logGiftActivity(ParticipationGift $gift, string $type, ?int $userId, string $description): void
+    {
+        try {
+            ParticipationActivityLog::log($gift->participation_id, $type, [
+                'user_id' => $userId,
+                'description' => $description,
+                'metadata' => [
+                    'gift_id' => $gift->id,
+                    'from_user_id' => $gift->from_user_id,
+                    'to_user_id' => $gift->to_user_id,
+                    'to_email' => $gift->to_email,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Bitácora de regalo ('.$type.'): '.$e->getMessage());
         }
     }
 

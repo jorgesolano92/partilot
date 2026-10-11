@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BillingDirectDebitOrder;
+use App\Support\SepaText;
 use DOMDocument;
 
 class BillingDirectDebitXmlGeneratorService
@@ -70,7 +71,7 @@ class BillingDirectDebitXmlGeneratorService
 
         $cdtrAgt = $dom->createElement('CdtrAgt');
         $pmtInf->appendChild($cdtrAgt);
-        $cdtrAgt->appendChild($dom->createElement('FinInstnId'));
+        $cdtrAgt->appendChild($this->notProvidedFinInstnId($dom));
 
         $cdtrSchmeId = $dom->createElement('CdtrSchmeId');
         $pmtInf->appendChild($cdtrSchmeId);
@@ -109,7 +110,7 @@ class BillingDirectDebitXmlGeneratorService
 
             $dbtrAgt = $dom->createElement('DbtrAgt');
             $drctDbtTxInf->appendChild($dbtrAgt);
-            $dbtrAgt->appendChild($dom->createElement('FinInstnId'));
+            $dbtrAgt->appendChild($this->notProvidedFinInstnId($dom));
 
             $dbtr = $dom->createElement('Dbtr');
             $drctDbtTxInf->appendChild($dbtr);
@@ -124,7 +125,7 @@ class BillingDirectDebitXmlGeneratorService
             $rmtInf = $dom->createElement('RmtInf');
             $drctDbtTxInf->appendChild($rmtInf);
             $description = $charge->description ?: $charge->conceptLabel();
-            $rmtInf->appendChild($dom->createElement('Ustrd', $this->escapeXml(mb_substr($description, 0, 140))));
+            $rmtInf->appendChild($dom->createElement('Ustrd', $this->escapeXml($description, 140)));
         }
 
         return $dom->saveXML();
@@ -145,8 +146,19 @@ class BillingDirectDebitXmlGeneratorService
         return $fullPath;
     }
 
-    private function escapeXml(string $string): string
+    private function escapeXml(?string $string, int $maxLength = 70): string
     {
-        return htmlspecialchars($string, ENT_XML1, 'UTF-8');
+        return htmlspecialchars(SepaText::clean($string, $maxLength), ENT_XML1, 'UTF-8');
+    }
+
+    /** pain.008.001.02 exige CdtrAgt y DbtrAgt; sin BIC se identifican como NOTPROVIDED. */
+    private function notProvidedFinInstnId(DOMDocument $dom): \DOMElement
+    {
+        $finInstnId = $dom->createElement('FinInstnId');
+        $othr = $dom->createElement('Othr');
+        $othr->appendChild($dom->createElement('Id', 'NOTPROVIDED'));
+        $finInstnId->appendChild($othr);
+
+        return $finInstnId;
     }
 }

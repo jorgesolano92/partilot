@@ -16,6 +16,8 @@ class ParticipationGift extends Model
 
     public const STATUS_EXPIRED = 'expired';
 
+    public const STATUS_CANCELLED = 'cancelled';
+
     protected $fillable = [
         'participation_id',
         'from_user_id',

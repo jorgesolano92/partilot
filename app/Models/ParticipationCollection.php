@@ -196,7 +196,6 @@ class ParticipationCollection extends Model
         }
 
         $this->update(['status' => self::STATUS_CANCELLED, 'confirmation_token' => null]);
-        $this->delete();
     }
 
     /**
@@ -205,6 +204,11 @@ class ParticipationCollection extends Model
      */
     public function revertAsCobrable(): void
     {
+        if ($this->isVerified()) {
+            app(\App\Services\EntityLotteryPrizePaymentService::class)
+                ->releaseDepositedFundsForRevertedCollection($this);
+        }
+
         $participationIds = $this->items()
             ->pluck('participation_id')
             ->unique()
@@ -226,7 +230,6 @@ class ParticipationCollection extends Model
             'sepa_payment_order_id' => null,
             'confirmation_token' => null,
         ]);
-        $this->delete();
     }
 
     public function markAsExpired(): void

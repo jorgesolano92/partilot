@@ -177,6 +177,34 @@ class ManagementFeePaymentService
         return $set->refresh();
     }
 
+    /**
+     * Confirmación por webhook de Stripe (el usuario pudo cerrar la página antes de volver al panel).
+     */
+    public function markPaidFromWebhook(Set $set, string $paymentIntentId, ?int $payerUserId): void
+    {
+        if (app(ManagementFeeService::class)->isManagementFeeSettled($set)) {
+            return;
+        }
+
+        $storedPi = (string) ($set->management_fee_stripe_payment_intent_id ?? '');
+        if ($storedPi !== '' && $storedPi !== $paymentIntentId) {
+            Log::warning('Webhook cuota gestión: PaymentIntent no coincide con el del set', [
+                'set_id' => $set->id,
+                'payment_intent' => $paymentIntentId,
+            ]);
+
+            return;
+        }
+
+        $set->forceFill([
+            'management_fee_status' => ManagementFeeService::STATUS_PAID,
+            'management_fee_paid_at' => now(),
+            'management_fee_paid_by_user_id' => $payerUserId,
+            'management_fee_stripe_payment_intent_id' => $paymentIntentId,
+            'management_fee_payment_provider' => 'stripe',
+        ])->save();
+    }
+
     public function isStripePaymentSucceeded(string $paymentIntentId): bool
     {
         $payload = $this->fetchStripePaymentIntent($paymentIntentId);

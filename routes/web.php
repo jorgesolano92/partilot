@@ -771,4 +771,8 @@ Route::group(['prefix' => 'sepa-payments', 'middleware' => 'entity.permission:pa
     Route::delete('/{sepaPaymentOrder}', [SepaPaymentOrderController::class, 'destroy'])->name('sepa-payments.destroy');
 });
 
+// Borrado desde los listados del panel (sesión + CSRF; permisos por tipo en el controlador)
+Route::get('/api/check-delete/{type}/{id}', [\App\Http\Controllers\ApiController::class, 'checkDelete']);
+Route::delete('/api/delete/{type}/{id}', [\App\Http\Controllers\ApiController::class, 'deleteItem']);
+
 }); // Cierre del middleware auth

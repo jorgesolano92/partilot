@@ -54,9 +54,7 @@ Route::middleware('auth.api')->prefix('account')->group(function () {
     Route::get('/deletion/status', [AccountDeletionController::class, 'status']);
     Route::post('/deletion/request', [AccountDeletionController::class, 'request']);
 });
-
-Route::get('/check-delete/{type}/{id}', [ApiController::class, 'checkDelete']);
-Route::delete('/delete/{type}/{id}', [ApiController::class, 'deleteItem']);
+Route::post('/account/deletion/cancel', [AccountDeletionController::class, 'cancel'])->middleware('throttle:5,1');
 
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name('api.stripe.webhook');
 
@@ -352,6 +350,7 @@ Route::middleware('auth.api')->group(function () {
         Route::get('/gifts/pending', [ParticipationController::class, 'apiPendingGifts']);
         Route::post('/gifts/{giftId}/accept', [ParticipationController::class, 'apiAcceptGift'])->whereNumber('giftId');
         Route::post('/gifts/{giftId}/reject', [ParticipationController::class, 'apiRejectGift'])->whereNumber('giftId');
+        Route::post('/gifts/{giftId}/cancel', [ParticipationController::class, 'apiCancelGift'])->whereNumber('giftId');
     });
     
     // ========================================================================

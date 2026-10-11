@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PartilotBillingSetting;
 use App\Models\PrintConfiguration;
 use App\Models\PrintOrder;
+use App\Models\Set;
+use App\Services\ManagementFeePaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -33,6 +36,18 @@ class StripeWebhookController extends Controller
                     'payment_status' => 'paid',
                     'paid_at' => now(),
                 ]);
+            }
+
+            $metadata = is_array($object['metadata'] ?? null) ? $object['metadata'] : [];
+            if ($paymentIntentId !== '' && ($metadata['concept'] ?? '') === 'management_fee' && ! empty($metadata['set_id'])) {
+                $set = Set::find((int) $metadata['set_id']);
+                if ($set) {
+                    app(ManagementFeePaymentService::class)->markPaidFromWebhook(
+                        $set,
+                        $paymentIntentId,
+                        ! empty($metadata['payer_user_id']) ? (int) $metadata['payer_user_id'] : null
+                    );
+                }
             }
         } elseif ($type === 'payment_intent.payment_failed') {
             $paymentIntentId = (string) ($object['id'] ?? '');
@@ -86,6 +101,11 @@ class StripeWebhookController extends Controller
             ->filter(fn (string $secret) => $secret !== '')
             ->unique()
             ->values();
+
+        $billingSecret = PartilotBillingSetting::current()->stripeWebhookSecret();
+        if ($billingSecret !== '' && ! $secrets->contains($billingSecret)) {
+            $secrets->push($billingSecret);
+        }
 
         $fallback = (string) config('services.stripe.webhook_secret');
         if ($fallback !== '' && ! $secrets->contains($fallback)) {

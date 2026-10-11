@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SepaPaymentOrder;
+use App\Support\SepaText;
 use DOMDocument;
 use DOMElement;
 
@@ -103,12 +104,10 @@ class SepaXmlGeneratorService
         $dbtrAcct->appendChild($dbtrAcctId);
         $dbtrAcctId->appendChild($dom->createElement('IBAN', $order->debtor_iban));
 
-        // DbtrAgt (Debtor Agent) - opcional pero se incluye vacío
+        // DbtrAgt es obligatorio en pain.001.001.03; sin BIC se identifica como NOTPROVIDED.
         $dbtrAgt = $dom->createElement('DbtrAgt');
         $pmtInf->appendChild($dbtrAgt);
-
-        $finInstnId = $dom->createElement('FinInstnId');
-        $dbtrAgt->appendChild($finInstnId);
+        $dbtrAgt->appendChild($this->notProvidedFinInstnId($dom));
 
         // ChrgBr
         $pmtInf->appendChild($dom->createElement('ChrgBr', $order->charge_bearer));
@@ -132,13 +131,6 @@ class SepaXmlGeneratorService
             $instdAmt->setAttribute('Ccy', $beneficiary->currency);
             // El texto debe ir como nodo hijo, no como atributo
             $instdAmt->nodeValue = number_format($beneficiary->amount, 2, '.', '');
-
-            // CdtrAgt (Creditor Agent) - opcional pero se incluye vacío
-            $cdtrAgt = $dom->createElement('CdtrAgt');
-            $cdtTrfTxInf->appendChild($cdtrAgt);
-
-            $cdtrFinInstnId = $dom->createElement('FinInstnId');
-            $cdtrAgt->appendChild($cdtrFinInstnId);
 
             // Cdtr (Creditor)
             $cdtr = $dom->createElement('Cdtr');
@@ -178,7 +170,7 @@ class SepaXmlGeneratorService
             if ($beneficiary->remittance_info) {
                 $rmtInf = $dom->createElement('RmtInf');
                 $cdtTrfTxInf->appendChild($rmtInf);
-                $rmtInf->appendChild($dom->createElement('Ustrd', $this->escapeXml($beneficiary->remittance_info)));
+                $rmtInf->appendChild($dom->createElement('Ustrd', $this->escapeXml($beneficiary->remittance_info, 140)));
             }
         }
 
@@ -206,12 +198,19 @@ class SepaXmlGeneratorService
         return $fullPath;
     }
 
-    /**
-     * Escapar caracteres especiales XML
-     */
-    private function escapeXml(string $string): string
+    private function escapeXml(?string $string, int $maxLength = 70): string
     {
-        return htmlspecialchars($string, ENT_XML1, 'UTF-8');
+        return htmlspecialchars(SepaText::clean($string, $maxLength), ENT_XML1, 'UTF-8');
+    }
+
+    private function notProvidedFinInstnId(DOMDocument $dom): DOMElement
+    {
+        $finInstnId = $dom->createElement('FinInstnId');
+        $othr = $dom->createElement('Othr');
+        $othr->appendChild($dom->createElement('Id', 'NOTPROVIDED'));
+        $finInstnId->appendChild($othr);
+
+        return $finInstnId;
     }
 
     /**

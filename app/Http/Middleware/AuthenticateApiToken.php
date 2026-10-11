@@ -47,6 +47,13 @@ class AuthenticateApiToken
                 ], 401);
             }
 
+            if ($user->deletion_requested_at || $user->deletion_status === 'executed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta cuenta está desactivada por solicitud de baja.',
+                ], 401);
+            }
+
             auth()->setUser($user);
             $request->setUserResolver(fn () => $user);
 

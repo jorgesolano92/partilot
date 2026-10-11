@@ -455,6 +455,12 @@ class CommunicationEmailService
             return new \App\Mail\SellerSettlementStatusMail($seller, $settlement, $isFullySettled);
         }
 
+        if ($mailClass === \App\Mail\AccountDeletionRequestedMail::class) {
+            $user = User::findOrFail((int) ($mailPayload['user_id'] ?? 0));
+
+            return new \App\Mail\AccountDeletionRequestedMail($user);
+        }
+
         if ($mailClass === \App\Mail\UserWelcomeMail::class) {
             $userId = (int) ($mailPayload['user_id'] ?? 0);
             $user = User::findOrFail($userId);

@@ -374,6 +374,8 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Esta cuenta está desactivada por solicitud de baja.',
+                'deletion_reactivable' => app(\App\Services\AccountDeletionService::class)->canBeReactivated($user),
+                'deletion_scheduled_at' => optional($user->deletion_scheduled_at)->toIso8601String(),
             ], 403);
         }
 
@@ -450,6 +452,8 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Esta cuenta está desactivada por solicitud de baja.',
+                'deletion_reactivable' => app(\App\Services\AccountDeletionService::class)->canBeReactivated($user),
+                'deletion_scheduled_at' => optional($user->deletion_scheduled_at)->toIso8601String(),
             ], 403);
         }
 

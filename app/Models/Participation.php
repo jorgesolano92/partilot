@@ -147,7 +147,7 @@ class Participation extends Model
 
     public function gift()
     {
-        return $this->hasOne(ParticipationGift::class);
+        return $this->hasOne(ParticipationGift::class)->latestOfMany();
     }
 
     public function pendingDigitalSales()

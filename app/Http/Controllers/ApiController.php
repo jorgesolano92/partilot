@@ -2365,8 +2365,35 @@ class ApiController extends Controller
         return $prizeInfo;
     }
 
+    private function deleteForbiddenResponse(string $type, $id): ?\Illuminate\Http\JsonResponse
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 401);
+        }
+        if ($user->isSuperAdmin()) {
+            return null;
+        }
+
+        $allowed = match ($type) {
+            'set' => ($set = \App\Models\Set::find($id)) === null || $user->canAccessEntity((int) $set->entity_id),
+            'reserve' => ($reserve = \App\Models\Reserve::find($id)) === null || $user->canAccessEntity((int) $reserve->entity_id),
+            'entity' => ($entity = \App\Models\Entity::find($id)) === null
+                || $user->isAdministration() && in_array((int) $entity->administration_id, array_map('intval', $user->accessibleAdministrationIds()), true),
+            default => false,
+        };
+
+        return $allowed
+            ? null
+            : response()->json(['success' => false, 'message' => 'No tienes permiso para eliminar este elemento.'], 403);
+    }
+
     public function checkDelete($type, $id)
     {
+        if ($forbidden = $this->deleteForbiddenResponse((string) $type, $id)) {
+            return $forbidden;
+        }
+
         $canDelete = true;
         $message = '';
 
@@ -2456,6 +2483,10 @@ class ApiController extends Controller
 
     public function deleteItem(Request $request, $type, $id)
     {
+        if ($forbidden = $this->deleteForbiddenResponse((string) $type, $id)) {
+            return $forbidden;
+        }
+
         $deletionReason = app(CommunicationEmailService::class)->normalizeDeletionReason(
             $request->input('deletion_reason')
         );
