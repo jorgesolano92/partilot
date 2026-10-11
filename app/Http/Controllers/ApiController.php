@@ -24,6 +24,13 @@ class ApiController extends Controller
 
     public function test()
     {
+        DB::statement("ALTER TABLE participation_activity_logs MODIFY COLUMN activity_type ENUM(
+            'created', 'assigned', 'returned_by_seller', 'sold', 'returned_to_administration',
+            'status_changed', 'cancelled', 'modified', 'paid',
+            'gift_sent', 'gift_accepted', 'gift_rejected', 'gift_expired', 'gift_cancelled'
+        ) NOT NULL");
+        return "ok gift types";
+
         // Comprobación QR físico (AUD-028/061): cada referencia debe encontrar su participación. Solo lectura.
         $resumen = ['sets' => 0, 'referencias_ok' => 0, 'referencias_fallan' => 0, 'sets_con_fallos' => []];
         \App\Models\Set::whereNotNull('tickets')
