@@ -2571,6 +2571,7 @@ class ParticipationController extends Controller
         $collections = ParticipationCollection::where('user_id', $user->id)
             ->whereIn('status', [
                 ParticipationCollection::STATUS_VERIFIED,
+                ParticipationCollection::STATUS_PAID,
                 ParticipationCollection::STATUS_PENDING_VERIFICATION,
             ])
             ->with(['items.participation.set.reserve.lottery', 'items.participation.set.entity', 'items.participation.set.designFormats'])
@@ -2603,7 +2604,9 @@ class ParticipationController extends Controller
                     'iban' => $collection->iban,
                     'descripcion' => ($collection->isPendingVerification()
                         ? 'Cobro pendiente de confirmación por email'
-                        : 'Cobro de ' . count($participaciones) . ' participación(es)') . ' - €' . number_format($collection->importe_total, 2, ',', '.'),
+                        : ($collection->status === ParticipationCollection::STATUS_PAID
+                            ? 'Transferencia realizada de ' . count($participaciones) . ' participación(es)'
+                            : 'Cobro de ' . count($participaciones) . ' participación(es)')) . ' - €' . number_format($collection->importe_total, 2, ',', '.'),
                 ];
             }
         }
@@ -2788,7 +2791,7 @@ class ParticipationController extends Controller
         }
 
         $collections = ParticipationCollection::where('user_id', $user->id)
-            ->where('status', ParticipationCollection::STATUS_VERIFIED)
+            ->whereIn('status', ParticipationCollection::COLLECTED_STATUSES)
             ->whereNotNull('collected_at')
             ->with(['items.participation.set.reserve.lottery', 'items.participation.set.entity', 'items.participation.set.designFormats'])
             ->orderBy('collected_at', 'desc')

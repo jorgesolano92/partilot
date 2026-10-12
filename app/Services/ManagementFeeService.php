@@ -92,7 +92,40 @@ class ManagementFeeService
     }
 
     /**
-     * Venta digital en app: permitida si la cuota está pagada (Stripe) o encolada en remesa.
+     * Días que puede quedar sin cobrar un cargo de remesa antes de bloquear el set: 15 si la remesa es quincenal, 30 si es mensual.
+     */
+    public function remittanceGraceDays(?string $frequency): int
+    {
+        return $frequency === AdministrationBillingService::FREQUENCY_BIWEEKLY ? 15 : 30;
+    }
+
+    /**
+     * Cuota encolada en remesa cuyo cargo sigue sin cobrarse pasado el plazo de la remesa.
+     */
+    public function isRemittanceOverdue(Set $set): bool
+    {
+        if (! $this->isQueuedForRemittance($set)) {
+            return false;
+        }
+
+        $charge = $set->managementFeeBillingCharge;
+        if (! $charge || $charge->status === BillingCharge::STATUS_COLLECTED || ! $charge->created_at) {
+            return false;
+        }
+
+        $set->loadMissing('entity.administration');
+        $frequency = $set->entity?->administration?->billing_remittance_frequency;
+
+        return $charge->created_at->lt(now()->subDays($this->remittanceGraceDays($frequency)));
+    }
+
+    public function remittanceOverdueMessage(): string
+    {
+        return 'La cuota de gestión de este set está en una remesa que no se ha cobrado en plazo. Hasta que se cobre no se puede seguir trabajando con el set.';
+    }
+
+    /**
+     * Venta digital en app: permitida si la cuota está pagada (Stripe) o encolada en remesa dentro de plazo.
      * Sets legacy sin estado de cuota se tratan como vendibles.
      */
     public function allowsDigitalSale(Set $set): bool
@@ -102,7 +135,7 @@ class ManagementFeeService
             return true;
         }
 
-        return $this->isManagementFeeSettled($set);
+        return $this->isManagementFeeSettled($set) && ! $this->isRemittanceOverdue($set);
     }
 
     /**
@@ -110,10 +143,23 @@ class ManagementFeeService
      */
     public function applyDigitalSaleEligibleConstraint(Builder $query, string $column = 'management_fee_status'): Builder
     {
-        return $query->where(function (Builder $q) use ($column) {
+        $table = str_contains($column, '.') ? strstr($column, '.', true) : 'sets';
+
+        return $query->where(function (Builder $q) use ($column, $table) {
             $q->whereNull($column)
                 ->orWhere($column, '')
-                ->orWhereIn($column, [self::STATUS_PAID, self::STATUS_QUEUED_REMITTANCE]);
+                ->orWhere($column, self::STATUS_PAID)
+                ->orWhere(function (Builder $queued) use ($column, $table) {
+                    $queued->where($column, self::STATUS_QUEUED_REMITTANCE)
+                        ->whereNotExists(function ($sub) use ($table) {
+                            $sub->selectRaw('1')
+                                ->from('billing_charges as bc')
+                                ->join('administrations as adm', 'adm.id', '=', 'bc.administration_id')
+                                ->whereColumn('bc.id', $table.'.management_fee_billing_charge_id')
+                                ->where('bc.status', '!=', BillingCharge::STATUS_COLLECTED)
+                                ->whereRaw("bc.created_at < DATE_SUB(NOW(), INTERVAL (CASE WHEN adm.billing_remittance_frequency = 'biweekly' THEN 15 ELSE 30 END) DAY)");
+                        });
+                });
         });
     }
 
@@ -137,7 +183,7 @@ class ManagementFeeService
             return true;
         }
 
-        return ! $this->isManagementFeeSettled($set);
+        return ! $this->isManagementFeeSettled($set) || $this->isRemittanceOverdue($set);
     }
 
     public function blocksPrintShopUntilEntityPaysManagementFee(Set $set): bool
@@ -294,7 +340,8 @@ class ManagementFeeService
     public function blocksDesignEntry(Set $set): bool
     {
         return $this->blocksAdminDesignUntilEntityPays($set)
-            || $this->blocksDesignUntilAdministrationFeeSettled($set);
+            || $this->blocksDesignUntilAdministrationFeeSettled($set)
+            || $this->isRemittanceOverdue($set);
     }
 
     public function administrationOwesManagementFee(Set $set): bool
@@ -407,9 +454,13 @@ class ManagementFeeService
         $baseAmount = round((int) ($set->management_fee_participation_count ?? 0) * (float) ($set->management_fee_unit_price ?? 0), 2);
         $commissionAmount = max(0.0, round($totalAmount - $baseAmount, 2));
 
+        $remittanceOverdue = $this->isRemittanceOverdue($set);
+
         return [
             'status' => $set->management_fee_status,
-            'status_label' => $this->statusLabel($set->management_fee_status),
+            'status_label' => $remittanceOverdue ? 'Remesa sin cobrar fuera de plazo' : $this->statusLabel($set->management_fee_status),
+            'remittance_overdue' => $remittanceOverdue,
+            'remittance_overdue_message' => $remittanceOverdue ? $this->remittanceOverdueMessage() : null,
             'amount' => $totalAmount,
             'base_amount' => $commissionAmount > 0 ? $baseAmount : $totalAmount,
             'commission_amount' => $commissionAmount,

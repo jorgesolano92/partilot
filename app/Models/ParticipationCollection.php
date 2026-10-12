@@ -20,6 +20,12 @@ class ParticipationCollection extends Model
     public const STATUS_CANCELLED = 'cancelled';
     public const STATUS_REVERTED = 'reverted';
 
+    /** Transferencia ejecutada: el beneficiario se marcó como pagado en la orden SEPA. */
+    public const STATUS_PAID = 'paid';
+
+    /** Solicitudes ya cobradas por el usuario (verificadas o pagadas por el banco). */
+    public const COLLECTED_STATUSES = [self::STATUS_VERIFIED, self::STATUS_PAID];
+
     protected $fillable = [
         'user_id',
         'nombre',
@@ -120,6 +126,7 @@ class ParticipationCollection extends Model
             self::STATUS_EXPIRED => 'Expirada',
             self::STATUS_CANCELLED => 'Cancelada',
             self::STATUS_REVERTED => 'Revertida (cobrable)',
+            self::STATUS_PAID => 'Pagada',
             default => $this->status ?? '—',
         };
     }

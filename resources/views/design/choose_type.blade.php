@@ -180,7 +180,11 @@
                         && empty($managementFee['show_admin_fee_actions'])
                         && ($managementFee['payer'] ?? '') !== 'entity';
                 @endphp
-                @if(!empty($managementFeeBlocksDesign) && $feeHandledByAdministration)
+                @if(!empty($managementFee['remittance_overdue']))
+                    <div class="alert alert-danger mb-3 text-start" style="display: block !important;">
+                        <p class="mb-0 small">{{ $managementFee['remittance_overdue_message'] }}</p>
+                    </div>
+                @elseif(!empty($managementFeeBlocksDesign) && $feeHandledByAdministration)
                     <div class="alert alert-info mb-3 text-start" style="display: block !important;">
                         <p class="mb-0 small">La administración está preparando el diseño de este set. Podrá continuar cuando esté disponible.</p>
                     </div>

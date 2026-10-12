@@ -658,6 +658,7 @@ Route::group(['prefix' => 'configuration', 'middleware' => 'entity.permission:pa
     Route::post('/billing-remittance/orders/{billingDirectDebit}/cancel', [BillingDirectDebitController::class, 'cancel'])->name('configuration.billing-remittance.cancel');
     Route::delete('ordenes-pago-entidades/collections/{participationCollection}', [App\Http\Controllers\ConfigurationController::class, 'destroyCollection'])->name('ordenes-pago-entidades.collections.destroy');
     Route::post('ordenes-pago-entidades/crear-sepa', [App\Http\Controllers\ConfigurationController::class, 'crearSepa'])->name('ordenes-pago-entidades.crear-sepa');
+    Route::get('codigos-recarga/{entityId}/modelo-182', [App\Http\Controllers\ConfigurationController::class, 'exportModelo182'])->whereNumber('entityId')->name('codigos-recarga.modelo-182');
     Route::get('ordenes-pago-entidades/nueva-orden', [App\Http\Controllers\ConfigurationController::class, 'nuevaOrdenSepa'])->name('ordenes-pago-entidades.nueva-orden');
     Route::post('ordenes-pago-entidades/store-sepa', [App\Http\Controllers\ConfigurationController::class, 'storeOrdenSepa'])->name('ordenes-pago-entidades.store-sepa');
     Route::delete('ordenes-pago-entidades/beneficiaries/{sepaPaymentBeneficiary}', [App\Http\Controllers\ConfigurationController::class, 'destroyBeneficiary'])->name('ordenes-pago-entidades.beneficiaries.destroy');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -605,23 +606,67 @@ class ConfigurationController extends Controller
     }
 
     /**
-     * Donaciones cuya primera fila en participation_donation_items (por id) apunta a una participación de la entidad dada.
-     *
      * @return \Illuminate\Database\Eloquent\Collection<int, ParticipationDonation>
      */
     private function participationDonationsForEntity(int $entityId)
     {
         return ParticipationDonation::query()
-            ->whereIn('id', function ($q) use ($entityId) {
-                $q->select('pdi.donation_id')
-                    ->from('participation_donation_items as pdi')
-                    ->join('participations as p', 'p.id', '=', 'pdi.participation_id')
-                    ->where('p.entity_id', $entityId)
-                    ->whereRaw('pdi.id = (SELECT MIN(pdi2.id) FROM participation_donation_items pdi2 WHERE pdi2.donation_id = pdi.donation_id)');
-            })
+            ->forEntity($entityId)
             ->orderByDesc('donated_at')
             ->orderByDesc('id')
             ->get();
+    }
+
+    /**
+     * CSV de donaciones de una entidad para preparar el Modelo 182 (una fila por donante identificado y año).
+     */
+    public function exportModelo182(Request $request, int $entityId)
+    {
+        $entity = Entity::forUser($request->user())->findOrFail($entityId);
+        $year = (int) $request->query('year', now()->subYear()->year);
+
+        $donations = ParticipationDonation::query()
+            ->forEntity((int) $entity->id)
+            ->whereYear('donated_at', $year)
+            ->where('importe_donacion', '>', 0)
+            ->get();
+
+        $rows = $donations
+            ->filter(fn (ParticipationDonation $d) => trim((string) $d->nif) !== '')
+            ->groupBy(fn (ParticipationDonation $d) => strtoupper(preg_replace('/[\s\-\.]/', '', (string) $d->nif)))
+            ->map(function ($group, $nif) {
+                $first = $group->sortByDesc('donated_at')->first();
+
+                return [
+                    $nif,
+                    trim(($first->apellidos ?? '').' '.($first->nombre ?? '')),
+                    number_format((float) $group->sum('importe_donacion'), 2, ',', ''),
+                    $group->count(),
+                    $group->contains(fn ($d) => (bool) $d->certificado_fiscal) ? 'Sí' : 'No',
+                ];
+            })
+            ->sortBy(fn ($row) => $row[1])
+            ->values();
+
+        $anonymousTotal = (float) $donations
+            ->filter(fn (ParticipationDonation $d) => trim((string) $d->nif) === '')
+            ->sum('importe_donacion');
+
+        $filename = 'modelo182_'.$year.'_'.Str::slug((string) $entity->name).'.csv';
+
+        return response()->streamDownload(function () use ($rows, $entity, $year, $anonymousTotal) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['Entidad', $entity->name, 'NIF entidad', $entity->nif_cif, 'Ejercicio', $year], ';');
+            fputcsv($out, ['NIF donante', 'Apellidos y nombre', 'Importe donado (€)', 'Nº donaciones', 'Pidió certificado'], ';');
+            foreach ($rows as $row) {
+                fputcsv($out, $row, ';');
+            }
+            if ($anonymousTotal > 0) {
+                fputcsv($out, ['', 'Donaciones sin NIF (no declarables)', number_format($anonymousTotal, 2, ',', ''), '', ''], ';');
+            }
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     private function getProvinceCityData(): array
@@ -1145,15 +1190,15 @@ class ConfigurationController extends Controller
             }
         }
 
-        $administration = $entity->administration;
-        $debtorName = $administration ? $administration->name : $entity->name;
-        $debtorNif = $administration ? $administration->nif_cif : $entity->nif_cif ?? null;
-        $debtorAddress = $administration ? $administration->address : $entity->address ?? null;
-        $debtorIban = $administration && $administration->account ? $this->normalizeIban($administration->account) : null;
-        if (!$debtorIban) {
+        $debtor = $prizePaymentService->resolveSepaDebtor($collections, $entity);
+        if (! $debtor['ok']) {
             return redirect()->route('configuration.index', ['section' => 'ordenes-pago-entidades', 'step' => 3, 'entity_id' => $entity->id])
-                ->with('error', 'La administración o entidad no tiene cuenta bancaria configurada.');
+                ->with('error', $debtor['message']);
         }
+        $debtorName = $debtor['name'];
+        $debtorNif = $debtor['nif'];
+        $debtorAddress = $debtor['address'];
+        $debtorIban = $debtor['iban'];
 
         try {
             DB::beginTransaction();
@@ -1234,13 +1279,14 @@ class ConfigurationController extends Controller
         $collections = $query->with('user')->orderBy('created_at', 'desc')->get();
 
         $administrations = Administration::all();
-        $debtorName = $entity->administration->name ?? $entity->name;
-        $debtorNif = $entity->administration->nif_cif ?? $entity->nif_cif ?? '';
-        $debtorAddress = $entity->administration->address ?? $entity->address ?? '';
-        $debtorIban = '';
-        if ($entity->administration && $entity->administration->account) {
-            $debtorIban = preg_replace('/\s+/', '', $entity->administration->account);
-            $debtorIban = str_starts_with(strtoupper($debtorIban), 'ES') ? substr($debtorIban, 2) : $debtorIban;
+        $debtor = app(EntityLotteryPrizePaymentService::class)->resolveSepaDebtor($collections, $entity);
+        $debtorName = $debtor['name'] ?? '';
+        $debtorNif = $debtor['nif'] ?? '';
+        $debtorAddress = $debtor['address'] ?? '';
+        $debtorIban = (string) ($debtor['iban'] ?? '');
+        $debtorIban = str_starts_with(strtoupper($debtorIban), 'ES') ? substr($debtorIban, 2) : $debtorIban;
+        if (! $debtor['ok']) {
+            session()->now('error', $debtor['message']);
         }
 
         return view('configuration.ordenes-pago-entidades-nueva-orden', compact(

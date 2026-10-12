@@ -1362,7 +1362,9 @@ class DesignController extends Controller
             if (app(ManagementFeeService::class)->blocksDesignEntry($set)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'La cuota de gestión PARTILOT debe confirmarse antes de guardar el diseño.',
+                    'message' => app(ManagementFeeService::class)->isRemittanceOverdue($set)
+                        ? app(ManagementFeeService::class)->remittanceOverdueMessage()
+                        : 'La cuota de gestión PARTILOT debe confirmarse antes de guardar el diseño.',
                     'code' => 'MANAGEMENT_FEE_REQUIRED',
                 ], 402);
             }
@@ -8057,6 +8059,12 @@ class DesignController extends Controller
         $feeService = app(ManagementFeeService::class);
         $approvalService = app(DesignApprovalService::class);
         $user = auth()->user();
+
+        if ($feeService->isRemittanceOverdue($set)) {
+            return $design
+                ? redirect()->route('design.summary', $design->id)->with('error', $feeService->remittanceOverdueMessage())
+                : redirect()->back()->with('error', $feeService->remittanceOverdueMessage());
+        }
 
         if ($feeService->blocksAdminDesignUntilEntityPays($set)) {
             if ($approvalService->isAdministrationSideUser($user)) {

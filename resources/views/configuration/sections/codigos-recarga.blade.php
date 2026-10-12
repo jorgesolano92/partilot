@@ -111,8 +111,22 @@
             </div>
         </div>
 
-        <h4 class="mb-0 mt-1">Donaciones y códigos de recarga</h4>
-        <small class="text-muted">Donaciones cuya primera línea de ítems pertenece a esta entidad.</small>
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-2">
+            <div>
+                <h4 class="mb-0 mt-1">Donaciones y códigos de recarga</h4>
+                <small class="text-muted">Donaciones a esta entidad.</small>
+            </div>
+            <form method="GET" action="{{ route('codigos-recarga.modelo-182', $entity->id) }}" class="d-flex align-items-center gap-2">
+                <select name="year" class="form-select form-select-sm" style="border-radius: 30px; width: auto;">
+                    @for($y = now()->year; $y >= now()->year - 4; $y--)
+                        <option value="{{ $y }}" @selected($y === now()->year - 1)>{{ $y }}</option>
+                    @endfor
+                </select>
+                <button type="submit" class="btn btn-sm btn-dark" style="border-radius: 30px;">
+                    <i class="ri-download-2-line me-1"></i> Exportar Modelo 182 (CSV)
+                </button>
+            </form>
+        </div>
 
         <div class="table-responsive mt-3">
             <table class="table table-hover table-centered mb-0" id="tabla-cr-donaciones">

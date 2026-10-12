@@ -9,6 +9,7 @@ use App\Models\EntityLotteryPrizeSetting;
 use App\Models\Participation;
 use App\Models\ParticipationCollection;
 use App\Models\ParticipationCollectionItem;
+use App\Models\PartilotBillingSetting;
 use App\Models\ScrutinyDetailedResult;
 use App\Models\User;
 
@@ -361,7 +362,7 @@ class EntityLotteryPrizePaymentService
     {
         return round((float) ParticipationCollectionItem::query()
             ->where('participation_collection_items.entity_id', $entityId)
-            ->whereHas('collection', fn ($q) => $q->where('status', ParticipationCollection::STATUS_VERIFIED))
+            ->whereHas('collection', fn ($q) => $q->whereIn('status', ParticipationCollection::COLLECTED_STATUSES))
             ->whereHas('participation.set.reserve', fn ($q) => $q->where('lottery_id', $lotteryId))
             ->sum('amount'), 2);
     }
@@ -574,6 +575,84 @@ class EntityLotteryPrizePaymentService
         }
 
         return ['allowed' => true, 'message' => null];
+    }
+
+    /**
+     * Cuenta ordenante del XML de premios según quién paga: PARTILOT (online PARTILOT o digitales en presencial)
+     * o la administración (online gestionado por la entidad).
+     *
+     * @param  iterable<ParticipationCollection>  $collections
+     * @return array{ok: bool, message: ?string, payer: ?string, name: ?string, nif: ?string, address: ?string, iban: ?string}
+     */
+    public function resolveSepaDebtor(iterable $collections, Entity $entity): array
+    {
+        $payers = [];
+        foreach ($collections as $collection) {
+            $collection->loadMissing(['items.participation.set.reserve']);
+            foreach ($collection->items as $item) {
+                $participation = $item->participation;
+                $entityId = (int) ($item->entity_id ?? $participation?->entity_id ?? $participation?->set?->entity_id ?? 0);
+                $lotteryId = (int) ($participation?->set?->reserve?->lottery_id ?? 0);
+                if (! $entityId || ! $lotteryId) {
+                    continue;
+                }
+                $setting = $this->getSettings($entityId, $lotteryId);
+                $payers[$setting && $setting->isOnlinePayerEntity() ? 'administration' : EntityLotteryPrizeSetting::PAYER_PARTILOT] = true;
+            }
+        }
+
+        if (count($payers) > 1) {
+            return $this->sepaDebtorError('Las solicitudes mezclan sorteos que paga PARTILOT con sorteos que paga la administración. Genera una orden por cada pagador.');
+        }
+
+        $payer = array_key_first($payers) ?? EntityLotteryPrizeSetting::PAYER_PARTILOT;
+
+        if ($payer === 'administration') {
+            $administration = $entity->administration;
+            $iban = $administration && $administration->account
+                ? strtoupper(preg_replace('/\s+/', '', (string) $administration->account))
+                : '';
+            if ($iban !== '' && ! str_starts_with($iban, 'ES')) {
+                $iban = 'ES'.$iban;
+            }
+            if ($iban === '') {
+                return $this->sepaDebtorError('La administración no tiene cuenta bancaria configurada.');
+            }
+
+            return [
+                'ok' => true,
+                'message' => null,
+                'payer' => $payer,
+                'name' => $administration->name ?: $administration->society,
+                'nif' => $administration->nif_cif,
+                'address' => $administration->address,
+                'iban' => $iban,
+            ];
+        }
+
+        $settings = PartilotBillingSetting::current();
+        $iban = $settings->creditorIban();
+        if ($iban === '') {
+            return $this->sepaDebtorError('PARTILOT no tiene cuenta bancaria configurada (Ajustes → Config. factura auto).');
+        }
+
+        return [
+            'ok' => true,
+            'message' => null,
+            'payer' => $payer,
+            'name' => $settings->company_name ?: 'PARTILOT',
+            'nif' => $settings->nif_cif,
+            'address' => $settings->address,
+            'iban' => $iban,
+        ];
+    }
+
+    /**
+     * @return array{ok: bool, message: ?string, payer: ?string, name: ?string, nif: ?string, address: ?string, iban: ?string}
+     */
+    private function sepaDebtorError(string $message): array
+    {
+        return ['ok' => false, 'message' => $message, 'payer' => null, 'name' => null, 'nif' => null, 'address' => null, 'iban' => null];
     }
 
     protected function canCollectDigitalUnderPresencialMode(
@@ -1195,7 +1274,7 @@ class EntityLotteryPrizePaymentService
 
         return ParticipationCollectionItem::query()
             ->where('participation_id', $participation->id)
-            ->whereHas('collection', fn ($q) => $q->where('status', ParticipationCollection::STATUS_VERIFIED))
+            ->whereHas('collection', fn ($q) => $q->whereIn('status', ParticipationCollection::COLLECTED_STATUSES))
             ->exists();
     }
 

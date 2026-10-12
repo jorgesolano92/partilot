@@ -324,6 +324,11 @@ class SepaPaymentOrderController extends Controller
             return;
         }
 
+        \App\Models\ParticipationCollection::query()
+            ->whereKey($collectionId)
+            ->where('status', \App\Models\ParticipationCollection::STATUS_VERIFIED)
+            ->update(['status' => \App\Models\ParticipationCollection::STATUS_PAID]);
+
         $ids = ParticipationCollectionItem::where('collection_id', $collectionId)
             ->pluck('participation_id')
             ->unique()

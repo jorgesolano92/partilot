@@ -34,6 +34,30 @@ class ParticipationDonation extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function entity(): BelongsTo
+    {
+        return $this->belongsTo(Entity::class);
+    }
+
+    /**
+     * Donaciones de una entidad: por entity_id o, en registros antiguos sin él, por la entidad de sus participaciones.
+     */
+    public function scopeForEntity($query, int $entityId)
+    {
+        return $query->where(function ($q) use ($entityId) {
+            $q->where('participation_donations.entity_id', $entityId)
+                ->orWhere(function ($legacy) use ($entityId) {
+                    $legacy->whereNull('participation_donations.entity_id')
+                        ->whereIn('participation_donations.id', function ($sub) use ($entityId) {
+                            $sub->select('pdi.donation_id')
+                                ->from('participation_donation_items as pdi')
+                                ->join('participations as p', 'p.id', '=', 'pdi.participation_id')
+                                ->where('p.entity_id', $entityId);
+                        });
+                });
+        });
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(ParticipationDonationItem::class, 'donation_id');
