@@ -272,6 +272,12 @@
                                 <span>Importe unitario</span>
                                 <strong>{{ number_format($managementFee['unit_price'], 4, ',', '.') }}€</strong>
                             </div>
+                            @if(($managementFee['commission_amount'] ?? 0) > 0)
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Comisión gestión de pago ({{ rtrim(rtrim(number_format($managementFee['commission_percent'] ?? 0, 2, ',', '.'), '0'), ',') }}%)</span>
+                                    <strong>{{ number_format($managementFee['commission_amount'], 2, ',', '.') }}€</strong>
+                                </div>
+                            @endif
                             <div class="d-flex justify-content-between mb-2">
                                 <span>Importe total</span>
                                 <strong>{{ number_format($managementFee['amount'], 2, ',', '.') }}€</strong>

@@ -29,7 +29,7 @@ class ReserveSavedToEntityManagerMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Reserva creada - Partilot',
+            subject: 'Reserva confirmada - Partilot',
         );
     }
 

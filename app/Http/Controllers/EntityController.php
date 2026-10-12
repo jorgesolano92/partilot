@@ -155,7 +155,13 @@ class EntityController extends Controller
         if ($isNatural) {
             $rules['nif_cif'] = 'nullable|string|max:20';
         } else {
-            $rules['nif_cif'] = ['required', 'string', 'max:20', new \App\Rules\EntityDocument];
+            $wizardEntityId = (int) ($request->session()->get('wizard_entity_id')
+                ?? data_get($request->session()->get('entity_information'), 'id', 0));
+            $rules['nif_cif'] = [
+                'required', 'string', 'max:20',
+                new \App\Rules\EntityDocument,
+                new \App\Rules\UniqueEntityDocument($wizardEntityId > 0 ? $wizardEntityId : null),
+            ];
         }
 
         $validated = $request->validate($rules, [
@@ -470,19 +476,24 @@ class EntityController extends Controller
             ]);
         }
 
-        $isAdministrationContact = $user && $user->isAdministrationContactOnly();
+        if ($user && $user->isAdministrationManager()) {
+            return response()->json([
+                'exists' => false,
+                'user_id' => null,
+                'is_panel_account' => true,
+                'is_administration_contact' => true,
+                'manager_name' => null,
+                'message' => 'Ese correo pertenece al gestor de una administración. Un mismo usuario no puede ser gestor de una administración y de una entidad: use otro email.',
+            ]);
+        }
 
         return response()->json([
             'exists' => (bool) $user,
             'user_id' => $user ? $user->id : null,
             'is_panel_account' => false,
-            'is_administration_contact' => $isAdministrationContact,
+            'is_administration_contact' => false,
             'manager_name' => $user ? trim(($user->name ?? '').' '.($user->last_name ?? '')) : null,
-            'message' => match (true) {
-                $isAdministrationContact => 'Este email es el contacto del gestor de la administración. Puede invitarlo: recibirá un enlace para crear su contraseña como gestor de la entidad.',
-                (bool) $user => 'Hemos encontrado un usuario registrado con ese email.',
-                default => null,
-            },
+            'message' => $user ? 'Hemos encontrado un usuario registrado con ese email.' : null,
         ]);
     }
 
@@ -596,6 +607,12 @@ class EntityController extends Controller
         if ($invited->isPanelAccount()) {
             return redirect()->route('entities.show', $entity->id)
                 ->with('error', 'No se puede asignar como gestor a la cuenta de acceso al panel de una administración o entidad.');
+        }
+        if ($invited->isAdministrationManager()) {
+            return redirect()->back()->with(
+                'error',
+                'Ese usuario es gestor de una administración. Un mismo usuario no puede ser gestor de una administración y de una entidad.'
+            );
         }
         $invitedWasAdministrationContact = $invited->isAdministrationContactOnly();
 
@@ -1248,6 +1265,7 @@ class EntityController extends Controller
                 'string',
                 'max:20',
                 new \App\Rules\EntityDocument,
+                new \App\Rules\UniqueEntityDocument((int) $entity->id),
             ],
             'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
@@ -1304,8 +1322,17 @@ class EntityController extends Controller
                 ->withErrors(['email' => 'Este correo ya está en uso como acceso al panel de otra administración o entidad.']);
         }
 
+        $before = $entity->only(array_keys($validated));
         $entity->update($validated);
         $entity->refresh();
+
+        $audit = app(AuditLogService::class);
+        foreach ($before as $field => $oldValue) {
+            $audit->logEntityFieldChange($entity, auth()->user(), $field, $oldValue, $entity->getAttribute($field), $request);
+        }
+        if ($request->filled('panel_password')) {
+            $audit->logEntityFieldChange($entity, auth()->user(), 'panel_password', null, '(cambiada)', $request);
+        }
 
         if ($panelUser) {
             $panelUser->update([

@@ -795,6 +795,26 @@ class DevolutionsController extends Controller
                 $totalLiquidation = 0;
             }
 
+            // AUD-041: no se reembolsa dinero al vendedor, así que no puede devolver más de lo que dejaría cubierto lo ya pagado.
+            if ($tipoDevolucion === 'vendedor' && ! empty($data['seller_id']) && ! empty($participationsToReturn)) {
+                $settlementService = app(SellerSettlementRegistrationService::class);
+                $eligible = $settlementService->eligibleParticipations((int) $data['seller_id'], (int) $data['lottery_id']);
+                $returnIds = array_map('intval', $participationsToReturn);
+                $remainingValue = round((float) $eligible
+                    ->reject(fn ($p) => in_array((int) $p->id, $returnIds, true))
+                    ->sum(fn ($p) => SellerSettlementRegistrationService::participationPrice($p)), 2);
+                $alreadyPaidBySeller = round($settlementService->previousPaid((int) $data['seller_id'], (int) $data['lottery_id']), 2);
+                if ($alreadyPaidBySeller > $remainingValue + 0.009) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'El vendedor ya ha pagado '.number_format($alreadyPaidBySeller, 2, ',', '.').' € y tras esta devolución solo le quedarían '
+                            .number_format($remainingValue, 2, ',', '.').' € en participaciones. No se reembolsa dinero: devuelve menos participaciones.',
+                    ], 422);
+                }
+            }
+
             if ($soloDevolucion) {
                 $totalLiquidation = 0;
             }

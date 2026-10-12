@@ -139,6 +139,19 @@ class User extends Authenticatable
             && ! $this->managers()->whereNotNull('entity_id')->exists();
     }
 
+    /** Gestor (contacto) de una administración: no puede ser también gestor de entidad. */
+    public function isAdministrationManager(): bool
+    {
+        if (str_ends_with(strtolower((string) $this->email), '@no-login.partilot.local')) {
+            return true;
+        }
+
+        return $this->managers()
+            ->whereNotNull('administration_id')
+            ->whereNull('entity_id')
+            ->exists();
+    }
+
     public function scopeExcludingAdministrationContactRecords(Builder $query): Builder
     {
         return $query->where(function (Builder $q) {

@@ -198,6 +198,9 @@ class AuthController extends Controller
             }
         }
 
+        app(\App\Services\AuditLogService::class)
+            ->logLogin($user, \App\Models\UserActivityAuditLog::CHANNEL_PANEL, $request);
+
         if ($user->mustChangeEntityManagerLegacyPassword()) {
             return redirect()->route('entity-manager.legacy-password.show');
         }
@@ -411,6 +414,9 @@ class AuthController extends Controller
         ];
         $token = Crypt::encrypt($payload);
 
+        app(\App\Services\AuditLogService::class)
+            ->logLogin($user, \App\Models\UserActivityAuditLog::CHANNEL_APP, $request);
+
         return response()->json([
             'success' => true,
             'token' => $token,
@@ -462,6 +468,9 @@ class AuthController extends Controller
             'exp' => now()->addDays(30)->timestamp,
         ];
         $token = Crypt::encrypt($payload);
+
+        app(\App\Services\AuditLogService::class)
+            ->logLogin($user, \App\Models\UserActivityAuditLog::CHANNEL_APP, $request);
 
         $response = [
             'success' => true,

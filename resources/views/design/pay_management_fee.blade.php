@@ -104,6 +104,26 @@
 
                     </div>
 
+                    @if(($managementFee['commission_amount'] ?? 0) > 0)
+
+                    <div class="d-flex justify-content-between mb-2">
+
+                        <span>Cuota de gestión</span>
+
+                        <strong>{{ number_format($managementFee['base_amount'] ?? 0, 2, ',', '.') }}€</strong>
+
+                    </div>
+
+                    <div class="d-flex justify-content-between mb-2">
+
+                        <span>Comisión gestión de pago ({{ rtrim(rtrim(number_format($managementFee['commission_percent'] ?? 0, 2, ',', '.'), '0'), ',') }}%)</span>
+
+                        <strong>{{ number_format($managementFee['commission_amount'], 2, ',', '.') }}€</strong>
+
+                    </div>
+
+                    @endif
+
                     <hr>
 
                     <div class="d-flex justify-content-between mb-4">

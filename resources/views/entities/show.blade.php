@@ -1570,7 +1570,7 @@ $('#invite-button').click(function (e) {
 			if (response.is_panel_account) {
 				$('#invite-user-id').val('');
 				$('#invite-pending-email').val('');
-				$('#invite-email-error').removeClass('d-none');
+				$('#invite-email-error').text(response.message || 'Ese email corresponde a una cuenta de acceso al panel (administración o entidad) y no puede invitarse como gestor.').removeClass('d-none');
 				return;
 			}
 			$('#invite-email-error').addClass('d-none');

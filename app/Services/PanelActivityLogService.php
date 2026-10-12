@@ -11,8 +11,10 @@ use App\Models\ParticipationActivityLog;
 use App\Models\PaymentOperationAuditLog;
 use App\Models\Seller;
 use App\Models\User;
+use App\Models\UserActivityAuditLog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
@@ -82,6 +84,7 @@ class PanelActivityLogService
             $this->mapLegalRows($legal),
             $this->mapAdminAuditRows($audit),
             $this->mapPaymentRows($payments),
+            $this->mapUserActivityRows($this->userActivityQuery()->limit($limit)->get()),
         );
     }
 
@@ -111,11 +114,17 @@ class PanelActivityLogService
             ->limit($limit)
             ->get();
 
+        $activity = $this->userActivityQuery()
+            ->where('administration_id', $administrationId)
+            ->limit($limit)
+            ->get();
+
         return $this->mergeSortedRows(
             $limit,
             $this->mapLegalRows($legal),
             $this->mapAdminAuditRows($audit),
             $this->mapPaymentRows($payments),
+            $this->mapUserActivityRows($activity),
         );
     }
 
@@ -161,12 +170,19 @@ class PanelActivityLogService
             ->limit($limit)
             ->get();
 
+        $activity = $this->userActivityQuery()
+            ->where('entity_id', $entity->id)
+            ->when($managerUserId, fn (Builder $query) => $query->where('user_id', $managerUserId))
+            ->limit($limit)
+            ->get();
+
         return $this->mergeSortedRows(
             $limit,
             $this->mapLegalRows($q->orderByDesc('accepted_at')->limit($limit)->get()),
             $this->mapParticipationRows($participations),
             $this->mapPermissionRows($permissions),
             $this->mapPaymentRows($payments),
+            $this->mapUserActivityRows($activity),
         );
     }
 
@@ -195,10 +211,15 @@ class PanelActivityLogService
             ->limit($limit)
             ->get();
 
+        $activity = (int) $seller->user_id > 0
+            ? $this->userActivityQuery()->where('user_id', (int) $seller->user_id)->limit($limit)->get()
+            : collect();
+
         return $this->mergeSortedRows(
             $limit,
             $this->mapLegalRows($q->orderByDesc('accepted_at')->limit($limit)->get()),
             $this->mapParticipationRows($participations),
+            $this->mapUserActivityRows($activity),
         );
     }
 
@@ -226,12 +247,65 @@ class PanelActivityLogService
             ->limit($limit)
             ->get();
 
+        $activity = $this->userActivityQuery()
+            ->where('user_id', $targetUser->id)
+            ->limit($limit)
+            ->get();
+
         return $this->mergeSortedRows(
             $limit,
             $this->mapLegalRows($legal),
             $this->mapParticipationRows($participations),
             $this->mapPaymentRows($payments),
+            $this->mapUserActivityRows($activity),
         );
+    }
+
+    /**
+     * Inicios de sesión y cambios de datos de entidad (vacío si la tabla aún no existe).
+     */
+    protected function userActivityQuery(): Builder
+    {
+        $query = UserActivityAuditLog::query()
+            ->with('user:id,name,email,role')
+            ->orderByDesc('created_at');
+
+        if (! Schema::hasTable('user_activity_audit_logs')) {
+            $query->whereRaw('1 = 0');
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  Collection<int, UserActivityAuditLog>  $rows
+     * @return list<array<string, mixed>>
+     */
+    protected function mapUserActivityRows(Collection $rows): array
+    {
+        return $rows->map(function (UserActivityAuditLog $log) {
+            $at = $log->created_at;
+            $isLogin = $log->event === UserActivityAuditLog::EVENT_LOGIN;
+
+            return [
+                'sort_at' => $at?->timestamp ?? 0,
+                'fecha' => $at ? $at->format('d/m/Y') : '—',
+                'hora' => $at ? $at->format('H:i').'h' : '—',
+                'usuario' => $log->user?->email ?? ($log->user?->name ?? '—'),
+                'rol' => $this->roleLabel($log->user?->role),
+                'accion' => $isLogin
+                    ? ($log->channel === UserActivityAuditLog::CHANNEL_APP ? 'Inicio de sesión app' : 'Inicio de sesión panel')
+                    : 'Cambio datos entidad',
+                'objeto' => $isLogin
+                    ? '—'
+                    : 'Entidad #'.(int) $log->entity_id.' · '.(string) $log->field,
+                'detalle' => $isLogin
+                    ? '—'
+                    : Str::limit(trim(((string) ($log->old_value ?? '')).' → '.((string) ($log->new_value ?? ''))), 120),
+                'ip' => $log->ip ?: '—',
+                'dispositivo' => Str::limit((string) ($log->user_agent ?: '—'), 48),
+            ];
+        })->values()->all();
     }
 
     /**

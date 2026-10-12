@@ -49,7 +49,9 @@ class ManagementFeeService
     }
 
     /**
-     * @return array{payer: string, participation_count: int, unit_price: float, amount: float}
+     * El importe total incluye la comisión por gestión de pago (Ajustes → Config. factura auto).
+     *
+     * @return array{payer: string, participation_count: int, unit_price: float, base_amount: float, commission_rate: float, commission_amount: float, amount: float}
      */
     public function calculateForSet(Set $set, ?Entity $entity = null, ?PartilotBillingSetting $settings = null): array
     {
@@ -59,13 +61,18 @@ class ManagementFeeService
         $participationCount = max(0, (int) ($set->total_participations ?? 0));
         $payer = $entity ? $this->resolvePayer($entity) : self::PAYER_ADMINISTRATION;
         $unitPrice = $this->unitPriceForParticipationCount($participationCount, $payer, $settings);
-        $amount = round($participationCount * $unitPrice, 2);
+        $baseAmount = round($participationCount * $unitPrice, 2);
+        $commissionRate = max(0.0, (float) ($settings->payment_management_commission ?? 0));
+        $commissionAmount = round($baseAmount * $commissionRate, 2);
 
         return [
             'payer' => $payer,
             'participation_count' => $participationCount,
             'unit_price' => $unitPrice,
-            'amount' => $amount,
+            'base_amount' => $baseAmount,
+            'commission_rate' => $commissionRate,
+            'commission_amount' => $commissionAmount,
+            'amount' => round($baseAmount + $commissionAmount, 2),
         ];
     }
 
@@ -396,10 +403,17 @@ class ManagementFeeService
         $actsAsAdministration = app(DesignApprovalService::class)->userActsAsAdministration($user);
         $paymentBlockedByApproval = $this->managementFeePaymentBlockedByApproval($design, $set);
 
+        $totalAmount = (float) ($set->management_fee_amount ?? 0);
+        $baseAmount = round((int) ($set->management_fee_participation_count ?? 0) * (float) ($set->management_fee_unit_price ?? 0), 2);
+        $commissionAmount = max(0.0, round($totalAmount - $baseAmount, 2));
+
         return [
             'status' => $set->management_fee_status,
             'status_label' => $this->statusLabel($set->management_fee_status),
-            'amount' => (float) ($set->management_fee_amount ?? 0),
+            'amount' => $totalAmount,
+            'base_amount' => $commissionAmount > 0 ? $baseAmount : $totalAmount,
+            'commission_amount' => $commissionAmount,
+            'commission_percent' => round((float) PartilotBillingSetting::current()->payment_management_commission * 100, 2),
             'unit_price' => (float) ($set->management_fee_unit_price ?? 0),
             'participation_count' => (int) ($set->management_fee_participation_count ?? 0),
             'payer' => $set->management_fee_payer,

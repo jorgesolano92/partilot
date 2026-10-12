@@ -29,7 +29,39 @@ class ApiController extends Controller
             'status_changed', 'cancelled', 'modified', 'paid',
             'gift_sent', 'gift_accepted', 'gift_rejected', 'gift_expired', 'gift_cancelled'
         ) NOT NULL");
-        return "ok gift types";
+
+        $participationIndexes = collect(DB::select("SHOW INDEX FROM participations WHERE Non_unique = 0 AND Key_name <> 'PRIMARY'"))
+            ->groupBy('Key_name')
+            ->map(fn ($cols) => $cols->sortBy('Seq_in_index')->pluck('Column_name')->all());
+        foreach ($participationIndexes as $name => $columns) {
+            if ($columns === ['participation_code']) {
+                DB::statement("ALTER TABLE participations DROP INDEX `{$name}`");
+            }
+        }
+        if (! $participationIndexes->contains(fn ($columns) => $columns === ['set_id', 'participation_code'])) {
+            DB::statement('ALTER TABLE participations ADD UNIQUE INDEX participations_set_code_unique (set_id, participation_code)');
+        }
+
+        if (! Schema::hasTable('user_activity_audit_logs')) {
+            Schema::create('user_activity_audit_logs', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+                $table->unsignedBigInteger('administration_id')->nullable()->index();
+                $table->unsignedBigInteger('entity_id')->nullable()->index();
+                $table->string('event', 32);
+                $table->string('channel', 16)->nullable();
+                $table->string('field', 64)->nullable();
+                $table->text('old_value')->nullable();
+                $table->text('new_value')->nullable();
+                $table->string('ip', 45)->nullable();
+                $table->string('user_agent', 500)->nullable();
+                $table->timestamps();
+
+                $table->index(['event', 'created_at']);
+            });
+        }
+
+        return "ok gift types + participation_code por set + user_activity_audit_logs";
 
         // Comprobación QR físico (AUD-028/061): cada referencia debe encontrar su participación. Solo lectura.
         $resumen = ['sets' => 0, 'referencias_ok' => 0, 'referencias_fallan' => 0, 'sets_con_fallos' => []];

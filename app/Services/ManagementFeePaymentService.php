@@ -106,9 +106,16 @@ class ManagementFeePaymentService
                 'metadata[entity_id]' => (string) $set->entity_id,
                 'metadata[payer_user_id]' => (string) $user->id,
                 'metadata[concept]' => 'management_fee',
-                'automatic_payment_methods[enabled]' => 'true',
                 'setup_future_usage' => 'off_session',
             ];
+
+            // La entidad solo paga con tarjeta; la administración puede usar tarjeta o adeudo SEPA.
+            $payer = $set->management_fee_payer ?? $feeService->calculateForSet($set)['payer'];
+            if ($payer === ManagementFeeService::PAYER_ENTITY) {
+                $formParams['payment_method_types[]'] = 'card';
+            } else {
+                $formParams['automatic_payment_methods[enabled]'] = 'true';
+            }
 
             if ($customerId !== '') {
                 $formParams['customer'] = $customerId;

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reserva creada - Partilot</title>
+    <title>Reserva confirmada - Partilot</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; background:#f4f4f4; }
         .container { background:#fff; padding: 28px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
@@ -18,7 +18,7 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1>Reserva creada - Partilot</h1>
+        <h1>Reserva confirmada - Partilot</h1>
     </div>
 
     @php
@@ -37,13 +37,13 @@
 
     <p>Hola <strong>{{ $managerName }}</strong>,</p>
 
-    <p>Te informamos de que se ha guardado una <strong>reserva</strong> para la entidad <strong>{{ $reserve->entity?->name ?? '-' }}</strong>.</p>
+    <p>Te informamos de que la administración ha registrado y <strong>confirmado</strong> una reserva para la entidad <strong>{{ $reserve->entity?->name ?? '-' }}</strong>. Ya puedes crear sets con ella.</p>
 
     <div class="box">
         <p><strong>Sorteo:</strong> {{ $lottery?->name ?? 'N/A' }} @if($lottery?->draw_date) ({{ \Carbon\Carbon::parse($lottery->draw_date)->format('d/m/Y') }}) @endif</p>
         <p><strong>Total reservado:</strong> {{ number_format((float)($reserve->total_amount ?? 0), 2, ',', '.') }} €</p>
         <p><strong>Números reservados:</strong> {{ count($numbers) }}</p>
-        <p><strong>Dísmos/décimos reservados por número:</strong> {{ $ticketsPerNumber }}</p>
+        <p><strong>Décimos reservados por número:</strong> {{ $ticketsPerNumber }}</p>
     </div>
 
     <p><strong>Detalle por número:</strong></p>
