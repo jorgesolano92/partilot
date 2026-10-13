@@ -2968,6 +2968,16 @@ class DevolutionsController extends Controller
                 ], 400);
             }
 
+            $noAnulables = $participations->reject(fn ($p) => in_array($p->status, Participation::returnableDevolutionStatuses(), true));
+            if ($noAnulables->isNotEmpty()) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo se pueden anular participaciones disponibles o asignadas (no vendidas, pagadas ni devueltas): '
+                        . $noAnulables->take(20)->map(fn ($p) => $p->display_participation_code)->implode(', ')
+                        . ($noAnulables->count() > 20 ? ' y ' . ($noAnulables->count() - 20) . ' más' : ''),
+                ], 400);
+            }
             // Sin observer: con cientos de participaciones dispararía un push síncrono por cada una.
             foreach ($participations->pluck('id')->chunk(500) as $idsChunk) {
                 Participation::whereIn('id', $idsChunk->all())->update([

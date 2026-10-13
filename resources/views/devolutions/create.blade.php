@@ -750,6 +750,11 @@
 
                                             <hr>
 
+                                            <div class="alert alert-warning mb-4">
+                                                <strong>La anulaci&oacute;n es para casos excepcionales</strong> (robo o p&eacute;rdida). Las participaciones anuladas <strong>no se podr&aacute;n volver a emitir</strong> y su importe no vuelve a estar disponible en la reserva.<br>
+                                                Si quieres volver a emitirlas (por ejemplo, porque se han quemado o estropeado), no las anules: haz una <strong>devoluci&oacute;n</strong>.
+                                            </div>
+
                                             <!-- Resumen de Participaciones a Anular -->
                                             <div class="row mb-4">
                                                 <div class="col-12">
@@ -781,8 +786,8 @@
                                                             <h6 class="mb-0">Impacto en la Reserva</h6>
                                                         </div>
                                                         <div class="card-body">
-                                                            <p><strong>Monto Liberado:</strong> <span id="anulacion-monto-liberado" class="text-success fw-bold">0.00€</span></p>
-                                                            <small class="text-muted">Importe (jugado + donativo) de las participaciones anuladas seg&uacute;n el precio de su set.</small>
+                                                            <p><strong>Importe anulado:</strong> <span id="anulacion-monto-liberado" class="text-danger fw-bold">0.00&euro;</span></p>
+                                                            <small class="text-muted">Importe (jugado + donativo) de las participaciones anuladas seg&uacute;n el precio de su set. <strong>No vuelve a estar disponible en la reserva.</strong></small>
                                                             <small id="anulacion-monto-aviso" class="text-warning d-block"></small>
                                                         </div>
                                                     </div>
@@ -3648,7 +3653,7 @@ $(document).ready(function() {
             return;
         }
 
-        if (!confirm(`¿Estás seguro de que quieres anular ${participacionesAsignadas.length} participaciones? Esta acción no se puede deshacer.`)) {
+        if (!confirm(`\u00bfSeguro que quieres anular ${participacionesAsignadas.length} participaciones?\n\nLas participaciones anuladas NO se podr\u00e1n volver a emitir y su importe NO vuelve a estar disponible en la reserva.\n\nSi quieres volver a emitirlas (por ejemplo, porque se han quemado o estropeado), cancela y haz una devoluci\u00f3n.`)) {
             return;
         }
 
