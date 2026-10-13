@@ -3759,22 +3759,52 @@ $(document).ready(function() {
             });
         }
 
-        // Generar resumen de participaciones
-        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Número</th><th>Código</th><th>Estado</th></tr></thead><tbody>';
-        
-        participacionesAsignadas.forEach(participation => {
+        anulacionPagina = 1;
+        pintarResumenAnulacion();
+    }
+
+    let anulacionPagina = 1;
+    const ANULACION_POR_PAGINA = 25;
+
+    function pintarResumenAnulacion() {
+        const total = participacionesAsignadas.length;
+        const paginas = Math.max(1, Math.ceil(total / ANULACION_POR_PAGINA));
+        anulacionPagina = Math.min(Math.max(1, anulacionPagina), paginas);
+        const inicio = (anulacionPagina - 1) * ANULACION_POR_PAGINA;
+        const pagina = participacionesAsignadas.slice(inicio, inicio + ANULACION_POR_PAGINA);
+
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>N&uacute;mero</th><th>C&oacute;digo</th><th>Set</th><th>Estado</th></tr></thead><tbody>';
+        pagina.forEach(participation => {
             html += `
                 <tr>
                     <td>${participation.number || participation.participation_number}</td>
                     <td>${participation.participation_code}</td>
+                    <td>${participation.set_name || '-'}</td>
                     <td><span class="badge bg-warning">Se anular&aacute;</span></td>
                 </tr>
             `;
         });
-        
         html += '</tbody></table></div>';
+
+        if (paginas > 1) {
+            html += `<div class="d-flex justify-content-between align-items-center mt-2">
+                <small class="text-muted">Mostrando ${inicio + 1}-${Math.min(inicio + ANULACION_POR_PAGINA, total)} de ${total}</small>
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary anulacion-pag" data-pag="1" ${anulacionPagina === 1 ? 'disabled' : ''}>&laquo;</button>
+                    <button type="button" class="btn btn-outline-secondary anulacion-pag" data-pag="${anulacionPagina - 1}" ${anulacionPagina === 1 ? 'disabled' : ''}>&lsaquo;</button>
+                    <span class="btn btn-outline-secondary disabled">${anulacionPagina} / ${paginas}</span>
+                    <button type="button" class="btn btn-outline-secondary anulacion-pag" data-pag="${anulacionPagina + 1}" ${anulacionPagina === paginas ? 'disabled' : ''}>&rsaquo;</button>
+                    <button type="button" class="btn btn-outline-secondary anulacion-pag" data-pag="${paginas}" ${anulacionPagina === paginas ? 'disabled' : ''}>&raquo;</button>
+                </div>
+            </div>`;
+        }
         $('#anulacion-resumen-participaciones').html(html);
     }
+
+    $(document).on('click', '.anulacion-pag', function() {
+        anulacionPagina = parseInt($(this).data('pag'), 10) || 1;
+        pintarResumenAnulacion();
+    });
 
     // Modificar la función mostrarPaso para incluir anulación
     const mostrarPasoOriginal = mostrarPaso;
