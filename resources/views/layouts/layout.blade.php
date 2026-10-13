@@ -2437,6 +2437,9 @@
                     if (list.indexOf(uuid) === -1) {
                         list.push(uuid);
                         sessionStorage.setItem(PARTILOT_WATCHED_TASKS_KEY, JSON.stringify(list));
+                        if (typeof window.partilotKickBackgroundPoll === 'function') {
+                            window.partilotKickBackgroundPoll();
+                        }
                     }
                 };
 
@@ -2635,10 +2638,10 @@
 
                 const pollWatchedTasks = function () {
                     var watched = getWatchedTaskUuids();
-                    if (!watched.length) return;
+                    if (!watched.length) return Promise.resolve();
 
-                    watched.forEach(function (uuid) {
-                        fetch(taskShowUrl(uuid), {
+                    return Promise.all(watched.map(function (uuid) {
+                        return fetch(taskShowUrl(uuid), {
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'Accept': 'application/json'
@@ -2653,11 +2656,11 @@
                                 }
                             })
                             .catch(function () {});
-                    });
+                    }));
                 };
 
                 const pollBackgroundTasks = () => {
-                    fetch(pollUrl, {
+                    return fetch(pollUrl, {
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest',
                             'Accept': 'application/json'
@@ -2675,13 +2678,35 @@
                         .catch(() => {});
                 };
 
+                // Sin solapar peticiones: la siguiente ronda se programa al terminar la anterior.
+                var backgroundPollTimer = null;
+                var backgroundPollRunning = false;
+                const scheduleBackgroundPoll = function (delay) {
+                    clearTimeout(backgroundPollTimer);
+                    if (delay === undefined) {
+                        delay = getWatchedTaskUuids().length ? 3000 : 30000;
+                    }
+                    backgroundPollTimer = setTimeout(runBackgroundPoll, delay);
+                };
+                window.partilotKickBackgroundPoll = function () {
+                    if (!backgroundPollRunning) scheduleBackgroundPoll(3000);
+                };
+                const runBackgroundPoll = function () {
+                    if (document.hidden) {
+                        scheduleBackgroundPoll();
+                        return;
+                    }
+                    backgroundPollRunning = true;
+                    Promise.all([pollWatchedTasks(), pollBackgroundTasks()])
+                        .catch(function () {})
+                        .then(function () {
+                            backgroundPollRunning = false;
+                            scheduleBackgroundPoll();
+                        });
+                };
+
                 acknowledgeHistoricalTasks();
-                pollWatchedTasks();
-                pollBackgroundTasks();
-                setInterval(function () {
-                    pollWatchedTasks();
-                    pollBackgroundTasks();
-                }, 3000);
+                runBackgroundPoll();
             });
         </script>
         @endauth
