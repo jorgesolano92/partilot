@@ -12,6 +12,7 @@ use App\Models\Set;
 use App\Models\Devolution;
 use App\Models\DevolutionDetail;
 use App\Models\DevolutionPayment;
+use App\Models\ParticipationActivityLog;
 use App\Models\EntityLotteryPrizeSetting;
 use App\Mail\DevolutionReturnedToAdministrationMail;
 use App\Mail\DevolutionReturnedToEntityManagerMail;
@@ -2876,6 +2877,27 @@ class DevolutionsController extends Controller
         }
     }
 
+    private function notifyEntityManagerOfAnnulment(int $entityId, int $count, string $motivo): void
+    {
+        try {
+            $user = Entity::with('manager.user.fcmTokens')->find($entityId)?->manager?->user;
+            if (! $user || $user->fcmTokens->isEmpty() || $user->shouldExcludeFromOperationalPushRecipients()) {
+                return;
+            }
+            $firebase = app(\App\Services\FirebaseServiceModern::class);
+            foreach ($user->fcmTokens->pluck('token')->unique() as $token) {
+                $firebase->sendToDevice(
+                    $token,
+                    'Participaciones anuladas',
+                    "Se han anulado {$count} participación(es). Motivo: {$motivo}",
+                    ['type' => 'participation_update', 'event' => 'cancelled_bulk', 'entity_id' => (string) $entityId, 'count' => (string) $count]
+                );
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('No se pudo enviar el aviso de anulación al gestor', ['entity_id' => $entityId, 'error' => $e->getMessage()]);
+        }
+    }
+
     /**
      * Procesar anulación de participaciones
      */
@@ -2946,35 +2968,31 @@ class DevolutionsController extends Controller
                 ], 400);
             }
 
-            // Anular las participaciones
+            // Sin observer: con cientos de participaciones dispararía un push síncrono por cada una.
+            foreach ($participations->pluck('id')->chunk(500) as $idsChunk) {
+                Participation::whereIn('id', $idsChunk->all())->update([
+                    'status' => 'anulada',
+                    'cancellation_reason' => $data['motivo'],
+                    'cancelled_by' => $userId,
+                    'cancellation_date' => $now->format('Y-m-d'),
+                    'updated_at' => $now,
+                ]);
+            }
+
             foreach ($participations as $participation) {
-                try {
-                    // Anular la participación (usar update para disparar observer)
-                    $participation->update([
-                        'status' => 'anulada',
+                ParticipationActivityLog::log($participation->id, 'cancelled', [
+                    'entity_id' => $participation->entity_id,
+                    'seller_id' => $participation->seller_id,
+                    'old_status' => $participation->status,
+                    'new_status' => 'anulada',
+                    'description' => 'Participación anulada: ' . $data['motivo'],
+                    'metadata' => [
                         'cancellation_reason' => $data['motivo'],
                         'cancelled_by' => $userId,
                         'cancellation_date' => $now->format('Y-m-d'),
-                    ]);
-                } catch (\Exception $observerError) {
-                    // Si el observer falla, continuar sin rollback
-                    \Log::warning("Observer falló para participación {$participation->id}", [
-                        'error' => $observerError->getMessage()
-                    ]);
-                    
-                    // Actualizar directamente sin observer
-                    \DB::table('participations')
-                        ->where('id', $participation->id)
-                        ->update([
-                            'status' => 'anulada',
-                            'cancellation_reason' => $data['motivo'],
-                            'cancelled_by' => $userId,
-                            'cancellation_date' => $now->format('Y-m-d'),
-                            'updated_at' => $now,
-                        ]);
-                }
+                    ],
+                ]);
             }
-
             // Crear registro de devolución para auditoría
             \Log::info("Creando registro de devolución para anulación", [
                 'entity_id' => $data['entity_id'],
@@ -3018,6 +3036,8 @@ class DevolutionsController extends Controller
             \Log::info("Detalles de anulación creados exitosamente");
 
             DB::commit();
+
+            $this->notifyEntityManagerOfAnnulment((int) $data['entity_id'], $participations->count(), $data['motivo']);
             
             \Log::info("=== TRANSACCIÓN DE ANULACIÓN CONFIRMADA EXITOSAMENTE ===", [
                 'devolution_id' => $devolution->id,

@@ -782,8 +782,8 @@
                                                         </div>
                                                         <div class="card-body">
                                                             <p><strong>Monto Liberado:</strong> <span id="anulacion-monto-liberado" class="text-success fw-bold">0.00€</span></p>
-                                                            <p><strong>Crédito Disponible:</strong> <span id="anulacion-credito-disponible" class="text-info fw-bold">0.00€</span></p>
-                                                            <small class="text-muted">Este monto podrá ser utilizado para crear nuevos sets</small>
+                                                            <small class="text-muted">Importe (jugado + donativo) de las participaciones anuladas seg&uacute;n el precio de su set.</small>
+                                                            <small id="anulacion-monto-aviso" class="text-warning d-block"></small>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3726,40 +3726,37 @@ $(document).ready(function() {
         $('#anulacion-set-nombre').text(setSeleccionado ? `Set #${setSeleccionado.id}` : '-');
         $('#anulacion-total-participaciones').text(participacionesAsignadas.length);
 
-        // Precio para liquidación = total_participation_amount (jugado + donación)
-        let precioPorParticipacion = 0;
-        if (setSeleccionado) {
-            precioPorParticipacion = parseFloat(setSeleccionado.total_participation_amount) || (parseFloat(setSeleccionado.played_amount) + parseFloat(setSeleccionado.donation_amount || 0)) || 0;
-        }
-        
-        // Si no tenemos precio, intentar obtenerlo del backend
-        if (precioPorParticipacion === 0 && participacionesAsignadas.length > 0 && setSeleccionado) {
-            console.log('No se encontró precio en setSeleccionado, obteniendo del backend...');
-            obtenerPrecioSet(setSeleccionado.id, function(precio) {
+        const preciosPorSet = {};
+        const setIds = [...new Set(participacionesAsignadas.map(p => p.set_id).filter(Boolean))];
+        const pintarImporteLiberado = function() {
+            let total = 0;
+            let sinPrecio = 0;
+            participacionesAsignadas.forEach(p => {
+                const precio = preciosPorSet[p.set_id];
                 if (precio > 0) {
-                    const montoLiberado = participacionesAsignadas.length * precio;
-                    console.log('Precio obtenido del backend:', precio);
-                    console.log('Monto liberado recalculado:', montoLiberado);
-                    
-                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '€');
-                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '€');
+                    total += precio;
                 } else {
-                    console.log('No se pudo obtener precio del backend, usando valor por defecto');
-                    const montoLiberado = participacionesAsignadas.length * 5;
-                    $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '€');
-                    $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '€');
+                    sinPrecio++;
                 }
             });
+            $('#anulacion-monto-liberado').text(total.toFixed(2) + '\u20ac');
+            $('#anulacion-monto-aviso').text(sinPrecio > 0 ? (sinPrecio + ' participaci\u00f3n(es) sin precio de set conocido no se incluyen en el importe.') : '');
+        };
+        $('#anulacion-monto-liberado').text('Calculando...');
+        $('#anulacion-monto-aviso').text('');
+        if (setIds.length === 0) {
+            pintarImporteLiberado();
+        } else {
+            let pendientes = setIds.length;
+            setIds.forEach(setId => {
+                obtenerPrecioSet(setId, function(precio) {
+                    preciosPorSet[setId] = precio;
+                    if (--pendientes === 0) {
+                        pintarImporteLiberado();
+                    }
+                });
+            });
         }
-        
-        const montoLiberado = participacionesAsignadas.length * precioPorParticipacion;
-        
-        console.log('Precio por participación final:', precioPorParticipacion);
-        console.log('Número de participaciones:', participacionesAsignadas.length);
-        console.log('Monto liberado calculado:', montoLiberado);
-        
-        $('#anulacion-monto-liberado').text(montoLiberado.toFixed(2) + '€');
-        $('#anulacion-credito-disponible').text(montoLiberado.toFixed(2) + '€');
 
         // Generar resumen de participaciones
         let html = '<div class="table-responsive"><table class="table table-sm table-hover"><thead class="table-light"><tr><th>Número</th><th>Código</th><th>Estado</th></tr></thead><tbody>';
@@ -3769,7 +3766,7 @@ $(document).ready(function() {
                 <tr>
                     <td>${participation.number || participation.participation_number}</td>
                     <td>${participation.participation_code}</td>
-                    <td><span class="badge bg-warning">Se anular?</span></td>
+                    <td><span class="badge bg-warning">Se anular&aacute;</span></td>
                 </tr>
             `;
         });
