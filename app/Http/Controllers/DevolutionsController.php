@@ -2887,6 +2887,8 @@ class DevolutionsController extends Controller
             return $resp;
         }
 
+        @set_time_limit(300);
+
         try {
             DB::beginTransaction();
             \Log::info("Transacción de anulación iniciada");
@@ -2926,6 +2928,7 @@ class DevolutionsController extends Controller
                 ->whereIn('id', $data['participations'])->get();
             
             if ($participations->isEmpty()) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'No se encontraron participaciones para anular'
@@ -2935,6 +2938,7 @@ class DevolutionsController extends Controller
             // VALIDAR: Rechazar participaciones que ya están anuladas
             $yaAnuladas = $participations->where('status', 'anulada');
             if ($yaAnuladas->count() > 0) {
+                DB::rollBack();
                 $codigosAnulados = $yaAnuladas->map(fn ($p) => $p->display_participation_code)->toArray();
                 return response()->json([
                     'success' => false,
@@ -3001,17 +3005,14 @@ class DevolutionsController extends Controller
                 'participations_count' => $participations->count()
             ]);
             
-            foreach ($participations as $participation) {
-                \Log::info("Creando detalle para participación", [
-                    'devolution_id' => $devolution->id,
-                    'participation_id' => $participation->id
-                ]);
-                
-                DevolutionDetail::create([
+            foreach ($participations->chunk(500) as $chunk) {
+                DevolutionDetail::insert($chunk->map(fn ($participation) => [
                     'devolution_id' => $devolution->id,
                     'participation_id' => $participation->id,
-                    'action' => 'anular'
-                ]);
+                    'action' => 'anular',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->values()->all());
             }
             
             \Log::info("Detalles de anulación creados exitosamente");

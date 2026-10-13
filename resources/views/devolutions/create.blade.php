@@ -2690,7 +2690,9 @@ $(document).ready(function() {
             $.ajax({
                 url: "{{ route('devolutions.store') }}",
                 method: 'POST',
-                data: payloadData,
+                data: JSON.stringify(payloadData),
+                contentType: 'application/json',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                 success: function(response) {
                     if (response.queued && response.success) {
                         if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
@@ -3050,7 +3052,9 @@ $(document).ready(function() {
             $.ajax({
                 url: "{{ route('devolutions.store') }}",
                 method: 'POST',
-                data: payloadData,
+                data: JSON.stringify(payloadData),
+                contentType: 'application/json',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                 success: function(response) {
                     if (response.queued && response.success) {
                         if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
@@ -3252,7 +3256,9 @@ $(document).ready(function() {
         $.ajax({
             url: "{{ route('devolutions.store') }}",
             method: 'POST',
-            data: payloadData,
+            data: JSON.stringify(payloadData),
+            contentType: 'application/json',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
             success: function(response) {
                 if (response.queued && response.success) {
                     if (response.task_uuid && typeof window.partilotWatchBackgroundTask === 'function') {
@@ -3663,7 +3669,9 @@ $(document).ready(function() {
         $.ajax({
             url: '{{ route("devolutions.store") }}',
             method: 'POST',
-            data: datosAnulacion,
+            data: JSON.stringify(datosAnulacion),
+            contentType: 'application/json',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
             success: function(response) {
                 if (response.success) {
                     alert('Anulación procesada correctamente');
@@ -3675,7 +3683,8 @@ $(document).ready(function() {
             },
             error: function(xhr, status, error) {
                 console.error('Error en anulación:', error);
-                alert('Error al procesar la anulación');
+                var msg = (xhr.responseJSON && (xhr.responseJSON.message || (xhr.responseJSON.errors && Object.values(xhr.responseJSON.errors)[0][0]))) || ('HTTP ' + xhr.status);
+                alert('Error al procesar la anulación: ' + msg);
             },
             complete: function() {
                 $('#btn-confirmar-anulacion').prop('disabled', false).html('<i class="ri-check-line"></i> Confirmar Anulación');
