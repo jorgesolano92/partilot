@@ -3723,7 +3723,8 @@ $(document).ready(function() {
         // Llenar información básica
         $('#anulacion-entidad-nombre').text(entidadSeleccionada ? entidadSeleccionada.name : '-');
         $('#anulacion-sorteo-nombre').text(sorteoSeleccionado ? (sorteoSeleccionado.lottery_name || sorteoSeleccionado.name || '-') : '-');
-        $('#anulacion-set-nombre').text(setSeleccionado ? `Set #${setSeleccionado.id}` : '-');
+        const nombresSets = [...new Set(participacionesAsignadas.map(p => p.set_name).filter(Boolean))];
+        $('#anulacion-set-nombre').text(nombresSets.length ? nombresSets.join(', ') : (setSeleccionado ? (setSeleccionado.set_name || `Set #${setSeleccionado.id}`) : '-'));
         $('#anulacion-total-participaciones').text(participacionesAsignadas.length);
 
         const preciosPorSet = {};
