@@ -1325,7 +1325,7 @@
                             </li>
 
                             @if(!empty($entitySwitcherOptions))
-                            <li class="dropdown d-none d-md-block partilot-entity-switcher">
+                            <li class="dropdown partilot-entity-switcher">
                                 <a class="nav-link dropdown-toggle waves-effect waves-light arrow-none" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" title="Cambiar entidad activa">
                                     <i class="ri-building-2-line font-22"></i>
                                 </a>
