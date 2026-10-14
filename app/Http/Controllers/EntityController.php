@@ -74,7 +74,7 @@ class EntityController extends Controller
     public function create(Request $request)
     {
         if ($request->boolean('reset')) {
-            $request->session()->forget(['entity_information', 'entity_manager', 'selected_administration', 'selected_administration_id']);
+            $this->forgetWizardSession($request);
         }
 
         if ($redirect = $this->redirectIfImplicitAdministration($request, 'entities.add-information')) {
@@ -155,12 +155,11 @@ class EntityController extends Controller
         if ($isNatural) {
             $rules['nif_cif'] = 'nullable|string|max:20';
         } else {
-            $wizardEntityId = (int) ($request->session()->get('wizard_entity_id')
-                ?? data_get($request->session()->get('entity_information'), 'id', 0));
+            $wizardEntity = $this->resolveWizardEntity($request);
             $rules['nif_cif'] = [
                 'required', 'string', 'max:20',
                 new \App\Rules\EntityDocument,
-                new \App\Rules\UniqueEntityDocument($wizardEntityId > 0 ? $wizardEntityId : null),
+                new \App\Rules\UniqueEntityDocument($wizardEntity?->id),
             ];
         }
 
@@ -226,11 +225,7 @@ class EntityController extends Controller
         // INC-014: persistir la entidad antes del paso de invitación del gestor.
         try {
             $entity = DB::transaction(function () use ($request, $administration, $validated) {
-                $wizardEntityId = (int) ($request->session()->get('wizard_entity_id')
-                    ?? data_get($request->session()->get('entity_information'), 'id', 0));
-                $existing = $wizardEntityId > 0
-                    ? Entity::forUser(auth()->user())->find($wizardEntityId)
-                    : null;
+                $existing = $this->resolveWizardEntity($request);
 
                 if ($existing) {
                     $entity = app(EntityPanelAccessService::class)
@@ -845,6 +840,10 @@ class EntityController extends Controller
             } catch (\Throwable $e) {
                 \Log::warning('Fallo enviando invitación a gestor nuevo: '.$e->getMessage());
             }
+        }
+
+        if ((int) $request->session()->get('wizard_entity_id') === (int) $entity->id) {
+            $this->forgetWizardSession($request);
         }
 
         return redirect()->route('entities.show', $entity->id)
@@ -2157,7 +2156,27 @@ class EntityController extends Controller
             return null;
         }
 
-        return Entity::forUser(auth()->user())->find($id);
+        // Una entidad que ya tiene gestor (distinto de su propia cuenta de panel) o invitación
+        // dejó de ser borrador del asistente: reutilizarla sobrescribiría una entidad ya dada de alta.
+        $entity = Entity::forUser(auth()->user())
+            ->whereKey($id)
+            ->whereDoesntHave('managers', function ($managers) use ($id) {
+                $managers->whereHas('user', function ($user) use ($id) {
+                    $user->where(function ($q) use ($id) {
+                        $q->whereNull('panel_account_type')
+                            ->orWhere('panel_account_type', '!=', 'entity')
+                            ->orWhere('panel_account_id', '!=', $id);
+                    });
+                });
+            })
+            ->whereDoesntHave('pendingManagerInvitations')
+            ->first();
+
+        if (! $entity) {
+            $request->session()->forget(['wizard_entity_id', 'entity_information.id']);
+        }
+
+        return $entity;
     }
 
     private function resolveOrCreateWizardEntity(Request $request, $administration, array $entityInformation): Entity
