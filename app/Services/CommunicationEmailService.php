@@ -417,6 +417,17 @@ class CommunicationEmailService
                 $manager->setRelation('entity', $entity);
             }
 
+            // Al aceptar o rechazar el cargo se borra el token de confirmación.
+            if (trim((string) $manager->confirmation_token) === '') {
+                if (! $forPreview) {
+                    throw new \RuntimeException(
+                        'No se puede reenviar: el gestor ya respondió a esta invitación (aceptó o rechazó el cargo).'
+                    );
+                }
+                $manager = clone $manager;
+                $manager->confirmation_token = 'preview-token-unavailable';
+            }
+
             // Cuenta nueva: enlace de un solo uso para crear la contraseña (nunca contraseña en claro).
             $setPasswordUrl = '';
             if ($user->exists && $user->must_change_password) {
