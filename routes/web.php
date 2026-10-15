@@ -236,6 +236,7 @@ Route::middleware(['auth', 'administration_saas_contract', 'entity_framework_con
 
     Route::get('panel/contrasena-provisional', [AuthController::class, 'showProvisionalPassword'])->name('provisional-password.show');
     Route::post('panel/contrasena-provisional', [AuthController::class, 'updateProvisionalPassword'])->name('provisional-password.update');
+    Route::post('panel/contrasena-provisional/omitir', [AuthController::class, 'skipProvisionalPassword'])->name('provisional-password.skip');
 
     Route::get('cuenta/mis-datos', [AccountController::class, 'myData'])->name('account.my-data');
     Route::post('cuenta/contrasena', [AccountController::class, 'updatePassword'])->name('account.update-password');

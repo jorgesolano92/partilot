@@ -54,6 +54,7 @@ class EntityPanelReadOnly
             'panel.switch-entity',
             'panel-legal.submit',
             'provisional-password.update',
+            'provisional-password.skip',
             'entity-manager.legacy-password.update',
         ], true);
     }

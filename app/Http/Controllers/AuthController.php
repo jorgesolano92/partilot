@@ -205,6 +205,7 @@ class AuthController extends Controller
             return redirect()->route('entity-manager.legacy-password.show');
         }
 
+        $request->session()->forget(\App\Http\Middleware\RedirectIfProvisionalPassword::SESSION_SKIPPED);
         if ($user->mustChangeProvisionalPassword()) {
             return redirect()->route('provisional-password.show');
         }
@@ -288,6 +289,20 @@ class AuthController extends Controller
         }
 
         return view('auth.provisional-password');
+    }
+
+    public function skipProvisionalPassword(Request $request)
+    {
+        $user = Auth::user();
+        if (! $user || ! $user->mustChangeProvisionalPassword()) {
+            return PanelAuthContext::redirectHome($user);
+        }
+
+        $request->session()->put(\App\Http\Middleware\RedirectIfProvisionalPassword::SESSION_SKIPPED, true);
+        ActiveEntityContext::bootstrapSession($request, $user);
+        PanelAuthContext::clearIntended($request);
+
+        return PanelAuthContext::redirectHome($user);
     }
 
     public function updateProvisionalPassword(Request $request)

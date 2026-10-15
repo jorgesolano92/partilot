@@ -11,6 +11,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class RedirectIfProvisionalPassword
 {
+    /** El usuario pulsó «Omitir por ahora»: no se le vuelve a pedir hasta el próximo inicio de sesión. */
+    public const SESSION_SKIPPED = 'provisional_password_skipped';
+
     /**
      * Rutas que el resto de middlewares del grupo usan como destino (contratos, aceptación legal):
      * deben seguir accesibles para no provocar bucles de redirección.
@@ -33,6 +36,10 @@ class RedirectIfProvisionalPassword
         }
 
         if ($request->routeIs(self::ALLOWED_ROUTES)) {
+            return $next($request);
+        }
+
+        if ($request->session()->get(self::SESSION_SKIPPED)) {
             return $next($request);
         }
 

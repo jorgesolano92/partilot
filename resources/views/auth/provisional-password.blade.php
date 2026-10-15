@@ -47,7 +47,11 @@
                     <button type="submit" class="btn btn-dark" style="border-radius: 30px;">Cambiar contraseña</button>
                 </div>
             </form>
-            <form method="post" action="{{ route('logout') }}" class="mt-3 text-center">
+            <form method="post" action="{{ route('provisional-password.skip') }}" class="mt-3 text-center">
+                @csrf
+                <button type="submit" class="btn btn-outline-secondary w-100" style="border-radius: 30px;">Omitir por ahora</button>
+            </form>
+            <form method="post" action="{{ route('logout') }}" class="mt-2 text-center">
                 @csrf
                 <button type="submit" class="btn btn-link text-muted small">Cerrar sesión</button>
             </form>
