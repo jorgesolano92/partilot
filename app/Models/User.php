@@ -15,7 +15,6 @@ use App\Models\Seller;
 use App\Support\ContactEmailRegistry;
 use App\Mail\PanelPasswordResetMail;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 
 class User extends Authenticatable
 {
@@ -363,14 +362,23 @@ class User extends Authenticatable
         return $this->isSuperAdmin() || $this->isPanelAccount() || $this->isEntity();
     }
 
+    /**
+     * El enlace se regenera al construir el correo (también al reenviarlo desde comunicaciones),
+     * así que el token del broker se sustituye y nunca se guarda en el log.
+     */
     public function sendPasswordResetNotification($token): void
     {
-        $resetUrl = url(route('password.reset', [
-            'token' => $token,
-            'email' => $this->email,
-        ], false));
-
-        Mail::to($this->email)->send(new PanelPasswordResetMail($this, $resetUrl));
+        $communication = app(\App\Services\CommunicationEmailService::class);
+        $communication->sendAndLog(
+            recipientEmail: (string) $this->email,
+            recipientRole: $this->isPanelAccount() ? (string) $this->panel_account_type : 'usuario',
+            recipientUser: $this,
+            messageType: 'panel_password_reset',
+            templateKey: null,
+            mailClass: PanelPasswordResetMail::class,
+            mailPayload: ['user_id' => $this->id],
+            context: $communication->contextForUser($this),
+        );
     }
 
     /**

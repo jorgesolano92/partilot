@@ -3,39 +3,48 @@
 namespace App\Services;
 
 use App\Mail\ManagerProvisionalAccessMail;
-use App\Models\PanelAccessToken;
 use App\Models\User;
 use App\Support\PanelPassword;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class ManagerAccountService
 {
-    public function createUser(array $attributes, string $contextLabel): User
+    /**
+     * @param  array<string, mixed>  $context  Contexto del log de comunicaciones (p. ej. entity_id).
+     */
+    public function createUser(array $attributes, string $contextLabel, array $context = []): User
     {
         // Contraseña aleatoria que nadie conoce: el usuario define la suya con el enlace del correo.
         $user = User::create(array_merge($attributes, [
             'password' => PanelPassword::generate(),
         ]));
 
-        $this->sendSetPasswordEmail($user, $contextLabel);
+        $this->sendSetPasswordEmail($user, $contextLabel, $context);
 
         return $user;
     }
 
-    public function sendSetPasswordEmail(User $user, string $contextLabel): void
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function sendSetPasswordEmail(User $user, string $contextLabel, array $context = []): void
     {
-        try {
-            $days = max(1, (int) config('partilot.panel_magic_link_ttl_days', 7));
-            $token = PanelAccessToken::issueForUser($user, now()->addDays($days));
-            $url = route('account.set-password', ['token' => $token]);
-
-            Mail::to($user->email)->send(new ManagerProvisionalAccessMail($user, $url, $contextLabel, $days));
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo enviar el enlace de alta de contraseña: '.$e->getMessage(), [
-                'user_id' => $user->id,
-                'email' => $user->email,
-            ]);
+        $email = trim((string) ($user->email ?? ''));
+        if ($email === '') {
+            return;
         }
+
+        app(CommunicationEmailService::class)->sendAndLog(
+            recipientEmail: $email,
+            recipientRole: $user->role === User::ROLE_SELLER ? 'vendedor' : 'gestor_entidad',
+            recipientUser: $user,
+            messageType: 'manager_set_password',
+            templateKey: null,
+            mailClass: ManagerProvisionalAccessMail::class,
+            mailPayload: [
+                'user_id' => $user->id,
+                'context_label' => $contextLabel,
+            ],
+            context: $context !== [] ? $context : null,
+        );
     }
 }

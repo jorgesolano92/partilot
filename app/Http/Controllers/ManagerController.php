@@ -157,7 +157,7 @@ class ManagerController extends Controller
                 'nif_cif' => $request->nif_cif ?: null,
                 'birthday' => $request->birthday ?: null,
                 'comment' => $request->comment ?: null,
-            ], 'gestor de entidad');
+            ], 'gestor de entidad', $manager->entity_id ? ['entity_id' => (int) $manager->entity_id] : []);
         } else {
             $resolvedUser->update([
                 'name' => $request->name,

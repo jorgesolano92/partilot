@@ -1426,7 +1426,7 @@ class EntityController extends Controller
                 'last_name2' => $request->manager_last_name2,
                 'email' => $request->manager_email,
                 'role' => User::ROLE_ENTITY,
-            ], 'entidad');
+            ], 'entidad', ['entity_id' => (int) $entity->id]);
         }
 
         // Actualizar datos del usuario

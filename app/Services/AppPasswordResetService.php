@@ -5,8 +5,6 @@ namespace App\Services;
 use App\Mail\AppPasswordResetMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Password;
 
 /**
  * Recuperación de contraseña desde la app (usuarios, vendedores y gestores).
@@ -39,13 +37,17 @@ class AppPasswordResetService
         }
 
         try {
-            $token = Password::broker()->createToken($user);
-            $resetUrl = config('partilot.webapp_url').'/restablecer-contrasena?'.http_build_query([
-                'token' => $token,
-                'email' => $user->email,
-            ]);
-
-            Mail::to($user->email)->send(new AppPasswordResetMail($user, $resetUrl));
+            $communication = app(CommunicationEmailService::class);
+            $communication->sendAndLog(
+                recipientEmail: (string) $user->email,
+                recipientRole: $user->role === User::ROLE_SELLER ? 'vendedor' : 'usuario',
+                recipientUser: $user,
+                messageType: 'app_password_reset',
+                templateKey: null,
+                mailClass: AppPasswordResetMail::class,
+                mailPayload: ['user_id' => $user->id],
+                context: $communication->contextForUser($user),
+            );
         } catch (\Throwable $e) {
             Log::warning('No se pudo enviar el correo de recuperación de la app al usuario '.$user->id.': '.$e->getMessage());
         }

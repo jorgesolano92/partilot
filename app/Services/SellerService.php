@@ -270,7 +270,12 @@ class SellerService
         ];
 
         if (! $user) {
-            $user = app(ManagerAccountService::class)->createUser($userData, 'vendedor');
+            $sellerEntityId = (int) ($seller->entities()->value('entities.id') ?? 0);
+            $user = app(ManagerAccountService::class)->createUser(
+                $userData,
+                'vendedor',
+                $sellerEntityId > 0 ? ['entity_id' => $sellerEntityId, 'seller_id' => $seller->id] : ['seller_id' => $seller->id],
+            );
             Log::info("Cuenta de usuario creada para vendedor PARTILOT {$seller->id}");
         } else {
             if ($user->isPanelAccount()) {

@@ -1536,7 +1536,7 @@ class ConfigurationController extends Controller
                 'last_name2' => $validated['last_name2'],
                 'email' => $validated['email'],
                 'role' => User::ROLE_ENTITY,
-            ], 'configuración de entidad');
+            ], 'configuración de entidad', ['entity_id' => (int) $entityId]);
             $manager->update(['user_id' => $managerUser->id]);
         }
 

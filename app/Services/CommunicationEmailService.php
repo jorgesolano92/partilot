@@ -616,6 +616,40 @@ class CommunicationEmailService
             return new \App\Mail\PrintOrderRejectedByPrintShopMail($order, $summaryUrl);
         }
 
+        if ($mailClass === \App\Mail\ManagerProvisionalAccessMail::class) {
+            $user = User::findOrFail((int) ($mailPayload['user_id'] ?? 0));
+            $days = max(1, (int) config('partilot.panel_magic_link_ttl_days', 7));
+            $url = $forPreview
+                ? route('account.set-password', ['token' => '********'], absolute: true)
+                : route('account.set-password', ['token' => \App\Models\PanelAccessToken::issueForUser($user, now()->addDays($days))], absolute: true);
+
+            return new \App\Mail\ManagerProvisionalAccessMail(
+                $user,
+                $url,
+                (string) ($mailPayload['context_label'] ?? 'gestor'),
+                $days,
+            );
+        }
+
+        if ($mailClass === \App\Mail\PanelPasswordResetMail::class) {
+            $user = User::findOrFail((int) ($mailPayload['user_id'] ?? 0));
+            $token = $forPreview ? '********' : \Illuminate\Support\Facades\Password::broker()->createToken($user);
+            $resetUrl = url(route('password.reset', ['token' => $token, 'email' => $user->email], false));
+
+            return new \App\Mail\PanelPasswordResetMail($user, $resetUrl);
+        }
+
+        if ($mailClass === \App\Mail\AppPasswordResetMail::class) {
+            $user = User::findOrFail((int) ($mailPayload['user_id'] ?? 0));
+            $token = $forPreview ? '********' : \Illuminate\Support\Facades\Password::broker()->createToken($user);
+            $resetUrl = config('partilot.webapp_url').'/restablecer-contrasena?'.http_build_query([
+                'token' => $token,
+                'email' => $user->email,
+            ]);
+
+            return new \App\Mail\AppPasswordResetMail($user, $resetUrl);
+        }
+
         throw new \RuntimeException("mail_class no soportado para reenviar: {$mailClass}");
     }
 
@@ -673,6 +707,30 @@ class CommunicationEmailService
         unset($mailPayload['plain_password']);
 
         return $mailPayload;
+    }
+
+    /**
+     * Contexto de comunicaciones para un usuario: entidad que gestiona (para que la vea su panel).
+     *
+     * @return array<string, int>|null
+     */
+    public function contextForUser(User $user): ?array
+    {
+        if ($user->panel_account_type === 'entity' && (int) $user->panel_account_id > 0) {
+            return ['entity_id' => (int) $user->panel_account_id];
+        }
+
+        if ($user->panel_account_type === 'administration' && (int) $user->panel_account_id > 0) {
+            return ['administration_id' => (int) $user->panel_account_id];
+        }
+
+        $entityId = (int) \App\Models\Manager::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('entity_id')
+            ->orderByDesc('is_primary')
+            ->value('entity_id');
+
+        return $entityId > 0 ? ['entity_id' => $entityId] : null;
     }
 
     public function normalizeDeletionReason(mixed $reason): ?string
