@@ -17,6 +17,9 @@
     <div class="card">
         <div class="card-body p-4">
             <p class="text-muted small">Su cuenta usa una <strong>contraseña provisional</strong> enviada por correo. Por seguridad, debe establecer una nueva contraseña (mínimo 8 caracteres) antes de continuar.</p>
+            @if (session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
             @if ($errors->any())
                 <div class="alert alert-danger">
                     <ul class="mb-0">

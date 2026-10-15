@@ -53,6 +53,8 @@ class EntityPanelReadOnly
             'lottery-deadline-reminders.dismiss',
             'panel.switch-entity',
             'panel-legal.submit',
+            'provisional-password.update',
+            'entity-manager.legacy-password.update',
         ], true);
     }
 
