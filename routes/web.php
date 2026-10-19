@@ -696,7 +696,7 @@ Route::put('devolutions/{devolutionId}/payments/{paymentId}', [DevolutionsContro
 Route::delete('devolutions/{devolutionId}/payments/{paymentId}', [DevolutionsController::class, 'deletePayment'])->name('devolutions.payments.delete');
 
 // Resource routes (deben ir AL FINAL para evitar conflictos)
-Route::resource('devolutions', DevolutionsController::class);
+Route::resource('devolutions', DevolutionsController::class)->except(['edit', 'update']);
 
 // Rutas de Usuarios
 Route::get('users-data', [UserController::class, 'data'])->name('users.data');

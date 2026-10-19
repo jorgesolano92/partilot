@@ -196,11 +196,6 @@
                             Detalles de la Devolución
                         </h4>
                         <div>
-                            @unless(Auth::user()->isEntityPanelReadOnly())
-                            <a href="{{ route('devolutions.edit', $devolution->id) }}" class="btn btn-warning me-2" style="border-radius: 30px; background-color: #e78307; color: #333; font-weight: bold;">
-                                <i class="ri-edit-line me-2"></i>Editar
-                            </a>
-                            @endunless
                             <a href="{{ route('devolutions.index') }}" class="btn btn-secondary" style="border-radius: 30px;">
                                 <i class="ri-arrow-left-line me-2"></i>Volver
                             </a>

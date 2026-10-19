@@ -159,15 +159,12 @@
                                                         <img src="{{url('assets/form-groups/eye.svg')}}" alt="" width="12">
                                                     </a>
                                                     @if($participacionesAnuladas == 0)
-                                                        <a href="{{ route('devolutions.edit', $devolution->id) }}" class="btn btn-sm btn-light" title="Editar">
-                                                            <img src="{{url('assets/form-groups/edit.svg')}}" alt="" width="12">
-                                                        </a>
                                                         <button type="button" class="btn btn-sm btn-danger btn-eliminar-devolucion" 
                                                                 data-id="{{ $devolution->id }}" data-name="Devolución #{{ $devolution->id }}" title="Eliminar">
                                                             <i class="ri-delete-bin-6-line"></i>
                                                         </button>
                                                     @else
-                                                        <span class="badge bg-warning" title="Anulación no editable">Anulación</span>
+                                                        <span class="badge bg-warning" title="Anulación">Anulación</span>
                                                     @endif
                                                 </td>
                                             </tr>

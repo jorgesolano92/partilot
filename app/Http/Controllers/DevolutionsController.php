@@ -1250,26 +1250,8 @@ class DevolutionsController extends Controller
      */
     public function edit(string $id)
     {
-        if ($redirect = $this->redirectUnlessDevolutionsWebAccess()) {
-            return $redirect;
-        }
-
-        $devolution = Devolution::with(['entity', 'lottery', 'seller', 'user', 'details.participation.set', 'payments'])
-            ->forUser(auth()->user())
-            ->findOrFail($id);
-
-        if (auth()->user()->isEntityPanelReadOnly()) {
-            return redirect()->route('devolutions.show', $id);
-        }
-
-        if (! auth()->user()->canManageEntityDevolutions((int) $devolution->entity_id)) {
-            return redirect()->route('dashboard')->with(
-                'error',
-                'No puede editar esta devolución. Solo el gestor responsable o la administración pueden acceder.'
-            );
-        }
-
-        return view('devolutions.edit', compact('devolution'));
+        return redirect()->route('devolutions.show', $id)
+            ->with('error', 'Las devoluciones no se pueden editar una vez registradas.');
     }
 
     /**
@@ -1277,7 +1259,7 @@ class DevolutionsController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        // Implementar actualización de devolución
+        abort(403, 'Las devoluciones no se pueden editar una vez registradas.');
     }
 
     /**
@@ -2719,9 +2701,6 @@ class DevolutionsController extends Controller
         }
 
         return $view . '
-            <a href="' . route('devolutions.edit', $id) . '" class="btn btn-sm btn-light" title="Editar">
-                <img src="' . url('assets/form-groups/edit.svg') . '" alt="" width="12">
-                </a>
                 <button type="button" class="btn btn-sm btn-danger btn-eliminar-devolucion" 
                         data-id="' . $id . '" data-name="Devolución #' . $id . '" title="Eliminar">
                 <i class="ri-delete-bin-6-line"></i>
