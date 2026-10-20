@@ -359,7 +359,7 @@
                                                                  </tr>
                                                                  <tr style="font-size: 12px; font-weight: bolder; border-color: transparent;">
                                                                      <td>{{ $participation['participation_number'] }}</td>
-                                                                     <td><label class="badge bg-success">{{ $participation['status'] }}</label></td>
+                                                                     <td><label class="badge {{ $participation['status_badge'] ?? 'bg-secondary' }}">{{ $participation['status'] }}</label></td>
                                                                      <td>{{ $participation['seller'] }}</td>
                                                                      <td>{{ $participation['sale_date'] }}</td>
                                                                      <td>{{ $participation['sale_time'] }}</td>
@@ -642,7 +642,7 @@
                                '</tr>' +
                                '<tr style="font-size: 12px; font-weight: bolder; border-color: transparent;">' +
                                    '<td>' + participation.participation_number + '</td>' +
-                                   '<td><label class="badge bg-success">' + participation.status + '</label></td>' +
+                                   '<td><label class="badge ' + (participation.status_badge || 'bg-secondary') + '">' + participation.status + '</label></td>' +
                                    '<td>' + participation.seller + '</td>' +
                                    '<td>' + participation.sale_date + '</td>' +
                                    '<td>' + participation.sale_time + '</td>' +

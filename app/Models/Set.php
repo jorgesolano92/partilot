@@ -470,6 +470,14 @@ class Set extends Model
     }
 
     /**
+     * Total configurado del set (valor en BD, sin descontar anuladas).
+     */
+    public function configuredTotalParticipations(): int
+    {
+        return (int) ($this->attributes['total_participations'] ?? 0);
+    }
+
+    /**
      * Obtener el total de participaciones restando las anuladas
      */
     public function getTotalParticipationsAttribute()

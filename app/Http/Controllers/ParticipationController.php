@@ -49,6 +49,7 @@ class ParticipationController extends Controller
      */
     private function getSetStatusSummary(int $setId, int $totalConfigured): array
     {
+        // $totalConfigured = total en BD (sin descontar anuladas).
         $counts = \App\Models\Participation::where('set_id', $setId)
             ->select('status', DB::raw('COUNT(*) as c'))
             ->groupBy('status')
@@ -59,12 +60,13 @@ class ParticipationController extends Controller
         $cancelled = (int) ($counts['anulada'] ?? 0);
 
         $knownSum = $sold + $returned + $cancelled;
-        // Si por datos inconsistentes knownSum supera el configurado, ampliamos el total para no dar negativos.
-        $total = max($totalConfigured, $knownSum);
-        $available = max(0, $total - $knownSum);
+        $configured = max($totalConfigured, $knownSum);
+        $available = max(0, $configured - $knownSum);
+        // "total" efectivo (sin anuladas) para importes / Participaciones Totales coherentes.
+        $effectiveTotal = max(0, $configured - $cancelled);
 
         return [
-            'total' => $total,
+            'total' => $effectiveTotal,
             'sold' => $sold,
             'returned' => $returned,
             'cancelled' => $cancelled,
@@ -114,7 +116,7 @@ class ParticipationController extends Controller
         foreach ($designFormats as $designFormat) {
             $this->calculateBooks($designFormat);
             if ($designFormat->set) {
-                $totalConfigured = (int) ($designFormat->set->total_participations ?? 0);
+                $totalConfigured = $designFormat->set->configuredTotalParticipations();
                 $designFormat->set_stats = $this->getSetStatusSummary((int) $designFormat->set->id, $totalConfigured);
                 // Sets digitales: cargar participaciones para mostrar directamente (taco implícito)
                 if ($designFormat->set->digital_participations > 0 && (int) ($designFormat->set->physical_participations ?? 0) === 0) {
@@ -160,7 +162,7 @@ class ParticipationController extends Controller
         foreach ($designFormats as $designFormat) {
             $this->calculateBooks($designFormat);
             if ($designFormat->set) {
-                $totalConfigured = (int) ($designFormat->set->total_participations ?? 0);
+                $totalConfigured = $designFormat->set->configuredTotalParticipations();
                 $designFormat->set_stats = $this->getSetStatusSummary((int) $designFormat->set->id, $totalConfigured);
                 if ($designFormat->set->digital_participations > 0 && (int) ($designFormat->set->physical_participations ?? 0) === 0) {
                     $designFormat->digital_participations_list = $this->getFormattedParticipationsForBook($designFormat->set->id, 1);
@@ -281,7 +283,7 @@ class ParticipationController extends Controller
 
         // Obtener el número de participaciones por taco desde el JSON
         $output = is_string($designFormat->output) ? json_decode($designFormat->output, true) : $designFormat->output;
-        $totalParticipations = $designFormat->set->total_participations ?? 0;
+        $totalParticipations = $designFormat->set->configuredTotalParticipations();
         // Sets digitales: un solo "taco" (serie única), no múltiples talonarios
         $isDigitalOnly = $designFormat->set->digital_participations > 0 && (int) ($designFormat->set->physical_participations ?? 0) === 0;
         $participationsPerBook = $isDigitalOnly ? $totalParticipations : (int) ($output['participations_per_book'] ?? 50);
@@ -460,6 +462,7 @@ class ParticipationController extends Controller
                 'id' => $participation->id,
                 'participation_number' => $participation->display_participation_code,
                 'status' => $participation->status_text ?? $participation->status,
+                'status_badge' => $participation->status_badge ?? 'bg-secondary',
                 'seller' => $participation->seller ? $participation->seller->full_name : 'Sin asignar',
                 'sale_date' => $participation->sale_date ? $participation->sale_date->format('d/m/Y') : '-',
                 'sale_time' => $participation->sale_time ? $participation->sale_time->format('H:i') . 'h' : '-',

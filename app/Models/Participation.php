@@ -424,7 +424,9 @@ class Participation extends Model
     {
         $badges = [
             'disponible' => 'bg-success',
+            'asignada' => 'bg-primary',
             'reservada' => 'bg-warning',
+            'reserva_venta_digital' => 'bg-warning',
             'vendida' => 'bg-primary',
             'devuelta' => 'bg-info',
             'anulada' => 'bg-danger',
