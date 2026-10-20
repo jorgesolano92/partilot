@@ -420,29 +420,9 @@ class ParticipationController extends Controller
             return response()->json(['error' => 'Taco no encontrado'], 404);
         }
         
-        // Obtener las participaciones del taco por book_number (participation_number es global)
-        $participations = \App\Models\Participation::where('set_id', $set_id)
-            ->where('book_number', $book_number)
-            ->with(['seller.user'])
-            ->orderBy('participation_number')
-            ->get();
-        
-                 // Formatear las participaciones para la vista (display_participation_code: 1D/00001 → 1/00001)
-         $formattedParticipations = [];
-         foreach ($participations as $participation) {
-             $formattedParticipations[] = [
-                 'id' => $participation->id,
-                 'participation_number' => $participation->display_participation_code,
-                 'status' => $participation->status_text,
-                 'seller' => $participation->seller ? $participation->seller->full_name : 'Sin asignar',
-                 'sale_date' => $participation->sale_date ? $participation->sale_date->format('d/m/Y') : '-',
-                 'sale_time' => $participation->sale_time ? $participation->sale_time->format('H:i') . 'h' : '-',
-             ];
-         }
-        
         return response()->json([
             'book' => $book,
-            'participations' => $formattedParticipations
+            'participations' => $this->getFormattedParticipationsForBook($set_id, $book_number),
         ]);
     }
 

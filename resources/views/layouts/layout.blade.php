@@ -570,9 +570,9 @@
                 min-width: 80px !important;
             }
             .badge.bg-danger:not(.rounded-circle) {
-                background-color: #f3e8e8 !important;
-                color: #a10000 !important;
-                border: 1px solid #c7a7a7;
+                background-color: #f8d7da !important;
+                color: #842029 !important;
+                border: 1px solid #f1aeb5;
                 border-radius: 8px !important;
                 font-weight: 700;
                 padding: 4px 8px !important;
