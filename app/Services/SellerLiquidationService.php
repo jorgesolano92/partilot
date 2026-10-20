@@ -61,10 +61,10 @@ class SellerLiquidationService
     }
 
     /**
-     * Desglose por vendedor para el aviso previo a la devolución a administración: importe pendiente
-     * y papeletas físicas aún asignadas (en mano), que pasarían a considerarse vendidas al cerrar.
+     * Desglose por vendedor previo a devolución/liquidación a administración:
+     * importe pendiente y participaciones aún asignadas (no vendidas) que deben devolverse antes.
      *
-     * @return list<array{seller_id: int, name: string, pending_amount: float, physical_in_hand: int}>
+     * @return list<array{seller_id: int, name: string, pending_amount: float, physical_in_hand: int, assigned_unsold: int}>
      */
     public function pendingBreakdownForEntityLottery(int $entityId, int $lotteryId): array
     {
@@ -79,12 +79,19 @@ class SellerLiquidationService
         $sellerIds = $sellers->pluck('id')->map(fn ($id) => (int) $id)->all();
         $pendingBySeller = $this->getPendingLiquidationBySellerLottery($sellerIds, $lotteryId);
 
-        $physicalBySeller = Participation::query()
+        $assignedBase = Participation::query()
             ->whereIn('seller_id', $sellerIds)
             ->where('status', 'asignada')
-            ->whereRaw("(participation_code IS NULL OR participation_code NOT LIKE '1D/%')")
             ->whereHas('set', fn ($q) => $q->where('entity_id', $entityId)
-                ->whereHas('reserve', fn ($r) => $r->where('lottery_id', $lotteryId)))
+                ->whereHas('reserve', fn ($r) => $r->where('lottery_id', $lotteryId)));
+
+        $assignedBySeller = (clone $assignedBase)
+            ->selectRaw('seller_id, COUNT(*) as total')
+            ->groupBy('seller_id')
+            ->pluck('total', 'seller_id');
+
+        $physicalBySeller = (clone $assignedBase)
+            ->whereRaw("(participation_code IS NULL OR participation_code NOT LIKE '1D/%')")
             ->selectRaw('seller_id, COUNT(*) as total')
             ->groupBy('seller_id')
             ->pluck('total', 'seller_id');
@@ -92,8 +99,9 @@ class SellerLiquidationService
         $rows = [];
         foreach ($sellers as $seller) {
             $pending = round((float) ($pendingBySeller[$seller->id] ?? 0), 2);
+            $assigned = (int) ($assignedBySeller[$seller->id] ?? 0);
             $physical = (int) ($physicalBySeller[$seller->id] ?? 0);
-            if ($pending <= 0 && $physical <= 0) {
+            if ($pending <= 0 && $assigned <= 0) {
                 continue;
             }
             $name = trim(implode(' ', array_filter([$seller->name, $seller->last_name, $seller->last_name2])));
@@ -105,10 +113,11 @@ class SellerLiquidationService
                 'name' => $name !== '' ? $name : ('Vendedor #'.$seller->id),
                 'pending_amount' => $pending,
                 'physical_in_hand' => $physical,
+                'assigned_unsold' => $assigned,
             ];
         }
 
-        usort($rows, fn ($a, $b) => [$b['physical_in_hand'], $b['pending_amount']] <=> [$a['physical_in_hand'], $a['pending_amount']]);
+        usort($rows, fn ($a, $b) => [$b['assigned_unsold'], $b['pending_amount']] <=> [$a['assigned_unsold'], $a['pending_amount']]);
 
         return $rows;
     }

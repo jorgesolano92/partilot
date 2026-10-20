@@ -3059,10 +3059,6 @@ class DevolutionsController extends Controller
 
     private function sellerLiquidationWarningIfAny(Request $request): ?\Illuminate\Http\JsonResponse
     {
-        if ($request->boolean('acknowledge_seller_liquidation_warning')) {
-            return null;
-        }
-
         $tipo = (string) $request->input('tipo_devolucion', 'administracion');
         if ($tipo === 'vendedor' || $tipo === 'anulacion') {
             return null;
@@ -3075,21 +3071,34 @@ class DevolutionsController extends Controller
         }
 
         $liquidationService = app(SellerLiquidationService::class);
-        $pending = $liquidationService->sumPendingLiquidationForEntityLottery($entityId, $lotteryId);
+        $breakdown = $liquidationService->pendingBreakdownForEntityLottery($entityId, $lotteryId);
+        $assignedUnsold = (int) array_sum(array_column($breakdown, 'assigned_unsold'));
+        $physicalInHand = (int) array_sum(array_column($breakdown, 'physical_in_hand'));
+        $pending = (float) array_sum(array_column($breakdown, 'pending_amount'));
 
-        if ($pending <= 0) {
+        // Obligatorio: el vendedor debe devolver primero las no vendidas (asignadas).
+        if ($assignedUnsold > 0) {
+            return response()->json([
+                'success' => false,
+                'requires_confirmation' => false,
+                'blocking' => true,
+                'warning_code' => 'seller_assigned_pending',
+                'message' => 'No se puede devolver ni liquidar a la administración mientras haya participaciones asignadas a vendedores. '
+                    .'Hay '.$assignedUnsold.' participación(es) sin vender en mano de vendedores: primero deben devolverlas '
+                    .'(devolución vendedor → entidad) y luego continuar con la administración.',
+                'seller_pending_amount' => round($pending, 2),
+                'assigned_unsold_total' => $assignedUnsold,
+                'physical_in_hand_total' => $physicalInHand,
+                'sellers' => $breakdown,
+            ], 422);
+        }
+
+        if ($pending <= 0 || $request->boolean('acknowledge_seller_liquidation_warning')) {
             return null;
         }
 
-        $breakdown = $liquidationService->pendingBreakdownForEntityLottery($entityId, $lotteryId);
-        $soloDevolucion = filter_var($request->input('solo_devolucion', false), FILTER_VALIDATE_BOOLEAN);
-        $physicalInHand = $soloDevolucion ? 0 : array_sum(array_column($breakdown, 'physical_in_hand'));
-
-        $message = 'Hay vendedores con liquidación pendiente para este sorteo ('.number_format($pending, 2, ',', '.').' €).';
-        if ($physicalInHand > 0) {
-            $message .= ' Tienen aún '.$physicalInHand.' papeleta(s) física(s) en mano que, si continúas, pasarán a considerarse vendidas.';
-        }
-        $message .= ' Puedes continuar, pero conviene que liquiden antes.';
+        $message = 'Hay vendedores con liquidación pendiente para este sorteo ('.number_format($pending, 2, ',', '.').' €). '
+            .'Puedes continuar, pero conviene que liquiden antes.';
 
         return response()->json([
             'success' => false,
@@ -3097,7 +3106,7 @@ class DevolutionsController extends Controller
             'warning_code' => 'seller_liquidation_pending',
             'message' => $message,
             'seller_pending_amount' => round($pending, 2),
-            'physical_in_hand_total' => $physicalInHand,
+            'physical_in_hand_total' => 0,
             'sellers' => $breakdown,
         ], 409);
     }

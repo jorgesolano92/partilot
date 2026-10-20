@@ -1370,7 +1370,15 @@
 <script>
 function manejarAdvertenciaLiquidacionVendedores(xhr, payload, reenviarFn) {
     var data = xhr.responseJSON;
-    if (xhr.status === 409 && data && data.requires_confirmation
+    if (!data) return false;
+
+    // Bloqueo: vendedores con participaciones asignadas sin devolver.
+    if ((xhr.status === 422 || xhr.status === 409) && data.warning_code === 'seller_assigned_pending') {
+        mostrarAvisoLiquidacionVendedores(data, null);
+        return true;
+    }
+
+    if (xhr.status === 409 && data.requires_confirmation
         && data.warning_code === 'seller_liquidation_pending'
         && !payload.acknowledge_seller_liquidation_warning) {
         mostrarAvisoLiquidacionVendedores(data, function () {
@@ -1390,39 +1398,46 @@ function escapeHtmlAviso(value) {
 
 function mostrarAvisoLiquidacionVendedores(data, onContinue) {
     var sellers = Array.isArray(data.sellers) ? data.sellers : [];
+    var assignedTotal = parseInt(data.assigned_unsold_total, 10) || 0;
     var physicalTotal = parseInt(data.physical_in_hand_total, 10) || 0;
+    var blocking = !!data.blocking || data.warning_code === 'seller_assigned_pending' || typeof onContinue !== 'function';
+    var showAssigned = assignedTotal > 0 || physicalTotal > 0;
     var rows = sellers.map(function (s) {
+        var assigned = parseInt(s.assigned_unsold, 10) || parseInt(s.physical_in_hand, 10) || 0;
         return '<tr><td>' + escapeHtmlAviso(s.name) + '</td>'
-            + '<td class="text-end">' + (parseFloat(s.pending_amount) || 0).toFixed(2) + ' €</td>'
-            + (physicalTotal > 0 ? '<td class="text-end">' + (parseInt(s.physical_in_hand, 10) || 0) + '</td>' : '')
+            + '<td class="text-end">' + (parseFloat(s.pending_amount) || 0).toFixed(2) + ' \u20ac</td>'
+            + (showAssigned ? '<td class="text-end">' + assigned + '</td>' : '')
             + '</tr>';
     }).join('');
     var table = rows
         ? '<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Vendedor</th><th class="text-end">Importe pendiente</th>'
-            + (physicalTotal > 0 ? '<th class="text-end">Papeletas físicas en mano</th>' : '')
+            + (showAssigned ? '<th class="text-end">Sin devolver</th>' : '')
             + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
         : '';
-    var physicalAlert = physicalTotal > 0
-        ? '<div class="alert alert-danger" style="display:block;">Si continúas, <strong>' + physicalTotal
-            + ' papeleta(s) física(s)</strong> que siguen en manos de vendedores pasarán a considerarse vendidas definitivamente.</div>'
+    var physicalAlert = blocking
+        ? '<div class="alert alert-danger" style="display:block;">Primero hay que hacer la <strong>devoluci\u00f3n vendedor \u2192 entidad</strong> de las participaciones no vendidas. Mientras sigan asignadas a vendedores no se puede liquidar ni devolver a la administraci\u00f3n.</div>'
         : '';
+    var title = blocking ? 'Vendedores con participaciones sin devolver' : 'Vendedores con liquidaci\u00f3n pendiente';
+    var footer = blocking
+        ? '<button type="button" class="btn btn-warning" data-bs-dismiss="modal">Entendido</button>'
+        : '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Revisar antes</button>'
+            + '<button type="button" class="btn btn-danger" id="aviso-liquidacion-continuar">Continuar de todas formas</button>';
     var html = '<div class="modal fade" id="aviso-liquidacion-vendedores" tabindex="-1" data-bs-backdrop="static">'
         + '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">'
-        + '<div class="modal-header"><h5 class="modal-title">Vendedores con liquidación pendiente</h5></div>'
+        + '<div class="modal-header"><h5 class="modal-title">' + title + '</h5></div>'
         + '<div class="modal-body">' + physicalAlert
-        + '<p>' + escapeHtmlAviso(data.message || 'Hay vendedores con liquidación pendiente.') + '</p>' + table + '</div>'
-        + '<div class="modal-footer">'
-        + '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Revisar antes</button>'
-        + '<button type="button" class="btn btn-danger" id="aviso-liquidacion-continuar">Continuar de todas formas</button>'
-        + '</div></div></div></div>';
+        + '<p>' + escapeHtmlAviso(data.message || 'Hay vendedores con liquidaci\u00f3n pendiente.') + '</p>' + table + '</div>'
+        + '<div class="modal-footer">' + footer + '</div></div></div></div>';
 
     $('#aviso-liquidacion-vendedores').remove();
     $('body').append(html);
     var $modal = $('#aviso-liquidacion-vendedores');
-    $modal.find('#aviso-liquidacion-continuar').on('click', function () {
-        $modal.modal('hide');
-        onContinue();
-    });
+    if (!blocking) {
+        $modal.find('#aviso-liquidacion-continuar').on('click', function () {
+            $modal.modal('hide');
+            onContinue();
+        });
+    }
     $modal.on('hidden.bs.modal', function () { $modal.remove(); });
     $modal.modal('show');
 }
