@@ -58,10 +58,35 @@ class EntityContractService
         return $entity->fresh(['administration']);
     }
 
-    public function sendSigningInvitation(Entity $entity): Entity
+    /**
+     * Anula la firma vigente (si la hay) para poder solicitar una nueva firma.
+     * Conserva el PDF firmado anterior en disco; solo limpia el estado activo.
+     */
+    public function reopenForResigning(Entity $entity): Entity
+    {
+        $entity->update([
+            'contract_status' => Entity::CONTRACT_PENDING,
+            'contract_token' => null,
+            'contract_sent_at' => null,
+            'contract_signed_at' => null,
+            'contract_signed_by_user_id' => null,
+            'contract_signer_name' => null,
+            'contract_signer_nif' => null,
+        ]);
+
+        return $entity->fresh(['administration']) ?? $entity;
+    }
+
+    /**
+     * @param  bool  $allowResign  Si true y el contrato ya estaba firmado, lo reabre y envía un nuevo enlace.
+     */
+    public function sendSigningInvitation(Entity $entity, bool $allowResign = false): Entity
     {
         if ($entity->contract_status === Entity::CONTRACT_SIGNED) {
-            throw new \InvalidArgumentException('El contrato marco de la entidad ya está firmado.');
+            if (! $allowResign) {
+                throw new \InvalidArgumentException('El contrato marco de la entidad ya está firmado.');
+            }
+            $entity = $this->reopenForResigning($entity);
         }
 
         $lock = Cache::lock('entity-contract-sign-send:'.$entity->id, 20);
