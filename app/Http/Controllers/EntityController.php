@@ -2318,25 +2318,24 @@ class EntityController extends Controller
         $entity = Entity::forUser(auth()->user())->findOrFail($entity->id);
         $this->assertCanEditEntityData();
 
-        $wasSigned = $entity->hasSignedFrameworkContract();
+        if ($entity->hasSignedFrameworkContract()) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'El contrato marco ya está firmado.');
+        }
 
         try {
-            app(EntityContractService::class)->sendSigningInvitation($entity, allowResign: true);
+            app(EntityContractService::class)->sendSigningInvitation($entity);
         } catch (\Throwable $e) {
             return redirect()->route('entities.show', $entity->id)
                 ->with('error', $e->getMessage());
         }
 
-        $to = $entity->fresh()->signer_email ?: $entity->email;
-        $msg = $wasSigned
-            ? 'Se ha anulado la firma anterior y se ha enviado un nuevo email de firma del contrato marco a '.$to.'.'
-            : 'Se ha reenviado el email de firma del contrato marco a '.$to.'.';
-
-        return redirect()->route('entities.show', $entity->id)->with('success', $msg);
+        return redirect()->route('entities.show', $entity->id)
+            ->with('success', 'Se ha reenviado el email de firma del contrato marco a '.($entity->signer_email ?: $entity->email).'.');
     }
 
     /**
-     * Editar datos del firmante autorizado (también si el contrato ya está firmado).
+     * Editar datos del firmante autorizado (solo si el contrato marco no está firmado).
      */
     public function edit_signer($id)
     {
@@ -2344,11 +2343,16 @@ class EntityController extends Controller
 
         $entity = Entity::forUser(auth()->user())->findOrFail($id);
 
+        if ($entity->hasSignedFrameworkContract()) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'El contrato marco ya está firmado; no se pueden modificar los datos del firmante.');
+        }
+
         return view('entities.edit_signer', compact('entity'));
     }
 
     /**
-     * Actualizar firmante/tipo de cliente y, si se marca, reenviar (o reabrir) el email de firma.
+     * Actualizar firmante/tipo de cliente y, si se marca, reenviar el email de firma.
      */
     public function update_signer(Request $request, $id)
     {
@@ -2356,7 +2360,10 @@ class EntityController extends Controller
 
         $entity = Entity::forUser(auth()->user())->findOrFail($id);
 
-        $wasSigned = $entity->hasSignedFrameworkContract();
+        if ($entity->hasSignedFrameworkContract()) {
+            return redirect()->route('entities.show', $entity->id)
+                ->with('error', 'El contrato marco ya está firmado; no se pueden modificar los datos del firmante.');
+        }
 
         $validated = $request->validate([
             'client_type' => 'required|in:legal_entity,natural_organizer',
@@ -2379,7 +2386,7 @@ class EntityController extends Controller
         $isNatural = ($validated['client_type'] ?? '') === Entity::CLIENT_TYPE_NATURAL_ORGANIZER;
         $validated['signer_is_primary_manager'] = $isNatural ? true : $request->boolean('signer_is_primary_manager');
         $validated['signer_birthday'] = $validated['signer_birthday'] ?? null;
-        $shouldResend = $request->boolean('resend_contract', false);
+        $shouldResend = $request->boolean('resend_contract', true);
 
         unset($validated['resend_contract']);
 
@@ -2387,26 +2394,22 @@ class EntityController extends Controller
         $entity->refresh();
 
         if (! $shouldResend) {
-            $hint = $wasSigned
-                ? 'Datos del firmante actualizados. El contrato firmado se mantiene.'
-                : 'Datos del firmante actualizados. Recuerda reenviar el email de firma si el contrato sigue pendiente.';
-
-            return redirect()->route('entities.show', $entity->id)->with('success', $hint);
+            return redirect()->route('entities.show', $entity->id)
+                ->with('success', 'Datos del firmante actualizados. Recuerda reenviar el email de firma si el contrato sigue pendiente.');
         }
 
         try {
-            app(EntityContractService::class)->sendSigningInvitation($entity, allowResign: true);
+            app(EntityContractService::class)->sendSigningInvitation($entity);
         } catch (\Throwable $e) {
             return redirect()->route('entities.show', $entity->id)
-                ->with('error', 'Firmante actualizado, pero no se pudo enviar el contrato: '.$e->getMessage());
+                ->with('error', 'Firmante actualizado, pero no se pudo reenviar el contrato: '.$e->getMessage());
         }
 
-        $entity->refresh();
-        $msg = $wasSigned
-            ? 'Firmante actualizado. Se anuló la firma anterior y se envió un nuevo email de firma a '.$entity->signer_email.'.'
-            : 'Firmante actualizado. Se ha reenviado el email de firma a '.$entity->signer_email.' (el enlace anterior deja de ser válido).';
-
-        return redirect()->route('entities.show', $entity->id)->with('success', $msg);
+        return redirect()->route('entities.show', $entity->id)
+            ->with(
+                'success',
+                'Firmante actualizado. Se ha reenviado el email de firma a '.$entity->signer_email.' (el enlace anterior deja de ser válido).'
+            );
     }
 
     /**

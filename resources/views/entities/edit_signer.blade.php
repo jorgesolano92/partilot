@@ -37,7 +37,7 @@
 						<div class="form-card bs">
 							<h4 class="mb-0 mt-1">Datos del firmante</h4>
 							<small><i>
-								Corrige los datos del representante autorizado. Al guardar puedes marcar el reenvío del email de firma: si el contrato ya estaba firmado, se anula esa firma y se envía un enlace nuevo.
+								Corrige los datos del representante autorizado. Al guardar puedes marcar el reenvío del email de firma (el enlace anterior dejará de valer).
 							</i></small>
 
 							@if($errors->any())
@@ -53,9 +53,6 @@
 							<div class="alert alert-info mt-3">
 								<strong>Entidad:</strong> {{ $entity->name }}
 								· <strong>Contrato:</strong> {{ $entity->contractStatusLabel() }}
-								@if($entity->hasSignedFrameworkContract())
-									· <span class="text-danger">Si reenvías la firma, se anulará la actual.</span>
-								@endif
 							</div>
 
 							<div class="row mt-2">
@@ -118,13 +115,9 @@
 									<div class="form-check form-switch mt-2 mb-3">
 										<input type="hidden" name="resend_contract" value="0">
 										<input class="form-check-input" type="checkbox" role="switch" name="resend_contract" id="resend_contract" value="1"
-											{{ (string) old('resend_contract', $entity->hasSignedFrameworkContract() ? '0' : '1') === '1' ? 'checked' : '' }}>
+											{{ (string) old('resend_contract', '1') === '1' ? 'checked' : '' }}>
 										<label class="form-check-label" for="resend_contract">
-											@if($entity->hasSignedFrameworkContract())
-												Anular firma actual y enviar nuevo email de firma al firmante
-											@else
-												Reenviar email de firma al correo del firmante
-											@endif
+											Reenviar email de firma al correo del firmante
 										</label>
 									</div>
 								</div>

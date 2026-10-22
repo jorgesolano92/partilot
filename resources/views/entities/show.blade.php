@@ -158,6 +158,16 @@
 	                    				<p class="small text-warning mb-0 mt-2">
 	                    					<i class="ri-file-warning-line"></i> Contrato marco pendiente de firma del representante autorizado.
 	                    				</p>
+	                    				@if($canEditEntityData ?? false)
+	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2" id="entity-resend-contract-form"
+	                    					data-partilot-confirm="¿Reenviar el email de firma a {{ $entity->signer_email ?: $entity->email }}?"
+	                    					data-partilot-confirm-title="Reenviar contrato"
+	                    					data-partilot-confirm-ok="Reenviar">
+	                    					@csrf
+	                    					<button type="submit" id="entity-resend-contract-submit" class="btn btn-sm btn-outline-warning" style="border-radius: 20px;">Reenviar email de firma</button>
+	                    				</form>
+	                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-sm btn-outline-secondary mt-1" style="border-radius: 20px;">Editar firmante</a>
+	                    				@endif
 	                    			@else
 	                    				<p class="small text-success mb-0 mt-2">
 	                    					<i class="ri-checkbox-circle-line"></i> Contrato marco firmado
@@ -165,16 +175,6 @@
 	                    						por {{ $entity->contract_signer_name }}
 	                    					@endif
 	                    				</p>
-	                    			@endif
-	                    			@if($canEditEntityData ?? false)
-	                    				<form method="POST" action="{{ route('entities.resend-contract', $entity->id) }}" class="mt-2" id="entity-resend-contract-form"
-	                    					data-partilot-confirm="{{ $entityContractSigned ? 'El contrato ya está firmado. Se anulará la firma y se enviará un nuevo email a '.($entity->signer_email ?: $entity->email).'. ¿Continuar?' : '¿Reenviar el email de firma a '.($entity->signer_email ?: $entity->email).'?' }}"
-	                    					data-partilot-confirm-title="{{ $entityContractSigned ? 'Reabrir y reenviar contrato' : 'Reenviar contrato' }}"
-	                    					data-partilot-confirm-ok="{{ $entityContractSigned ? 'Anular firma y reenviar' : 'Reenviar' }}">
-	                    					@csrf
-	                    					<button type="submit" id="entity-resend-contract-submit" class="btn btn-sm btn-outline-warning" style="border-radius: 20px;">Reenviar email de firma</button>
-	                    				</form>
-	                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-sm btn-outline-secondary mt-1" style="border-radius: 20px;">Editar firmante</a>
 	                    			@endif
                     			</div>
                     		</div>
@@ -371,7 +371,7 @@
 
 			                    			<h4 class="mb-0 mt-3">
 			                    				Tipo de cliente y firmante
-			                    				@if($canEditEntityData ?? false)
+			                    				@if(($canEditEntityData ?? false) && ! $entity->hasSignedFrameworkContract())
 			                    				<a href="{{ route('entities.edit-signer', $entity->id) }}" class="btn btn-light float-end" style="border: 1px solid silver; border-radius: 30px;">
 			                    					<img src="{{url('assets/form-groups/edit.svg')}}" alt="">
 			                    					Editar firmante
@@ -380,8 +380,8 @@
 			                    			</h4>
 			                    			<small><i>
 			                    				Datos del representante autorizado para el contrato marco (sin cuenta de usuario).
-			                    				@if($canEditEntityData ?? false)
-			                    					Puedes corregirlos y, al guardar, elegir si se reenvía el email de firma (si el contrato ya estaba firmado, se anula la firma anterior).
+			                    				@if(($canEditEntityData ?? false) && ! $entity->hasSignedFrameworkContract())
+			                    					Puedes corregirlos y, al guardar, elegir si se reenvía el email de firma.
 			                    				@endif
 			                    			</i></small>
 			                    			<div class="row mt-2">
