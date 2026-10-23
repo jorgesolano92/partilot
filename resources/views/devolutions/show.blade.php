@@ -73,9 +73,16 @@
                                 <span class="badge bg-secondary ms-1">{{ $devolution->typeLabel() }}</span>
                             @endif
                         </h4>
-                        <a href="{{ route('devolutions.index') }}" class="btn btn-secondary" style="border-radius: 30px;">
-                            <i class="ri-arrow-left-line me-2"></i>Volver
-                        </a>
+                        <div class="d-flex gap-2">
+                            @if(!empty($reserveIdForPdf))
+                                <a href="{{ route('devolutions.reserve-pdf', $devolution->id) }}" class="btn btn-outline-primary" style="border-radius: 30px;" title="PDF acumulado de todas las devoluciones/anulaciones de la reserva">
+                                    <i class="ri-file-pdf-line me-1"></i>PDF de la reserva
+                                </a>
+                            @endif
+                            <a href="{{ route('devolutions.index') }}" class="btn btn-secondary" style="border-radius: 30px;">
+                                <i class="ri-arrow-left-line me-2"></i>Volver
+                            </a>
+                        </div>
                     </div>
 
                     <div class="resumen-devolucion">

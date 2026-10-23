@@ -17,6 +17,7 @@ class Devolution extends Model
     protected $fillable = [
         'entity_id',
         'lottery_id',
+        'reserve_id',
         'seller_id',
         'user_id',
         'total_participations',
@@ -55,11 +56,42 @@ class Devolution extends Model
     }
 
     /**
+     * Relación con Reserve (opcional; PDF acumulativo por reserva)
+     */
+    public function reserve(): BelongsTo
+    {
+        return $this->belongsTo(Reserve::class);
+    }
+
+    /**
      * Relación con Seller (opcional)
      */
     public function seller(): BelongsTo
     {
         return $this->belongsTo(Seller::class);
+    }
+
+    /**
+     * reserve_id persistido o inferido desde details → participation → set.
+     */
+    public function resolvedReserveId(): ?int
+    {
+        if ($this->reserve_id) {
+            return (int) $this->reserve_id;
+        }
+
+        $this->loadMissing('details.participation.set');
+
+        $counts = $this->details
+            ->map(fn ($d) => $d->participation?->set?->reserve_id)
+            ->filter()
+            ->countBy();
+
+        if ($counts->isEmpty()) {
+            return null;
+        }
+
+        return (int) $counts->sortDesc()->keys()->first();
     }
 
     /**

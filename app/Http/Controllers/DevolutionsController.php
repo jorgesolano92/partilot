@@ -318,7 +318,7 @@ class DevolutionsController extends Controller
             ? (int) $entityFilterIdRaw
             : null;
 
-        $query = Devolution::with(['entity', 'lottery', 'seller', 'user', 'payments'])
+        $query = Devolution::with(['entity', 'lottery', 'reserve', 'seller', 'user', 'payments'])
             ->forUser(auth()->user());
 
         if ($entityFilterId !== null) {
@@ -878,10 +878,19 @@ class DevolutionsController extends Controller
                 }
             }
 
+            $reserveIdToPersist = $this->resolveReserveIdForStore(
+                $data,
+                array_values(array_unique(array_merge(
+                    array_map('intval', $participationsToReturn ?? []),
+                    array_map('intval', $participationsToSell ?? [])
+                )))
+            );
+
             // Crear registro de devolución
             $devolution = Devolution::create([
                 'entity_id' => $data['entity_id'],
                 'lottery_id' => $data['lottery_id'],
+                'reserve_id' => $reserveIdToPersist,
                 'seller_id' => $data['seller_id'] ?? null,
                 'user_id' => $userId,
                 'total_participations' => $totalParticipations,
@@ -1227,6 +1236,7 @@ class DevolutionsController extends Controller
         $devolution = Devolution::with([
             'entity',
             'lottery',
+            'reserve',
             'seller',
             'user',
             'details.participation.set',
@@ -1242,7 +1252,96 @@ class DevolutionsController extends Controller
             );
         }
 
-        return view('devolutions.show', compact('devolution'));
+        $reserveIdForPdf = $devolution->resolvedReserveId();
+
+        return view('devolutions.show', compact('devolution', 'reserveIdForPdf'));
+    }
+
+    /**
+     * PDF acumulativo de todas las devoluciones/anulaciones de la reserva de este movimiento.
+     */
+    public function downloadReservePdf(string $id, \App\Services\DevolutionReservePdfService $pdfService)
+    {
+        if ($redirect = $this->redirectUnlessDevolutionsWebAccess()) {
+            return $redirect;
+        }
+
+        $devolution = Devolution::with(['details.participation.set'])
+            ->forUser(auth()->user())
+            ->findOrFail($id);
+
+        if (! auth()->user()->canViewDevolutionForEntity((int) $devolution->entity_id)) {
+            return redirect()->route('dashboard')->with(
+                'error',
+                'No puede ver este registro.'
+            );
+        }
+
+        $reserveId = $devolution->resolvedReserveId();
+        if (! $reserveId) {
+            return redirect()->route('devolutions.show', $id)->with(
+                'error',
+                'Este movimiento no está vinculado a una reserva; no se puede generar el PDF acumulativo.'
+            );
+        }
+
+        try {
+            $built = $pdfService->build((int) $reserveId);
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->route('devolutions.show', $id)->with('error', $e->getMessage());
+        }
+
+        return response($built['binary'], 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$built['filename'].'"',
+        ]);
+    }
+
+    /**
+     * reserve_id del request, del set, o el más frecuente entre las participaciones.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<int>  $participationIds
+     */
+    private function resolveReserveIdForStore(array $data, array $participationIds = []): ?int
+    {
+        if (! empty($data['reserve_id'])) {
+            return (int) $data['reserve_id'];
+        }
+
+        if (! empty($data['set_id'])) {
+            $fromSet = Set::query()->where('id', (int) $data['set_id'])->value('reserve_id');
+
+            return $fromSet ? (int) $fromSet : null;
+        }
+
+        if ($participationIds === []) {
+            return null;
+        }
+
+        $setIds = Participation::query()
+            ->whereIn('id', $participationIds)
+            ->pluck('set_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($setIds === []) {
+            return null;
+        }
+
+        $counts = Set::query()
+            ->whereIn('id', $setIds)
+            ->whereNotNull('reserve_id')
+            ->pluck('reserve_id')
+            ->countBy();
+
+        if ($counts->isEmpty()) {
+            return null;
+        }
+
+        return (int) $counts->sortDesc()->keys()->first();
     }
 
     /**
@@ -2898,6 +2997,7 @@ class DevolutionsController extends Controller
                 'entity_id' => 'required|exists:entities,id',
                 'lottery_id' => 'required|exists:lotteries,id',
                 'set_id' => 'nullable|exists:sets,id',
+                'reserve_id' => 'nullable|exists:reserves,id',
                 'participations' => 'required|array|min:1',
                 'participations.*' => 'integer|exists:participations,id',
                 'motivo' => 'required|string|max:500'
@@ -2992,6 +3092,10 @@ class DevolutionsController extends Controller
             $devolution = Devolution::create([
                 'entity_id' => $data['entity_id'],
                 'lottery_id' => $data['lottery_id'],
+                'reserve_id' => $this->resolveReserveIdForStore(
+                    $data,
+                    $participations->pluck('id')->map(fn ($id) => (int) $id)->all()
+                ),
                 'seller_id' => null, // Las anulaciones no tienen vendedor
                 'user_id' => $userId,
                 'total_participations' => $participations->count(),

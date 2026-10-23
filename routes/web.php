@@ -694,6 +694,7 @@ Route::get('devolutions/{id}/payments', [DevolutionsController::class, 'getPayme
 Route::post('devolutions/{id}/payments', [DevolutionsController::class, 'addPayment'])->name('devolutions.payments.store');
 Route::put('devolutions/{devolutionId}/payments/{paymentId}', [DevolutionsController::class, 'updatePayment'])->name('devolutions.payments.update');
 Route::delete('devolutions/{devolutionId}/payments/{paymentId}', [DevolutionsController::class, 'deletePayment'])->name('devolutions.payments.delete');
+Route::get('devolutions/{id}/reserve-pdf', [DevolutionsController::class, 'downloadReservePdf'])->name('devolutions.reserve-pdf');
 
 // Resource routes (deben ir AL FINAL para evitar conflictos)
 Route::resource('devolutions', DevolutionsController::class)->except(['edit', 'update']);

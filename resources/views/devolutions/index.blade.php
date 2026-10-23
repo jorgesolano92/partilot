@@ -110,6 +110,7 @@
                                                 
                                                 // Obtener información del set y reserva
                                                 $setInfo = '';
+                                                $reserveIdForPdf = $devolution->reserve_id ?: null;
                                                 $sets = $devolution->details()
                                                     ->with('participation.set.reserve')
                                                     ->get()
@@ -127,6 +128,9 @@
                                                             $reservationNumbers = $set->reserve_id ?? 'N/A';
                                                         }
                                                         $setNames[] = $set->set_name . ' (' . $reservationNumbers . ')';
+                                                        if (! $reserveIdForPdf && $set->reserve_id) {
+                                                            $reserveIdForPdf = $set->reserve_id;
+                                                        }
                                                     }
                                                     $setInfo = implode('<br>', $setNames);
                                                 } else {
@@ -167,6 +171,11 @@
                                                     <a href="{{ route('devolutions.show', $devolution->id) }}" class="btn btn-sm btn-light" title="Ver detalle">
                                                         <img src="{{url('assets/form-groups/eye.svg')}}" alt="" width="12">
                                                     </a>
+                                                    @if($reserveIdForPdf)
+                                                        <a href="{{ route('devolutions.reserve-pdf', $devolution->id) }}" class="btn btn-sm btn-light" title="PDF acumulado de la reserva">
+                                                            <i class="ri-file-pdf-line text-danger"></i>
+                                                        </a>
+                                                    @endif
                                                     @unless($esAnulacion)
                                                         <button type="button" class="btn btn-sm btn-danger btn-eliminar-devolucion" 
                                                                 data-id="{{ $devolution->id }}" data-name="Devolución #{{ $devolution->id }}" title="Eliminar">
