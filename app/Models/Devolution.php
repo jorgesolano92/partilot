@@ -110,13 +110,43 @@ class Devolution extends Model
         return $query->where('seller_id', $sellerId);
     }
 
+    public function isAnnulment(): bool
+    {
+        if ($this->relationLoaded('details')) {
+            return $this->details->contains(fn ($d) => (string) $d->action === 'anular');
+        }
+
+        return $this->details()->where('action', 'anular')->exists();
+    }
+
+    public function typeLabel(): string
+    {
+        if ($this->isAnnulment()) {
+            return 'Anulación';
+        }
+
+        return $this->seller_id ? 'Vendedor → Entidad' : 'Entidad → Administración';
+    }
+
+    public function annulmentReason(): ?string
+    {
+        $reason = trim((string) ($this->return_reason ?? ''));
+        if ($reason === '') {
+            return null;
+        }
+
+        return preg_replace('/^Anulaci[oó]n:\s*/iu', '', $reason) ?: $reason;
+    }
+
     /**
      * Accessor para obtener el nombre completo de la devolución
      */
     public function getFullNameAttribute()
     {
         $seller = $this->seller ? " - {$this->seller->name}" : "";
-        return "Devolución #{$this->id} - {$this->entity->name}{$seller}";
+        $prefix = $this->isAnnulment() ? 'Anulación' : 'Devolución';
+
+        return "{$prefix} #{$this->id} - {$this->entity->name}{$seller}";
     }
 
     /**

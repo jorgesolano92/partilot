@@ -1238,7 +1238,7 @@ class DevolutionsController extends Controller
         if (! auth()->user()->canViewDevolutionForEntity((int) $devolution->entity_id)) {
             return redirect()->route('dashboard')->with(
                 'error',
-                'No puede ver esta devolución.'
+                'No puede ver este registro.'
             );
         }
 
