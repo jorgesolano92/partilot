@@ -121,7 +121,13 @@
                                             @php $p = $detail->participation; @endphp
                                             <tr>
                                                 <td>{{ $p?->participation_number ?? '—' }}</td>
-                                                <td><code>{{ $p?->display_participation_code ?: '—' }}</code></td>
+                                                <td>
+                                                    @if($p)
+                                                        <a href="{{ route('participations.show', $p->id) }}" target="_blank" rel="noopener noreferrer"><code>{{ $p->display_participation_code ?: ('#'.$p->id) }}</code></a>
+                                                    @else
+                                                        <code>—</code>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $p?->set?->set_name ?: ($p?->set_id ? ('Set #'.$p->set_id) : '—') }}</td>
                                                 <td><span class="badge bg-danger">{{ $p?->status_text ?? 'Anulada' }}</span></td>
                                             </tr>
@@ -195,7 +201,13 @@
                                             @endphp
                                             <tr>
                                                 <td>{{ $p?->participation_number ?? '—' }}</td>
-                                                <td><code>{{ $p?->display_participation_code ?: '—' }}</code></td>
+                                                <td>
+                                                    @if($p)
+                                                        <a href="{{ route('participations.show', $p->id) }}" target="_blank" rel="noopener noreferrer"><code>{{ $p->display_participation_code ?: ('#'.$p->id) }}</code></a>
+                                                    @else
+                                                        <code>—</code>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $accion }}</td>
                                                 <td>{{ $p?->status_text ?? '—' }}</td>
                                             </tr>
