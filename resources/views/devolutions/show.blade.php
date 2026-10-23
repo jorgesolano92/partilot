@@ -107,7 +107,7 @@
                         <div class="resumen-devolucion mb-0">
                             <div class="resumen-titulo mb-2">Desglose de participaciones anuladas</div>
                             <div class="table-responsive">
-                                <table class="table table-sm table-hover participaciones-table mb-0">
+                                <table id="tabla-desglose-anuladas" class="table table-sm table-hover participaciones-table w-100 mb-0">
                                     <thead class="table-light">
                                         <tr>
                                             <th>Nº</th>
@@ -117,7 +117,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @forelse($anuladas as $detail)
+                                        @foreach($anuladas as $detail)
                                             @php $p = $detail->participation; @endphp
                                             <tr>
                                                 <td>{{ $p?->participation_number ?? '—' }}</td>
@@ -125,11 +125,7 @@
                                                 <td>{{ $p?->set?->set_name ?: ($p?->set_id ? ('Set #'.$p->set_id) : '—') }}</td>
                                                 <td><span class="badge bg-danger">{{ $p?->status_text ?? 'Anulada' }}</span></td>
                                             </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="4" class="text-center text-muted">No hay participaciones en este registro.</td>
-                                            </tr>
-                                        @endforelse
+                                        @endforeach
                                     </tbody>
                                 </table>
                             </div>
@@ -178,7 +174,7 @@
                         <div class="resumen-devolucion">
                             <div class="resumen-titulo mb-2">Desglose de participaciones</div>
                             <div class="table-responsive">
-                                <table class="table table-sm table-hover participaciones-table mb-0">
+                                <table id="tabla-desglose-devoluciones" class="table table-sm table-hover participaciones-table w-100 mb-0">
                                     <thead class="table-light">
                                         <tr>
                                             <th>Nº</th>
@@ -188,7 +184,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @forelse($detalleFilas as $detail)
+                                        @foreach($detalleFilas as $detail)
                                             @php
                                                 $p = $detail->participation;
                                                 $accion = match ((string) $detail->action) {
@@ -203,11 +199,7 @@
                                                 <td>{{ $accion }}</td>
                                                 <td>{{ $p?->status_text ?? '—' }}</td>
                                             </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="4" class="text-center text-muted">No hay detalle de participaciones en este registro.</td>
-                                            </tr>
-                                        @endforelse
+                                        @endforeach
                                     </tbody>
                                 </table>
                             </div>
@@ -354,4 +346,23 @@
     </div>
 </div>
 
+@endsection
+@section('scripts')
+<script>
+$(function () {
+    var opts = {
+        ordering: true,
+        order: [[0, 'asc']],
+        pageLength: 20,
+        lengthMenu: [[20, 50, 100, -1], [20, 50, 100, 'Todos']],
+        language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json' }
+    };
+    if ($('#tabla-desglose-anuladas').length && $('#tabla-desglose-anuladas tbody tr').length) {
+        $('#tabla-desglose-anuladas').DataTable(opts);
+    }
+    if ($('#tabla-desglose-devoluciones').length && $('#tabla-desglose-devoluciones tbody tr').length) {
+        $('#tabla-desglose-devoluciones').DataTable(opts);
+    }
+});
+</script>
 @endsection

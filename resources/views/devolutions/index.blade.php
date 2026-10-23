@@ -103,7 +103,10 @@
                                                 $totalPagos = $devolution->payments->sum('amount');
                                                 $participacionesAnuladas = $devolution->details()->where('action', 'anular')->count();
                                                 $partDevueltas = $devolution->details()->whereIn('action', ['devolver', 'devolver_vendedor'])->count();
-                                                $tipoDevolucion = $devolution->seller_id ? 'Vendedor → Entidad' : 'Entidad → Administración';
+                                                $esAnulacion = $participacionesAnuladas > 0;
+                                                $tipoDevolucion = $esAnulacion
+                                                    ? 'Anulación'
+                                                    : ($devolution->seller_id ? 'Vendedor → Entidad' : 'Entidad → Administración');
                                                 
                                                 // Obtener información del set y reserva
                                                 $setInfo = '';
@@ -134,7 +137,13 @@
                                                 <td><a href="{{ route('devolutions.show', $devolution->id) }}">#DEV{{ str_pad($devolution->id, 4, '0', STR_PAD_LEFT) }}</a></td>
                                                 <td>{{ $devolution->entity->name ?? 'N/A' }}</td>
                                                 <td>{{ $devolution->lottery->name ?? 'N/A' }}</td>
-                                                <td><span class="badge bg-secondary">{{ $tipoDevolucion }}</span></td>
+                                                <td>
+                                                    @if($esAnulacion)
+                                                        <span class="badge bg-warning text-dark">Anulación</span>
+                                                    @else
+                                                        <span class="badge bg-secondary">{{ $tipoDevolucion }}</span>
+                                                    @endif
+                                                </td>
                                                 <td>{!! $setInfo !!}</td>
                                                 <td>{{ $devolution->total_participations }}</td>
                                                 <td>{{ $partDevueltas }}</td>
@@ -158,14 +167,12 @@
                                                     <a href="{{ route('devolutions.show', $devolution->id) }}" class="btn btn-sm btn-light" title="Ver detalle">
                                                         <img src="{{url('assets/form-groups/eye.svg')}}" alt="" width="12">
                                                     </a>
-                                                    @if($participacionesAnuladas == 0)
+                                                    @unless($esAnulacion)
                                                         <button type="button" class="btn btn-sm btn-danger btn-eliminar-devolucion" 
                                                                 data-id="{{ $devolution->id }}" data-name="Devolución #{{ $devolution->id }}" title="Eliminar">
                                                             <i class="ri-delete-bin-6-line"></i>
                                                         </button>
-                                                    @else
-                                                        <span class="badge bg-warning" title="Anulación">Anulación</span>
-                                                    @endif
+                                                    @endunless
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -227,8 +234,8 @@ $(document).ready(function() {
         "language": {
             url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
         },
-        "pageLength": 25,
-        "lengthMenu": [[25, 50, 100, -1], [25, 50, 100, "Todos"]],
+        "pageLength": 20,
+        "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
         "initComplete": function(settings, json) {
             console.log('DataTable inicializado');
             
