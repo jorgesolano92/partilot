@@ -279,11 +279,8 @@ class EntityController extends Controller
             || (($entityInformation['client_type'] ?? '') === Entity::CLIENT_TYPE_NATURAL_ORGANIZER);
 
         if ($shouldPrefillFromSigner) {
+            // Siempre datos de la persona firmante/organizadora — nunca nombre/teléfono del grupo (viaje, peña…).
             $signerEmail = trim((string) ($entityInformation['signer_email'] ?? ''));
-            $panelEmail = trim((string) ($entityInformation['email'] ?? ''));
-            $managerEmailPrefill = ($signerEmail !== '' && strcasecmp($signerEmail, $panelEmail) !== 0)
-                ? $signerEmail
-                : session('entity_manager.manager_email', '');
 
             session()->put('entity_manager', [
                 'manager_name' => (string) ($entityInformation['signer_name'] ?? ''),
@@ -291,8 +288,11 @@ class EntityController extends Controller
                 'manager_last_name2' => (string) ($entityInformation['signer_last_name2'] ?? ''),
                 'manager_nif_cif' => (string) ($entityInformation['signer_nif'] ?? ''),
                 'manager_birthday' => (string) ($entityInformation['signer_birthday'] ?? ''),
-                'manager_email' => $managerEmailPrefill,
-                'manager_phone' => session('entity_manager.manager_phone', (string) ($entityInformation['phone'] ?? '')),
+                'manager_email' => $signerEmail !== ''
+                    ? $signerEmail
+                    : (string) session('entity_manager.manager_email', ''),
+                // No hay teléfono del firmante en el paso 2: no copiar el del grupo/entidad.
+                'manager_phone' => (string) session('entity_manager.manager_phone', ''),
                 'prefilled_from_signer' => true,
             ]);
         } elseif (! session()->has('entity_manager')) {
@@ -393,6 +393,18 @@ class EntityController extends Controller
                 'phone' => $request->input('manager_phone') ?: null,
                 'nif_cif' => $request->input('manager_nif_cif') ?: null,
                 'birthday' => $request->input('manager_birthday') ?: null,
+            ]);
+        } else {
+            // Si el email coincide con la cuenta panel (nombre = grupo/viaje), hay que
+            // sobrescribir con los datos personales del formulario (firmante/organizador).
+            $managerUser->update([
+                'name' => $request->input('manager_name'),
+                'last_name' => $request->input('manager_last_name'),
+                'last_name2' => $request->input('manager_last_name2') ?: null,
+                'phone' => $request->input('manager_phone') ?: null,
+                'nif_cif' => $request->input('manager_nif_cif') ?: null,
+                'birthday' => $request->input('manager_birthday') ?: null,
+                'role' => User::ROLE_ENTITY,
             ]);
         }
 

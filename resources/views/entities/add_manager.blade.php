@@ -771,7 +771,14 @@ $('#accept-invite-btn').click(function (e) {
 
 // Inicializar validación de documento español
 document.addEventListener('DOMContentLoaded', function() {
-    loadEntityManagerData();
+    const prefilledFromSigner = {{ session('entity_manager.prefilled_from_signer') ? 'true' : 'false' }};
+    if (prefilledFromSigner) {
+        // No pisar el precargado del firmante con basura antigua de localStorage.
+        localStorage.removeItem(ENTITY_MANAGER_STORAGE_KEY);
+        localStorage.removeItem(ENTITY_MANAGER_MODE_KEY);
+    } else {
+        loadEntityManagerData();
+    }
 
     const savedMode = localStorage.getItem(ENTITY_MANAGER_MODE_KEY);
     if (savedMode === 'register') {
