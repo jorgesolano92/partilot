@@ -1421,74 +1421,43 @@ class ConfigurationController extends Controller
     {
         $user = $request->user();
         $entityId = $user?->scopedConfigurationEntityId();
-        abort_unless($entityId && $user?->canMutateEntityConfiguration(), 403);
+        abort_unless($entityId && $user?->isEntityPanelAccount(), 403);
 
         $entity = Entity::forUser($user)->findOrFail($entityId);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'province' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'postal_code' => 'nullable|string|max:10',
-            'address' => 'nullable|string|max:500',
-            'nif_cif' => ['nullable', 'string', 'max:20', new \App\Rules\EntityDocument],
-            'phone' => 'nullable|string|max:20',
-            'email' => 'required|email|max:255',
-            'comments' => 'nullable|string|max:1000',
-            'current_password' => 'nullable|required_with:panel_password|string',
-            'panel_password' => 'nullable|string|min:8|confirmed',
-        ]);
+        // El panel de entidad no edita datos legales: solo contraseña de acceso.
+        if (! $user->canMutateEntityConfiguration()) {
+            $request->validate([
+                'current_password' => 'required|string',
+                'panel_password' => 'required|string|min:8|confirmed',
+            ]);
 
-        $panelUser = User::query()
-            ->where('panel_account_type', 'entity')
-            ->where('panel_account_id', $entity->id)
-            ->first();
+            $panelUser = User::query()
+                ->where('panel_account_type', 'entity')
+                ->where('panel_account_id', $entity->id)
+                ->first();
 
-        $newEntityEmail = trim((string) ($validated['email'] ?? ''));
-
-        if ($panelUser && $newEntityEmail !== '' && $newEntityEmail !== $panelUser->email) {
-            if (ContactEmailRegistry::isTaken($newEntityEmail, $panelUser->id, null, $entity->id)) {
-                return back()->withInput()
-                    ->withErrors(['email' => 'Este correo ya está en uso en otra administración, entidad o cuenta de usuario.']);
-            }
-        }
-
-        if ($request->filled('panel_password')) {
             if (! $panelUser || ! Hash::check((string) $request->input('current_password'), $panelUser->password)) {
                 return back()->withInput()->withErrors([
                     'current_password' => 'La contraseña actual no es correcta.',
                 ]);
             }
+
+            $panelUser->password = $request->input('panel_password');
+            $panelUser->save();
+
+            return redirect()->route('configuration.index', ['section' => 'datos-entidad'])
+                ->with('success', 'Contraseña de acceso actualizada. Los datos de la entidad solo puede modificarlos su administración.');
         }
 
-        $entity->update(collect($validated)->only([
-            'name', 'province', 'city', 'postal_code', 'address', 'nif_cif', 'phone', 'email', 'comments',
-        ])->all());
-
-        $entity->refresh();
-
-        if ($panelUser) {
-            $panelUser->update([
-                'email' => $entity->email,
-                'name' => trim((string) $entity->name) ?: 'Entidad',
-                'phone' => $entity->phone,
-                'nif_cif' => $entity->nif_cif,
-            ]);
-            if ($request->filled('panel_password')) {
-                $panelUser->password = $request->input('panel_password');
-                $panelUser->save();
-            }
-        }
-
-        return redirect()->route('configuration.index', ['section' => 'datos-entidad'])
-            ->with('success', 'Datos de la entidad actualizados correctamente.');
+        abort(403);
     }
 
     public function updateEntityBilling(Request $request)
     {
         $user = $request->user();
         $entityId = $user?->scopedConfigurationEntityId();
-        abort_unless($entityId && $user?->canMutateEntityConfiguration(), 403);
+        abort_unless($entityId && $user?->canMutateEntityConfiguration(), 403, 'Solo la administración puede modificar la facturación de la entidad.');
 
         $entity = Entity::forUser($user)->findOrFail($entityId);
 
@@ -1507,7 +1476,7 @@ class ConfigurationController extends Controller
     {
         $user = $request->user();
         $entityId = $user?->scopedConfigurationEntityId();
-        abort_unless($entityId && $user?->canMutateEntityConfiguration(), 403);
+        abort_unless($entityId && $user?->canMutateEntityConfiguration(), 403, 'Los datos personales del gestor solo puede cambiarlos el propio usuario desde su cuenta.');
         abort_unless((int) $manager->entity_id === $entityId, 403);
 
         $manager->load('user');

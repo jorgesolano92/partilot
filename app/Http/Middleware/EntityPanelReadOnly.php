@@ -62,11 +62,16 @@ class EntityPanelReadOnly
     private function isAllowedConfigurationMutation(Request $request): bool
     {
         $user = $request->user();
+        $name = (string) ($request->route()?->getName() ?? '');
+
+        // Contraseña del panel de entidad (sin editar datos legales).
+        if ($name === 'configuration.entity-settings.update' && $user?->canChangeEntityPanelPassword()) {
+            return true;
+        }
+
         if (! $user?->canMutateEntityConfiguration()) {
             return false;
         }
-
-        $name = (string) ($request->route()?->getName() ?? '');
 
         return str_starts_with($name, 'configuration.entity-');
     }

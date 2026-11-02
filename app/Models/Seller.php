@@ -244,7 +244,8 @@ class Seller extends Model
      */
     public function isPendingLink()
     {
-        return $this->user_id === 0; // Tanto PARTILOT pendientes como EXTERNO
+        // user_id 0 se normaliza a null en el accessor.
+        return $this->user_id === null;
     }
 
     /**

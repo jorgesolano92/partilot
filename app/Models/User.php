@@ -984,9 +984,17 @@ class User extends Authenticatable
     }
 
     /**
-     * La cuenta panel de entidad puede guardar cambios solo en rutas de Ajustes propios.
+     * Datos legales/comerciales de la entidad: solo administración (ficha entidades), no el panel de entidad.
      */
     public function canMutateEntityConfiguration(): bool
+    {
+        return false;
+    }
+
+    /**
+     * La cuenta panel de entidad sí puede cambiar su propia contraseña de acceso.
+     */
+    public function canChangeEntityPanelPassword(): bool
     {
         return $this->isEntityPanelAccount();
     }

@@ -187,15 +187,20 @@ class RoleLegalAcceptanceService
             $this->recordSellerAcceptance($seller, $user, $request);
         }
 
+        $entity = $seller->entities->first();
         if ($entityId > 0) {
             try {
-                app(AppInboxNotificationService::class)->closeSellerInvitationNotifications($seller, $entityId, 'accepted');
+                $inbox = app(AppInboxNotificationService::class);
+                $inbox->closeSellerInvitationNotifications($seller, $entityId, 'accepted');
+                if ($entity) {
+                    $inbox->notifySellerInvitationAccepted($seller, $entity);
+                }
             } catch (\Throwable $e) {
                 \Log::warning('Cerrar inbox invitación vendedor: '.$e->getMessage());
             }
         }
 
-        $this->roleNotifications->onSellerInvitationAnswered($seller, $seller->entities->first(), accepted: true);
+        $this->roleNotifications->onSellerInvitationAnswered($seller, $entity, accepted: true);
 
         return [
             'success' => true,
@@ -285,7 +290,9 @@ class RoleLegalAcceptanceService
                 $q->where('user_id', $user->id);
                 if ($email !== '') {
                     $q->orWhere(function ($inner) use ($email) {
-                        $inner->where('user_id', 0)->where('email', $email);
+                        $inner->where(function ($uid) {
+                            $uid->whereNull('user_id')->orWhere('user_id', 0);
+                        })->where('email', $email);
                     });
                 }
             })

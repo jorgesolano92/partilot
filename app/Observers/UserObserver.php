@@ -30,15 +30,14 @@ class UserObserver
             Log::error('Error al completar ventas digitales pendientes para usuario '.$user->id.': '.$e->getMessage());
         }
 
-        // Buscar vendedores pendientes de vinculación con el mismo email
-        // Incluye tanto PARTILOT pendientes como EXTERNO
+        // Vendedores sin usuario vinculado (user_id NULL o 0 legacy) con el mismo email.
         $pendingSellers = Seller::where('email', $user->email)
-            ->where('user_id', 0) // Vendedores con user_id = 0 (pendientes o externos)
+            ->where(function ($q) {
+                $q->whereNull('user_id')->orWhere('user_id', 0);
+            })
             ->get();
 
         if ($pendingSellers->isNotEmpty()) {
-            // Si hay vendedores pendientes, asignar rol de seller si el usuario no tiene un rol específico
-            // (si es super_admin, client por defecto, o no tiene rol específico)
             if (! $user->role || $user->role === User::ROLE_SUPER_ADMIN || $user->role === User::ROLE_CLIENT) {
                 $user->update(['role' => User::ROLE_SELLER]);
                 Log::info("Rol de seller asignado al usuario {$user->id} debido a vendedores pendientes");
@@ -47,10 +46,8 @@ class UserObserver
 
         foreach ($pendingSellers as $seller) {
             try {
-                // Vincular el vendedor al usuario
                 $seller->update([
                     'user_id' => $user->id,
-                    // Sincronizar datos del usuario al vendedor
                     'name' => $user->name,
                     'last_name' => $user->last_name ?? null,
                     'last_name2' => $user->last_name2 ?? null,
@@ -71,6 +68,9 @@ class UserObserver
                             Log::warning('Inbox invitación vendedor tras registro: '.$notifyEx->getMessage());
                         }
                     }
+                } elseif ((int) $seller->status === Seller::STATUS_ACTIVE
+                    && (! $user->role || $user->role === User::ROLE_CLIENT)) {
+                    $user->update(['role' => User::ROLE_SELLER]);
                 }
             } catch (\Exception $e) {
                 Log::error("Error al vincular vendedor {$seller->id} al usuario {$user->id}: ".$e->getMessage());

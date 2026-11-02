@@ -187,16 +187,66 @@ class AppInboxNotificationService
             $q->where('entity_id', $entityId);
         }
 
-        $q->get()->each(function (Notification $n) use ($assignmentState) {
+        $seller->loadMissing('entities');
+        $entityName = (string) ($seller->entities->first()?->name ?? 'la entidad');
+
+        $q->get()->each(function (Notification $n) use ($assignmentState, $entityName) {
             $meta = is_array($n->meta) ? $n->meta : [];
             $meta['assignment_state'] = $assignmentState;
             $meta['actionable'] = false;
+
+            $title = $n->title;
+            $message = $n->message;
+            if ($assignmentState === 'accepted') {
+                $title = $entityName !== '' ? $entityName : 'Invitación aceptada';
+                $message = 'Has aceptado ser vendedor de '.$entityName.'.';
+            } elseif ($assignmentState === 'rejected') {
+                $title = $entityName !== '' ? $entityName : 'Invitación rechazada';
+                $message = 'Has rechazado la invitación como vendedor de '.$entityName.'.';
+            }
+
             $n->update([
+                'title' => $title,
+                'message' => $message,
                 'meta' => $meta,
                 'read_at' => $n->read_at ?? now(),
                 'status' => 'read',
             ]);
         });
+    }
+
+    /**
+     * Confirmación en bandeja del vendedor tras aceptar (aparte del aviso a gestores).
+     */
+    public function notifySellerInvitationAccepted(Seller $seller, Entity $entity): void
+    {
+        $recipientId = $this->resolveRecipientUserIdForSeller($seller);
+        if ($recipientId <= 0) {
+            return;
+        }
+
+        $senderId = $this->resolveSenderIdForEntity((int) $entity->id);
+        if (! $senderId) {
+            return;
+        }
+
+        $this->notifyUser(
+            $recipientId,
+            (int) $entity->id,
+            $entity->administration_id ? (int) $entity->administration_id : null,
+            $senderId,
+            'vendedor_invitacion_confirmada',
+            $entity->name,
+            'Has aceptado ser vendedor de '.$entity->name.'.',
+            [
+                'rol_context' => 'vendedor',
+                'seller_id' => (int) $seller->id,
+                'entity_id' => (int) $entity->id,
+                'assignment_state' => 'accepted',
+                'actionable' => false,
+            ],
+            sendPush: false,
+        );
     }
 
     protected function resolveRecipientUserIdForSeller(Seller $seller): int

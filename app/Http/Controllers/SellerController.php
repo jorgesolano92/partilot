@@ -1579,7 +1579,9 @@ class SellerController extends Controller
                 $q->where('user_id', $user->id);
                 if (filled($user->email)) {
                     $q->orWhere(function ($inner) use ($user) {
-                        $inner->where('user_id', 0)->where('email', $user->email);
+                        $inner->where(function ($uid) {
+                            $uid->whereNull('user_id')->orWhere('user_id', 0);
+                        })->where('email', $user->email);
                     });
                 }
             })

@@ -1315,16 +1315,11 @@ class NotificationController extends Controller
     public function apiIndex(Request $request)
     {
         $user = Auth::user();
-        $entityIds = $user->accessibleEntityIds();
 
+        // Solo bandeja personal: no filtrar por entity_id (filtraba avisos de gestor al vendedor).
         $query = Notification::query()
             ->with(['entity:id,name,image', 'sender:id,name'])
-            ->where(function ($q) use ($user, $entityIds) {
-                $q->where('recipient_user_id', $user->id);
-                if (! empty($entityIds)) {
-                    $q->orWhereIn('entity_id', $entityIds);
-                }
-            })
+            ->where('recipient_user_id', $user->id)
             ->where(function ($q) {
                 $q->whereNull('kind')
                     ->orWhere('kind', '!=', 'push_directo_panel');
@@ -1368,21 +1363,14 @@ class NotificationController extends Controller
     public function apiMarkAllAsRead(Request $request)
     {
         $user = Auth::user();
-        $entityIds = $user->accessibleEntityIds();
 
-        $q = Notification::query()
+        Notification::query()
             ->whereNull('read_at')
-            ->where(function ($query) use ($user, $entityIds) {
-                $query->where('recipient_user_id', $user->id);
-                if (! empty($entityIds)) {
-                    $query->orWhereIn('entity_id', $entityIds);
-                }
-            });
-
-        $q->update([
-            'read_at' => now(),
-            'status' => 'read',
-        ]);
+            ->where('recipient_user_id', $user->id)
+            ->update([
+                'read_at' => now(),
+                'status' => 'read',
+            ]);
 
         return response()->json(['success' => true]);
     }
@@ -1390,16 +1378,10 @@ class NotificationController extends Controller
     public function apiUnreadCount(Request $request)
     {
         $user = Auth::user();
-        $entityIds = $user->accessibleEntityIds();
 
         $count = Notification::query()
             ->whereNull('read_at')
-            ->where(function ($query) use ($user, $entityIds) {
-                $query->where('recipient_user_id', $user->id);
-                if (! empty($entityIds)) {
-                    $query->orWhereIn('entity_id', $entityIds);
-                }
-            })
+            ->where('recipient_user_id', $user->id)
             ->count();
 
         return response()->json([
@@ -1420,10 +1402,6 @@ class NotificationController extends Controller
     private function authorizeNotificationAccess(Notification $n, User $user): void
     {
         if ($n->recipient_user_id && (int) $n->recipient_user_id === (int) $user->id) {
-            return;
-        }
-        $entityIds = array_map('intval', $user->accessibleEntityIds());
-        if ($n->entity_id && in_array((int) $n->entity_id, $entityIds, true)) {
             return;
         }
         abort(403, 'No puedes acceder a esta notificación.');

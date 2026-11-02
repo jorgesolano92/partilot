@@ -398,7 +398,7 @@ class AuthController extends Controller
         }
 
         // Obtener el vendedor vinculado al usuario (por tabla sellers, no por rol en users)
-        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
+        $seller = $this->resolveActiveSellerForAppUser($user);
 
         // Solo vendedores (presencia en tabla sellers activos) pueden acceder a esta ruta de login
         if (!$seller) {
@@ -495,7 +495,7 @@ class AuthController extends Controller
         ];
 
         // Capacidades por tablas: seller activo → puede actuar como vendedor
-        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
+        $seller = $this->resolveActiveSellerForAppUser($user);
         if ($seller) {
             $response['seller'] = $seller->load('entities');
         }
@@ -674,9 +674,9 @@ class AuthController extends Controller
             'user' => $user
         ];
 
-        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->with('entities')->first();
+        $seller = $this->resolveActiveSellerForAppUser($user);
         if ($seller) {
-            $response['seller'] = $seller;
+            $response['seller'] = $seller->load('entities');
         }
 
         $managerPayload = $this->managerPayloadForUser($user);
@@ -685,6 +685,54 @@ class AuthController extends Controller
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * Seller activo del usuario; si está ACTIVE sin user_id (NULL/0) y coincide el email, lo vincula.
+     */
+    private function resolveActiveSellerForAppUser(User $user): ?Seller
+    {
+        $seller = Seller::query()
+            ->where('user_id', $user->id)
+            ->where('status', Seller::STATUS_ACTIVE)
+            ->first();
+
+        if ($seller) {
+            return $seller;
+        }
+
+        $email = trim((string) $user->email);
+        if ($email === '') {
+            return null;
+        }
+
+        $unlinked = Seller::query()
+            ->where('status', Seller::STATUS_ACTIVE)
+            ->where('email', $email)
+            ->where(function ($q) {
+                $q->whereNull('user_id')->orWhere('user_id', 0);
+            })
+            ->first();
+
+        if (! $unlinked) {
+            return null;
+        }
+
+        $unlinked->update([
+            'user_id' => $user->id,
+            'name' => $user->name ?: $unlinked->name,
+            'last_name' => $user->last_name ?? $unlinked->last_name,
+            'last_name2' => $user->last_name2 ?? $unlinked->last_name2,
+            'nif_cif' => $user->nif_cif ?? $unlinked->nif_cif,
+            'birthday' => $user->birthday ?? $unlinked->birthday,
+            'phone' => $user->phone ?? $unlinked->phone,
+        ]);
+
+        if (! $user->role || $user->role === User::ROLE_CLIENT) {
+            $user->update(['role' => User::ROLE_SELLER]);
+        }
+
+        return $unlinked->fresh();
     }
 
     /**
