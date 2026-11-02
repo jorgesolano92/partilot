@@ -25,9 +25,21 @@ class ParticipationActivityLogController extends Controller
                 ->forParticipation($participationId)
                 ->orderBy('created_at', 'desc');
 
+            $hideSellerPersonalData = $this->shouldHideSellerPersonalData();
+
             $activities = $this->applyAccessFilter($activitiesQuery)
                 ->get()
-                ->map(function ($activity) use ($participation) {
+                ->map(function ($activity) use ($participation, $hideSellerPersonalData) {
+                    $sellerLabel = $this->resolveActivitySellerName($activity, $participation);
+                    $oldSellerLabel = $activity->oldSeller ? $activity->oldSeller->full_name : null;
+                    $newSellerLabel = $activity->newSeller ? $activity->newSeller->full_name : null;
+
+                    if ($hideSellerPersonalData) {
+                        $sellerLabel = $this->maskSellerLabel($activity->seller_id ?? $activity->new_seller_id ?? $activity->old_seller_id, $sellerLabel);
+                        $oldSellerLabel = $this->maskSellerLabel($activity->old_seller_id, $oldSellerLabel);
+                        $newSellerLabel = $this->maskSellerLabel($activity->new_seller_id, $newSellerLabel);
+                    }
+
                     return [
                         'id' => $activity->id,
                         'activity_type' => $activity->activity_type,
@@ -35,12 +47,12 @@ class ParticipationActivityLogController extends Controller
                         'activity_badge' => $activity->activity_badge,
                         'description' => $activity->description,
                         'user' => $this->resolveActivityUserName($activity),
-                        'seller' => $this->resolveActivitySellerName($activity, $participation),
+                        'seller' => $sellerLabel,
                         'entity' => $activity->entity ? $activity->entity->name : null,
                         'old_status' => $activity->old_status,
                         'new_status' => $activity->new_status,
-                        'old_seller' => $activity->oldSeller ? $activity->oldSeller->full_name : null,
-                        'new_seller' => $activity->newSeller ? $activity->newSeller->full_name : null,
+                        'old_seller' => $oldSellerLabel,
+                        'new_seller' => $newSellerLabel,
                         'metadata' => $this->enrichActivityMetadata($activity->metadata, $participation),
                         'owner_user_name' => ParticipationOwnerService::ownerDisplayName($participation),
                         'created_at' => $activity->created_at->format('d/m/Y H:i:s'),
@@ -419,5 +431,21 @@ class ParticipationActivityLogController extends Controller
         }
 
         return null;
+    }
+
+    private function shouldHideSellerPersonalData(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) ($user && $user->isAdministration() && ! $user->isSuperAdmin());
+    }
+
+    private function maskSellerLabel(?int $sellerId, ?string $fallbackName): ?string
+    {
+        if ($sellerId) {
+            return '#VE'.str_pad((string) $sellerId, 4, '0', STR_PAD_LEFT);
+        }
+
+        return $fallbackName ? 'Vendedor' : null;
     }
 }
