@@ -71,7 +71,7 @@
 	                    			</div>
                     			</li>
 
-                        @if($participationSeller)
+                        @if($participationSeller && empty($hideSellerPersonalData))
 	                    		<li class="nav-item">
 	                    			<div class="form-wizard-element" data-bs-toggle="tab" data-bs-target="#datos_contacto">
 	                    				
@@ -384,7 +384,7 @@
 			                    		</div>
                     				</div>
 
-                        @if($participationSeller)
+                        @if($participationSeller && empty($hideSellerPersonalData))
                     				<div class="tab-pane fade" id="datos_contacto">
                     					<div class="form-card bs" style="min-height: 658px;">
 			                    			<h4 class="mb-0 mt-1">

@@ -237,10 +237,14 @@ class ParticipationController extends Controller
             }
         }
 
+        // Misma regla que ficha de vendedor: la administración no ve datos personales del vendedor.
+        $hideSellerPersonalData = $user && $user->isAdministration() && ! $user->isSuperAdmin();
+
         return view('participations.show', compact(
             'participation',
             'ticketReference',
-            'pendingDigitalSaleForLinkCode'
+            'pendingDigitalSaleForLinkCode',
+            'hideSellerPersonalData'
         ));
     }
 
