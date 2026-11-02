@@ -100,7 +100,11 @@ class RoleLegalNotificationService
                         $accepted ? 'vendedor_invitacion_aceptada' : 'vendedor_invitacion_rechazada',
                         $title,
                         $message,
-                        ['seller_id' => (int) $seller->id, 'entity_id' => (int) $entity->id],
+                        [
+                            'seller_id' => (int) $seller->id,
+                            'entity_id' => (int) $entity->id,
+                            'rol_context' => 'gestor',
+                        ],
                         sendPush: false,
                     );
                 } catch (\Throwable $e) {
