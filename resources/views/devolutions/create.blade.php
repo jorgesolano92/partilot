@@ -3409,7 +3409,7 @@ $(document).ready(function() {
                         ? ' (' + vendedorSettlementPrecios.map(p => p.toFixed(2) + 'âÿ¬').join(', ') + ' cada una)'
                         : '');
                     const pasoSettlement = pasoImporteSettlementVendedor(vendedorSettlementPrecios);
-                    $('.vendedor-settlement-payment-input').attr({ step: pasoSettlement, min: 0, placeholder: pasoSettlement });
+                    $('.vendedor-settlement-payment-input').attr({ step: pasoSettlement, min: 0, placeholder: '0.00' });
                     
                     $('#vendedor-settlement-total-participations').text(summary.total_participations);
                     $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + 'âÿ¬');

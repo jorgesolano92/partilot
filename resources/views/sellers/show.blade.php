@@ -2585,7 +2585,8 @@ function initDatatable()
                           ? ' (' + settlementPrecios.map(p => p.toFixed(2) + '€').join(', ') + ' cada una)'
                           : '');
                       const pasoSettlement = pasoImporteSettlement(settlementPrecios);
-                      $('.settlement-payment-input').attr({ step: pasoSettlement, min: 0, placeholder: pasoSettlement });
+                      // Placeholder fijo 0.00: si se usa el paso (p.ej. 0.01 sin participaciones) el cliente lo confunde con deuda.
+                      $('.settlement-payment-input').attr({ step: pasoSettlement, min: 0, placeholder: '0.00' });
                       const pendingAmount = parseFloat(summary.pending_amount) || 0;
                       const liquidatedParticipations = parseFloat(summary.liquidated_participations) || 0;
                       const pendingParticipations = parseFloat(summary.pending_participations) || 0;
