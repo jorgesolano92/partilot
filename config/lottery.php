@@ -51,6 +51,14 @@ return [
     'max_reservation_tickets' => max(0, (int) env('LOTTERY_MAX_RESERVATION_TICKETS', 0)),
 
     /*
+    | Destino del donativo en liquidación entidad→administración.
+    | entity (default) → a administración solo va el jugado (played_amount).
+    | administration → a administración va el PVP (jugado + donación = total_participation_amount).
+    | Vendedor→entidad no cambia: siempre liquida PVP completo.
+    */
+    'donation_recipient' => strtolower((string) env('LOTTERY_DONATION_RECIPIENT', 'entity')),
+
+    /*
     | Firma HMAC en URLs QR de participación (SEC-008).
     | require_signature=false + allow_legacy_unsigned=true → QRs impresos sin &sig= siguen válidos.
     | En producción endurecida: PARTICIPATION_QR_REQUIRE_HMAC=true

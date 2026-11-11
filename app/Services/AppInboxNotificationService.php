@@ -339,7 +339,6 @@ class AppInboxNotificationService
         if ($lotteryName) {
             $msg .= ' Sorteo: '.$lotteryName.'.';
         }
-        $msg .= ' Puedes aceptarlas aquí sin abrir el correo.';
 
         $this->notifyUser(
             $recipientUserId,

@@ -412,7 +412,8 @@ class LotteryDeadlineClosureService
                 ->whereRaw("participation_code LIKE '1D/%'")
                 ->count();
 
-            $price = $this->pricePerParticipationSet($set);
+            // Entidad→admin: solo jugado; el donativo se queda en la entidad
+            $price = $this->administrationLiquidationUnitPrice($set);
             $total += ($physicalCount + $digitalesVendidas) * $price;
         }
 
@@ -422,6 +423,11 @@ class LotteryDeadlineClosureService
     private function pricePerParticipationSet(Set $set): float
     {
         return $set->pricePerParticipation();
+    }
+
+    private function administrationLiquidationUnitPrice(Set $set): float
+    {
+        return $set->administrationLiquidationUnitPrice();
     }
 
     private function requiresSpecialPrizeSettlement(Lottery $lottery): bool
