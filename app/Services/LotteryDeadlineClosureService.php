@@ -412,7 +412,7 @@ class LotteryDeadlineClosureService
                 ->whereRaw("participation_code LIKE '1D/%'")
                 ->count();
 
-            // Entidad→admin: solo jugado; el donativo se queda en la entidad
+            // Entidad→admin: PVP o PVP−donativo según LOTTERY_DONATION_RECIPIENT
             $price = $this->administrationLiquidationUnitPrice($set);
             $total += ($physicalCount + $digitalesVendidas) * $price;
         }

@@ -52,8 +52,8 @@ return [
 
     /*
     | Destino del donativo en liquidación entidad→administración.
-    | entity (default) → a administración solo va el jugado (played_amount).
-    | administration → a administración va el PVP (jugado + donación = total_participation_amount).
+    | entity (default) → a administración va PVP − donativo (total_participation_amount − donation_amount).
+    | administration → a administración va el PVP completo (jugado + donación).
     | Vendedor→entidad no cambia: siempre liquida PVP completo.
     */
     'donation_recipient' => strtolower((string) env('LOTTERY_DONATION_RECIPIENT', 'entity')),

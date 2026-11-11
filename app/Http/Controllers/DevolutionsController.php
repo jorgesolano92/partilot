@@ -874,7 +874,7 @@ class DevolutionsController extends Controller
                     if ($tipoDevolucion === 'vendedor' && !empty($data['seller_id'])) {
                         $totalLiquidation = $totalInSet * $price;
                     } else {
-                        // Entidad→admin: físicas no devueltas + digitales SOLO vendidas (precio = solo jugado)
+                        // Entidad→admin: físicas no devueltas + digitales SOLO vendidas (precio según LOTTERY_DONATION_RECIPIENT)
                         $fisicasNoDevueltas = Participation::forUser(auth()->user())
                             ->where('set_id', $setId)
                             ->where('status', '!=', 'anulada')
@@ -965,7 +965,7 @@ class DevolutionsController extends Controller
                         $remainingWithSeller = max(0, $totalSellerInSet - $returnedInSet);
                         $totalLiquidation += $remainingWithSeller * $price;
                     } else {
-                        // Entidad→admin: físicas no devueltas + digitales SOLO vendidas (precio = solo jugado)
+                        // Entidad→admin: físicas no devueltas + digitales SOLO vendidas (precio según LOTTERY_DONATION_RECIPIENT)
                         $fisicasInSet = Participation::forUser(auth()->user())
                             ->where('set_id', $setId)
                             ->where('status', '!=', 'anulada')
@@ -2870,7 +2870,7 @@ class DevolutionsController extends Controller
                             $totalLiquidation += $remainingWithSeller * $price;
                             $totalRemainingWithSeller += $remainingWithSeller;
                         } else {
-                            // Físicas: las que quedan (no devueltas en esta operación). Digitales: SOLO las vendidas (precio = solo jugado)
+                            // Físicas: las que quedan (no devueltas en esta operación). Digitales: SOLO las vendidas (precio según LOTTERY_DONATION_RECIPIENT)
                             $fisicasInSet = Participation::forUser(auth()->user())
                                 ->where('set_id', $sid)
                                 ->where('status', '!=', 'anulada')
@@ -2994,7 +2994,7 @@ class DevolutionsController extends Controller
                 $totalSellerParticipations += $totalSellerInSet;
                 $totalRemainingWithSeller += $remainingWithSeller;
             } else {
-                // Entidad→admin: físicas no devueltas + digitales SOLO vendidas (precio = solo jugado)
+                // Entidad→admin: físicas no devueltas + digitales SOLO vendidas (precio según LOTTERY_DONATION_RECIPIENT)
                 $fisicasInSet = Participation::forUser(auth()->user())
                     ->where('set_id', $setId)
                     ->where('status', '!=', 'anulada')

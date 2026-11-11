@@ -511,23 +511,20 @@ class Set extends Model
 
     /**
      * Precio unitario entidad→administración según LOTTERY_DONATION_RECIPIENT:
-     * entity → solo jugado; administration → PVP (jugado + donación).
+     * administration → PVP completo (jugado + donación).
+     * entity → PVP menos donativo (el donativo se queda en la entidad).
      */
     public function administrationLiquidationUnitPrice(): float
     {
+        $pvp = round($this->pricePerParticipation(), 2);
         $recipient = strtolower((string) config('lottery.donation_recipient', 'entity'));
         if (in_array($recipient, ['administration', 'admin', 'administracion'], true)) {
-            return round($this->pricePerParticipation(), 2);
+            return $pvp;
         }
 
-        if ($this->played_amount !== null && $this->played_amount !== '') {
-            return round((float) $this->played_amount, 2);
-        }
+        $donation = round((float) ($this->donation_amount ?? 0), 2);
 
-        $total = (float) ($this->total_participation_amount ?? 0);
-        $donation = (float) ($this->donation_amount ?? 0);
-
-        return round(max(0.0, $total - $donation), 2);
+        return round(max(0.0, $pvp - $donation), 2);
     }
 
     /**
