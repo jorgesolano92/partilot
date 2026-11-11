@@ -299,8 +299,85 @@ class AppInboxNotificationService
                 'rol_context' => 'vendedor',
                 'seller_id' => $seller->id,
                 'entity_name' => $entity->name,
+                'assignment_state' => 'accepted',
+                'actionable' => false,
             ]
         );
+    }
+
+    /**
+     * Aviso en bandeja cuando hay una propuesta física pendiente de recibo (aceptar/rechazar en app).
+     */
+    public function notifyParticipationAssignmentProposal(\App\Models\ParticipationAssignmentProposal $proposal): void
+    {
+        $proposal->loadMissing(['seller.user', 'seller.entities', 'entity', 'lottery']);
+        $seller = $proposal->seller;
+        if (! $seller instanceof Seller) {
+            return;
+        }
+
+        $recipientUserId = $this->resolveRecipientUserIdForSeller($seller);
+        if ($recipientUserId <= 0) {
+            return;
+        }
+
+        $entity = $proposal->entity ?: $seller->entities->first();
+        if (! $entity instanceof Entity) {
+            return;
+        }
+
+        $senderId = $this->resolveSenderIdForEntity((int) $entity->id);
+        if (! $senderId) {
+            return;
+        }
+
+        $count = (int) ($proposal->participation_count ?? 0);
+        $lotteryName = $proposal->lottery?->name;
+        $msg = $count === 1
+            ? 'Tienes 1 participación física pendiente de aceptar.'
+            : "Tienes {$count} participaciones físicas pendientes de aceptar.";
+        if ($lotteryName) {
+            $msg .= ' Sorteo: '.$lotteryName.'.';
+        }
+        $msg .= ' Puedes aceptarlas aquí sin abrir el correo.';
+
+        $this->notifyUser(
+            $recipientUserId,
+            (int) $entity->id,
+            $entity->administration_id ? (int) $entity->administration_id : null,
+            $senderId,
+            'asignacion_participaciones',
+            'Asignación pendiente',
+            $msg,
+            [
+                'rol_context' => 'vendedor',
+                'seller_id' => $seller->id,
+                'entity_name' => $entity->name,
+                'entidad_nombre' => $entity->name,
+                'proposal_id' => (int) $proposal->id,
+                'assignment_state' => 'pending',
+                'actionable' => true,
+                'participation_count' => $count,
+            ]
+        );
+    }
+
+    public function closeParticipationAssignmentProposalNotifications(int $proposalId, string $assignmentState): void
+    {
+        Notification::query()
+            ->where('kind', 'asignacion_participaciones')
+            ->where('meta->proposal_id', $proposalId)
+            ->get()
+            ->each(function (Notification $n) use ($assignmentState) {
+                $meta = is_array($n->meta) ? $n->meta : [];
+                $meta['assignment_state'] = $assignmentState;
+                $meta['actionable'] = false;
+                $n->meta = $meta;
+                if (! $n->read_at) {
+                    $n->read_at = now();
+                }
+                $n->save();
+            });
     }
 
     protected function sendPushForNotification(Notification $notification): void

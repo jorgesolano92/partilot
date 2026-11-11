@@ -207,6 +207,9 @@ Route::middleware('auth.api')->group(function () {
         Route::get('/me/tacos', [SellerController::class, 'apiGetMyTacos']);
         Route::get('/me/taco-by-qr', [SellerController::class, 'apiTacoByQr']);
         Route::get('/me/tacos/{setId}/{bookNumber}/participations', [SellerController::class, 'apiGetTacoParticipations']);
+        Route::get('/me/assignment-proposals/pending', [SellerController::class, 'apiGetPendingAssignmentProposals']);
+        Route::post('/me/assignment-proposals/{proposalId}/accept', [SellerController::class, 'apiAcceptAssignmentProposal']);
+        Route::post('/me/assignment-proposals/{proposalId}/reject', [SellerController::class, 'apiRejectAssignmentProposal']);
 
         // Listar vendedores
         

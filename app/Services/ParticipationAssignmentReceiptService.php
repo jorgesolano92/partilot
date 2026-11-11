@@ -229,6 +229,12 @@ class ParticipationAssignmentReceiptService
 
         $this->sendProposalEmail($proposal);
 
+        try {
+            app(AppInboxNotificationService::class)->notifyParticipationAssignmentProposal($proposal);
+        } catch (\Throwable $e) {
+            Log::warning('Inbox notify assignment proposal: '.$e->getMessage());
+        }
+
         return $proposal;
     }
 
@@ -361,6 +367,13 @@ class ParticipationAssignmentReceiptService
                     'responded_at' => now(),
                 ]);
 
+                try {
+                    app(AppInboxNotificationService::class)
+                        ->closeParticipationAssignmentProposalNotifications((int) $proposal->id, 'rejected');
+                } catch (\Throwable $inboxErr) {
+                    Log::warning('Inbox close assignment proposal after unavailable: '.$inboxErr->getMessage());
+                }
+
                 return [
                     'type' => 'error',
                     'title' => 'Participaciones no disponibles',
@@ -374,7 +387,9 @@ class ParticipationAssignmentReceiptService
         $this->sendPostAcceptanceEmails($seller, $assignedIds, $proposal);
 
         try {
-            app(AppInboxNotificationService::class)->notifyParticipationAssigned(
+            $inbox = app(AppInboxNotificationService::class);
+            $inbox->closeParticipationAssignmentProposalNotifications((int) $proposal->id, 'accepted');
+            $inbox->notifyParticipationAssigned(
                 $seller,
                 count($assignedIds),
                 $proposal->lottery?->name ? 'Sorteo: '.$proposal->lottery->name.'.' : null
@@ -442,6 +457,13 @@ class ParticipationAssignmentReceiptService
             'status' => ParticipationAssignmentProposal::STATUS_REJECTED,
             'responded_at' => now(),
         ]);
+
+        try {
+            app(AppInboxNotificationService::class)
+                ->closeParticipationAssignmentProposalNotifications((int) $proposal->id, 'rejected');
+        } catch (\Throwable $e) {
+            Log::warning('Inbox close assignment proposal after reject: '.$e->getMessage());
+        }
 
         return [
             'type' => 'success',

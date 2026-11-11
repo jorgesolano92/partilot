@@ -1427,6 +1427,13 @@ class NotificationController extends Controller
         if ($kind === 'invitacion_vendedor' && in_array($meta['assignment_state'] ?? '', ['sent', 'pending'], true)) {
             $actionable = true;
         }
+        if (
+            $kind === 'asignacion_participaciones'
+            && ($meta['assignment_state'] ?? '') === 'pending'
+            && ! empty($meta['proposal_id'])
+        ) {
+            $actionable = true;
+        }
 
         return [
             'id' => $n->id,
@@ -1443,6 +1450,7 @@ class NotificationController extends Controller
             'roleInvitationKey' => $meta['role_invitation_key'] ?? null,
             'assignmentState' => $meta['assignment_state'] ?? null,
             'actionable' => $actionable,
+            'proposalId' => isset($meta['proposal_id']) ? (int) $meta['proposal_id'] : null,
             'deepLink' => $meta['deep_link'] ?? null,
         ];
     }

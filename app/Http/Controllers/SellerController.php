@@ -831,6 +831,115 @@ class SellerController extends Controller
     }
 
     /**
+     * API: propuestas de asignación física pendientes de aceptar (recibo).
+     */
+    public function apiGetPendingAssignmentProposals(Request $request)
+    {
+        $seller = $this->resolveAuthenticatedActiveSeller($request);
+        if ($seller instanceof \Illuminate\Http\JsonResponse) {
+            return $seller;
+        }
+
+        $proposals = \App\Models\ParticipationAssignmentProposal::query()
+            ->with(['entity:id,name', 'lottery:id,name'])
+            ->where('seller_id', $seller->id)
+            ->where('status', \App\Models\ParticipationAssignmentProposal::STATUS_PENDING)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn ($p) => [
+                'id' => (int) $p->id,
+                'participation_count' => (int) $p->participation_count,
+                'entity_name' => $p->entity?->name,
+                'lottery_name' => $p->lottery?->name,
+                'expires_at' => $p->expires_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'count' => $proposals->count(),
+            'proposals' => $proposals,
+        ]);
+    }
+
+    /**
+     * API: aceptar propuesta de asignación desde la app (sin email).
+     */
+    public function apiAcceptAssignmentProposal(Request $request, int $proposalId, ParticipationAssignmentReceiptService $receiptService)
+    {
+        $seller = $this->resolveAuthenticatedActiveSeller($request);
+        if ($seller instanceof \Illuminate\Http\JsonResponse) {
+            return $seller;
+        }
+
+        $proposal = \App\Models\ParticipationAssignmentProposal::query()->find($proposalId);
+        if (! $proposal || (int) $proposal->seller_id !== (int) $seller->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Propuesta no encontrada.',
+            ], 404);
+        }
+
+        $result = $receiptService->acceptByToken((string) $proposal->token, $request);
+        $ok = ($result['type'] ?? '') === 'success';
+
+        return response()->json([
+            'success' => $ok,
+            'title' => $result['title'] ?? null,
+            'message' => $result['message'] ?? null,
+        ], $ok ? 200 : 422);
+    }
+
+    /**
+     * API: rechazar propuesta de asignación desde la app (sin email).
+     */
+    public function apiRejectAssignmentProposal(Request $request, int $proposalId, ParticipationAssignmentReceiptService $receiptService)
+    {
+        $seller = $this->resolveAuthenticatedActiveSeller($request);
+        if ($seller instanceof \Illuminate\Http\JsonResponse) {
+            return $seller;
+        }
+
+        $proposal = \App\Models\ParticipationAssignmentProposal::query()->find($proposalId);
+        if (! $proposal || (int) $proposal->seller_id !== (int) $seller->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Propuesta no encontrada.',
+            ], 404);
+        }
+
+        $result = $receiptService->rejectByToken((string) $proposal->token);
+        $ok = ($result['type'] ?? '') === 'success';
+
+        return response()->json([
+            'success' => $ok,
+            'title' => $result['title'] ?? null,
+            'message' => $result['message'] ?? null,
+        ], $ok ? 200 : 422);
+    }
+
+    /**
+     * @return Seller|\Illuminate\Http\JsonResponse
+     */
+    private function resolveAuthenticatedActiveSeller(Request $request)
+    {
+        $user = $request->user();
+        if (! $user || ! $user->isSeller()) {
+            return response()->json(['success' => false, 'message' => 'No tienes permisos para realizar esta acción.'], 403);
+        }
+
+        $seller = Seller::where('user_id', $user->id)->where('status', Seller::STATUS_ACTIVE)->first();
+        if (! $seller) {
+            return response()->json(['success' => false, 'message' => 'Vendedor no encontrado o inactivo.'], 403);
+        }
+
+        return $seller;
+    }
+
+    /**
      * API: Obtener tacos asignados del vendedor autenticado por entidad
      */
     public function apiGetMyTacos(Request $request)
