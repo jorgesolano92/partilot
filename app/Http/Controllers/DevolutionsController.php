@@ -724,6 +724,21 @@ class DevolutionsController extends Controller
             $participationsToReturn = $allowedToReturn;
             $tipoDevolucion = $request->input('tipo_devolucion');
 
+            // Entidad→admin: no aceptar digitales en la selección manual (van al auto-return del pool).
+            if ($tipoDevolucion !== 'vendedor' && ! empty($participationsToReturn)) {
+                $digitalManualIds = Participation::forUser(auth()->user())
+                    ->whereIn('id', $participationsToReturn)
+                    ->whereRaw("participation_code LIKE '1D/%'")
+                    ->pluck('id')
+                    ->all();
+                if ($digitalManualIds !== []) {
+                    $participationsToReturn = array_values(array_diff(
+                        array_map('intval', $participationsToReturn),
+                        array_map('intval', $digitalManualIds)
+                    ));
+                }
+            }
+
             // Calcular participaciones a vender
             $participationsToSell = [];
             $sellerIdForSell = $data['seller_id'] ?? null;
@@ -2384,11 +2399,16 @@ class DevolutionsController extends Controller
 
         // Solo se pueden devolver participaciones asignadas o disponibles (nunca vendidas ni pagadas)
         $returnableStatuses = Participation::returnableDevolutionStatuses();
-        if (isset($data['seller_id'])) {
-            $query->where('participations.seller_id', $data['seller_id'])
+        $sellerIdFilter = ! empty($data['seller_id']) ? (int) $data['seller_id'] : null;
+        if ($sellerIdFilter) {
+            $query->where('participations.seller_id', $sellerIdFilter)
                   ->whereIn('participations.status', $returnableStatuses);
         } else {
             $query->whereIn('participations.status', $returnableStatuses);
+            // Entidad→admin / anulación: solo físicas seleccionables.
+            // Por reserva, el nº 6–35 del físico y el 1–13 del digital se solapan: sin este filtro
+            // el rango metía también códigos 1D/. Las digitales no vendidas van al auto-return.
+            $query->whereRaw("(participations.participation_code IS NULL OR participations.participation_code NOT LIKE '1D/%')");
         }
 
         // EXCLUIR ANULADAS
@@ -2458,6 +2478,14 @@ class DevolutionsController extends Controller
             ->whereIn('status', Participation::returnableDevolutionStatuses())
             ->where('status', '!=', 'anulada')
             ->first();
+
+        if ($participation && str_starts_with((string) $participation->participation_code, '1D/')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Las participaciones digitales no se seleccionan a mano: las no vendidas se devuelven solas al confirmar; las vendidas van a la liquidación.',
+                'participations' => [],
+            ], 422);
+        }
 
         if (! $participation) {
             $blocked = Participation::forUser(auth()->user())
