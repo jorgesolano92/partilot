@@ -2478,10 +2478,18 @@
                         .then(function (res) { return res.ok ? res.json() : null; })
                         .then(function (data) {
                             var items = Array.isArray(data?.items) ? data.items : [];
+                            var watched = {};
+                            getWatchedTaskUuids().forEach(function (uuid) { watched[uuid] = true; });
                             items.forEach(function (item) {
-                                if (item.status === 'completed' || item.status === 'failed') {
-                                    markTaskNotified(item);
+                                if (!(item.status === 'completed' || item.status === 'failed')) return;
+                                // Si el usuario acaba de lanzar esta tarea, no silenciarla:
+                                // hay que avisar y refrescar (p. ej. listado de devoluciones).
+                                if (item.uuid && watched[item.uuid]) {
+                                    unwatchBackgroundTask(item.uuid);
+                                    notifyTask(item);
+                                    return;
                                 }
+                                markTaskNotified(item);
                             });
                         })
                         .catch(function () {});

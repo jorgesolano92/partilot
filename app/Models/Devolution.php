@@ -95,6 +95,72 @@ class Devolution extends Model
     }
 
     /**
+     * Etiqueta para la columna "Set / Reserva" del listado:
+     * - 1 set en el detalle → nombre del set
+     * - varios sets, o sin movimientos pero con reserva → "Reserva …"
+     * - si no hay datos → N/A
+     */
+    public function setOrReserveLabel(): string
+    {
+        $this->loadMissing(['reserve', 'details.participation.set.reserve']);
+
+        $sets = $this->details
+            ->map(fn ($d) => $d->participation?->set)
+            ->filter()
+            ->unique('id')
+            ->values();
+
+        if ($sets->count() === 1) {
+            $set = $sets->first();
+            $name = trim((string) ($set->set_name ?? ''));
+
+            return $name !== '' ? $name : ('Set #'.$set->id);
+        }
+
+        $reserve = $this->reserve;
+        if (! $reserve) {
+            $reserveId = $this->resolvedReserveId();
+            if ($reserveId) {
+                $reserve = Reserve::query()->find($reserveId);
+            }
+        }
+        if (! $reserve && $sets->isNotEmpty()) {
+            $reserve = $sets->first()?->reserve;
+        }
+
+        if ($reserve) {
+            return 'Reserva '.$this->formatReserveDisplayLabel($reserve);
+        }
+
+        if ($sets->count() > 1) {
+            return $sets
+                ->map(fn ($set) => trim((string) ($set->set_name ?? '')) ?: ('Set #'.$set->id))
+                ->implode(', ');
+        }
+
+        return 'N/A';
+    }
+
+    public function formatReserveDisplayLabel(?Reserve $reserve = null): string
+    {
+        $reserve = $reserve ?? $this->reserve;
+        if (! $reserve) {
+            return 'N/A';
+        }
+
+        $nums = $reserve->reservation_numbers;
+        if (is_string($nums)) {
+            $decoded = json_decode($nums, true);
+            $nums = is_array($decoded) ? $decoded : $nums;
+        }
+        if (is_array($nums) && count($nums) > 0) {
+            return implode(' - ', array_map('strval', $nums));
+        }
+
+        return '#'.str_pad((string) $reserve->id, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * Relación con User (quien procesa la devolución)
      */
     public function user(): BelongsTo

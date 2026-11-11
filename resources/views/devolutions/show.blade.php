@@ -94,6 +94,7 @@
                             <div class="resumen-linea"><span class="resumen-etiqueta">Vendedor:</span> <span class="resumen-valor">{{ $devolution->seller ? ($devolution->seller->full_name ?: $devolution->seller->name) : 'Sin vendedor' }}</span></div>
                         @endunless
                         <div class="resumen-linea"><span class="resumen-etiqueta">Fecha:</span> <span class="resumen-valor">{{ \Carbon\Carbon::parse($devolution->devolution_date)->format('d/m/Y') }}</span></div>
+                        <div class="resumen-linea"><span class="resumen-etiqueta">Set / Reserva:</span> <span class="resumen-valor">{{ $devolution->setOrReserveLabel() }}</span></div>
                         @if($isAnnulment && $devolution->annulmentReason())
                             <div class="resumen-linea"><span class="resumen-etiqueta">Motivo:</span> <span class="resumen-valor">{{ $devolution->annulmentReason() }}</span></div>
                         @elseif(! $isAnnulment && $devolution->return_reason)
@@ -186,6 +187,15 @@
                         @endphp
                         <div class="resumen-devolucion">
                             <div class="resumen-titulo mb-2">Desglose de participaciones</div>
+                            @if($detalleFilas->isEmpty() && (int) $devolution->total_participations > 0)
+                                <p class="text-muted small mb-2">
+                                    Sin movimientos de participaciones en esta operación
+                                    (confirmación / liquidación sin devoluciones nuevas).
+                                    @if(!empty($devolution->notes))
+                                        <br>{{ $devolution->notes }}
+                                    @endif
+                                </p>
+                            @endif
                             <div class="table-responsive">
                                 <table id="tabla-desglose-devoluciones" class="table table-sm table-hover participaciones-table w-100 mb-0">
                                     <thead class="table-light">
@@ -234,14 +244,35 @@
                             $spPerFraction = $spRequiredFractions > 0 ? ($spTotalLiquidation / $spRequiredFractions) : 0;
                             $spRemainingAmount = $spRemainingFractions * $spPerFraction;
                             $showSpecialPrize = ! empty($spAssignments) || $spRequiredFractions > 0;
+                            $spHoldsWinning = ! empty($sp['entity_holds_winning_fraction']);
+                            $spWinNumero = $sp['premio_especial_numero'] ?? null;
+                            $spWinSerie = $sp['premio_especial_serie'] ?? null;
+                            $spWinFraccion = $sp['premio_especial_fraccion'] ?? null;
+                            $spWinImporte = $sp['premio_especial_importe'] ?? null;
                         @endphp
 
                         @if($showSpecialPrize)
                             <div class="special-prize-box">
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                                     <h5 class="mb-0">Detalle Serie/Fracción (Premio Especial)</h5>
-                                    <span class="badge bg-warning text-dark">Series válidas: 1-{{ (int) ($sp['max_series'] ?? 0) }}</span>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        @if($spHoldsWinning)
+                                            <span class="badge bg-success">Esta entidad tiene el décimo del premio especial</span>
+                                        @endif
+                                        <span class="badge bg-warning text-dark">Series válidas: 1-{{ (int) ($sp['max_series'] ?? 0) }}</span>
+                                    </div>
                                 </div>
+                                @if($spHoldsWinning)
+                                    <div class="alert alert-success py-2 mb-3">
+                                        <strong>Cobrar a Loterías y Apuestas:</strong>
+                                        número {{ $spWinNumero ?? '—' }}
+                                        · serie {{ $spWinSerie ?? '—' }}
+                                        · fracción {{ $spWinFraccion ?? '—' }}
+                                        @if($spWinImporte !== null)
+                                            · {{ number_format((float) $spWinImporte, 2, ',', '.') }} €
+                                        @endif
+                                    </div>
+                                @endif
                                 <div class="table-responsive mb-3">
                                     <table class="table table-sm table-hover mb-0">
                                         <thead class="table-light">
@@ -308,8 +339,19 @@
                                     $totalLiquidacion = $devolution->total_liquidation !== null
                                         ? (float) $devolution->total_liquidation
                                         : $ventasRegistradas->sum(fn ($d) => (float) ($d->participation?->set?->played_amount ?? 0));
-                                    $totalPagado = $devolution->payments->sum('amount');
-                                    $pendiente = $totalLiquidacion - $totalPagado;
+                                    $pagosDevolucion = (float) $devolution->payments->sum('amount');
+                                    $pagosPreviosVendedor = 0.0;
+                                    if ($devolution->seller_id && $devolution->lottery_id) {
+                                        $pagosPreviosVendedor = (float) \App\Models\SellerSettlement::query()
+                                            ->where('seller_id', $devolution->seller_id)
+                                            ->where('lottery_id', $devolution->lottery_id)
+                                            ->sum('paid_amount');
+                                    }
+                                    // En vendedor el pendiente real mira todos los apuntes del sorteo, no solo los de esta devolución.
+                                    $totalPagado = $devolution->seller_id
+                                        ? max($pagosDevolucion, $pagosPreviosVendedor)
+                                        : $pagosDevolucion;
+                                    $pendiente = max(0, $totalLiquidacion - $totalPagado);
                                 @endphp
                                 <div class="row g-2 mb-2">
                                     <div class="col-md-4">
@@ -353,6 +395,11 @@
                                             </tbody>
                                         </table>
                                     </div>
+                                @elseif($devolution->seller_id && $pagosPreviosVendedor > 0.009)
+                                    <p class="text-muted mb-0 small">
+                                        Sin pagos nuevos en esta operación.
+                                        El vendedor ya tiene registrados {{ number_format($pagosPreviosVendedor, 2, ',', '.') }} € en liquidaciones previas de este sorteo.
+                                    </p>
                                 @else
                                     <p class="text-muted mb-0 small">No hay pagos registrados en esta liquidación.</p>
                                 @endif

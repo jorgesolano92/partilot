@@ -43,6 +43,48 @@ class DevolutionsController extends Controller
     }
 
     /**
+     * Dinero de liquidación de vendedor: siempre a nivel SORTEO (misma base que la deuda del listado).
+     * No mezclar importe de una sola reserva con pagos acumulados del sorteo entero.
+     *
+     * @param  array<int>  $returnParticipationIds  IDs que se van a devolver en esta operación
+     * @return array{total_liquidation: float, registered_payments: float, total_to_pay: float}|array{registered_payments: float, total_to_pay: float}
+     */
+    private function sellerLiquidationPaymentFields(
+        ?string $tipoDevolucion,
+        $sellerId,
+        $lotteryId,
+        float $totalLiquidation,
+        array $returnParticipationIds = [],
+        bool $overwriteLiquidation = false
+    ): array {
+        if ($tipoDevolucion !== 'vendedor' || ! $sellerId || ! $lotteryId) {
+            return [
+                'registered_payments' => 0.0,
+                'total_to_pay' => max(0, round($totalLiquidation, 2)),
+            ];
+        }
+
+        $settlementService = app(SellerSettlementRegistrationService::class);
+        $returnIds = array_values(array_unique(array_map('intval', $returnParticipationIds)));
+        $remainingValue = round((float) $settlementService
+            ->eligibleParticipations((int) $sellerId, (int) $lotteryId)
+            ->reject(fn ($p) => in_array((int) $p->id, $returnIds, true))
+            ->sum(fn ($p) => SellerSettlementRegistrationService::participationPrice($p)), 2);
+        $registeredPayments = round($settlementService->previousPaid((int) $sellerId, (int) $lotteryId), 2);
+
+        $fields = [
+            'registered_payments' => $registeredPayments,
+            'total_to_pay' => max(0, round($remainingValue - $registeredPayments, 2)),
+        ];
+
+        if ($overwriteLiquidation) {
+            $fields['total_liquidation'] = $remainingValue;
+        }
+
+        return $fields;
+    }
+
+    /**
      * Resumen entidad→administración: las digitales disponibles/asignadas del pool
      * se devuelven automáticamente al confirmar, por tanto cuentan como "devueltas" en la UI.
      * "Disponibles" en resumen = solo físicas que aún no se devuelven manualmente.
@@ -84,6 +126,89 @@ class DevolutionsController extends Controller
     }
 
     /**
+     * Premio especial (serie/fracción) solo aplica a liquidación entidad→administración.
+     */
+    private function specialPrizeRequirementForTipo(?string $tipoDevolucion, ?int $lotteryId): array
+    {
+        if ($tipoDevolucion === 'vendedor' || $tipoDevolucion === 'anulacion') {
+            return ['required' => false];
+        }
+
+        return $this->buildSpecialPrizeRequirement($lotteryId);
+    }
+
+    /**
+     * Unidades de premio especial a cubrir en entidad→admin: solo participaciones VENDIDAS
+     * (físicas + digitales). No incluye stock disponible/asignado al vendedor.
+     *
+     * @param  array<int, int>  $setIds
+     * @return array{count: int, amount: float}
+     */
+    private function computeAdministrationSpecialPrizeUnits(array $setIds): array
+    {
+        $setIds = array_values(array_filter(array_map('intval', $setIds)));
+        if ($setIds === []) {
+            return ['count' => 0, 'amount' => 0.0];
+        }
+
+        $count = 0;
+        $amount = 0.0;
+
+        foreach ($setIds as $setId) {
+            $set = Set::forUser(auth()->user())->find($setId);
+            if (! $set) {
+                continue;
+            }
+            $price = self::pricePerParticipationSet($set);
+
+            $fisicasVendidas = Participation::forUser(auth()->user())
+                ->where('set_id', $setId)
+                ->sold()
+                ->whereRaw("(participation_code IS NULL OR participation_code NOT LIKE '1D/%')")
+                ->count();
+
+            $digitalesVendidas = Participation::forUser(auth()->user())
+                ->where('set_id', $setId)
+                ->sold()
+                ->whereRaw("participation_code LIKE '1D/%'")
+                ->count();
+
+            $n = $fisicasVendidas + $digitalesVendidas;
+            $count += $n;
+            $amount += $n * $price;
+        }
+
+        return ['count' => $count, 'amount' => round($amount, 2)];
+    }
+
+    /**
+     * @param  array<string, mixed>  $summary
+     * @param  array<int, int>  $setIds
+     * @return array<string, mixed>
+     */
+    private function appendSpecialPrizeSummaryFields(
+        array $summary,
+        ?string $tipoDevolucion,
+        ?int $lotteryId,
+        array $setIds = []
+    ): array {
+        $summary['special_prize_requirement'] = $this->specialPrizeRequirementForTipo($tipoDevolucion, $lotteryId);
+
+        if ($tipoDevolucion === 'vendedor' || $tipoDevolucion === 'anulacion') {
+            $summary['special_prize_required_fractions'] = 0;
+            $summary['special_prize_amount'] = 0.0;
+
+            return $summary;
+        }
+
+        $units = $this->computeAdministrationSpecialPrizeUnits($setIds);
+        $summary['special_prize_required_fractions'] = $units['count'];
+        $summary['special_prize_amount'] = $units['amount'];
+
+        return $summary;
+    }
+
+    /**
      * Determina si el sorteo requiere captura obligatoria de serie/fracción
      * por tener premio especial con serie y fracción.
      */
@@ -107,12 +232,19 @@ class DevolutionsController extends Controller
         $specialSerie = null;
         $specialFraccion = null;
         $specialNumero = null;
+        $specialImporte = null;
 
         // Priorizar premio_especial cuando tenga serie/fracción
         if (is_array($premioEspecial) && !empty($premioEspecial['serie']) && !empty($premioEspecial['fraccion'])) {
             $specialSerie = $premioEspecial['serie'];
             $specialFraccion = $premioEspecial['fraccion'];
             $specialNumero = $premioEspecial['numero'] ?? $premioEspecial['decimo'] ?? null;
+            $rawPrize = $premioEspecial['premio'] ?? $premioEspecial['prize'] ?? null;
+            if ($rawPrize !== null && is_numeric($rawPrize)) {
+                $rawPrize = (float) $rawPrize;
+                // LAE suele enviar céntimos (p. ej. 1500000000 = 15.000.000 €).
+                $specialImporte = $rawPrize >= 100000 ? round($rawPrize / 100, 2) : round($rawPrize, 2);
+            }
         }
 
         // Fallback: muchos sorteos guardan serie/fracción en primer_premio
@@ -134,6 +266,7 @@ class DevolutionsController extends Controller
             'premio_especial_numero' => $specialNumero,
             'premio_especial_serie' => $specialSerie,
             'premio_especial_fraccion' => $specialFraccion,
+            'premio_especial_importe' => $specialImporte,
         ];
     }
 
@@ -212,6 +345,22 @@ class DevolutionsController extends Controller
             }
         }
 
+        $winningSerie = isset($requirement['premio_especial_serie']) ? (int) $requirement['premio_especial_serie'] : 0;
+        $winningFraccion = isset($requirement['premio_especial_fraccion']) ? (int) $requirement['premio_especial_fraccion'] : 0;
+        $entityHoldsWinningFraction = false;
+        if ($winningSerie > 0 && $winningFraccion > 0) {
+            foreach ($normalizedAssignments as $assignment) {
+                if ((int) ($assignment['serie'] ?? 0) !== $winningSerie) {
+                    continue;
+                }
+                $fracs = array_map('intval', $assignment['fracciones'] ?? []);
+                if (in_array($winningFraccion, $fracs, true)) {
+                    $entityHoldsWinningFraction = true;
+                    break;
+                }
+            }
+        }
+
         return [
             'valid' => true,
             'normalized' => [
@@ -221,6 +370,8 @@ class DevolutionsController extends Controller
                 'premio_especial_numero' => $requirement['premio_especial_numero'] ?? null,
                 'premio_especial_serie' => $requirement['premio_especial_serie'] ?? null,
                 'premio_especial_fraccion' => $requirement['premio_especial_fraccion'] ?? null,
+                'premio_especial_importe' => $requirement['premio_especial_importe'] ?? null,
+                'entity_holds_winning_fraction' => $entityHoldsWinningFraction,
                 'total_liquidation' => round($totalLiquidation, 2),
                 'assignments' => $normalizedAssignments,
             ],
@@ -318,7 +469,15 @@ class DevolutionsController extends Controller
             ? (int) $entityFilterIdRaw
             : null;
 
-        $query = Devolution::with(['entity', 'lottery', 'reserve', 'seller', 'user', 'payments'])
+        $query = Devolution::with([
+            'entity',
+            'lottery',
+            'reserve',
+            'seller',
+            'user',
+            'payments',
+            'details.participation.set.reserve',
+        ])
             ->forUser(auth()->user());
 
         if ($entityFilterId !== null) {
@@ -721,6 +880,23 @@ class DevolutionsController extends Controller
                         $totalLiquidation += $count * $price;
                     }
                 }
+            } elseif (empty($participationsToReturn) && $tipoDevolucion === 'vendedor' && !empty($data['seller_id']) && !empty($data['lottery_id'])) {
+                // Vendedor sin devoluciones: snapshot de lo que sigue a su cargo (reserva o sorteo completo).
+                $settlementService = app(SellerSettlementRegistrationService::class);
+                $eligible = $settlementService->eligibleParticipations((int) $data['seller_id'], (int) $data['lottery_id']);
+                if (! empty($data['reserve_id'])) {
+                    $setIdsReserve = Set::query()
+                        ->where('reserve_id', (int) $data['reserve_id'])
+                        ->pluck('id')
+                        ->all();
+                    $eligible = $eligible->whereIn('set_id', $setIdsReserve)->values();
+                } elseif (! empty($data['set_id'])) {
+                    $eligible = $eligible->where('set_id', (int) $data['set_id'])->values();
+                }
+                $totalParticipations = $eligible->count();
+                $totalLiquidation = round((float) $eligible->sum(
+                    fn ($p) => SellerSettlementRegistrationService::participationPrice($p)
+                ), 2);
             } elseif (!empty($participationsToReturn)) {
                 $participations = Participation::forUser(auth()->user())
                     ->whereIn('id', $participationsToReturn)->get();
@@ -796,15 +972,28 @@ class DevolutionsController extends Controller
                 $totalLiquidation = 0;
             }
 
+            // Vendedor: importe y pendiente siempre a nivel sorteo (tras las devoluciones de esta operación).
+            if ($tipoDevolucion === 'vendedor' && ! empty($data['seller_id']) && ! empty($data['lottery_id'])) {
+                $sellerMoney = $this->sellerLiquidationPaymentFields(
+                    'vendedor',
+                    $data['seller_id'],
+                    $data['lottery_id'],
+                    0,
+                    $participationsToReturn,
+                    true
+                );
+                $totalLiquidation = (float) $sellerMoney['total_liquidation'];
+                $totalParticipations = app(SellerSettlementRegistrationService::class)
+                    ->eligibleParticipations((int) $data['seller_id'], (int) $data['lottery_id'])
+                    ->reject(fn ($p) => in_array((int) $p->id, array_map('intval', $participationsToReturn), true))
+                    ->count();
+            }
+
             // AUD-041: no se reembolsa dinero al vendedor, así que no puede devolver más de lo que dejaría cubierto lo ya pagado.
             if ($tipoDevolucion === 'vendedor' && ! empty($data['seller_id']) && ! empty($participationsToReturn)) {
                 $settlementService = app(SellerSettlementRegistrationService::class);
-                $eligible = $settlementService->eligibleParticipations((int) $data['seller_id'], (int) $data['lottery_id']);
-                $returnIds = array_map('intval', $participationsToReturn);
-                $remainingValue = round((float) $eligible
-                    ->reject(fn ($p) => in_array((int) $p->id, $returnIds, true))
-                    ->sum(fn ($p) => SellerSettlementRegistrationService::participationPrice($p)), 2);
                 $alreadyPaidBySeller = round($settlementService->previousPaid((int) $data['seller_id'], (int) $data['lottery_id']), 2);
+                $remainingValue = (float) $totalLiquidation;
                 if ($alreadyPaidBySeller > $remainingValue + 0.009) {
                     DB::rollBack();
 
@@ -846,29 +1035,46 @@ class DevolutionsController extends Controller
                 }
             }
 
-            $specialPrizeRequirement = $this->buildSpecialPrizeRequirement((int) $data['lottery_id']);
+            // Premio especial (serie/fracción): solo entidad→administración; nunca en devolución de vendedor.
+            $specialPrizeRequirement = $this->specialPrizeRequirementForTipo($tipoDevolucion, (int) $data['lottery_id']);
             $specialPrizeSettlement = null;
-            if (!$soloDevolucion) {
+            if (! $soloDevolucion && $tipoDevolucion !== 'vendedor' && $tipoDevolucion !== 'anulacion') {
                 $specialPrizeRaw = $data['liquidacion']['special_prize'] ?? null;
                 $shouldValidateSpecialPrize = ($specialPrizeRequirement['required'] ?? false)
-                    || (is_array($specialPrizeRaw) && !empty($specialPrizeRaw['assignments']));
+                    || (is_array($specialPrizeRaw) && ! empty($specialPrizeRaw['assignments']));
 
-                // La referencia para serie/fracción debe ser la cantidad disponible a liquidar,
-                // no el total histórico ni las participaciones ya devueltas.
-                $requiredFractionsForSpecialPrize = count($participationsToSell);
-                if ($requiredFractionsForSpecialPrize <= 0) {
-                    $requiredFractionsForSpecialPrize = (int) $totalParticipations;
+                $setIdsForSpecialPrize = [];
+                if (! empty($data['reserve_id'])) {
+                    $setIdsForSpecialPrize = Set::forUser(auth()->user())
+                        ->where('reserve_id', $data['reserve_id'])
+                        ->where('status', 1)
+                        ->pluck('id')
+                        ->all();
+                } elseif (! empty($data['set_id'])) {
+                    $setIdsForSpecialPrize = [(int) $data['set_id']];
+                } else {
+                    $setIdsForSpecialPrize = Participation::forUser(auth()->user())
+                        ->whereIn('id', array_merge($participationsToReturn, $participationsToSell))
+                        ->pluck('set_id')
+                        ->unique()
+                        ->filter()
+                        ->values()
+                        ->all();
                 }
+
+                $specialPrizeUnits = $this->computeAdministrationSpecialPrizeUnits($setIdsForSpecialPrize);
+                $requiredFractionsForSpecialPrize = (int) $specialPrizeUnits['count'];
 
                 if ($shouldValidateSpecialPrize) {
                     $specialPrizeValidation = $this->validateSpecialPrizeSettlementData(
                         $specialPrizeRaw,
                         $specialPrizeRequirement,
-                        (int) $requiredFractionsForSpecialPrize,
-                        (float) $totalLiquidation
+                        $requiredFractionsForSpecialPrize,
+                        (float) $specialPrizeUnits['amount']
                     );
-                    if (!$specialPrizeValidation['valid']) {
+                    if (! $specialPrizeValidation['valid']) {
                         DB::rollBack();
+
                         return response()->json([
                             'success' => false,
                             'message' => $specialPrizeValidation['message'] ?? 'Debes completar la asignación del premio especial para continuar.',
@@ -886,6 +1092,32 @@ class DevolutionsController extends Controller
                 )))
             );
 
+            $pagosNuevos = collect($data['liquidacion']['pagos'] ?? [])
+                ->sum(fn ($p) => max(0, (float) ($p['amount'] ?? 0)));
+            $sinMovimientos = empty($participationsToReturn)
+                && empty($participationsToSell)
+                && $pagosNuevos <= 0.009;
+
+            // No guardar cascarones vacíos (0 participaciones / 0 € / sin detalle).
+            if ($sinMovimientos && $totalParticipations <= 0 && $totalLiquidation <= 0.009) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay nada que registrar: sin participaciones, sin importe y sin pagos.',
+                ], 422);
+            }
+
+            $devolutionNotes = 'Devolución procesada automáticamente';
+            if ($tipoDevolucion === 'vendedor' && $sinMovimientos && $totalLiquidation > 0.009) {
+                $alreadyPaidNote = ! empty($data['seller_id'])
+                    ? round(app(SellerSettlementRegistrationService::class)->previousPaid((int) $data['seller_id'], (int) $data['lottery_id']), 2)
+                    : 0.0;
+                $devolutionNotes = 'Confirmación de liquidación de vendedor sin movimientos. '
+                    .'Importe a cargo: '.number_format($totalLiquidation, 2, ',', '.').' €. '
+                    .'Pagos previos del vendedor en el sorteo: '.number_format($alreadyPaidNote, 2, ',', '.').' €.';
+            }
+
             // Crear registro de devolución
             $devolution = Devolution::create([
                 'entity_id' => $data['entity_id'],
@@ -899,7 +1131,7 @@ class DevolutionsController extends Controller
                 'devolution_date' => $now->format('Y-m-d'),
                 'devolution_time' => $now->format('H:i:s'),
                 'status' => 'procesada',
-                'notes' => 'Devolución procesada automáticamente',
+                'notes' => $devolutionNotes,
                 'special_prize_settlement' => $specialPrizeSettlement,
             ]);
 
@@ -2292,7 +2524,6 @@ class DevolutionsController extends Controller
         $selectedParticipations = is_array($selectedParticipations) ? $selectedParticipations : array_filter([$selectedParticipations]);
         $tipoDevolucion = $request->get('tipo_devolucion');
         $sellerId = $request->get('seller_id');
-        $specialPrizeRequirement = $this->buildSpecialPrizeRequirement((int) $lotteryId);
         // Respetar siempre el tipo de devolución elegido (no forzar vendedor si es entidad→admin)
 
         if ($entityId && (! auth()->user()->canAccessEntity((int) $entityId)
@@ -2334,7 +2565,7 @@ class DevolutionsController extends Controller
             if (empty($setIds)) {
                 return response()->json([
                     'success' => true,
-                    'summary' => [
+                    'summary' => $this->appendSpecialPrizeSummaryFields([
                         'total_participations' => 0,
                         'total_fisicas' => 0,
                         'total_digitales' => 0,
@@ -2346,8 +2577,7 @@ class DevolutionsController extends Controller
                         'registered_payments' => 0,
                         'total_to_pay' => 0,
                         'sets_info' => [],
-                        'special_prize_requirement' => $specialPrizeRequirement,
-                    ]
+                    ], $tipoDevolucion, (int) $lotteryId, []),
                 ]);
             }
             $baseQuery = Participation::forUser(auth()->user())
@@ -2419,7 +2649,7 @@ class DevolutionsController extends Controller
 
             return response()->json([
                 'success' => true,
-                'summary' => [
+                'summary' => $this->appendSpecialPrizeSummaryFields(array_merge([
                     'total_participations' => $totalInReserve,
                     'total_fisicas' => $totalFisicas,
                     'total_digitales' => $totalDigitales,
@@ -2433,11 +2663,15 @@ class DevolutionsController extends Controller
                     'returned_fisicas_manual' => $summaryCounts['returned_fisicas_manual'],
                     'available_participations' => $summaryCounts['available_participations'],
                     'total_liquidation' => $totalLiquidationReserve,
-                    'registered_payments' => 0,
-                    'total_to_pay' => $totalLiquidationReserve,
                     'sets_info' => [],
-                    'special_prize_requirement' => $specialPrizeRequirement,
-                ]
+                ], $this->sellerLiquidationPaymentFields(
+                    $tipoDevolucion,
+                    $sellerId,
+                    $lotteryId,
+                    (float) $totalLiquidationReserve,
+                    [],
+                    $tipoDevolucion === 'vendedor'
+                )), $tipoDevolucion, (int) $lotteryId, $setIds),
             ]);
         }
 
@@ -2488,7 +2722,7 @@ class DevolutionsController extends Controller
 
             return response()->json([
                 'success' => true,
-                'summary' => [
+                'summary' => $this->appendSpecialPrizeSummaryFields(array_merge([
                     'total_participations' => $totalInSet,
                     'ventas_registradas' => $ventasRegistradas,
                     'sold_participations' => $ventasRegistradas,
@@ -2497,9 +2731,6 @@ class DevolutionsController extends Controller
                     'returned_fisicas_manual' => $summaryCounts['returned_fisicas_manual'],
                     'available_participations' => $summaryCounts['available_participations'],
                     'total_liquidation' => $totalLiquidation,
-                    'registered_payments' => 0,
-                    'total_to_pay' => $totalLiquidation,
-                    'special_prize_requirement' => $specialPrizeRequirement,
                     'sets_info' => [[
                         'set_id' => $setId,
                         'set_name' => $set->set_name,
@@ -2510,7 +2741,14 @@ class DevolutionsController extends Controller
                         'price_per_participation' => $pricePerParticipation,
                         'liquidation' => $totalLiquidation
                     ]]
-                ]
+                ], $this->sellerLiquidationPaymentFields(
+                    $tipoDevolucion,
+                    $sellerId,
+                    $lotteryId,
+                    (float) $totalLiquidation,
+                    [],
+                    $tipoDevolucion === 'vendedor'
+                )), $tipoDevolucion, (int) $lotteryId, [(int) $setId]),
             ]);
         }
 
@@ -2518,7 +2756,7 @@ class DevolutionsController extends Controller
             \Log::info('No participations and no set selected, returning empty summary');
             return response()->json([
                 'success' => true,
-                'summary' => [
+                'summary' => $this->appendSpecialPrizeSummaryFields([
                     'total_participations' => 0,
                     'sold_participations' => 0,
                     'returned_participations' => 0,
@@ -2527,8 +2765,7 @@ class DevolutionsController extends Controller
                     'registered_payments' => 0,
                     'total_to_pay' => 0,
                     'sets_info' => [],
-                    'special_prize_requirement' => $specialPrizeRequirement,
-                ]
+                ], $tipoDevolucion, (int) $lotteryId, []),
             ]);
         }
 
@@ -2623,7 +2860,7 @@ class DevolutionsController extends Controller
                     }
                     return response()->json([
                         'success' => true,
-                        'summary' => [
+                        'summary' => $this->appendSpecialPrizeSummaryFields(array_merge([
                             'total_participations' => $totalInReserve,
                             'total_fisicas' => $totalFisicas,
                             'total_digitales' => $totalDigitales,
@@ -2634,11 +2871,15 @@ class DevolutionsController extends Controller
                             'returned_fisicas_manual' => $summaryCounts['returned_fisicas_manual'],
                             'available_participations' => $summaryCounts['available_participations'],
                             'total_liquidation' => $totalLiquidation,
-                            'registered_payments' => 0,
-                            'total_to_pay' => $totalLiquidation,
                             'sets_info' => [],
-                            'special_prize_requirement' => $specialPrizeRequirement,
-                        ]
+                        ], $this->sellerLiquidationPaymentFields(
+                            $tipoDevolucion,
+                            $sellerId,
+                            $lotteryId,
+                            (float) $totalLiquidation,
+                            $idsToReturn,
+                            $tipoDevolucion === 'vendedor'
+                        )), $tipoDevolucion, (int) $lotteryId, $setIdsReserve),
                     ]);
                 }
             }
@@ -2759,22 +3000,22 @@ class DevolutionsController extends Controller
         // Devolución vendedor: mostrar total del vendedor en el set (ej. 100), no solo las devueltas
         $totalParticipationsDisplay = $tipoDevolucion === 'vendedor' ? $totalSellerParticipations : $totalParticipations;
 
-        $registeredPayments = ($tipoDevolucion === 'vendedor' && $sellerId && $lotteryId)
-            ? round(app(SellerSettlementRegistrationService::class)->previousPaid((int) $sellerId, (int) $lotteryId), 2)
-            : 0;
-
-        $summary = [
+        $summary = $this->appendSpecialPrizeSummaryFields(array_merge([
             'total_participations' => $totalParticipationsDisplay,
             'sold_participations' => $totalSold,
             'ventas_registradas' => $ventasRegistradasDisplay,
             'returned_participations' => $totalReturned,
             'available_participations' => 0,
             'total_liquidation' => $totalLiquidation,
-            'registered_payments' => $registeredPayments,
-            'total_to_pay' => max(0, round($totalLiquidation - $registeredPayments, 2)),
             'sets_info' => $setsInfo,
-            'special_prize_requirement' => $specialPrizeRequirement,
-        ];
+        ], $this->sellerLiquidationPaymentFields(
+            $tipoDevolucion,
+            $sellerId,
+            $lotteryId,
+            (float) $totalLiquidation,
+            $participations->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $tipoDevolucion === 'vendedor'
+        )), $tipoDevolucion, (int) $lotteryId, $setIds);
 
         \Log::info('Final summary:', $summary);
 
@@ -3180,15 +3421,17 @@ class DevolutionsController extends Controller
         $physicalInHand = (int) array_sum(array_column($breakdown, 'physical_in_hand'));
         $pending = (float) array_sum(array_column($breakdown, 'pending_amount'));
 
-        // Obligatorio: el vendedor debe devolver primero las no vendidas (asignadas).
-        if ($assignedUnsold > 0) {
+        // Solo bloquear si hay stock asignado Y todavía hay deuda: si el importe pendiente es 0,
+        // el vendedor ya liquidó ese stock (no se puede devolver por AUD-041) y no hay que frenar admin.
+        if ($assignedUnsold > 0 && $pending > 0.009) {
             return response()->json([
                 'success' => false,
                 'requires_confirmation' => false,
                 'blocking' => true,
                 'warning_code' => 'seller_assigned_pending',
-                'message' => 'No se puede devolver ni liquidar a la administración mientras haya participaciones asignadas a vendedores. '
-                    .'Hay '.$assignedUnsold.' participación(es) sin vender en mano de vendedores: primero deben devolverlas '
+                'message' => 'No se puede devolver ni liquidar a la administración mientras haya participaciones asignadas a vendedores con importe pendiente. '
+                    .'Hay '.$assignedUnsold.' participación(es) sin vender en mano de vendedores y '
+                    .number_format($pending, 2, ',', '.').' € pendientes: primero deben devolver o liquidar '
                     .'(devolución vendedor → entidad) y luego continuar con la administración.',
                 'seller_pending_amount' => round($pending, 2),
                 'assigned_unsold_total' => $assignedUnsold,

@@ -108,34 +108,8 @@
                                                     ? 'Anulación'
                                                     : ($devolution->seller_id ? 'Vendedor → Entidad' : 'Entidad → Administración');
                                                 
-                                                // Obtener información del set y reserva
-                                                $setInfo = '';
-                                                $reserveIdForPdf = $devolution->reserve_id ?: null;
-                                                $sets = $devolution->details()
-                                                    ->with('participation.set.reserve')
-                                                    ->get()
-                                                    ->pluck('participation.set')
-                                                    ->unique('id')
-                                                    ->filter();
-                                                
-                                                if ($sets->count() > 0) {
-                                                    $setNames = [];
-                                                    foreach ($sets as $set) {
-                                                        $reservationNumbers = '';
-                                                        if ($set->reserve && $set->reserve->reservation_numbers && is_array($set->reserve->reservation_numbers)) {
-                                                            $reservationNumbers = implode(', ', $set->reserve->reservation_numbers);
-                                                        } else {
-                                                            $reservationNumbers = $set->reserve_id ?? 'N/A';
-                                                        }
-                                                        $setNames[] = $set->set_name . ' (' . $reservationNumbers . ')';
-                                                        if (! $reserveIdForPdf && $set->reserve_id) {
-                                                            $reserveIdForPdf = $set->reserve_id;
-                                                        }
-                                                    }
-                                                    $setInfo = implode('<br>', $setNames);
-                                                } else {
-                                                    $setInfo = 'N/A';
-                                                }
+                                                $reserveIdForPdf = $devolution->resolvedReserveId();
+                                                $setInfo = $devolution->setOrReserveLabel();
                                             @endphp
                                             <tr>
                                                 <td><a href="{{ route('devolutions.show', $devolution->id) }}">#DEV{{ str_pad($devolution->id, 4, '0', STR_PAD_LEFT) }}</a></td>
@@ -148,7 +122,7 @@
                                                         <span class="badge bg-secondary">{{ $tipoDevolucion }}</span>
                                                     @endif
                                                 </td>
-                                                <td>{!! $setInfo !!}</td>
+                                                <td title="{{ $setInfo }}">{{ $setInfo }}</td>
                                                 <td>{{ $devolution->total_participations }}</td>
                                                 <td>{{ $partDevueltas }}</td>
                                                 <td>{{ $participacionesAnuladas }}</td>

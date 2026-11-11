@@ -2592,12 +2592,21 @@ function initDatatable()
                       const pendingParticipations = parseFloat(summary.pending_participations) || 0;
                       
                       $('#settlement-total-participations').text(summary.total_participations);
-                      $('#settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '€');
+                      if (settlementPrecios.length > 1) {
+                          $('#settlement-price-per-participation').text(
+                              settlementPrecios.map(p => p.toFixed(2) + '€').join(' / ')
+                          );
+                      } else {
+                          $('#settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '€');
+                      }
                       $('#settlement-total-amount').text(totalAmount.toFixed(2) + '€');
                       $('#settlement-total-paid').text(totalPaid.toFixed(2) + '€');
-                      // La liquidación es en dinero: se muestran participaciones enteras cubiertas por lo pagado.
+                      // Cubiertas ya vienen calculadas en backend con el precio real de cada set.
                       const totalParticipationsCount = parseInt(summary.total_participations, 10) || 0;
-                      const coveredParticipations = Math.min(totalParticipationsCount, Math.floor(liquidatedParticipations + 1e-6));
+                      const coveredParticipations = Math.min(
+                          totalParticipationsCount,
+                          Math.max(0, Math.floor(liquidatedParticipations + 1e-6))
+                      );
                       $('#settlement-liquidated-participations').text(coveredParticipations);
                       $('#settlement-pending-amount').text(pendingAmount.toFixed(2) + '€');
                       $('#settlement-pending-participations').text(Math.max(0, totalParticipationsCount - coveredParticipations));

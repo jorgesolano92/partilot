@@ -1108,23 +1108,9 @@ class ParticipationController extends Controller
             $snapshotPath = asset('storage/' . $designFormat->snapshot_path);
         }
 
-        // Obtener número reservado de la lotería
-        $numeroReservado = '—';
-        if ($reserve && $reserve->reservation_numbers) {
-            $reservationNumbers = is_array($reserve->reservation_numbers) 
-                ? $reserve->reservation_numbers 
-                : json_decode($reserve->reservation_numbers, true);
-            if (is_array($reservationNumbers) && count($reservationNumbers) > 0) {
-                if (count($reservationNumbers) === 1) {
-                    $numeroReservado = (string) $reservationNumbers[0];
-                } else {
-                    $index = $participation->participation_number - 1;
-                    if (isset($reservationNumbers[$index])) {
-                        $numeroReservado = (string) $reservationNumbers[$index];
-                    }
-                }
-            }
-        }
+        $reservedDisplay = $this->formatReservedNumbersForDisplay($reserve);
+        $numeroReservado = $reservedDisplay['numeroReservado'];
+        $numerosReservados = $reservedDisplay['numerosReservados'];
 
         return response()->json([
             'success' => true,
@@ -1145,6 +1131,7 @@ class ParticipationController extends Controller
                 'amount' => (float) (($set->played_amount ?? 0) + ($set->donation_amount ?? 0)),
                 'importeTotal' => (float) (($set->played_amount ?? 0) + ($set->donation_amount ?? 0)),
                 'numeroReservado' => $numeroReservado,
+                'numerosReservados' => $numerosReservados,
                 'image' => $snapshotPath,
                 'snapshot_path' => $snapshotPath,
                 'set' => [
@@ -1221,25 +1208,9 @@ class ParticipationController extends Controller
                 $snapshotPath = asset('storage/' . $designFormat->snapshot_path);
             }
 
-            // Obtener número reservado de la lotería
-            $numeroReservado = '—';
-            if ($reserve && $reserve->reservation_numbers) {
-                $reservationNumbers = is_array($reserve->reservation_numbers) 
-                    ? $reserve->reservation_numbers 
-                    : json_decode($reserve->reservation_numbers, true);
-                if (is_array($reservationNumbers)) {
-                    // Si solo hay un número reservado, todas las participaciones del set tienen ese número
-                    if (count($reservationNumbers) === 1) {
-                        $numeroReservado = (string) $reservationNumbers[0];
-                    } else {
-                        // Si hay múltiples números, usar el índice correspondiente
-                        $index = $p->participation_number - 1;
-                        if (isset($reservationNumbers[$index])) {
-                            $numeroReservado = (string) $reservationNumbers[$index];
-                        }
-                    }
-                }
-            }
+            $reservedDisplay = $this->formatReservedNumbersForDisplay($reserve);
+            $numeroReservado = $reservedDisplay['numeroReservado'];
+            $numerosReservados = $reservedDisplay['numerosReservados'];
 
             // Obtener número de referencia desde set.tickets (n en tickets es 1..N por set; participation_number puede ser global)
             $numeroReferencia = null;
@@ -1290,6 +1261,8 @@ class ParticipationController extends Controller
                     'entidad' => $entidadNombre,
                     'sorteo' => $sorteoLabel,
                     'numero' => $numeroReservado,
+                    'numeroReservado' => $numeroReservado,
+                    'numerosReservados' => $numerosReservados,
                     'fechaSorteo' => $fechaSorteo,
                     'importeJugado' => $importeJugado,
                     'donativo' => $donativo > 0 ? $donativo : null,
@@ -1692,6 +1665,35 @@ class ParticipationController extends Controller
     }
 
     /**
+     * Números de la reserva para mostrar en cartera/detalle.
+     * Cada participación juega TODOS los números de la reserva (no 1:1 por índice).
+     *
+     * @return array{numeroReservado: string, numerosReservados: array<int, string>}
+     */
+    private function formatReservedNumbersForDisplay($reserve): array
+    {
+        $nums = [];
+        if ($reserve && $reserve->reservation_numbers) {
+            $raw = is_array($reserve->reservation_numbers)
+                ? $reserve->reservation_numbers
+                : json_decode($reserve->reservation_numbers, true);
+            if (is_array($raw)) {
+                foreach ($raw as $n) {
+                    $s = trim((string) $n);
+                    if ($s !== '') {
+                        $nums[] = $s;
+                    }
+                }
+            }
+        }
+
+        return [
+            'numeroReservado' => count($nums) > 0 ? implode(' - ', $nums) : '—',
+            'numerosReservados' => $nums,
+        ];
+    }
+
+    /**
      * Formatear participación para respuesta de cartera/detalle (entidad, fecha, importes, nº referencia).
      */
     private function formatParticipationForWallet(Participation $participation, string $referencia): array
@@ -1707,13 +1709,9 @@ class ParticipationController extends Controller
             $snapshotPath = asset('storage/'.ltrim((string) $designFormat->snapshot_path, '/'));
         }
         $previewImageUrl = url('/comprobar-participaciones/imagen?ref='.urlencode($referencia));
-        $numeroReservado = '—';
-        if ($reserve && $reserve->reservation_numbers) {
-            $nums = is_array($reserve->reservation_numbers) ? $reserve->reservation_numbers : json_decode($reserve->reservation_numbers, true);
-            if (is_array($nums) && count($nums) > 0) {
-                $numeroReservado = count($nums) === 1 ? (string) $nums[0] : (string) ($nums[$participation->participation_number - 1] ?? $nums[0]);
-            }
-        }
+        $reservedDisplay = $this->formatReservedNumbersForDisplay($reserve);
+        $numeroReservado = $reservedDisplay['numeroReservado'];
+        $numerosReservados = $reservedDisplay['numerosReservados'];
         $numeroReferencia = $referencia;
         if ($set->tickets) {
             $tickets = is_array($set->tickets) ? $set->tickets : json_decode($set->tickets, true);
@@ -1750,6 +1748,7 @@ class ParticipationController extends Controller
             'sorteo' => $this->lotteryHistorialLabel($lottery),
             'numero' => $participation->participation_number,
             'numeroReservado' => $numeroReservado,
+            'numerosReservados' => $numerosReservados,
             'fechaSorteo' => $lottery && $lottery->draw_date ? $lottery->draw_date->format('d/m/y') : '—',
             'importeJugado' => $importeJugado,
             'donativo' => $donativo,
@@ -1763,6 +1762,7 @@ class ParticipationController extends Controller
             'draw_status_label' => $publicCheck->drawStatusLabel($drawStatus),
             'prize_info' => $prizeInfo,
             'premio' => (float) ($prizeInfo['prize_amount'] ?? 0),
+            'premio_desglose' => $prizeInfo['breakdown'] ?? [],
             'has_won' => (bool) ($prizeInfo['has_won'] ?? false),
             'is_digital' => $isDigital,
             'esDigital' => $isDigital,
@@ -1825,6 +1825,8 @@ class ParticipationController extends Controller
             }
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
+            $item['premio_desglose'] = $prizeInfo['breakdown'] ?? [];
+            $item['prize_info'] = $prizeInfo;
             $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
             if (! empty($item['wallet_expired']) && ! $includeExpired) {
@@ -1867,6 +1869,8 @@ class ParticipationController extends Controller
             $item['gifted_to_email'] = null;
             $prizeInfo = $apiController->getPrizeInfoForReference($ref);
             $item['premio'] = $prizeInfo['has_won'] ? $prizeInfo['prize_amount'] : null;
+            $item['premio_desglose'] = $prizeInfo['breakdown'] ?? [];
+            $item['prize_info'] = $prizeInfo;
             $item = $this->applyPrizePaymentGateToWalletItem($item, $p, $prizeInfo['prize_amount'] ?? null);
             $item = $this->applyWalletValidityToWalletItem($item, $p);
             if (! empty($item['wallet_expired']) && ! $includeExpired) {

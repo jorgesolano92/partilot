@@ -124,8 +124,18 @@
                                         <div class="col-6">
 
                                                                                          <div class="mt-2">
-                                                Participaciones Vendidas Premiadas: <b>{{ $scrutiny->scrutiny_summary['total_winning_participations'] ?? 0 }} Números</b> <br>
-                                                Participaciones Vendidas No Premiadas: <b>{{ $scrutiny->scrutiny_summary['total_non_winning_participations'] ?? 0 }} Números</b> <br>
+                                                @php
+                                                    $pc = $participationCounts ?? [];
+                                                    $summary = is_array($scrutiny->scrutiny_summary) ? $scrutiny->scrutiny_summary : [];
+                                                    $soldCount = $pc['sold']
+                                                        ?? $summary['total_sold_participations']
+                                                        ?? (($summary['total_winning_participations'] ?? 0) + ($summary['total_non_winning_participations'] ?? 0));
+                                                    $winningCount = $pc['winning'] ?? ($summary['total_winning_participations'] ?? 0);
+                                                    $nonWinningCount = $pc['non_winning'] ?? ($summary['total_non_winning_participations'] ?? 0);
+                                                @endphp
+                                                Participaciones Vendidas: <b>{{ $soldCount }}</b> <br>
+                                                Participaciones Vendidas Premiadas: <b>{{ $winningCount }}</b> <br>
+                                                Participaciones Vendidas No Premiadas: <b>{{ $nonWinningCount }}</b> <br>
                                                 Importe Premios Repartidos: <b>{{ number_format($scrutiny->detailedResults->sum('premio_total'), 2) }}€</b>
                                              </div>
                                             
@@ -138,7 +148,35 @@
                                     Lista de entidades y sus participaciones asignadas
                                 </h4>
 
-                                <div style="min-height: 400px; height: 400px; overflow: auto;">
+                                @php
+                                    $specialPrizeHintsByEntity = $specialPrizeHintsByEntity ?? [];
+                                    $lotteryHasSpecialPrize = $lotteryHasSpecialPrize ?? false;
+                                @endphp
+                                <div class="show-alerts special-prize-scrutiny-hints">
+                                    @if(!empty($specialPrizeHintsByEntity))
+                                        <div class="alert alert-success py-2 mt-2 mb-2">
+                                            <strong>Premio especial a cobrar en Loterías y Apuestas.</strong>
+                                            @foreach($specialPrizeHintsByEntity as $hint)
+                                                <div class="small mt-1">
+                                                    {{ $hint['entity_name'] ?? ('Entidad #'.$hint['entity_id']) }}:
+                                                    nº {{ $hint['numero'] ?? '—' }}
+                                                    · serie {{ $hint['serie'] ?? '—' }}
+                                                    · fracción {{ $hint['fraccion'] ?? '—' }}
+                                                    @if(!empty($hint['importe']))
+                                                        · {{ number_format((float) $hint['importe'], 2, ',', '.') }} €
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @elseif($lotteryHasSpecialPrize)
+                                        <div class="alert alert-warning py-2 mt-2 mb-2">
+                                            Este sorteo tiene <strong>premio especial</strong> (serie/fracción).
+                                            Aún no hay liquidación entidad→admin que declare el décimo ganador.
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <div class="scrutiny-entities-scroll" style="min-height: 400px; height: 400px; overflow: auto;">
 
                                     <table class="table">
 
@@ -159,7 +197,14 @@
                                                     $totalWinningNumbers = $entityResults->count();
                                                 @endphp
                                                 <tr>
-                                                    <td><b>{{ $entity->name }}</b></td>
+                                                    <td>
+                                                        <b>{{ $entity->name }}</b>
+                                                        @if(!empty($specialPrizeHintsByEntity[$entity->id]))
+                                                            <div class="mt-1">
+                                                                <span class="badge bg-success">Premio especial · cobrar a LAE</span>
+                                                            </div>
+                                                        @endif
+                                                    </td>
 
                                                     <td>
                                                         @php
@@ -211,6 +256,12 @@
                                                         $decimosDeEsteSet = (float) $result->total_decimos;
                                                         $decimosLabel = \App\Services\EntityLotteryPrizeService::formatDecimosLabel($decimosDeEsteSet);
                                                         $premioTotalSet = (float) $result->premio_total;
+                                                        $resultSet = $result->relationLoaded('set') ? $result->set : ($result->set_id ? \App\Models\Set::find($result->set_id) : null);
+                                                        $setName = $resultSet->set_name ?? null;
+                                                        $isPhysical = $resultSet && ((int) ($resultSet->physical_participations ?? 0) > 0) && ((int) ($resultSet->digital_participations ?? 0) <= 0);
+                                                        $isDigital = $resultSet && ((int) ($resultSet->digital_participations ?? 0) > 0) && ((int) ($resultSet->physical_participations ?? 0) <= 0);
+                                                        $setTypeLabel = $isDigital ? 'Digital' : ($isPhysical ? 'Físico' : null);
+                                                        $setBadgeClass = $isDigital ? 'bg-info' : ($isPhysical ? 'bg-secondary' : 'bg-dark');
                                                     @endphp
                                                     @if ($decimosDeEsteSet > 0)
                                                     <tr>
@@ -219,6 +270,14 @@
                                                                     <div>
                                                                         <b>Número: {{ $result->winning_number }} - Premiado con {{ number_format($result->premio_por_decimo, 2) }}€ X {{ $decimosLabel }} Décimos = {{ number_format($premioTotalSet, 2) }}€</b>
                                                                         <small class="text-muted ms-2">({{ $result->total_participations }} participaciones)</small>
+                                                                        @if($setName)
+                                                                            <small class="ms-2">
+                                                                                @if($setTypeLabel)
+                                                                                    <span class="badge {{ $setBadgeClass }}">{{ $setTypeLabel }}</span>
+                                                                                @endif
+                                                                                <span class="text-muted">{{ $setName }}</span>
+                                                                            </small>
+                                                                        @endif
                                                                     </div>
                                                                     <div class="text-end">
                                                                         <span class="me-2">{{ number_format($result->premio_por_participacion, 2) }}€</span>
@@ -282,8 +341,10 @@
                                     </div>
                                     
                                     <div class="col-4 text-end">
-                                        <button onclick="window.print()" style="border-radius: 30px; width: 200px; background-color: #17a2b8; color: #fff; padding: 8px; font-weight: bolder; position: relative;" class="btn btn-md btn-info mt-2">Imprimir Escrutinio
-                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-printer-line"></i></button>
+                                        <a href="{{ route('lottery.scrutiny-pdf', [$lottery->id, $administration->id]) }}" style="border-radius: 30px; width: 200px; background-color: #17a2b8; color: #fff; padding: 8px; font-weight: bolder; position: relative; display: inline-block; text-align: center;" class="btn btn-md btn-info mt-2">
+                                            Descargar PDF
+                                            <i style="top: 6px; margin-left: 6px; font-size: 18px; position: absolute;" class="ri-file-pdf-line"></i>
+                                        </a>
                                     </div>
 
                                 </div>
@@ -375,5 +436,35 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 </script>
+
+<style>
+@media print {
+    .page-title-box,
+    .btn,
+    form,
+    .modal,
+    .leftside-menu,
+    .navbar-custom,
+    .footer {
+        display: none !important;
+    }
+    .scrutiny-entities-scroll {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+    .special-prize-scrutiny-hints .alert {
+        display: block !important;
+        border: 1px solid #198754 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .badge.bg-success {
+        border: 1px solid #198754 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+</style>
 
 @endsection

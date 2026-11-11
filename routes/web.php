@@ -447,6 +447,7 @@ Route::group(['prefix' => 'lottery'], function() {
     Route::post('/scrutiny/{lottery}/process', [LotteryScrutinyController::class, 'process'])->name('lottery.process-scrutiny');
     Route::post('/scrutiny/{lottery}/save', [LotteryScrutinyController::class, 'save'])->name('lottery.save-scrutiny');
     Route::get('/scrutiny/{lottery}/administration/{administration}', [LotteryScrutinyController::class, 'showResults'])->name('lottery.show-administration-scrutiny');
+    Route::get('/scrutiny/{lottery}/administration/{administration}/pdf', [LotteryScrutinyController::class, 'downloadPdf'])->name('lottery.scrutiny-pdf');
     Route::delete('/scrutiny/{lottery}/administration/{administration}', [LotteryScrutinyController::class, 'delete'])->name('lottery.delete-scrutiny');
     // Ruta para escrutinio por categoría (números individuales)
     Route::get('/results/edit/{id}', [LotteryController::class, 'editLotteryResults'])->name('lottery.edit-results');

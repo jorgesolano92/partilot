@@ -9,6 +9,54 @@ use DOMXPath;
 
 class NavidadScrapingService
 {
+    public static function tablasAlambresUrl($drawId): string
+    {
+        return 'https://www.loteriasyapuestas.es/es/loteria-nacional/tablas-y-alambres?drawId=' . urlencode((string) $drawId);
+    }
+
+    /**
+     * Intenta obtener pedreas y metadatos de fuentes oficiales SELAE.
+     *
+     * La API JSON de resultados (resultados2) NO incluye pedreas; la fuente usable
+     * es el HTML de tablas-y-alambres (SSR). El listado oficial PDF sirve de respaldo manual.
+     *
+     * @return array{ok: bool, pedreas: array, error: ?string, sources: array{tablas_url: string, listado_oficial_url: ?string}}
+     */
+    public function obtainPedreas($drawId): array
+    {
+        $sources = [
+            'tablas_url' => self::tablasAlambresUrl($drawId),
+            'listado_oficial_url' => $this->resolveListadoOficialUrl($drawId),
+        ];
+
+        try {
+            $pedreas = $this->getPedreasFromNavidadSorteo($drawId);
+
+            if (count($pedreas) === 0) {
+                return [
+                    'ok' => false,
+                    'pedreas' => [],
+                    'error' => 'La página de tablas y alambres respondió pero no se extrajo ninguna pedrea.',
+                    'sources' => $sources,
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'pedreas' => $pedreas,
+                'error' => null,
+                'sources' => $sources,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'ok' => false,
+                'pedreas' => [],
+                'error' => $e->getMessage(),
+                'sources' => $sources,
+            ];
+        }
+    }
+
     /**
      * Obtener pedreas de un sorteo de Navidad mediante web scraping
      */
@@ -16,40 +64,82 @@ class NavidadScrapingService
     {
         try {
             Log::info("Iniciando scraping de pedreas para sorteo de Navidad: $drawId");
-            
-            // URL de la página de tablas y alambres
-            $url = "https://www.loteriasyapuestas.es/es/loteria-nacional/tablas-y-alambres?drawId=$drawId";
-            
+
+            $url = self::tablasAlambresUrl($drawId);
+
             // Realizar petición HTTP
             $response = Http::withOptions(['verify' => config('app.http_verify_ssl')])
             ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language' => 'es-ES,es;q=0.9,en;q=0.8',
-                'Accept-Encoding' => 'gzip, deflate, br',
+                'Referer' => 'https://www.loteriasyapuestas.es/',
                 'Connection' => 'keep-alive',
                 'Upgrade-Insecure-Requests' => '1',
             ])
             ->timeout(30)
             ->get($url);
-            
+
             if (!$response->successful()) {
-                throw new \Exception("Error HTTP: " . $response->status());
+                $hint = $response->status() === 403
+                    ? ' (SELAE/Akamai bloquea la petición desde el servidor; use el enlace de tablas y alambres o el listado oficial PDF)'
+                    : '';
+                throw new \Exception('Error HTTP: ' . $response->status() . $hint);
             }
-            
+
             $html = $response->body();
-            Log::info("HTML obtenido, longitud: " . strlen($html) . " caracteres");
-            
+            Log::info('HTML obtenido, longitud: ' . strlen($html) . ' caracteres');
+
             // Parsear HTML para extraer pedreas
             $pedreas = $this->parsePedreasFromHTML($html);
-            
-            Log::info("Pedreas extraídas: " . count($pedreas));
-            
+
+            Log::info('Pedreas extraídas: ' . count($pedreas));
+
             return $pedreas;
-            
+
         } catch (\Exception $e) {
-            Log::error("Error en scraping de pedreas: " . $e->getMessage());
+            Log::error('Error en scraping de pedreas: ' . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * URL del PDF de listado oficial (si resultados2 es accesible).
+     */
+    public function resolveListadoOficialUrl($drawId): ?string
+    {
+        try {
+            $response = Http::withOptions(['verify' => config('app.http_verify_ssl')])
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept' => 'application/json, text/plain, */*',
+                    'Accept-Language' => 'es-ES,es;q=0.9',
+                    'Referer' => 'https://www.loteriasyapuestas.es/',
+                ])
+                ->timeout(15)
+                ->get('https://www.loteriasyapuestas.es/servicios/resultados2', [
+                    'idsorteo' => $drawId,
+                ]);
+
+            if (!$response->successful()) {
+                return null;
+            }
+
+            $data = $response->json();
+            $path = $data['urlListadoOficial'] ?? null;
+            if (!is_string($path) || $path === '') {
+                return null;
+            }
+
+            if (str_starts_with($path, 'http')) {
+                return $path;
+            }
+
+            return 'https://www.loteriasyapuestas.es' . $path;
+        } catch (\Throwable $e) {
+            Log::info('No se pudo resolver urlListadoOficial: ' . $e->getMessage());
+
+            return null;
         }
     }
     

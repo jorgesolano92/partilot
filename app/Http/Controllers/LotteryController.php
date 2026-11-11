@@ -20,6 +20,9 @@ class LotteryController extends Controller
 {
     use \App\Http\Controllers\Concerns\AutoSelectsPanelScope;
 
+    /** @var array{ok: bool, warning: ?string, kept_existing: bool, count: int, sources: array}|null */
+    private ?array $lastPedreasFetchMeta = null;
+
     /**
      * Mostrar lista de sorteos
      */
@@ -598,22 +601,36 @@ class LotteryController extends Controller
             if (isset($responseData['extraccionesDeCincoCifras'])) {
                 $responseData['extraccionesDeCincoCifras'] = $this->removeDuplicateExtractions($responseData['extraccionesDeCincoCifras']);
             }
+
+            $pedreasMeta = $this->lastPedreasFetchMeta ?? [
+                'ok' => true,
+                'warning' => null,
+                'kept_existing' => false,
+                'count' => 0,
+                'sources' => [],
+            ];
             
             if ($savedResult) {
                 // Agregar las pedreas a la respuesta si existen
                 if (!empty($savedResult->pedreas)) {
                     $responseData['pedreas'] = $savedResult->pedreas;
+                    $pedreasMeta['count'] = count($savedResult->pedreas);
                     \Log::info("Pedreas agregadas a la respuesta: " . count($savedResult->pedreas) . " elementos");
                 } else {
                     \Log::info("No hay pedreas en el resultado guardado");
                 }
             }
 
+            if (!empty($pedreasMeta['warning'])) {
+                $message .= '. ' . $pedreasMeta['warning'];
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => $message,
                 'lottery_id' => $lottery->id,
-                'data' => $responseData
+                'data' => $responseData,
+                'pedreas_meta' => $pedreasMeta,
             ]);
 
         } catch (\Exception $e) {
@@ -655,15 +672,9 @@ class LotteryController extends Controller
 
         // Procesar reintegros
         $resultData['reintegros'] = $data['reintegros'] ?? [];
-        
-        // Procesar pedreas para sorteos de Navidad
-        if (isset($data['tipoSorteo']) && $data['tipoSorteo'] === 'N') {
-            \Log::info("Sorteo de Navidad detectado, obteniendo pedreas...");
-            $resultData['pedreas'] = $this->getPedreasForNavidadSorteo($data);
-        } else {
-            \Log::info("No es sorteo de Navidad (tipoSorteo: " . ($data['tipoSorteo'] ?? 'no definido') . "), saltando pedreas");
-            $resultData['pedreas'] = [];
-        }
+
+        // Procesar pedreas para sorteos de Navidad (sin sobrescribir vacías si falla)
+        $resultData['pedreas'] = $this->resolvePedreasForNavidad($data, null);
 
         LotteryResult::create($resultData);
 
@@ -699,15 +710,9 @@ class LotteryController extends Controller
 
         // Procesar reintegros
         $updateData['reintegros'] = $data['reintegros'] ?? [];
-        
-        // Procesar pedreas para sorteos de Navidad
-        if (isset($data['tipoSorteo']) && $data['tipoSorteo'] === 'N') {
-            \Log::info("Sorteo de Navidad detectado en actualización, obteniendo pedreas...");
-            $updateData['pedreas'] = $this->getPedreasForNavidadSorteo($data);
-        } else {
-            \Log::info("No es sorteo de Navidad en actualización (tipoSorteo: " . ($data['tipoSorteo'] ?? 'no definido') . "), saltando pedreas");
-            $updateData['pedreas'] = [];
-        }
+
+        // Pedreas Navidad: si el scrape falla, conservar las ya guardadas
+        $updateData['pedreas'] = $this->resolvePedreasForNavidad($data, $result->pedreas ?? []);
 
         $result->update($updateData);
 
@@ -715,41 +720,111 @@ class LotteryController extends Controller
     }
 
     /**
-     * Obtener pedreas para sorteos de Navidad mediante web scraping
+     * Resuelve pedreas de Navidad sin borrar las existentes si la obtención falla.
+     *
+     * @param  array<int, mixed>|null  $existingPedreas
+     * @return array<int, array<string, mixed>>
      */
-    private function getPedreasForNavidadSorteo($data)
+    private function resolvePedreasForNavidad(array $data, ?array $existingPedreas): array
     {
-        try {
-            // Verificar si es un sorteo de Navidad
-            if (!isset($data['tipoSorteo']) || $data['tipoSorteo'] !== 'N') {
-                return [];
-            }
-            
-            // Obtener drawId del sorteo
-            $drawId = $data['id_sorteo'] ?? null;
-            if (!$drawId) {
-                \Log::warning('No se encontró drawId para sorteo de Navidad');
-                return [];
-            }
-            
-            // Usar el servicio de scraping
-            $scrapingService = new NavidadScrapingService();
-            $pedreas = $scrapingService->getPedreasFromNavidadSorteo($drawId);
-            
-            // Formatear pedreas para el sistema
-            $formattedPedreas = $scrapingService->formatPedreasForSystem($pedreas);
-            
-            // Filtrar números que ya tienen premios principales
-            $filteredPedreas = $this->filterPedreasExcludingMainPrizes($formattedPedreas, $data);
-            
-            \Log::info("Pedreas obtenidas para sorteo de Navidad $drawId: " . count($filteredPedreas) . " (filtradas de " . count($formattedPedreas) . ")");
-            
-            return $filteredPedreas;
-            
-        } catch (\Exception $e) {
-            \Log::error("Error obteniendo pedreas para sorteo de Navidad: " . $e->getMessage());
+        $existingPedreas = is_array($existingPedreas) ? $existingPedreas : [];
+
+        if (($data['tipoSorteo'] ?? null) !== 'N') {
+            $this->lastPedreasFetchMeta = [
+                'ok' => true,
+                'warning' => null,
+                'kept_existing' => false,
+                'count' => 0,
+                'sources' => [],
+            ];
+
             return [];
         }
+
+        \Log::info('Sorteo de Navidad detectado, obteniendo pedreas...');
+
+        $drawId = $data['id_sorteo'] ?? null;
+        if (!$drawId) {
+            $warning = 'No se encontró id_sorteo para obtener pedreas.';
+            \Log::warning($warning);
+            $this->lastPedreasFetchMeta = [
+                'ok' => false,
+                'warning' => $this->pedreasWarningMessage($warning, count($existingPedreas) > 0, []),
+                'kept_existing' => count($existingPedreas) > 0,
+                'count' => count($existingPedreas),
+                'sources' => [],
+            ];
+
+            return $existingPedreas;
+        }
+
+        $scrapingService = new NavidadScrapingService();
+        $obtained = $scrapingService->obtainPedreas($drawId);
+
+        if (!$obtained['ok']) {
+            $this->lastPedreasFetchMeta = [
+                'ok' => false,
+                'warning' => $this->pedreasWarningMessage(
+                    $obtained['error'] ?? 'No se pudieron obtener pedreas',
+                    count($existingPedreas) > 0,
+                    $obtained['sources'] ?? []
+                ),
+                'kept_existing' => count($existingPedreas) > 0,
+                'count' => count($existingPedreas),
+                'sources' => $obtained['sources'] ?? [],
+            ];
+
+            \Log::error('Error obteniendo pedreas para sorteo de Navidad: ' . ($obtained['error'] ?? 'desconocido'));
+
+            return $existingPedreas;
+        }
+
+        $formattedPedreas = $scrapingService->formatPedreasForSystem($obtained['pedreas']);
+        $filteredPedreas = $this->filterPedreasExcludingMainPrizes($formattedPedreas, $data);
+
+        if (count($filteredPedreas) === 0) {
+            $this->lastPedreasFetchMeta = [
+                'ok' => false,
+                'warning' => $this->pedreasWarningMessage(
+                    'El scrape no devolvió pedreas válidas tras filtrar premios principales.',
+                    count($existingPedreas) > 0,
+                    $obtained['sources'] ?? []
+                ),
+                'kept_existing' => count($existingPedreas) > 0,
+                'count' => count($existingPedreas),
+                'sources' => $obtained['sources'] ?? [],
+            ];
+
+            return $existingPedreas;
+        }
+
+        \Log::info("Pedreas obtenidas para sorteo de Navidad $drawId: " . count($filteredPedreas) . ' (filtradas de ' . count($formattedPedreas) . ')');
+
+        $this->lastPedreasFetchMeta = [
+            'ok' => true,
+            'warning' => null,
+            'kept_existing' => false,
+            'count' => count($filteredPedreas),
+            'sources' => $obtained['sources'] ?? [],
+        ];
+
+        return $filteredPedreas;
+    }
+
+    private function pedreasWarningMessage(string $error, bool $keptExisting, array $sources): string
+    {
+        $msg = 'No se pudieron actualizar las pedreas automáticamente: ' . $error;
+        if ($keptExisting) {
+            $msg .= ' Se han conservado las pedreas ya guardadas.';
+        } else {
+            $msg .= ' Este sorteo de Navidad aún no tiene pedreas; el escrutinio no podrá liquidarlas hasta cargarlas.';
+        }
+
+        if (!empty($sources['tablas_url'])) {
+            $msg .= ' Fuente: tablas y alambres SELAE.';
+        }
+
+        return $msg;
     }
     
     /**
@@ -863,9 +938,24 @@ class LotteryController extends Controller
         // Construir la URL de la API para este sorteo específico (celebrados=true: menos 503 al consultar el buscador)
         $apiUrl = "https://www.loteriasyapuestas.es/servicios/buscadorSorteos?game_id=LNAC&celebrados=true&fechaInicioInclusiva=" . $lottery->draw_date->format('Ymd') . "&fechaFinInclusiva=" . $lottery->draw_date->format('Ymd');
 
-        // return $lottery->result;
+        $isNavidad = optional($lottery->lotteryType)->identificador === 'N'
+            || str_contains(mb_strtolower((string) $lottery->description), 'navidad')
+            || str_contains(mb_strtolower((string) $lottery->name), '102/');
 
-        return view('lottery.edit_lottery_results', compact('lottery', 'apiUrl'));
+        $pedreasCount = is_array(optional($lottery->result)->pedreas) ? count($lottery->result->pedreas) : 0;
+        $tablasAlambresUrl = null;
+        if ($isNavidad) {
+            // drawId típico no está en BD; el enlace genérico aún permite elegir el sorteo en SELAE
+            $tablasAlambresUrl = 'https://www.loteriasyapuestas.es/es/loteria-nacional/tablas-y-alambres';
+        }
+
+        return view('lottery.edit_lottery_results', compact(
+            'lottery',
+            'apiUrl',
+            'isNavidad',
+            'pedreasCount',
+            'tablasAlambresUrl'
+        ));
     }
 
     /**
@@ -987,6 +1077,24 @@ class LotteryController extends Controller
                 $resultData['extracciones_dos_cifras'] = array_map(function($numero) {
                     return ['decimo' => trim($numero)];
                 }, $extracciones2);
+            }
+
+            // Pedreas (Navidad): lista separada por guiones en el formulario
+            if ($request->filled('pedrea')) {
+                $pedreaNums = array_values(array_filter(array_map('trim', explode('-', (string) $request->pedrea))));
+                $resultData['pedreas'] = array_map(function ($numero) {
+                    return [
+                        'decimo' => str_pad((string) $numero, 5, '0', STR_PAD_LEFT),
+                        'prize' => 1000,
+                        'tipo' => 'pedrea',
+                        'categoria' => 'Pedrea',
+                    ];
+                }, $pedreaNums);
+            } elseif ($existingResult && !empty($existingResult->pedreas)) {
+                // No borrar pedreas existentes si el campo llega vacío
+                $resultData['pedreas'] = $existingResult->pedreas;
+            } else {
+                $resultData['pedreas'] = [];
             }
 
             if ($existingResult) {

@@ -4,6 +4,25 @@
 
 @section('content')
 
+<style>
+    #example2 th.col-seller-p-metric,
+    #example2 td.col-seller-p-metric {
+        min-width: 4.25rem;
+        max-width: 5rem;
+        white-space: nowrap;
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+    }
+    #example2 th.col-seller-p-metric input.inline-fields {
+        min-width: 3.75rem;
+        max-width: 4.75rem;
+        width: 100%;
+        font-size: 0.8rem;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+</style>
+
 <!-- Start Content-->
 <div class="container-fluid">
     
@@ -83,9 +102,9 @@
                                     <th>Email</th>
                                     @endif
                                     <th>T. Vendedor</th>
-                                    <th>P. Asig.</th>
-                                    <th>P. Ven.</th>
-                                    <th>P. Dev.</th>
+                                    <th class="col-seller-p-metric">P. Asig.</th>
+                                    <th class="col-seller-p-metric">P. Ven.</th>
+                                    <th class="col-seller-p-metric">P. Dev.</th>
                                     <th>Deuda</th>
                                     @if(empty($hideEntityColumn))
                                     <th>Entidad</th>
@@ -117,9 +136,9 @@
                                             <span class="badge bg-secondary">Externo</span>
                                         @endif
                                     </td>
-                                    <td>{{ $seller->participaciones_asignadas ?? 0 }}</td>
-                                    <td>{{ $seller->participaciones_vendidas ?? 0 }}</td>
-                                    <td>{{ $seller->participaciones_devueltas ?? 0 }}</td>
+                                    <td class="col-seller-p-metric">{{ $seller->participaciones_asignadas ?? 0 }}</td>
+                                    <td class="col-seller-p-metric">{{ $seller->participaciones_vendidas ?? 0 }}</td>
+                                    <td class="col-seller-p-metric">{{ $seller->participaciones_devueltas ?? 0 }}</td>
                                     <td class="{{ $deuda > 0 ? 'text-danger fw-semibold' : '' }}">{{ number_format($deuda, 2, ',', '.') }}€</td>
                                     @if(empty($hideEntityColumn))
                                     <td title="{{ $entidadesNombres }}">{{ $entidadesNombres ?: '—' }}</td>
@@ -205,6 +224,9 @@
       "scrollX": true, "scrollCollapse": true,
         orderCellsTop: true,
         fixedHeader: true,
+        columnDefs: [
+            { targets: 'col-seller-p-metric', width: '4.5rem', className: 'col-seller-p-metric' }
+        ],
         initComplete: function () {
             var api = this.api();
  

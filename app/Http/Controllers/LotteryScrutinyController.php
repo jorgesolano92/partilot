@@ -9,6 +9,7 @@ use App\Models\Entity;
 use App\Models\Reserve;
 use App\Models\AdministrationLotteryScrutiny;
 use App\Services\EntityLotteryPrizePaymentService;
+use App\Services\EntityLotteryPrizeService;
 use App\Services\Scrutiny\LotteryPrizeCalculator;
 use App\Models\ScrutinyEntityResult;
 use Illuminate\Http\Request;
@@ -16,9 +17,150 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Participation;
 use App\Models\Set;
+use App\Models\Devolution;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class LotteryScrutinyController extends Controller
 {
+    /**
+     * Entidades de la administración que, en liquidación, declararon el décimo del premio especial.
+     *
+     * @return array<int, array{entity_id:int,entity_name:?string,numero:mixed,serie:mixed,fraccion:mixed,importe:mixed,devolution_id:int}>
+     */
+    private function specialPrizeHintsByEntity(int $lotteryId, int $administrationId): array
+    {
+        $devolutions = Devolution::query()
+            ->with(['entity:id,name,administration_id'])
+            ->where('lottery_id', $lotteryId)
+            ->whereNotNull('special_prize_settlement')
+            ->whereHas('entity', function ($q) use ($administrationId) {
+                $q->where('administration_id', $administrationId);
+            })
+            ->orderByDesc('id')
+            ->get();
+
+        $hints = [];
+        foreach ($devolutions as $devolution) {
+            $sp = $devolution->special_prize_settlement;
+            if (! is_array($sp) || empty($sp['entity_holds_winning_fraction'])) {
+                continue;
+            }
+            $entityId = (int) $devolution->entity_id;
+            if (isset($hints[$entityId])) {
+                continue;
+            }
+            $hints[$entityId] = [
+                'entity_id' => $entityId,
+                'entity_name' => $devolution->entity?->name,
+                'numero' => $sp['premio_especial_numero'] ?? null,
+                'serie' => $sp['premio_especial_serie'] ?? null,
+                'fraccion' => $sp['premio_especial_fraccion'] ?? null,
+                'importe' => $sp['premio_especial_importe'] ?? null,
+                'devolution_id' => (int) $devolution->id,
+            ];
+        }
+
+        return $hints;
+    }
+
+    private function lotteryHasSpecialPrizeWithSerieFraccion(Lottery $lottery): bool
+    {
+        $pe = $lottery->result?->premio_especial;
+        if (! is_array($pe)) {
+            return false;
+        }
+
+        return ! empty($pe['serie']) && ! empty($pe['fraccion']);
+    }
+
+    /**
+     * Participaciones premiadas únicas por set (no sumar la misma participación
+     * una vez por cada número premiado de la reserva).
+     *
+     * @param  array<int|string, array<int, array<string, mixed>>>  $scrutinyResultsByEntity
+     * @return array{winning: int, sold: int, non_winning: int, prize_amount: float}
+     */
+    private function summarizeParticipationCountsFromCategoryResults(
+        array $scrutinyResultsByEntity,
+        int $lotteryId,
+        int $administrationId
+    ): array {
+        $maxPartsBySet = [];
+        $prizeAmount = 0.0;
+
+        foreach ($scrutinyResultsByEntity as $entityResults) {
+            foreach ($entityResults as $categoryResult) {
+                $decimosInfo = $categoryResult['decimos_info'] ?? [];
+                $premioPorDecimo = (float) ($categoryResult['total_prize'] ?? 0);
+                $ticketPrice = (float) ($decimosInfo['ticket_price'] ?? 0);
+
+                foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                    $setId = (int) ($setInfo['set_id'] ?? 0);
+                    $parts = (int) ($setInfo['participations_vendidas'] ?? 0);
+                    if ($setId > 0) {
+                        $maxPartsBySet[$setId] = max($maxPartsBySet[$setId] ?? 0, $parts);
+                    }
+
+                    $importeJugado = (float) ($setInfo['importe_jugado'] ?? 0);
+                    if ($ticketPrice > 0 && $importeJugado > 0 && $parts > 0) {
+                        $prizeAmount += ($premioPorDecimo * ($importeJugado / $ticketPrice)) * $parts;
+                    }
+                }
+            }
+        }
+
+        $winning = (int) array_sum($maxPartsBySet);
+        $sold = (int) Participation::query()
+            ->whereHas('set.reserve', fn ($q) => $q->where('lottery_id', $lotteryId))
+            ->whereHas('entity', fn ($q) => $q->where('administration_id', $administrationId))
+            ->soldForScrutiny()
+            ->count();
+
+        return [
+            'winning' => $winning,
+            'sold' => $sold,
+            'non_winning' => max(0, $sold - $winning),
+            'prize_amount' => $prizeAmount,
+        ];
+    }
+
+    /**
+     * Misma lógica a partir de filas ya guardadas en scrutiny_detailed_results.
+     *
+     * @return array{winning: int, sold: int, non_winning: int, prize_amount: float}
+     */
+    private function summarizeParticipationCountsFromDetailedResults(
+        AdministrationLotteryScrutiny $scrutiny,
+        int $lotteryId,
+        int $administrationId
+    ): array {
+        $maxPartsBySet = [];
+        $prizeAmount = 0.0;
+
+        foreach ($scrutiny->detailedResults as $result) {
+            $setId = (int) ($result->set_id ?? 0);
+            $parts = (int) ($result->total_participations ?? 0);
+            if ($setId > 0) {
+                $maxPartsBySet[$setId] = max($maxPartsBySet[$setId] ?? 0, $parts);
+            }
+            $prizeAmount += (float) ($result->premio_total ?? 0);
+        }
+
+        $winning = (int) array_sum($maxPartsBySet);
+        $sold = (int) Participation::query()
+            ->whereHas('set.reserve', fn ($q) => $q->where('lottery_id', $lotteryId))
+            ->whereHas('entity', fn ($q) => $q->where('administration_id', $administrationId))
+            ->soldForScrutiny()
+            ->count();
+
+        return [
+            'winning' => $winning,
+            'sold' => $sold,
+            'non_winning' => max(0, $sold - $winning),
+            'prize_amount' => $prizeAmount,
+        ];
+    }
+
     /**
      * Mostrar el formulario de escrutinio para una administración específica
      * Incluye tanto el escrutinio normal como el escrutinio por categoría
@@ -83,6 +225,8 @@ class LotteryScrutinyController extends Controller
         $entitiesPendingDevolution = $prizePaymentService->entitiesPendingAdminDevolutionClosure($administrationId, $lotteryId);
         $scrutinyBlocked = $entitiesPendingDevolution->isNotEmpty();
         $scrutinyBlockedMessage = $prizePaymentService->administrationScrutinyBlockedMessage($administrationId, $lotteryId);
+        $specialPrizeHintsByEntity = $this->specialPrizeHintsByEntity((int) $lotteryId, (int) $administrationId);
+        $lotteryHasSpecialPrize = $this->lotteryHasSpecialPrizeWithSerieFraccion($lottery);
 
         return view('lottery.scrutiny', compact(
             'lottery',
@@ -93,7 +237,9 @@ class LotteryScrutinyController extends Controller
             'scrutinyResultsByEntity',
             'entitiesPendingDevolution',
             'scrutinyBlocked',
-            'scrutinyBlockedMessage'
+            'scrutinyBlockedMessage',
+            'specialPrizeHintsByEntity',
+            'lotteryHasSpecialPrize'
         ));
     }
 
@@ -171,37 +317,11 @@ class LotteryScrutinyController extends Controller
         $scrutinyResults = $this->calculateCategoryScrutiny($lottery, $reservedNumbers);
         $scrutinyResultsByEntity = $this->organizeResultsByEntity($scrutinyResults, $entitiesWithReserves, $lotteryId);
 
-        // Calcular totales correctos desde los resultados por categoría
-        $totalWinning = 0;
-        $totalPrizeAmount = 0;
-
-        foreach ($scrutinyResultsByEntity as $entityId => $entityResults) {
-            foreach ($entityResults as $categoryResult) {
-                $decimosInfo = $categoryResult['decimos_info'] ?? [];
-                $totalWinning += $decimosInfo['total_participations'] ?? 0;
-
-                $premioPorDecimo = $categoryResult['total_prize'];
-                $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
-                foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
-                    $importeJugado = $setInfo['importe_jugado'] ?? 0;
-                    $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
-                    if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
-                        $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
-                        $totalPrizeAmount += $premioPorParticipacion * $participacionesVendidas;
-                    }
-                }
-            }
-        }
-
-        // Obtener total de participaciones asignadas de TODAS las entidades
-        $totalAsignadas = \App\Models\Participation::whereHas('set.reserve', function ($query) use ($lotteryId) {
-                $query->where('lottery_id', $lotteryId);
-            })
-            ->whereHas('entity', function ($query) use ($administrationId) {
-                $query->where('administration_id', $administrationId);
-            })
-            ->soldForScrutiny()
-            ->count();
+        $participationSummary = $this->summarizeParticipationCountsFromCategoryResults(
+            $scrutinyResultsByEntity,
+            (int) $lotteryId,
+            (int) $administrationId
+        );
 
         // Total de premios de los escrutinios guardados del resto de administraciones para este sorteo
         $totalOtherScrutinies = DB::table('scrutiny_detailed_results')
@@ -218,9 +338,10 @@ class LotteryScrutinyController extends Controller
             'lottery_result_id' => $lottery->result->id,
             'scrutiny_summary' => [
                 'total_entities' => count($entitiesWithReserves),
-                'total_winning_participations' => $totalWinning,
-                'total_non_winning_participations' => $totalAsignadas - $totalWinning,
-                'total_prize_amount' => $totalOtherScrutinies + $totalPrizeAmount
+                'total_sold_participations' => $participationSummary['sold'],
+                'total_winning_participations' => $participationSummary['winning'],
+                'total_non_winning_participations' => $participationSummary['non_winning'],
+                'total_prize_amount' => $totalOtherScrutinies + $participationSummary['prize_amount'],
             ]
         ], $attributes));
 
@@ -248,20 +369,155 @@ class LotteryScrutinyController extends Controller
                 ->with('info', 'El escrutinio aún no ha sido completado');
         }
 
-        // Obtener el total de premios de TODOS los escrutinios guardados para este sorteo
+        // Recalcular resumen de participaciones (evita el doble conteo histórico por número).
+        $participationSummary = $this->summarizeParticipationCountsFromDetailedResults(
+            $scrutiny,
+            (int) $lotteryId,
+            (int) $administrationId
+        );
+
         $totalAllScrutinies = DB::table('scrutiny_detailed_results')
             ->join('administration_lottery_scrutinies', 'scrutiny_detailed_results.scrutiny_id', '=', 'administration_lottery_scrutinies.id')
             ->where('administration_lottery_scrutinies.lottery_id', $lotteryId)
             ->where('administration_lottery_scrutinies.is_saved', true)
             ->sum('scrutiny_detailed_results.premio_total');
 
-        // Actualizar el resumen con el total de todos los escrutinios
-        $currentSummary = $scrutiny->scrutiny_summary;
-        $currentSummary['total_prize_amount'] = $totalAllScrutinies;
+        $currentSummary = is_array($scrutiny->scrutiny_summary) ? $scrutiny->scrutiny_summary : [];
+        $currentSummary['total_sold_participations'] = $participationSummary['sold'];
+        $currentSummary['total_winning_participations'] = $participationSummary['winning'];
+        $currentSummary['total_non_winning_participations'] = $participationSummary['non_winning'];
+        $currentSummary['total_prize_amount'] = $totalAllScrutinies > 0
+            ? $totalAllScrutinies
+            : $participationSummary['prize_amount'];
         $scrutiny->scrutiny_summary = $currentSummary;
         $scrutiny->save();
 
-        return view('lottery.scrutiny_results', compact('lottery', 'administration', 'scrutiny'));
+        $specialPrizeHintsByEntity = $this->specialPrizeHintsByEntity((int) $lotteryId, (int) $administrationId);
+        $lotteryHasSpecialPrize = $this->lotteryHasSpecialPrizeWithSerieFraccion($lottery);
+        $participationCounts = [
+            'sold' => $participationSummary['sold'],
+            'winning' => $participationSummary['winning'],
+            'non_winning' => $participationSummary['non_winning'],
+        ];
+
+        return view('lottery.scrutiny_results', compact(
+            'lottery',
+            'administration',
+            'scrutiny',
+            'specialPrizeHintsByEntity',
+            'lotteryHasSpecialPrize',
+            'participationCounts'
+        ));
+    }
+
+    /**
+     * PDF profesional del escrutinio (tabla completa, sin captura de pantalla).
+     */
+    public function downloadPdf($lotteryId, $administrationId)
+    {
+        $lottery = Lottery::with(['lotteryType', 'result'])->findOrFail($lotteryId);
+        $administration = Administration::forUser(auth()->user())->findOrFail($administrationId);
+
+        $scrutiny = AdministrationLotteryScrutiny::where('administration_id', $administrationId)
+            ->where('lottery_id', $lotteryId)
+            ->with(['detailedResults.entity', 'detailedResults.set', 'scrutinizedBy', 'savedBy'])
+            ->firstOrFail();
+
+        if (! $scrutiny->is_scrutinized) {
+            return redirect()->route('lottery.scrutiny', $lotteryId)
+                ->with('info', 'El escrutinio aún no ha sido completado');
+        }
+
+        $specialPrizeHintsByEntity = $this->specialPrizeHintsByEntity((int) $lotteryId, (int) $administrationId);
+        $lotteryHasSpecialPrize = $this->lotteryHasSpecialPrizeWithSerieFraccion($lottery);
+        $payload = $this->buildScrutinyPdfPayload(
+            $lottery,
+            $scrutiny,
+            $specialPrizeHintsByEntity
+        );
+
+        $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', (string) $lottery->name) ?: 'sorteo';
+        $filename = 'escrutinio_'.$safeName.'_admin'.$administrationId.'.pdf';
+
+        $pdf = Pdf::loadView('lottery.scrutiny_pdf', array_merge($payload, [
+            'lottery' => $lottery,
+            'administration' => $administration,
+            'scrutiny' => $scrutiny,
+            'specialPrizeHintsByEntity' => $specialPrizeHintsByEntity,
+            'lotteryHasSpecialPrize' => $lotteryHasSpecialPrize,
+            'generatedAt' => now()->format('d/m/Y H:i'),
+        ]))->setPaper('a4', 'landscape');
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $specialPrizeHintsByEntity
+     * @return array{entities: array<int, array<string, mixed>>, totals: array{premio_total: float, lineas: int, entidades: int}}
+     */
+    private function buildScrutinyPdfPayload(
+        Lottery $lottery,
+        AdministrationLotteryScrutiny $scrutiny,
+        array $specialPrizeHintsByEntity
+    ): array {
+        $prizeService = app(EntityLotteryPrizeService::class);
+        $entities = [];
+        $totalPrize = 0.0;
+        $totalLines = 0;
+
+        foreach ($scrutiny->detailedResults->groupBy('entity_id') as $entityId => $entityResults) {
+            $entity = $entityResults->first()?->entity;
+            if (! $entity) {
+                continue;
+            }
+
+            $stats = $prizeService->participationStats($entity, $lottery);
+            $entityPrize = (float) $entityResults->sum('premio_total');
+            $totalPrize += $entityPrize;
+            $lines = [];
+
+            foreach ($entityResults as $result) {
+                $decimos = (float) $result->total_decimos;
+                if ($decimos <= 0) {
+                    continue;
+                }
+                $set = $result->set;
+                $isPhysical = $set && ((int) ($set->physical_participations ?? 0) > 0) && ((int) ($set->digital_participations ?? 0) <= 0);
+                $isDigital = $set && ((int) ($set->digital_participations ?? 0) > 0) && ((int) ($set->physical_participations ?? 0) <= 0);
+
+                $lines[] = [
+                    'number' => $result->winning_number,
+                    'set_name' => $set->set_name ?? ('Set #'.($result->set_id ?? '—')),
+                    'type' => $isDigital ? 'digital' : ($isPhysical ? 'fisico' : null),
+                    'type_label' => $isDigital ? 'Digital' : ($isPhysical ? 'Físico' : null),
+                    'decimos' => $decimos,
+                    'decimos_label' => EntityLotteryPrizeService::formatDecimosLabel($decimos),
+                    'premio_por_decimo' => (float) $result->premio_por_decimo,
+                    'participaciones' => (int) $result->total_participations,
+                    'premio_total' => (float) $result->premio_total,
+                    'premio_por_participacion' => (float) $result->premio_por_participacion,
+                ];
+                $totalLines++;
+            }
+
+            $entities[] = [
+                'id' => (int) $entity->id,
+                'name' => $entity->name,
+                'stats' => $stats,
+                'premio_total' => $entityPrize,
+                'special_prize' => $specialPrizeHintsByEntity[(int) $entity->id] ?? null,
+                'lines' => $lines,
+            ];
+        }
+
+        return [
+            'entities' => $entities,
+            'totals' => [
+                'premio_total' => $totalPrize,
+                'lineas' => $totalLines,
+                'entidades' => count($entities),
+            ],
+        ];
     }
 
     /**
@@ -286,20 +542,37 @@ class LotteryScrutinyController extends Controller
     }
 
     /**
-     * Número de lotería reservado al que pertenece una participación.
+     * Números de la reserva que juega una participación.
+     * En reservas multi-número, cada participación juega TODOS los números.
+     *
+     * @return array<int, string>
+     */
+    private function getParticipationReservedNumbers(Participation $participation): array
+    {
+        $reservedNumbers = $participation->set?->reserve?->reservation_numbers ?? [];
+        if (empty($reservedNumbers) || ! is_array($reservedNumbers)) {
+            return [];
+        }
+
+        $nums = [];
+        foreach ($reservedNumbers as $number) {
+            $s = trim((string) $number);
+            if ($s !== '') {
+                $nums[] = $s;
+            }
+        }
+
+        return array_values(array_unique($nums));
+    }
+
+    /**
+     * @deprecated Usar getParticipationReservedNumbers(); se mantiene por compatibilidad de llamadas puntuales.
      */
     private function getParticipationReservedNumber(Participation $participation): ?string
     {
-        $reservedNumbers = $participation->set?->reserve?->reservation_numbers ?? [];
-        if (empty($reservedNumbers)) {
-            return null;
-        }
-        if (count($reservedNumbers) === 1) {
-            return (string) $reservedNumbers[0];
-        }
-        $index = (int) $participation->participation_number - 1;
+        $nums = $this->getParticipationReservedNumbers($participation);
 
-        return isset($reservedNumbers[$index]) ? (string) $reservedNumbers[$index] : null;
+        return $nums[0] ?? null;
     }
 
     /**
@@ -307,13 +580,11 @@ class LotteryScrutinyController extends Controller
      */
     private function participationMatchesWinningNumbers(Participation $participation, array $categoryWinningNumbers): bool
     {
-        $number = $this->getParticipationReservedNumber($participation);
-        if ($number === null) {
-            return false;
-        }
-        foreach ($categoryWinningNumbers as $winningNumber) {
-            if ($this->compareNumbers($number, $winningNumber)) {
-                return true;
+        foreach ($this->getParticipationReservedNumbers($participation) as $number) {
+            foreach ($categoryWinningNumbers as $winningNumber) {
+                if ($this->compareNumbers($number, $winningNumber)) {
+                    return true;
+                }
             }
         }
 
@@ -417,11 +688,10 @@ class LotteryScrutinyController extends Controller
                 ->where('status', 'devuelta')
                 ->get();
 
-            // Números reservados con participaciones vendidas
+            // Números reservados con participaciones vendidas (todos los de cada reserva)
             $assignedNumbers = [];
             foreach ($allAssignedParticipations as $participation) {
-                $number = $this->getParticipationReservedNumber($participation);
-                if ($number !== null) {
+                foreach ($this->getParticipationReservedNumbers($participation) as $number) {
                     $assignedNumbers[] = $number;
                 }
             }
@@ -442,36 +712,37 @@ class LotteryScrutinyController extends Controller
                 $legacyWinningNumbers = $tempEntityResult->winning_numbers ?? [];
             }
 
+            $relevantWinningNumbers = ! empty($categoryWinningNumbers)
+                ? $categoryWinningNumbers
+                : $legacyWinningNumbers;
+
             $winningParticipations = [];
             $winningParticipationsByNumber = [];
             $totalWinningParticipations = 0;
 
             foreach ($allAssignedParticipations as $participation) {
-                $hasWinningNumber = ! empty($categoryWinningNumbers)
-                    ? $this->participationMatchesWinningNumbers($participation, $categoryWinningNumbers)
-                    : $this->participationMatchesWinningNumbers($participation, $legacyWinningNumbers);
-
-                if (! $hasWinningNumber) {
+                if (! $this->participationMatchesWinningNumbers($participation, $relevantWinningNumbers)) {
                     continue;
                 }
 
                 $winningParticipations[] = $participation;
-                $number = $this->getParticipationReservedNumber($participation);
-                if ($number !== null) {
-                    $matchesCategory = ! empty($categoryWinningNumbers)
-                        ? $this->participationMatchesWinningNumbers($participation, $categoryWinningNumbers)
-                        : in_array($number, $legacyWinningNumbers, true);
-                    if ($matchesCategory) {
-                        $totalWinningParticipations++;
-                        $winningParticipationsByNumber[$number] = ($winningParticipationsByNumber[$number] ?? 0) + 1;
+                $totalWinningParticipations++;
+
+                // Cada participación cuenta en TODOS los números premiados de su reserva
+                foreach ($this->getParticipationReservedNumbers($participation) as $number) {
+                    foreach ($relevantWinningNumbers as $winningNumber) {
+                        if ($this->compareNumbers($number, $winningNumber)) {
+                            $key = (string) $winningNumber;
+                            $winningParticipationsByNumber[$key] = ($winningParticipationsByNumber[$key] ?? 0) + 1;
+                            break;
+                        }
                     }
                 }
             }
 
             $winningNumbers = [];
             foreach ($winningParticipations as $participation) {
-                $number = $this->getParticipationReservedNumber($participation);
-                if ($number !== null) {
+                foreach ($this->getParticipationReservedNumbers($participation) as $number) {
                     $winningNumbers[] = $number;
                 }
             }
@@ -574,25 +845,14 @@ class LotteryScrutinyController extends Controller
                 ->whereIn('status', ['disponible', 'asignada'])
                 ->get();
 
-            // Obtener los números de las participaciones asignadas
+            // Números de todas las reservas con participaciones vendidas
             $assignedNumbers = [];
             foreach ($allAssignedParticipations as $participation) {
-                if ($participation->set && $participation->set->reserve) {
-                    $reservedNumbers = $participation->set->reserve->reservation_numbers ?? [];
-                    // Si solo hay un número reservado, todas las participaciones del set tienen ese número
-                    if (count($reservedNumbers) === 1) {
-                        $assignedNumbers[] = $reservedNumbers[0];
-                    } else {
-                        // Si hay múltiples números, usar el índice correspondiente
-                        if (isset($reservedNumbers[$participation->participation_number - 1])) {
-                            $assignedNumbers[] = $reservedNumbers[$participation->participation_number - 1];
-                        }
-                    }
+                foreach ($this->getParticipationReservedNumbers($participation) as $number) {
+                    $assignedNumbers[] = $number;
                 }
             }
-
-            // Eliminar duplicados
-            $assignedNumbers = array_unique($assignedNumbers);
+            $assignedNumbers = array_values(array_unique($assignedNumbers));
 
             // Calcular premios para obtener los números ganadores
             $tempEntityResult = new ScrutinyEntityResult([
@@ -605,64 +865,39 @@ class LotteryScrutinyController extends Controller
             ]);
 
             $tempEntityResult->calculatePrizes($lotteryResult, $lottery->lotteryType);
-            
-            // Filtrar participaciones asignadas: solo aquellas que están en sets con reservas que tienen números ganadores
+            $relevantWinningNumbers = $tempEntityResult->winning_numbers ?? [];
+
+            // Filtrar participaciones: sets cuya reserva tiene algún número ganador
             $winningParticipations = [];
             $winningParticipationsByNumber = [];
             $totalWinningParticipations = 0;
-            
+
             foreach ($allAssignedParticipations as $participation) {
-                if ($participation->set && $participation->set->reserve) {
-                    $reservedNumbers = $participation->set->reserve->reservation_numbers ?? [];
-                    $hasWinningNumber = false;
-                    
-                    // Verificar si esta reserva tiene algún número ganador
-                    foreach ($reservedNumbers as $number) {
-                        if (in_array($number, $tempEntityResult->winning_numbers)) {
-                            $hasWinningNumber = true;
+                if (! $this->participationMatchesWinningNumbers($participation, $relevantWinningNumbers)) {
+                    continue;
+                }
+
+                $winningParticipations[] = $participation;
+                $totalWinningParticipations++;
+
+                foreach ($this->getParticipationReservedNumbers($participation) as $number) {
+                    foreach ($relevantWinningNumbers as $winningNumber) {
+                        if ($this->compareNumbers($number, $winningNumber)) {
+                            $key = (string) $winningNumber;
+                            $winningParticipationsByNumber[$key] = ($winningParticipationsByNumber[$key] ?? 0) + 1;
                             break;
-                        }
-                    }
-                    
-                    // Solo incluir participaciones de sets con reservas que tienen números ganadores
-                    if ($hasWinningNumber) {
-                        $winningParticipations[] = $participation;
-                        
-                        // Calcular participaciones ganadoras por número específico
-                        $number = null;
-                        if (count($reservedNumbers) === 1) {
-                            $number = $reservedNumbers[0];
-                        } else {
-                            if (isset($reservedNumbers[$participation->participation_number - 1])) {
-                                $number = $reservedNumbers[$participation->participation_number - 1];
-                            }
-                        }
-                        
-                        if ($number && in_array($number, $tempEntityResult->winning_numbers)) {
-                            $totalWinningParticipations++;
-                            $winningParticipationsByNumber[$number] = ($winningParticipationsByNumber[$number] ?? 0) + 1;
                         }
                     }
                 }
             }
 
-            // Obtener los números de las participaciones ganadoras (solo de sets con reservas ganadoras)
             $winningNumbers = [];
             foreach ($winningParticipations as $participation) {
-                if ($participation->set && $participation->set->reserve) {
-                    $reservedNumbers = $participation->set->reserve->reservation_numbers ?? [];
-                    // Si solo hay un número reservado, todas las participaciones del set tienen ese número
-                    if (count($reservedNumbers) === 1) {
-                        $winningNumbers[] = $reservedNumbers[0];
-                    } else {
-                        // Si hay múltiples números, usar el índice correspondiente
-                        if (isset($reservedNumbers[$participation->participation_number - 1])) {
-                            $winningNumbers[] = $reservedNumbers[$participation->participation_number - 1];
-                        }
-                    }
+                foreach ($this->getParticipationReservedNumbers($participation) as $number) {
+                    $winningNumbers[] = $number;
                 }
             }
-            $winningNumbers = array_unique($winningNumbers);
+            $winningNumbers = array_values(array_unique($winningNumbers));
 
             // Calcular participaciones sin premio (sets sin números ganadores)
             $nonWinningParticipations = $allAssignedParticipations->count() - count($winningParticipations);
@@ -889,9 +1124,7 @@ class LotteryScrutinyController extends Controller
                         \Log::info("Precio del set: {$set->price_per_participation}");
                         \Log::info("Donativo del set: {$set->donation_amount}");
                         
-                        // Obtener todas las participaciones vendidas para este número específico
-                        // Si la reserva tiene solo un número, todas las participaciones del set tienen ese número
-                        // Si la reserva tiene múltiples números, filtrar por el número específico
+                        // Todas las participaciones vendidas del set juegan TODOS los números de la reserva
                         $participations = Participation::where('set_id', $set->id)
                             ->soldForScrutiny()
                             ->where(function ($query) use ($entity) {
@@ -900,14 +1133,7 @@ class LotteryScrutinyController extends Controller
                                         $setQuery->where('entity_id', $entity->id);
                                     });
                             });
-                        
-                        // Si la reserva tiene múltiples números, necesitamos filtrar por participación específica
-                        if (count($reserve->reservation_numbers) > 1) {
-                            // Para reservas con múltiples números, filtrar por el número de participación correspondiente
-                            $participations = $participations->where('participation_number', $numberIndex + 1);
-                        }
-                        // Si la reserva tiene un solo número, todas las participaciones del set tienen ese número
-                        
+
                         $participacionesVendidas = (clone $participations)->count();
                         \Log::info("Participaciones vendidas para número {$number} en set {$set->id}: {$participacionesVendidas}");
                         
@@ -927,8 +1153,16 @@ class LotteryScrutinyController extends Controller
                                 $decimosDeEsteSet = ceil(($participacionesVendidas / $participacionesPorDecimo) * 100) / 100;
                                 $totalDecimos += $decimosDeEsteSet;
                                 
+                                $isPhysical = ((int) ($set->physical_participations ?? 0) > 0)
+                                    && ((int) ($set->digital_participations ?? 0) <= 0);
+                                $isDigital = ((int) ($set->digital_participations ?? 0) > 0)
+                                    && ((int) ($set->physical_participations ?? 0) <= 0);
+
                                 $setsInfo[] = [
                                     'set_id' => $set->id,
+                                    'set_name' => $set->set_name ?? ('Set #'.$set->id),
+                                    'set_type' => $isDigital ? 'digital' : ($isPhysical ? 'fisico' : 'mixto'),
+                                    'set_type_label' => $isDigital ? 'Digital' : ($isPhysical ? 'Físico' : 'Mixto'),
                                     'participations_vendidas' => $participacionesVendidas,
                                     'importe_jugado' => $importeJugado,
                                     'participaciones_por_decimo' => $participacionesPorDecimo,

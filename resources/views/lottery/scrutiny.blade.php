@@ -123,52 +123,43 @@
 
                                                 <div class="mt-2">
                                                     @php
-                                                        // Calcular desde los datos reales de la tabla (scrutinyResultsByEntity)
-                                                        $totalWinning = 0;
-                                                        $totalNonWinning = 0;
+                                                        // Contar cada set una sola vez (una participación no se suma por cada número premiado).
+                                                        $maxPartsBySet = [];
                                                         $totalPrizeAmount = 0;
-                                                        $totalAsignadas = 0;
-                                                        
-                                                        // Sumar participaciones ganadoras desde los resultados por categoría
-                                                        foreach($scrutinyResultsByEntity as $entityId => $entityResults) {
-                                                            foreach($entityResults as $categoryResult) {
+                                                        foreach ($scrutinyResultsByEntity as $entityResults) {
+                                                            foreach ($entityResults as $categoryResult) {
                                                                 $decimosInfo = $categoryResult['decimos_info'] ?? [];
-                                                                $totalParticipations = $decimosInfo['total_participations'] ?? 0;
-                                                                $totalWinning += $totalParticipations;
-                                                                
-                                                                $premioPorDecimo = $categoryResult['total_prize'];
-                                                                $ticketPrice = $decimosInfo['ticket_price'] ?? 0;
+                                                                $premioPorDecimo = (float) ($categoryResult['total_prize'] ?? 0);
+                                                                $ticketPrice = (float) ($decimosInfo['ticket_price'] ?? 0);
                                                                 foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
-                                                                    $importeJugado = $setInfo['importe_jugado'] ?? 0;
-                                                                    $participacionesVendidas = (int) ($setInfo['participations_vendidas'] ?? 0);
-                                                                    if ($ticketPrice > 0 && $importeJugado > 0 && $participacionesVendidas > 0) {
-                                                                        $premioPorParticipacion = $premioPorDecimo * ($importeJugado / $ticketPrice);
-                                                                        $totalPrizeAmount += $premioPorParticipacion * $participacionesVendidas;
+                                                                    $setId = (int) ($setInfo['set_id'] ?? 0);
+                                                                    $parts = (int) ($setInfo['participations_vendidas'] ?? 0);
+                                                                    if ($setId > 0) {
+                                                                        $maxPartsBySet[$setId] = max($maxPartsBySet[$setId] ?? 0, $parts);
+                                                                    }
+                                                                    $importeJugado = (float) ($setInfo['importe_jugado'] ?? 0);
+                                                                    if ($ticketPrice > 0 && $importeJugado > 0 && $parts > 0) {
+                                                                        $totalPrizeAmount += ($premioPorDecimo * ($importeJugado / $ticketPrice)) * $parts;
                                                                     }
                                                                 }
                                                             }
                                                         }
-                                                        
-                                                        // Obtener total de participaciones asignadas de TODAS las entidades
-                                                        // (no solo las que tienen premios)
-                                                        $administrationId = session('selected_administration.id');
-                                                        $lotteryId = $lottery->id;
-                                                        
-                                                        $totalAsignadas = \App\Models\Participation::whereHas('set.reserve', function($query) use ($lotteryId) {
-                                                                $query->where('lottery_id', $lotteryId);
+                                                        $adminIdForStats = session('selected_administration.id');
+                                                        $lotteryIdForStats = $lottery->id;
+                                                        $totalAsignadas = \App\Models\Participation::whereHas('set.reserve', function ($query) use ($lotteryIdForStats) {
+                                                                $query->where('lottery_id', $lotteryIdForStats);
                                                             })
-                                                            ->whereHas('entity', function($query) use ($administrationId) {
-                                                                $query->where('administration_id', $administrationId);
+                                                            ->whereHas('entity', function ($query) use ($adminIdForStats) {
+                                                                $query->where('administration_id', $adminIdForStats);
                                                             })
                                                             ->soldForScrutiny()
                                                             ->count();
-                                                        
-                                                        // Participaciones no ganadoras = total asignadas - ganadoras
-                                                        $totalNonWinning = $totalAsignadas - $totalWinning;
+                                                        $totalWinning = (int) array_sum($maxPartsBySet);
+                                                        $totalNonWinning = max(0, $totalAsignadas - $totalWinning);
                                                     @endphp
-                                                    Participaciones Vendidas: <b>{{ $totalAsignadas }} Participaciones</b> <br>
-                                                    Participaciones Vendidas Premiadas: <b>{{ $totalWinning }} Participaciones</b> <br>
-                                                    Participaciones Vendidas No Premiadas: <b>{{ $totalNonWinning }} Participaciones</b> <br>
+                                                    Participaciones Vendidas: <b>{{ $totalAsignadas }}</b> <br>
+                                                    Participaciones Vendidas Premiadas: <b>{{ $totalWinning }}</b> <br>
+                                                    Participaciones Vendidas No Premiadas: <b>{{ $totalNonWinning }}</b> <br>
                                                     Importe Premios Repartidos: <b>{{ number_format($totalPrizeAmount, 2) }}€</b>
                                                 </div>
                                                 
@@ -181,7 +172,35 @@
                                         Lista de entidades y sus participaciones asignadas
                                     </h4>
 
-                                    <div style="min-height: 400px; height: 400px; overflow: auto;">
+                                    @php
+                                        $specialPrizeHintsByEntity = $specialPrizeHintsByEntity ?? [];
+                                        $lotteryHasSpecialPrize = $lotteryHasSpecialPrize ?? false;
+                                    @endphp
+                                    <div class="show-alerts special-prize-scrutiny-hints">
+                                        @if(!empty($specialPrizeHintsByEntity))
+                                            <div class="alert alert-success py-2 mt-2 mb-2">
+                                                <strong>Premio especial a cobrar en Loterías y Apuestas.</strong>
+                                                @foreach($specialPrizeHintsByEntity as $hint)
+                                                    <div class="small mt-1">
+                                                        {{ $hint['entity_name'] ?? ('Entidad #'.$hint['entity_id']) }}:
+                                                        nº {{ $hint['numero'] ?? '—' }}
+                                                        · serie {{ $hint['serie'] ?? '—' }}
+                                                        · fracción {{ $hint['fraccion'] ?? '—' }}
+                                                        @if(!empty($hint['importe']))
+                                                            · {{ number_format((float) $hint['importe'], 2, ',', '.') }} €
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @elseif($lotteryHasSpecialPrize)
+                                            <div class="alert alert-warning py-2 mt-2 mb-2">
+                                                Este sorteo tiene <strong>premio especial</strong> (serie/fracción).
+                                                Aún no hay liquidación entidad→admin que declare el décimo ganador.
+                                            </div>
+                                        @endif
+                                    </div>
+
+                                    <div class="scrutiny-entities-scroll" style="min-height: 400px; height: 400px; overflow: auto;">
 
                                         <table class="table">
 
@@ -211,7 +230,14 @@
                                                         }
                                                     @endphp
                                                     <tr>
-                                                        <td><b>{{ $entity->name }}</b></td>
+                                                        <td>
+                                                            <b>{{ $entity->name }}</b>
+                                                            @if(!empty($specialPrizeHintsByEntity[$entity->id]))
+                                                                <div class="mt-1">
+                                                                    <span class="badge bg-success">Premio especial · cobrar a LAE</span>
+                                                                </div>
+                                                            @endif
+                                                        </td>
 
                                                         <td>
                                                             Emitidas: <b>{{ $result->total_issued }}</b> <br>
@@ -276,6 +302,20 @@
 
                                                                             $premioTotalSet = $premioPorParticipacion * $participacionesVendidas;
                                                                             $decimosLabel = rtrim(rtrim(number_format($decimosDeEsteSet, 2, ',', '.'), '0'), ',');
+                                                                            $setName = $setInfo['set_name'] ?? null;
+                                                                            $setTypeLabel = $setInfo['set_type_label'] ?? null;
+                                                                            $setType = $setInfo['set_type'] ?? null;
+                                                                            if (!$setName && !empty($setInfo['set_id'])) {
+                                                                                $setModel = \App\Models\Set::find($setInfo['set_id']);
+                                                                                if ($setModel) {
+                                                                                    $setName = $setModel->set_name;
+                                                                                    $isPhysical = ((int) ($setModel->physical_participations ?? 0) > 0) && ((int) ($setModel->digital_participations ?? 0) <= 0);
+                                                                                    $isDigital = ((int) ($setModel->digital_participations ?? 0) > 0) && ((int) ($setModel->physical_participations ?? 0) <= 0);
+                                                                                    $setType = $isDigital ? 'digital' : ($isPhysical ? 'fisico' : 'mixto');
+                                                                                    $setTypeLabel = $isDigital ? 'Digital' : ($isPhysical ? 'Físico' : 'Mixto');
+                                                                                }
+                                                                            }
+                                                                            $setBadgeClass = $setType === 'digital' ? 'bg-info' : ($setType === 'fisico' ? 'bg-secondary' : 'bg-dark');
                                                                         @endphp
                                                                         <tr>
                                                                             <td colspan="4" style="border-bottom: 1px solid #333; background-color: #f8f9fa;">
@@ -283,6 +323,14 @@
                                                                                     <div>
                                                                                         <b>Número: {{ $categoryResult['number_str'] }} - Premiado con {{ number_format($premioPorDecimo, 2) }}€ X {{ $decimosLabel }} Décimos = {{ number_format($premioTotalSet, 2) }}€</b>
                                                                                         <small class="text-muted ms-2">({{ $participacionesVendidas }} participaciones)</small>
+                                                                                        @if($setName)
+                                                                                            <small class="ms-2">
+                                                                                                @if($setTypeLabel)
+                                                                                                    <span class="badge {{ $setBadgeClass }}">{{ $setTypeLabel }}</span>
+                                                                                                @endif
+                                                                                                <span class="text-muted">{{ $setName }}</span>
+                                                                                            </small>
+                                                                                        @endif
                                                                                     </div>
                                                                                     <div class="text-end">
                                                                                         <span class="me-2">{{ number_format($premioPorParticipacion, 2) }}€</span>

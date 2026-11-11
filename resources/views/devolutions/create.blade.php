@@ -852,8 +852,8 @@
                                                             <div class="card-header">Resumen de Participaciones</div>
                                                             <div class="card-body">
                                                                 <p><strong>Total Participaciones Asignadas:</strong> <span id="vendedor-settlement-total-participations" class="fw-bold fs-4">0</span></p>
-                                                                <p><strong>Precio por Participaci√≥n:</strong> <span id="vendedor-settlement-price-per-participation">0.00‚ˇ¨</span></p>
-                                                                <p><strong>Total a Liquidar:</strong> <span id="vendedor-settlement-total-amount" class="text-danger fw-bold">0.00‚ˇ¨</span></p>
+                                                                <p><strong>Precio por Participaci√≥n:</strong> <span id="vendedor-settlement-price-per-participation">0.00‚Ç¨</span></p>
+                                                                <p><strong>Total a Liquidar:</strong> <span id="vendedor-settlement-total-amount" class="text-danger fw-bold">0.00‚Ç¨</span></p>
                                                 </div>
                                                 </div>
                                                     </div>
@@ -861,9 +861,9 @@
                                                         <div class="card">
                                                             <div class="card-header">Liquidaci√≥n Actual</div>
                                                             <div class="card-body">
-                                                                <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00‚ˇ¨</span></p>
+                                                                <p><strong>Total Pagado:</strong> <span id="vendedor-settlement-total-paid" class="text-success fw-bold">0.00‚Ç¨</span></p>
                                                                 <p><strong>Participaciones cubiertas por lo pagado:</strong> <span id="vendedor-settlement-liquidated-participations">0</span></p>
-                                                                <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00‚ˇ¨</span></p>
+                                                                <p><strong>Pendiente por Liquidar:</strong> <span id="vendedor-settlement-pending-amount" class="text-warning fw-bold">0.00‚Ç¨</span></p>
                                                                 <p><strong>Participaciones Pendientes:</strong> <span id="vendedor-settlement-pending-participations">0</span></p>
                                                             </div>
                                                         </div>
@@ -887,7 +887,7 @@
                                                                         <strong>Pago en Efectivo</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00‚ˇ¨" id="vendedor-settlement-pago-efectivo">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00‚Ç¨" id="vendedor-settlement-pago-efectivo">
                                         </div>
                                     </div>
 
@@ -900,7 +900,7 @@
                                                                         <strong>Pago por Bizum</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00‚ˇ¨" id="vendedor-settlement-pago-bizum">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00‚Ç¨" id="vendedor-settlement-pago-bizum">
                                                                     </div>
                                                                 </div>
 
@@ -913,7 +913,7 @@
                                                                         <strong>Pago por Transferencia</strong>
                                                                     </div>
                                                                     <div class="col-3">
-                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00‚ˇ¨" id="vendedor-settlement-pago-transferencia">
+                                                                        <input type="number" step="0.01" class="form-control vendedor-settlement-payment-input" placeholder="0.00‚Ç¨" id="vendedor-settlement-pago-transferencia">
                                                                     </div>
                                                                 </div>
 
@@ -928,15 +928,15 @@
                                                                 <div class="text-center">
                                                                     <div class="border rounded p-3 mb-3 bg-light">
                                                                         <small class="text-muted">Pendiente a Pagar</small>
-                                                                        <div class="text-danger h4" id="vendedor-settlement-pendiente-display">0,00‚ˇ¨</div>
+                                                                        <div class="text-danger h4" id="vendedor-settlement-pendiente-display">0,00‚Ç¨</div>
                                                                     </div>
                                                                     <div class="border rounded p-3 mb-3 bg-success bg-opacity-10">
                                                                         <small class="text-muted">A Pagar Ahora</small>
-                                                                        <div class="text-success h4" id="vendedor-settlement-pagar-ahora">0,00‚ˇ¨</div>
+                                                                        <div class="text-success h4" id="vendedor-settlement-pagar-ahora">0,00‚Ç¨</div>
                                                                     </div>
                                                                     <div class="border rounded p-3 mb-3" id="vendedor-settlement-quedara-pendiente-container">
                                                                         <small class="text-muted">Quedar√° Pendiente</small>
-                                                                        <div class="h5" id="vendedor-settlement-quedara-pendiente">0,00‚ˇ¨</div>
+                                                                        <div class="h5" id="vendedor-settlement-quedara-pendiente">0,00‚Ç¨</div>
                                                                     </div>
                                                                     <button type="button" class="btn btn-warning" id="btn-registrar-liquidacion-vendedor" style="border-radius: 30px; width: 100%;">
                                                                         <i class="ri-add-line"></i> Registrar Liquidaci√≥n
@@ -961,23 +961,16 @@
                                                 </div> <!-- Cierre vendedor-resumen-liquidacion-container -->
                                             </div> <!-- Cierre liquidacion-vendedor-container -->
 
-                                            <!-- Contenedor para liquidaci√≥n de ADMINISTRACI√ˇN -->
+                                            <!-- Contenedor para liquidaci√≥n de ADMINISTRACI√ìN -->
                                             <div id="liquidacion-administracion-container" style="display: none;">
                                                     <!-- Resumen Devoluci√≥n -->
                                                     <div class="card mb-3">
                                                         <div class="card-body">
-                                                            <h5 class="card-title">Resumen Devoluci√≥n</h5>
-                                                            <small class="text-muted" id="liquidacion-resumen-subtitulo">Resumen Devoluci√≥n Administraci√≥n</small>
-                                                            <div class="alert alert-info py-2 mt-2 mb-0 small">
+                                                            <h5 class="card-title mb-1">Resumen Devoluci√≥n</h5>
+                                                            <small class="text-muted d-block mb-2" id="liquidacion-resumen-subtitulo">Resumen Devoluci√≥n Administraci√≥n</small>
+                                                            <div class="alert alert-info py-2 mb-2 small" id="liquidacion-resumen-aviso-digitales">
                                                                 <strong>Digitales (pool de la entidad):</strong> las no vendidas de la reserva se devuelven autom√°ticamente a administraci√≥n al confirmar.
                                                                 Las vendidas entran en la liquidaci√≥n. Las f√≠sicas no devueltas se liquidan como vendidas.
-                                                            </div>
-                                                            
-                                                            <div class="text-center my-3">
-                                                                <img src="{{url('assets/ticket.svg')}}" alt="" width="60px">
-                                                                <div class="mt-2">
-                                                                    <strong id="liquidacion-ticket-number">-</strong>
-                                                                </div>
                                                             </div>
 
                                                             <div class="row">
@@ -1014,20 +1007,20 @@
                                                             <div class="row">
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
-                                                                        <strong>Total Liquidaci√≥n:</strong>
-                                                                        <span id="liquidacion-total-liquidacion">0,00‚ˇ¨</span>
+                                                                        <strong>Total Liquidaci√≥n (sorteo):</strong>
+                                                                        <span id="liquidacion-total-liquidacion">0,00‚Ç¨</span>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
-                                                                        <strong>Pagos Registrados:</strong>
-                                                                        <span id="liquidacion-pagos-registrados">0,00‚ˇ¨</span>
+                                                                        <strong>Pagos Registrados (sorteo):</strong>
+                                                                        <span id="liquidacion-pagos-registrados">0,00‚Ç¨</span>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-4">
                                                                     <div class="mb-2">
                                                                         <strong>Total a Pagar:</strong>
-                                                                        <span id="liquidacion-total-pagar">0,00‚ˇ¨</span>
+                                                                        <span id="liquidacion-total-pagar">0,00‚Ç¨</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1046,6 +1039,9 @@
                                                             </div>
                                                             <div class="alert alert-info py-2 mb-3" id="special-prize-requirement-alert">
                                                                 Puedes registrar esta informaci√≥n de forma opcional en este sorteo.
+                                                            </div>
+                                                            <div class="alert alert-success py-2 mb-3" id="special-prize-match-alert" style="display:none;">
+                                                                Esta entidad declara el d√©cimo del premio especial. Corresponde cobrarlo a Loter√≠as y Apuestas.
                                                             </div>
 
                                                             <div class="row g-3">
@@ -1116,14 +1112,18 @@
                                                                             </div>
                                                                             <div class="flex-grow-1">
                                                                                 <h5 class="m-0 fw-bold">Fracci√≥n</h5>
-                                                                                <small class="text-muted">Por Unidad</small>
+                                                                                <small class="text-muted">Indica serie + fracci√≥n(es)</small>
                                                                             </div>
                                                                             <div class="d-flex gap-2 align-items-end" style="width:70%;">
-                                                                                <div style="width:50%;">
-                                                                                    <label class="form-label small mb-1">Fracci√≥n</label>
-                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-unidad" placeholder="N√∫mero de fracci√≥n" style="border-radius: 30px;">
+                                                                                <div style="width:28%;">
+                                                                                    <label class="form-label small mb-1">Serie</label>
+                                                                                    <input type="number" min="1" class="form-control" id="special-fraccion-serie" placeholder="Serie" style="border-radius: 30px;">
                                                                                 </div>
-                                                                                <div style="width:50%;">
+                                                                                <div style="width:28%;">
+                                                                                    <label class="form-label small mb-1">Fracci√≥n</label>
+                                                                                    <input type="number" min="1" max="10" class="form-control" id="special-fraccion-unidad" placeholder="N¬∫" style="border-radius: 30px;">
+                                                                                </div>
+                                                                                <div style="width:44%;">
                                                                                     <button type="button" class="btn btn-warning w-100" id="btn-special-add-fraccion-unidad" style="border-radius: 30px; background-color: #e78307; color: #333; font-weight: bold;">Asignar</button>
                                                                                 </div>
                                                                             </div>
@@ -1152,12 +1152,12 @@
                                                                         <div class="form-card bs" style="background:#f8f8f8;">
                                                                             <div class="text-center fw-bold mb-2">RESTANTE</div>
                                                                             <div class="d-flex justify-content-between">
-                                                                                <small class="text-muted">D√ˇCIMOS</small>
+                                                                                <small class="text-muted">D√âCIMOS</small>
                                                                                 <small class="text-muted">IMPORTE RESTANTE</small>
                                                                             </div>
                                                                             <div class="d-flex justify-content-between align-items-center">
                                                                                 <div id="special-prize-restante-decimos" class="fw-bold fs-5 text-dark">0</div>
-                                                                                <div id="special-prize-restante-importe" class="fw-bold fs-4 text-success">0,00‚ˇ¨</div>
+                                                                                <div id="special-prize-restante-importe" class="fw-bold fs-4 text-success">0,00‚Ç¨</div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -1189,7 +1189,7 @@
                                                                             <strong>Pago en Efectivo</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00‚ˇ¨" id="pago-efectivo-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00‚Ç¨" id="pago-efectivo-monto">
                                                                         </div>
                                                                     </div>
 
@@ -1202,7 +1202,7 @@
                                                                             <strong>Pago por Bizum</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00‚ˇ¨" id="pago-bizum-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00‚Ç¨" id="pago-bizum-monto">
                                                                         </div>
                                                                     </div>
 
@@ -1215,7 +1215,7 @@
                                                                             <strong>Pago por Transferencia</strong>
                                                                         </div>
                                                                         <div class="col-3">
-                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00‚ˇ¨" id="pago-transferencia-monto">
+                                                                            <input type="number" step="0.01" class="form-control payment-input" placeholder="0.00‚Ç¨" id="pago-transferencia-monto">
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -1224,15 +1224,15 @@
                                                                     <div class="text-center">
                                                                         <div class="border rounded p-3 mb-3 bg-light">
                                                                             <small class="text-muted">Total a Pagar</small>
-                                                                            <div class="text-danger h4" id="liquidacion-importe-total">0,00‚ˇ¨</div>
+                                                                            <div class="text-danger h4" id="liquidacion-importe-total">0,00‚Ç¨</div>
                                                                         </div>
                                                                         <div class="border rounded p-3 mb-3 bg-success bg-opacity-10">
                                                                             <small class="text-muted">Total Pagado</small>
-                                                                            <div class="text-success h4" id="total-pagado">0,00‚ˇ¨</div>
+                                                                            <div class="text-success h4" id="total-pagado">0,00‚Ç¨</div>
                                                                         </div>
                                                                         <div class="border rounded p-3 mb-3" id="pendiente-container" style="display: none;">
                                                                             <small class="text-muted">Pendiente</small>
-                                                                            <div class="h5" id="total-pendiente">0,00‚ˇ¨</div>
+                                                                            <div class="h5" id="total-pendiente">0,00‚Ç¨</div>
                                                                         </div>
                                                                         <div class="d-flex gap-2 justify-content-center flex-wrap">
                                                                             <button type="button" class="btn btn-warning" id="btn-aceptar-liquidacion" style="border-radius: 30px;">
@@ -1323,7 +1323,7 @@
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-presencial" value="presencial">
-                                <span class="form-check-label fw-semibold">Opci√≥n A ‚ˇ¨ Pago presencial</span>
+                                <span class="form-check-label fw-semibold">Opci√≥n A ‚Ç¨ Pago presencial</span>
                             </div>
                             <small class="text-muted d-block mt-2">La entidad paga en sus instalaciones (app gestor). Sin ingreso en PARTILOT salvo participaciones digitales vendidas.</small>
                         </label>
@@ -1332,7 +1332,7 @@
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online" value="online" data-online-payer="partilot">
-                                <span class="form-check-label fw-semibold">Opci√≥n B ‚ˇ¨ Pago online (PARTILOT)</span>
+                                <span class="form-check-label fw-semibold">Opci√≥n B ‚Ç¨ Pago online (PARTILOT)</span>
                             </div>
                             <small class="text-muted d-block mt-2">PARTILOT gestiona la remesa. Requiere ingreso del 100% del importe premiado, contrato y activaci√≥n por superadministrador.</small>
                         </label>
@@ -1341,7 +1341,7 @@
                         <label class="card h-100 border p-3 mb-0" style="cursor: pointer;">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="prize_payment_mode" id="prize-mode-online-entity" value="online" data-online-payer="entity">
-                                <span class="form-check-label fw-semibold">Opci√≥n C ‚ˇ¨ Pago online (entidad)</span>
+                                <span class="form-check-label fw-semibold">Opci√≥n C ‚Ç¨ Pago online (entidad)</span>
                             </div>
                             <small class="text-muted d-block mt-2">La entidad gestiona sus remesas desde su panel. Los usuarios cobran online tras el escrutinio, sin bloqueo PARTILOT.</small>
                         </label>
@@ -1581,7 +1581,7 @@ $(document).ready(function() {
         // Actualizar indicadores de pasos con l√≥gica de progreso
         actualizarIndicadoresPasos(pasoId);
         
-        // En paso sorteo: texto del bot√≥n volver seg√∫n tipo (Vendedor ‚ˇ¨ Vendedores, Administraci√≥n/Anulaci√≥n ‚ˇ¨ Opciones)
+        // En paso sorteo: texto del bot√≥n volver seg√∫n tipo (Vendedor ‚Ç¨ Vendedores, Administraci√≥n/Anulaci√≥n ‚Ç¨ Opciones)
         if (pasoId === 'paso-sorteo') {
             const textoVolver = tipoDevolucion === 'vendedor' ? 'Volver a Vendedores' : 'Volver a Opciones';
             $('#btn-volver-desde-sorteo-text').text(textoVolver);
@@ -1645,7 +1645,7 @@ $(document).ready(function() {
         
         // Encontrar el √≠ndice del paso actual
         const indiceActual = pasosOrden.indexOf(pasoActual);
-        console.log('√ˇndice encontrado:', indiceActual);
+        console.log('√çndice encontrado:', indiceActual);
         
         if (indiceActual === -1) {
             console.error('Paso no encontrado:', pasoActual);
@@ -1665,7 +1665,7 @@ $(document).ready(function() {
             elemento.addClass('active');
         }
         
-        console.log('=== FIN ACTUALIZACI√ˇN ===');
+        console.log('=== FIN ACTUALIZACI√ìN ===');
     }
 
 
@@ -1999,6 +1999,10 @@ $(document).ready(function() {
         actualizarResumenAsignacion();
         
         tipoDevolucion = 'vendedor';
+        specialPrizeRequirement = { required: false, max_series: 0 };
+        specialPrizeAssignments = {};
+        specialPrizeIntroShown = false;
+        renderSpecialPrizeSection();
         construirWizardPasos();
         mostrarPaso('paso-vendedor');
         inicializarDataTableVendedores();
@@ -2152,7 +2156,7 @@ $(document).ready(function() {
 
     // Funci√≥n para actualizar el resumen de liquidaci√≥n
     function actualizarResumenLiquidacion() {
-        console.log('=== ACTUALIZANDO RESUMEN LIQUIDACI√ˇN ===');
+        console.log('=== ACTUALIZANDO RESUMEN LIQUIDACI√ìN ===');
         console.log('entidadSeleccionada:', entidadSeleccionada);
         console.log('sorteoSeleccionado:', sorteoSeleccionado);
         console.log('participacionesAsignadas:', participacionesAsignadas);
@@ -2165,10 +2169,10 @@ $(document).ready(function() {
             $('#liquidacion-ventas-registradas').text('0');
             $('#liquidacion-participaciones-devueltas').text('0');
             $('#liquidacion-disponibles').text('0');
-            $('#liquidacion-total-liquidacion').text('0,00‚ˇ¨');
-            $('#liquidacion-pagos-registrados').text('0,00‚ˇ¨');
-            $('#liquidacion-total-pagar').text('0,00‚ˇ¨');
-            $('#liquidacion-importe-total').text('0,00‚ˇ¨');
+            $('#liquidacion-total-liquidacion').text('0,00‚Ç¨');
+            $('#liquidacion-pagos-registrados').text('0,00‚Ç¨');
+            $('#liquidacion-total-pagar').text('0,00‚Ç¨');
+            $('#liquidacion-importe-total').text('0,00‚Ç¨');
             liquidacionSummaryActual = null;
             specialPrizeRequirement = { required: false, max_series: 0 };
             specialPrizeRequirementKey = null;
@@ -2226,13 +2230,11 @@ $(document).ready(function() {
                     } else {
                         $('#liquidacion-devueltas-detalle').text('');
                     }
-                    $('#liquidacion-total-liquidacion').text(summary.total_liquidation.toFixed(2) + '‚ˇ¨');
-                    $('#liquidacion-pagos-registrados').text(summary.registered_payments.toFixed(2) + '‚ˇ¨');
-                    $('#liquidacion-total-pagar').text(summary.total_to_pay.toFixed(2) + '‚ˇ¨');
-                    $('#liquidacion-importe-total').text(summary.total_to_pay.toFixed(2) + '‚ˇ¨');
-                    
-                    // Actualizar informaci√≥n del ticket
-                    $('#liquidacion-ticket-number').text('#' + summary.total_participations);
+                    $('#liquidacion-total-liquidacion').text(summary.total_liquidation.toFixed(2) + '‚Ç¨');
+                    $('#liquidacion-pagos-registrados').text(summary.registered_payments.toFixed(2) + '‚Ç¨');
+                    $('#liquidacion-total-pagar').text(summary.total_to_pay.toFixed(2) + '‚Ç¨');
+                    $('#liquidacion-importe-total').text(summary.total_to_pay.toFixed(2) + '‚Ç¨');
+
                     specialPrizeRequirement = summary.special_prize_requirement || { required: false, max_series: 0 };
                     const nextRequirementKey = JSON.stringify({
                         lottery: sorteoSeleccionado?.id || null,
@@ -2307,7 +2309,7 @@ $(document).ready(function() {
         });
     }
 
-    // Funci√≥n para cargar reservas del vendedor (devoluci√≥n vendedor ‚ˇ¨ entidad)
+    // Funci√≥n para cargar reservas del vendedor (devoluci√≥n vendedor ‚Ç¨ entidad)
     function cargarReservasVendedor() {
         if (!entidadSeleccionada || !sorteoSeleccionado || !vendedorSeleccionado) return;
         
@@ -2600,10 +2602,11 @@ $(document).ready(function() {
     // Funci√≥n para configurar la liquidaci√≥n seg√∫n el tipo
     function configurarLiquidacionPorTipo() {
         if (tipoDevolucion === 'vendedor') {
-            // Devoluci√≥n vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 x 6‚ˇ¨ = 540‚ˇ¨)
+            // Devoluci√≥n vendedor: liquidar por las participaciones que QUEDAN con el vendedor (ej. 90 x 6‚Ç¨ = 540‚Ç¨)
             $('#liquidacion-titulo').text('Liquidaci√≥n de Vendedor');
             $('#liquidacion-subtitulo').html('<i>Registra pagos por las participaciones que siguen asignadas al vendedor</i>');
             $('#liquidacion-resumen-subtitulo').text('Resumen Devoluci√≥n Vendedor');
+            $('#liquidacion-resumen-aviso-digitales').hide();
             $('#btn-volver-text').text('Volver a Participaciones');
             $('#liquidacion-vendedor-container').hide();
             $('#liquidacion-administracion-container').show();
@@ -2614,6 +2617,7 @@ $(document).ready(function() {
             $('#liquidacion-titulo').text('Liquidaci√≥n de Administraci√≥n');
             $('#liquidacion-subtitulo').html('<i>Procesa la liquidaci√≥n de participaciones</i>');
             $('#liquidacion-resumen-subtitulo').text('Resumen Devoluci√≥n Administraci√≥n');
+            $('#liquidacion-resumen-aviso-digitales').show();
             $('#btn-volver-text').text('Volver a Participaciones');
             $('#liquidacion-vendedor-container').hide();
             $('#liquidacion-administracion-container').show();
@@ -2648,7 +2652,7 @@ $(document).ready(function() {
                         </div>
                         <div class="liquidacion-stats">
                             <div class="stat-item">
-                                <div class="stat-number">5‚ˇ¨</div>
+                                <div class="stat-number">5‚Ç¨</div>
                                 <div class="stat-label">Valor</div>
                             </div>
                         </div>
@@ -2758,16 +2762,38 @@ $(document).ready(function() {
                           tipo === 'error' ? 'alert-danger' : 'alert-info';
        
         const alertHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            <div class="alert ${alertClass} alert-dismissible fade show partilot-flash-msg" role="alert">
                 ${mensaje}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;
-        
-        $('.page-title-box').after(alertHtml);
+
+        $('.partilot-flash-msg').remove();
+        // Preferir el bloque visible m√°s cercano al contexto (premio especial / liquidaci√≥n),
+        // para no saltar al t√≠tulo de la p√°gina.
+        let $anchor = null;
+        if ($('#bloque-premio-especial').is(':visible')) {
+            $anchor = $('#bloque-premio-especial');
+        } else if ($('#btn-aceptar-liquidacion').closest('.card').length) {
+            $anchor = $('#btn-aceptar-liquidacion').closest('.card');
+        } else if ($('.page-title-box').length) {
+            $anchor = $('.page-title-box');
+        } else {
+            $anchor = $('body');
+        }
+        $anchor.before(alertHtml);
+
+        const $msg = $('.partilot-flash-msg').first();
+        const msgTop = $msg.offset()?.top ?? 0;
+        const viewTop = $(window).scrollTop();
+        const viewBottom = viewTop + $(window).height();
+        const inView = msgTop >= viewTop + 40 && msgTop <= viewBottom - 80;
+        if (!inView) {
+            $('html, body').stop(true).animate({ scrollTop: Math.max(0, msgTop - 100) }, 200);
+        }
         
         setTimeout(() => {
-            $('.alert').fadeOut();
+            $('.partilot-flash-msg').fadeOut(function() { $(this).remove(); });
         }, 5000);
     }
 
@@ -2800,13 +2826,13 @@ $(document).ready(function() {
         const transferenciaMonto = parseFloat($('#pago-transferencia-monto').val()) || 0;
         
         const totalPagado = efectivoMonto + bizumMonto + transferenciaMonto;
-        $('#total-pagado').text(totalPagado.toFixed(2) + '‚ˇ¨');
+        $('#total-pagado').text(totalPagado.toFixed(2) + '‚Ç¨');
         
         // Calcular pendiente
-        const totalAPagar = parseFloat($('#liquidacion-total-pagar').text().replace('‚ˇ¨', '').replace(',', '.')) || 0;
+        const totalAPagar = parseFloat($('#liquidacion-total-pagar').text().replace('‚Ç¨', '').replace(',', '.')) || 0;
         const pendiente = totalAPagar - totalPagado;
         
-        $('#total-pendiente').text(pendiente.toFixed(2) + '‚ˇ¨');
+        $('#total-pendiente').text(pendiente.toFixed(2) + '‚Ç¨');
         
         if (totalPagado > 0) {
             $('#pendiente-container').show();
@@ -2822,6 +2848,11 @@ $(document).ready(function() {
     }
 
     function obtenerTotalDecimosObjetivo() {
+        // Entidad‚Üíadmin: solo participaciones vendidas (no stock asignado al vendedor).
+        const required = parseInt(liquidacionSummaryActual?.special_prize_required_fractions, 10);
+        if (!Number.isNaN(required) && required >= 0) {
+            return required;
+        }
         const disponibles = parseInt(liquidacionSummaryActual?.available_participations || 0, 10);
         if (!Number.isNaN(disponibles) && disponibles >= 0) {
             return disponibles;
@@ -2830,10 +2861,12 @@ $(document).ready(function() {
     }
 
     function obtenerImportePorDecimo() {
-        const totalToPay = parseFloat(liquidacionSummaryActual?.total_to_pay || 0);
         const totalDecimos = obtenerTotalDecimosObjetivo();
         if (!totalDecimos) return 0;
-        return totalToPay / totalDecimos;
+        const importeBase = parseFloat(
+            liquidacionSummaryActual?.special_prize_amount ?? liquidacionSummaryActual?.total_to_pay ?? 0
+        );
+        return importeBase / totalDecimos;
     }
 
     function obtenerDecimosAsignados() {
@@ -2842,6 +2875,38 @@ $(document).ready(function() {
             total += fracciones.size;
         });
         return total;
+    }
+
+    function entidadDeclaraDecimoPremioEspecial() {
+        const winSerie = parseInt(specialPrizeRequirement?.premio_especial_serie || 0, 10);
+        const winFrac = parseInt(specialPrizeRequirement?.premio_especial_fraccion || 0, 10);
+        if (!winSerie || !winFrac) return false;
+        const fracs = specialPrizeAssignments[winSerie];
+        return !!(fracs && fracs.has(winFrac));
+    }
+
+    function actualizarAlertaPremioEspecialMatch() {
+        const $alert = $('#special-prize-match-alert');
+        if (!$alert.length) return;
+        if (!entidadDeclaraDecimoPremioEspecial()) {
+            $alert.hide();
+            return;
+        }
+        const num = specialPrizeRequirement?.premio_especial_numero || '-';
+        const serie = specialPrizeRequirement?.premio_especial_serie || '-';
+        const frac = specialPrizeRequirement?.premio_especial_fraccion || '-';
+        const importe = specialPrizeRequirement?.premio_especial_importe;
+        const importeTxt = (importe != null && !isNaN(parseFloat(importe)))
+            ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(parseFloat(importe))
+            : null;
+        $alert
+            .html(
+                `<strong>Premio especial de esta entidad.</strong> ` +
+                `N√∫mero ${num} ¬∑ Serie ${serie} ¬∑ Fracci√≥n ${frac}` +
+                (importeTxt ? ` ¬∑ ${importeTxt}` : '') +
+                `. Corresponde cobrarlo a Loter√≠as y Apuestas.`
+            )
+            .show();
     }
 
     function renderSpecialPrizeTable() {
@@ -2855,27 +2920,41 @@ $(document).ready(function() {
             return;
         }
 
+        const winSerie = parseInt(specialPrizeRequirement?.premio_especial_serie || 0, 10);
+        const winFrac = parseInt(specialPrizeRequirement?.premio_especial_fraccion || 0, 10);
         const rows = series.map(serie => {
             const fraccionesOrdenadas = Array.from(specialPrizeAssignments[serie]).sort((a, b) => a - b);
+            const fraccionesTxt = fraccionesOrdenadas.map(f => {
+                if (serie === winSerie && f === winFrac) {
+                    return `<span class="badge bg-success">${f}</span>`;
+                }
+                return String(f);
+            }).join('-');
             return `<tr>
-                <td>${serie}</td>
-                <td>${fraccionesOrdenadas.join('-')}</td>
+                <td>${serie}${serie === winSerie ? ' <span class="badge bg-success">PE</span>' : ''}</td>
+                <td>${fraccionesTxt}</td>
             </tr>`;
         });
         $tbody.html(rows.join(''));
     }
 
     function renderSpecialPrizeSection() {
-        const required = !!specialPrizeRequirement?.required;
         const $bloque = $('#bloque-premio-especial');
-        if (!liquidacionSummaryActual) {
+        // Solo entidad‚Üíadministraci√≥n; nunca en devoluci√≥n de vendedor.
+        if (tipoDevolucion === 'vendedor' || tipoDevolucion === 'anulacion' || !liquidacionSummaryActual) {
+            $bloque.hide();
+            return;
+        }
+
+        const required = !!specialPrizeRequirement?.required;
+        const objetivo = obtenerTotalDecimosObjetivo();
+        if (!required && objetivo <= 0) {
             $bloque.hide();
             return;
         }
 
         $bloque.show();
         const maxSeries = parseInt(specialPrizeRequirement.max_series || 0, 10);
-        const objetivo = obtenerTotalDecimosObjetivo();
         const asignados = obtenerDecimosAsignados();
         const restantes = Math.max(0, objetivo - asignados);
         const importePorDecimo = obtenerImportePorDecimo();
@@ -2897,9 +2976,10 @@ $(document).ready(function() {
             $('#special-prize-resumen-text').text(`Rango de series permitido: 1-${maxSeries > 0 ? maxSeries : 'N/A'}.`);
         }
         $('#special-prize-restante-decimos').text(restantes);
-        $('#special-prize-restante-importe').text(importeRestante.toFixed(2).replace('.', ',') + '‚ˇ¨');
+        $('#special-prize-restante-importe').text(importeRestante.toFixed(2).replace('.', ',') + '‚Ç¨');
 
         renderSpecialPrizeTable();
+        actualizarAlertaPremioEspecialMatch();
 
         if (required && !specialPrizeIntroShown) {
             const modalEl = document.getElementById('modal-premio-especial-obligatorio');
@@ -2945,6 +3025,9 @@ $(document).ready(function() {
     }
 
     function construirPayloadPremioEspecial() {
+        if (tipoDevolucion === 'vendedor' || tipoDevolucion === 'anulacion') {
+            return null;
+        }
         const assignments = Object.keys(specialPrizeAssignments).map(serie => ({
             serie: parseInt(serie, 10),
             fracciones: Array.from(specialPrizeAssignments[serie]).sort((a, b) => a - b),
@@ -2963,6 +3046,7 @@ $(document).ready(function() {
     }
 
     function validarPremioEspecialCompleto() {
+        if (tipoDevolucion === 'vendedor' || tipoDevolucion === 'anulacion') return true;
         if (!specialPrizeRequirement?.required) return true;
         const objetivo = obtenerTotalDecimosObjetivo();
         const asignados = obtenerDecimosAsignados();
@@ -2972,21 +3056,56 @@ $(document).ready(function() {
     // Event listeners para actualizar total al cambiar montos
     $('.payment-input').on('input', actualizarTotalPagado);
 
-    $('#btn-special-add-serie-unidad').on('click', function() {
+    function fraccionesParaDecimosRestantes(maxFracciones) {
+        const restantes = Math.max(0, obtenerTotalDecimosObjetivo() - obtenerDecimosAsignados());
+        const n = Math.min(10, Math.max(0, maxFracciones), restantes);
+        return Array.from({ length: n }, (_, i) => i + 1);
+    }
+
+    function resolverSerieParaFracciones() {
+        const serieCampo = parseInt($('#special-fraccion-serie').val(), 10);
+        if (serieCampo) return serieCampo;
+        const serieUnidad = parseInt($('#special-serie-unidad').val(), 10);
+        if (serieUnidad) return serieUnidad;
         const desde = parseInt($('#special-serie-rango-desde').val(), 10);
         const hasta = parseInt($('#special-serie-rango-hasta').val(), 10);
+        if (desde && hasta && desde === hasta) return desde;
+        if (desde && !hasta) return desde;
+        return null;
+    }
+
+    $('#btn-special-add-serie-unidad').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const desde = parseInt($('#special-serie-rango-desde').val(), 10);
+        const hasta = parseInt($('#special-serie-rango-hasta').val(), 10);
+        const restantes = Math.max(0, obtenerTotalDecimosObjetivo() - obtenerDecimosAsignados());
+        if (restantes <= 0) {
+            mostrarMensaje(`Ya est√°n asignados los ${obtenerTotalDecimosObjetivo()} d√©cimos requeridos.`, 'warning');
+            return;
+        }
+
         if (desde || hasta) {
             if (!desde || !hasta || hasta < desde) {
                 mostrarMensaje('Indica un rango de series v√°lido.', 'warning');
                 return;
             }
-            for (let s = desde; s <= hasta; s++) {
-                if (!agregarFraccionesASerie(s, [1,2,3,4,5,6,7,8,9,10])) {
-                    return;
-                }
+            let ok = 0;
+            let pendientes = restantes;
+            for (let s = desde; s <= hasta && pendientes > 0; s++) {
+                const fracs = fraccionesParaDecimosRestantes(pendientes);
+                if (!fracs.length) break;
+                if (!agregarFraccionesASerie(s, fracs)) break;
+                pendientes -= fracs.length;
+                ok++;
             }
-            $('#special-serie-rango-desde').val('');
-            $('#special-serie-rango-hasta').val('');
+            if (ok > 0) {
+                $('#special-serie-rango-desde').val('');
+                $('#special-serie-rango-hasta').val('');
+                $('#special-serie-unidad').val('');
+            } else {
+                mostrarMensaje('No se pudo asignar ninguna serie con los d√©cimos restantes.', 'warning');
+            }
             return;
         }
 
@@ -2995,12 +3114,19 @@ $(document).ready(function() {
             mostrarMensaje('Indica una serie v√°lida.', 'warning');
             return;
         }
-        if (agregarFraccionesASerie(serie, [1,2,3,4,5,6,7,8,9,10])) {
+        const fracs = fraccionesParaDecimosRestantes(10);
+        if (!fracs.length) {
+            mostrarMensaje(`Ya est√°n asignados los ${obtenerTotalDecimosObjetivo()} d√©cimos requeridos.`, 'warning');
+            return;
+        }
+        if (agregarFraccionesASerie(serie, fracs)) {
             $('#special-serie-unidad').val('');
         }
     });
 
-    $('#btn-special-add-fraccion-unidad').on('click', function() {
+    $('#btn-special-add-fraccion-unidad').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         const desde = parseInt($('#special-fraccion-rango-desde').val(), 10);
         const hasta = parseInt($('#special-fraccion-rango-hasta').val(), 10);
         let fracciones = [];
@@ -3010,29 +3136,31 @@ $(document).ready(function() {
                 return;
             }
             for (let f = desde; f <= hasta; f++) fracciones.push(f);
-            $('#special-fraccion-rango-desde').val('');
-            $('#special-fraccion-rango-hasta').val('');
         } else {
             const unidad = parseInt($('#special-fraccion-unidad').val(), 10);
             if (!unidad || unidad < 1 || unidad > 10) {
-                mostrarMensaje('Indica una fracci√≥n v√°lida (1 a 10).', 'warning');
+                mostrarMensaje('Indica una fracci√≥n v√°lida (1 a 10), o un rango Desde/Hasta.', 'warning');
                 return;
             }
             fracciones = [unidad];
-            $('#special-fraccion-unidad').val('');
         }
 
-        const textoFracciones = fracciones.join('-');
-        const seriePrompt = window.prompt(`¬øA qu√© serie pertenecen las fracciones ${textoFracciones}?`);
-        const serie = parseInt(seriePrompt, 10);
+        const serie = resolverSerieParaFracciones();
         if (!serie) {
-            mostrarMensaje('Debes indicar una serie v√°lida para asignar fracciones.', 'warning');
+            mostrarMensaje('Indica la serie de esas fracciones (campo Serie junto a Fracci√≥n).', 'warning');
             return;
         }
-        agregarFraccionesASerie(serie, fracciones);
+        if (agregarFraccionesASerie(serie, fracciones)) {
+            $('#special-fraccion-rango-desde').val('');
+            $('#special-fraccion-rango-hasta').val('');
+            $('#special-fraccion-unidad').val('');
+            $('#special-fraccion-serie').val('');
+        }
     });
 
-    $('#btn-special-reset').on('click', function() {
+    $('#btn-special-reset').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         specialPrizeAssignments = {};
         renderSpecialPrizeSection();
     });
@@ -3045,7 +3173,7 @@ $(document).ready(function() {
         $('html, body').animate({ scrollTop: $('#bloque-premio-especial').offset().top - 120 }, 250);
     });
 
-    // Event listener para solo devoluci√≥n (sin liquidar) ‚ˇ¨ bot√≥n "Aceptar" #333
+    // Event listener para solo devoluci√≥n (sin liquidar) ‚Ç¨ bot√≥n "Aceptar" #333
     $('#btn-aceptar-solo-devolucion').click(function() {
         if (participacionesAsignadas.length === 0) {
             mostrarMensaje('Selecciona al menos una participaci√≥n para devolver', 'warning');
@@ -3157,9 +3285,21 @@ $(document).ready(function() {
             });
         }
 
-        // Validar que al menos haya participaciones o un pago
-        if (participacionesAsignadas.length === 0 && pagos.length === 0) {
+        const totalAPagar = parseFloat(liquidacionSummaryActual?.total_to_pay ?? 0) || 0;
+        const liquidacionYaCubierta = totalAPagar <= 0.009;
+        const pagosSum = pagos.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+        // Ya liquidado (0 ‚Ç¨): se puede aceptar sin pagos ni devoluciones. Si a√∫n hay pendiente, hace falta pago o participaciones.
+        if (participacionesAsignadas.length === 0 && pagos.length === 0 && !liquidacionYaCubierta) {
             mostrarMensaje('Debes seleccionar participaciones o registrar al menos un pago', 'warning');
+            return;
+        }
+        if (liquidacionYaCubierta && pagosSum > 0.009) {
+            mostrarMensaje('Esta liquidaci√≥n es de 0,00 ‚Ç¨: no registres pagos.', 'warning');
+            return;
+        }
+        if (!liquidacionYaCubierta && Math.abs(pagosSum - totalAPagar) > 0.009) {
+            mostrarMensaje('La suma de los pagos (' + pagosSum.toFixed(2) + ' ‚Ç¨) debe coincidir con lo pendiente (' + totalAPagar.toFixed(2) + ' ‚Ç¨).', 'warning');
             return;
         }
 
@@ -3325,7 +3465,7 @@ $(document).ready(function() {
         window.location.href = "{{ route('devolutions.index') }}";
     });
 
-    // ==================== LIQUIDACI√ˇN DE VENDEDOR ====================
+    // ==================== LIQUIDACI√ìN DE VENDEDOR ====================
     
     let sorteoSeleccionadoLiquidacionVendedor = null;
 
@@ -3406,21 +3546,30 @@ $(document).ready(function() {
                     vendedorSettlementPrecios = (summary.participation_prices || []).map(p => parseFloat(p) || 0).filter(p => p > 0);
                     vendedorSettlementTotalPagado = totalPaid;
                     $('#vendedor-settlement-multiplo-hint').text(vendedorSettlementPrecios.length
-                        ? ' (' + vendedorSettlementPrecios.map(p => p.toFixed(2) + '‚ˇ¨').join(', ') + ' cada una)'
+                        ? ' (' + vendedorSettlementPrecios.map(p => p.toFixed(2) + '‚Ç¨').join(', ') + ' cada una)'
                         : '');
                     const pasoSettlement = pasoImporteSettlementVendedor(vendedorSettlementPrecios);
                     $('.vendedor-settlement-payment-input').attr({ step: pasoSettlement, min: 0, placeholder: '0.00' });
                     
                     $('#vendedor-settlement-total-participations').text(summary.total_participations);
-                    $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '‚ˇ¨');
-                    $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + '‚ˇ¨');
-                    $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + '‚ˇ¨');
+                    if (vendedorSettlementPrecios.length > 1) {
+                        $('#vendedor-settlement-price-per-participation').text(
+                            vendedorSettlementPrecios.map(p => p.toFixed(2) + '‚Ç¨').join(' / ')
+                        );
+                    } else {
+                        $('#vendedor-settlement-price-per-participation').text(pricePerParticipation.toFixed(2) + '‚Ç¨');
+                    }
+                    $('#vendedor-settlement-total-amount').text(totalAmount.toFixed(2) + '‚Ç¨');
+                    $('#vendedor-settlement-total-paid').text(totalPaid.toFixed(2) + '‚Ç¨');
                     const totalParticipationsCount = parseInt(summary.total_participations, 10) || 0;
-                    const coveredParticipations = Math.min(totalParticipationsCount, Math.floor(liquidatedParticipations + 1e-6));
+                    const coveredParticipations = Math.min(
+                        totalParticipationsCount,
+                        Math.max(0, Math.floor(liquidatedParticipations + 1e-6))
+                    );
                     $('#vendedor-settlement-liquidated-participations').text(coveredParticipations);
-                    $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + '‚ˇ¨');
+                    $('#vendedor-settlement-pending-amount').text(pendingAmount.toFixed(2) + '‚Ç¨');
                     $('#vendedor-settlement-pending-participations').text(Math.max(0, totalParticipationsCount - coveredParticipations));
-                    $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + '‚ˇ¨');
+                    $('#vendedor-settlement-pendiente-display').text(pendingAmount.toFixed(2) + '‚Ç¨');
                     
                     console.log('Datos actualizados en la vista');
                     
@@ -3453,7 +3602,7 @@ $(document).ready(function() {
         if (totalPagarAhora <= 0) return null;
         if (pendiente <= 0.009) return 'No queda importe pendiente de liquidar para este vendedor en este sorteo.';
         if (totalPagarAhora > pendiente + 0.009) {
-            return 'El importe (' + totalPagarAhora.toFixed(2) + '‚ˇ¨) supera el pendiente (' + pendiente.toFixed(2) + '‚ˇ¨). No se puede dejar saldo a favor del vendedor.';
+            return 'El importe (' + totalPagarAhora.toFixed(2) + '‚Ç¨) supera el pendiente (' + pendiente.toFixed(2) + '‚Ç¨). No se puede dejar saldo a favor del vendedor.';
         }
         if (vendedorSettlementPrecios.length === 1) {
             const precio = Math.round(vendedorSettlementPrecios[0] * 100);
@@ -3463,9 +3612,9 @@ $(document).ready(function() {
                 const inferior = Math.floor(objetivo / precio) * precio - pagadoCents;
                 const opciones = [inferior, inferior + precio]
                     .filter(c => c > 0 && c <= Math.round(pendiente * 100))
-                    .map(c => (c / 100).toFixed(2) + '‚ˇ¨');
+                    .map(c => (c / 100).toFixed(2) + '‚Ç¨');
                 return 'Las participaciones no se pueden fraccionar: el importe debe cubrir participaciones completas de '
-                    + (precio / 100).toFixed(2) + '‚ˇ¨.' + (opciones.length ? ' Puedes registrar ' + opciones.join(' o ') + '.' : '');
+                    + (precio / 100).toFixed(2) + '‚Ç¨.' + (opciones.length ? ' Puedes registrar ' + opciones.join(' o ') + '.' : '');
             }
         }
         return null;
@@ -3478,15 +3627,15 @@ $(document).ready(function() {
         const transferencia = parseFloat($('#vendedor-settlement-pago-transferencia').val()) || 0;
         
         const totalPagarAhora = efectivo + bizum + transferencia;
-        $('#vendedor-settlement-pagar-ahora').text(totalPagarAhora.toFixed(2) + '‚ˇ¨');
+        $('#vendedor-settlement-pagar-ahora').text(totalPagarAhora.toFixed(2) + '‚Ç¨');
         
-        const pendiente = parseFloat($('#vendedor-settlement-pending-amount').text().replace('‚ˇ¨', '').replace(',', '.')) || 0;
+        const pendiente = parseFloat($('#vendedor-settlement-pending-amount').text().replace('‚Ç¨', '').replace(',', '.')) || 0;
         const quedaraPendiente = Math.max(0, pendiente - totalPagarAhora);
         const motivo = motivoImporteSettlementVendedorInvalido(totalPagarAhora, pendiente);
         $('#vendedor-settlement-importe-aviso').text(motivo || '').toggleClass('d-none', !motivo);
         $('#btn-registrar-liquidacion-vendedor').prop('disabled', !!motivo);
         
-        $('#vendedor-settlement-quedara-pendiente').text(quedaraPendiente.toFixed(2) + '‚ˇ¨');
+        $('#vendedor-settlement-quedara-pendiente').text(quedaraPendiente.toFixed(2) + '‚Ç¨');
         
         if (quedaraPendiente <= 0 && totalPagarAhora > 0) {
             $('#vendedor-settlement-quedara-pendiente').removeClass('text-warning').addClass('text-success');
@@ -3607,7 +3756,7 @@ $(document).ready(function() {
                                 icono = '<i class="ri-bank-line text-primary"></i>';
                             }
                             const paymentAmount = parseFloat(payment.amount) || 0;
-                            metodos.push(`${icono} ${paymentAmount.toFixed(2)}‚ˇ¨`);
+                            metodos.push(`${icono} ${paymentAmount.toFixed(2)}‚Ç¨`);
                         });
                         
                         const pendingAfter = Math.max(0, parseFloat(settlement.pending_amount) || 0);
@@ -3616,8 +3765,8 @@ $(document).ready(function() {
                         html += `
                             <tr>
                                 <td>${fecha}</td>
-                                <td class="fw-bold text-success">${paidAmount.toFixed(2)}‚ˇ¨</td>
-                                <td>${pendingAfter.toFixed(2)}‚ˇ¨</td>
+                                <td class="fw-bold text-success">${paidAmount.toFixed(2)}‚Ç¨</td>
+                                <td>${pendingAfter.toFixed(2)}‚Ç¨</td>
                                 <td>${metodos.join(', ')}</td>
                                 <td>${$('<div>').text(settlement.notes || '').html()}</td>
                             </tr>
@@ -3637,7 +3786,7 @@ $(document).ready(function() {
         });
     }
 
-    // ===== PASO DE ANULACI√ˇN =====
+    // ===== PASO DE ANULACI√ìN =====
     
     // Event listeners para el paso de anulaci√≥n
     $('#btn-volver-anulacion').click(function() {
@@ -3735,7 +3884,7 @@ $(document).ready(function() {
 
     // Funci√≥n para configurar el paso de anulaci√≥n
     function configurarPasoAnulacion() {
-        console.log('=== CONFIGURANDO PASO DE ANULACI√ˇN ===');
+        console.log('=== CONFIGURANDO PASO DE ANULACI√ìN ===');
         console.log('Entidad seleccionada:', entidadSeleccionada);
         console.log('Sorteo seleccionado:', sorteoSeleccionado);
         console.log('Set seleccionado:', setSeleccionado);

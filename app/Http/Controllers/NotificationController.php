@@ -1379,9 +1379,14 @@ class NotificationController extends Controller
     {
         $user = Auth::user();
 
+        // Misma bandeja que apiIndex: personal y sin push_directo_panel.
         $count = Notification::query()
             ->whereNull('read_at')
             ->where('recipient_user_id', $user->id)
+            ->where(function ($q) {
+                $q->whereNull('kind')
+                    ->orWhere('kind', '!=', 'push_directo_panel');
+            })
             ->count();
 
         return response()->json([

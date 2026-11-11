@@ -2296,20 +2296,38 @@ class ApiController extends Controller
             ->select('scrutiny_detailed_results.*')
             ->get();
 
-        $totalPrizeAmount = 0;
+        $amountsByNumber = [];
         foreach ($scrutinyResults as $result) {
-            $totalPrizeAmount += $result->premio_por_participacion;
+            $num = (string) $result->winning_number;
+            $amountsByNumber[$num] = ($amountsByNumber[$num] ?? 0) + (float) $result->premio_por_participacion;
         }
+
+        $breakdown = [];
+        foreach ($winningNumbers as $number) {
+            $num = (string) $number;
+            $breakdown[] = [
+                'number' => $num,
+                'amount' => round((float) ($amountsByNumber[$num] ?? 0), 2),
+            ];
+        }
+
+        $totalPrizeAmount = array_sum(array_column($breakdown, 'amount'));
 
         if ($scrutinyResults->count() > 0 && $totalPrizeAmount > 0) {
             return [
                 'has_won' => true,
                 'prize_amount' => (float) $totalPrizeAmount,
                 'prize_category' => 'Premio del Escrutinio',
+                'breakdown' => $breakdown,
             ];
         }
 
-        return ['has_won' => false, 'prize_amount' => 0, 'prize_category' => null];
+        return [
+            'has_won' => false,
+            'prize_amount' => 0,
+            'prize_category' => null,
+            'breakdown' => $breakdown,
+        ];
     }
 
     private function checkWinningNumbers($lottery, $ticketNumbers, $totalParticipations)

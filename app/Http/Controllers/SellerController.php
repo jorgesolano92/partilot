@@ -3142,21 +3142,36 @@ class SellerController extends Controller
             ->with('payments')
             ->get();
 
-        $totalPaid = $previousSettlements->sum('paid_amount');
+        $totalPaid = (float) $previousSettlements->sum('paid_amount');
         $pendingAmount = $totalAmount - $totalPaid;
 
-        // Calcular participaciones liquidadas (pagos / precio por participación)
-        $pricePerParticipation = $participations->isNotEmpty()
-            ? (float) ($participations->first()->set->total_participation_amount ?? 0)
-            : 0;
-        $liquidatedParticipations = $pricePerParticipation > 0 ? ($totalPaid / $pricePerParticipation) : 0;
+        // Precio real de cada participación (pueden coexistir varios sets/precios en el mismo sorteo)
+        $participationPrices = $participations
+            ->map(fn ($p) => round((float) ($p->set->total_participation_amount ?? 0), 2))
+            ->filter(fn ($price) => $price > 0)
+            ->values();
+        $uniquePrices = $participationPrices->unique()->sort()->values();
+        $pricePerParticipation = $uniquePrices->count() === 1
+            ? (float) $uniquePrices->first()
+            : 0.0;
+
+        // Cubiertas: aplicar lo pagado a precios reales (ascendente) para no mezclar sets al mismo valor.
+        $remainingPaid = round($totalPaid, 2);
+        $liquidatedParticipations = 0;
+        foreach ($participationPrices->sort()->values() as $price) {
+            if ($remainingPaid + 0.001 >= $price) {
+                $remainingPaid = round($remainingPaid - $price, 2);
+                $liquidatedParticipations++;
+            }
+        }
 
         \Log::info('Resumen calculado:', [
             'total_participations' => $totalParticipations,
             'total_amount' => $totalAmount,
             'total_paid' => $totalPaid,
             'pending_amount' => $pendingAmount,
-            'liquidated_participations' => $liquidatedParticipations
+            'liquidated_participations' => $liquidatedParticipations,
+            'unique_prices' => $uniquePrices->all(),
         ]);
 
         return response()->json([
@@ -3164,17 +3179,12 @@ class SellerController extends Controller
             'summary' => [
                 'total_participations' => $totalParticipations,
                 'price_per_participation' => $pricePerParticipation,
-                'participation_prices' => $participations
-                    ->map(fn ($p) => round((float) ($p->set->total_participation_amount ?? 0), 2))
-                    ->filter(fn ($price) => $price > 0)
-                    ->unique()
-                    ->sort()
-                    ->values(),
+                'participation_prices' => $uniquePrices,
                 'total_amount' => $totalAmount,
                 'total_paid' => $totalPaid,
                 'pending_amount' => $pendingAmount,
-                'liquidated_participations' => round($liquidatedParticipations, 2),
-                'pending_participations' => $totalParticipations - round($liquidatedParticipations, 2)
+                'liquidated_participations' => $liquidatedParticipations,
+                'pending_participations' => max(0, $totalParticipations - $liquidatedParticipations),
             ]
         ]);
     }

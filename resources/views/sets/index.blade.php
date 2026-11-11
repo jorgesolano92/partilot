@@ -106,7 +106,15 @@
 
                         <div style="clear: both;"></div>
 
-                        <br>
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2 mt-2">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" id="toggle-total-with-donation">
+                                <label class="form-check-label" for="toggle-total-with-donation">
+                                    Mostrar importe total con donativo
+                                </label>
+                            </div>
+                            <small class="text-muted mb-0" id="importe-total-hint">Por defecto: total descontado de la reserva (sin donativo).</small>
+                        </div>
 
                         <table id="example2" class="table table-striped nowrap w-100">
                             <thead class="filters">
@@ -131,6 +139,8 @@
                             <tbody>
                                 @foreach($sets as $set)
                                 @php($setConfigLocked = $set->hasRealDesignWork())
+                                @php($setReserveTotal = (float) $set->total_amount)
+                                @php($setCommercialTotal = round((int) $set->total_participations * $set->pricePerParticipation(), 2))
                                 <tr class="row-clickable" data-href="{{url('sets/view', $set->id)}}" style="cursor: pointer;">
                                     <td><a href="{{url('sets/view', $set->id)}}">#SP{{str_pad($set->id, 4, '0', STR_PAD_LEFT)}}</a></td>
                                     <td>
@@ -157,7 +167,11 @@
                                     </td>
                                     <td>{{number_format($set->played_amount ?? 0, 2)}}€</td>
                                     <td>{{number_format($set->donation_amount ?? 0, 2)}}€</td>
-                                    <td><b>{{number_format($set->total_amount, 2)}}€</b></td>
+                                    <td class="set-total-amount"
+                                        data-reserve-total="{{ number_format($setReserveTotal, 2, '.', '') }}"
+                                        data-commercial-total="{{ number_format($setCommercialTotal, 2, '.', '') }}">
+                                        <b class="set-total-amount-value">{{ number_format($setReserveTotal, 2) }}€</b>
+                                    </td>
                                     <td>{{$set->total_participations}}</td>
                                     <td>
                                         @if(($set->physical_participations ?? 0) == 0)
@@ -310,6 +324,30 @@
   }
 
   initDatatable();
+
+  function formatSetTotal(amount) {
+    var n = parseFloat(amount);
+    if (isNaN(n)) {
+      return '0.00€';
+    }
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€';
+  }
+
+  function refreshSetTotalAmounts() {
+    var withDonation = $('#toggle-total-with-donation').is(':checked');
+    $('.set-total-amount').each(function () {
+      var $cell = $(this);
+      var value = withDonation ? $cell.data('commercial-total') : $cell.data('reserve-total');
+      $cell.find('.set-total-amount-value').text(formatSetTotal(value));
+    });
+    $('#importe-total-hint').text(
+      withDonation
+        ? 'Mostrando total comercial (jugado + donativo).'
+        : 'Por defecto: total descontado de la reserva (sin donativo).'
+    );
+  }
+
+  $('#toggle-total-with-donation').on('change', refreshSetTotalAmounts);
 
   setTimeout(()=>{
     $('.filters .inline-fields:first').trigger('keyup');

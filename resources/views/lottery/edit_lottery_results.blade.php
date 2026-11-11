@@ -65,6 +65,31 @@
                     <!-- Alertas de estado -->
                     <div id="alertContainer"></div>
 
+                    @if(!empty($isNavidad))
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                @if(($pedreasCount ?? 0) > 0)
+                                    <div class="alert alert-info mb-2" id="pedreasStatusAlert">
+                                        <i class="ri-information-line me-1"></i>
+                                        Pedreas cargadas: <strong>{{ $pedreasCount }}</strong>.
+                                        Si al reobtener resultados SELAE bloquea el scrape, se conservarán estas pedreas.
+                                        Fuente oficial:
+                                        <a href="{{ $tablasAlambresUrl }}" target="_blank" rel="noopener">Tablas y alambres</a>
+                                        (la API JSON de resultados no incluye pedreas).
+                                    </div>
+                                @else
+                                    <div class="alert alert-warning mb-2" id="pedreasStatusAlert">
+                                        <i class="ri-alert-line me-1"></i>
+                                        Este sorteo de Navidad <strong>no tiene pedreas</strong> guardadas.
+                                        Hay que obtenerlas desde
+                                        <a href="{{ $tablasAlambresUrl }}" target="_blank" rel="noopener">tablas y alambres SELAE</a>
+                                        (no vienen en la API de resultados). Sin pedreas el escrutinio no las liquidará.
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+
                     <!-- Botón para obtener resultados desde API -->
                     <div class="row mb-3">
                         <div class="col-12">
@@ -481,20 +506,20 @@ $(document).ready(function() {
     let isEditMode = false;
     
     // Función para mostrar alertas
-    function showAlert(message, type = 'success') {
+    function showAlert(message, type = 'success', append = false) {
+        const icon = type === 'success' ? 'check' : (type === 'danger' || type === 'error' ? 'close' : (type === 'warning' ? 'alert' : 'information'));
         const alertHtml = `
             <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-                <i class="ri-${type === 'success' ? 'check' : type === 'error' ? 'close' : 'information'}-line me-2"></i>
+                <i class="ri-${icon}-line me-2"></i>
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         `;
-        $('#alertContainer').html(alertHtml);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-            $('.alert').fadeOut();
-        }, 5000);
+        if (append) {
+            $('#alertContainer').append(alertHtml);
+        } else {
+            $('#alertContainer').html(alertHtml);
+        }
     }
     
     // Función para actualizar el estado de los resultados
@@ -546,12 +571,16 @@ $(document).ready(function() {
         $('input[name="extracciones_3_cifras"]').val(data.extraccionesDeTresCifras ? data.extraccionesDeTresCifras.map(item => item.decimo || item).join('-') : '');
         $('input[name="extracciones_2_cifras"]').val(data.extraccionesDeDosCifras ? data.extraccionesDeDosCifras.map(item => item.decimo || item).join('-') : '');
         
-        // Procesar pedreas si existen
-        if (data.pedreas && Array.isArray(data.pedreas)) {
+        // Pedreas: solo actualizar si vienen datos; no vaciar si el scrape falló
+        if (data.pedreas && Array.isArray(data.pedreas) && data.pedreas.length > 0) {
             const pedreasText = data.pedreas.map(item => item.decimo || item).join('-');
             $('textarea[name="pedrea"]').val(pedreasText);
-        } else {
-            $('textarea[name="pedrea"]').val('');
+            if ($('#pedreasStatusAlert').length) {
+                $('#pedreasStatusAlert')
+                    .removeClass('alert-warning')
+                    .addClass('alert-info')
+                    .html('<i class="ri-information-line me-1"></i> Pedreas cargadas: <strong>' + data.pedreas.length + '</strong>.');
+            }
         }
     }
     
@@ -658,16 +687,43 @@ $(document).ready(function() {
             }),
             success: function(response) {
                 if (response.success) {
-                    showAlert('¡Éxito! ' + response.message, 'success');
-                    
+                    const pedreasMeta = response.pedreas_meta || {};
+                    const alertType = pedreasMeta.ok === false ? 'warning' : 'success';
+                    showAlert((pedreasMeta.ok === false ? 'Atención: ' : '¡Éxito! ') + response.message, alertType);
+
                     // Actualizar los campos con los nuevos datos
                     if (response.data) {
                         updateResultFields(response.data);
                     }
-                    
+
+                    if (pedreasMeta.ok === false) {
+                        const sources = pedreasMeta.sources || {};
+                        let extra = '';
+                        if (sources.tablas_url) {
+                            extra += ' <a href="' + sources.tablas_url + '" target="_blank" rel="noopener">Abrir tablas y alambres</a>';
+                        }
+                        if (sources.listado_oficial_url) {
+                            extra += ' · <a href="' + sources.listado_oficial_url + '" target="_blank" rel="noopener">Listado oficial PDF</a>';
+                        }
+                        if (extra) {
+                            showAlert('Dónde obtener las pedreas:' + extra, 'info', true);
+                        }
+                        if ($('#pedreasStatusAlert').length && pedreasMeta.kept_existing) {
+                            $('#pedreasStatusAlert')
+                                .removeClass('alert-info')
+                                .addClass('alert-warning')
+                                .html('<i class="ri-alert-line me-1"></i> No se pudieron reobtener pedreas; se han <strong>conservado las ' + (pedreasMeta.count || 0) + ' ya guardadas</strong>.');
+                        }
+                    } else if (typeof pedreasMeta.count === 'number' && pedreasMeta.count > 0 && $('#pedreasStatusAlert').length) {
+                        $('#pedreasStatusAlert')
+                            .removeClass('alert-warning')
+                            .addClass('alert-info')
+                            .html('<i class="ri-information-line me-1"></i> Pedreas cargadas: <strong>' + pedreasMeta.count + '</strong>.');
+                    }
+
                     // Actualizar el estado de los resultados
                     updateResultsStatus(true, new Date().toLocaleString('es-ES'));
-                    
+
                 } else {
                     showAlert('Error: ' + response.message, 'danger');
                 }

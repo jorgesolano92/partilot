@@ -308,8 +308,9 @@ class SetController extends Controller
             ->where('status', 1) // confirmed
             ->whereHas('lottery', fn ($q) => $q->openForOperations())
             ->with(['lottery'])
-            ->orderBy('lottery.draw_date', 'desc')
-            ->get();
+            ->get()
+            ->sortByDesc(fn ($reserve) => optional($reserve->lottery)->draw_date)
+            ->values();
 
         // Total y disponible por reserva
         $reserveTotalsAndAvailable = [];
