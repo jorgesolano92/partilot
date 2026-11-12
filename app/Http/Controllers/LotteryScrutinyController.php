@@ -74,6 +74,30 @@ class LotteryScrutinyController extends Controller
     }
 
     /**
+     * Participaciones premiadas únicas de una entidad (máximo por set; no sumar
+     * la misma participación una vez por cada categoría/número premiado).
+     *
+     * @param  array<int, array<string, mixed>>  $entityCategoryResults
+     */
+    private function countUniqueWinningParticipationsForEntity(array $entityCategoryResults): int
+    {
+        $maxPartsBySet = [];
+
+        foreach ($entityCategoryResults as $categoryResult) {
+            $decimosInfo = $categoryResult['decimos_info'] ?? [];
+            foreach ($decimosInfo['sets_info'] ?? [] as $setInfo) {
+                $setId = (int) ($setInfo['set_id'] ?? 0);
+                $parts = (int) ($setInfo['participations_vendidas'] ?? 0);
+                if ($setId > 0) {
+                    $maxPartsBySet[$setId] = max($maxPartsBySet[$setId] ?? 0, $parts);
+                }
+            }
+        }
+
+        return (int) array_sum($maxPartsBySet);
+    }
+
+    /**
      * Participaciones premiadas únicas por set (no sumar la misma participación
      * una vez por cada número premiado de la reserva).
      *
@@ -603,12 +627,11 @@ class LotteryScrutinyController extends Controller
             }
 
             $result = $data['result'];
-            $winningParticipations = 0;
+            $entityCategoryResults = $scrutinyResultsByEntity[$entityId];
+            $winningParticipations = $this->countUniqueWinningParticipationsForEntity($entityCategoryResults);
             $winningNumbers = [];
 
-            foreach ($scrutinyResultsByEntity[$entityId] as $categoryResult) {
-                $decimosInfo = $categoryResult['decimos_info'] ?? [];
-                $winningParticipations += (int) ($decimosInfo['total_participations'] ?? 0);
+            foreach ($entityCategoryResults as $categoryResult) {
                 if (! empty($categoryResult['number'])) {
                     $winningNumbers[] = (string) $categoryResult['number'];
                 }

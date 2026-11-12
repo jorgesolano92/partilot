@@ -221,13 +221,7 @@
                                                         $prizeBreakdown = $result->prize_breakdown;
                                                     @endphp
                                                     @php
-                                                        $entityCategoryResults = $scrutinyResultsByEntity[$entity->id] ?? [];
                                                         $entityWinningParticipations = (int) ($result->winning_participations ?? 0);
-                                                        if ($entityWinningParticipations === 0 && ! empty($entityCategoryResults)) {
-                                                            foreach ($entityCategoryResults as $categoryResult) {
-                                                                $entityWinningParticipations += (int) (($categoryResult['decimos_info'] ?? [])['total_participations'] ?? 0);
-                                                            }
-                                                        }
                                                     @endphp
                                                     <tr>
                                                         <td>
