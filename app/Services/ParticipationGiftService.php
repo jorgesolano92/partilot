@@ -20,10 +20,35 @@ class ParticipationGiftService
     ) {}
 
     /**
+     * AUD-094: solo se puede regalar antes de la celebración del sorteo.
+     */
+    public function assertGiftableBeforeDraw(Participation $participation): void
+    {
+        $participation->loadMissing('set.reserve.lottery');
+        $drawDate = $participation->set?->reserve?->lottery?->draw_date;
+        if ($drawDate && Carbon::parse($drawDate)->startOfDay()->isPast()) {
+            throw new \InvalidArgumentException('No se pueden regalar participaciones de un sorteo ya celebrado.');
+        }
+    }
+
+    public function isGiftableBeforeDraw(Participation $participation): bool
+    {
+        try {
+            $this->assertGiftableBeforeDraw($participation);
+
+            return true;
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    /**
      * @return array{gift: ParticipationGift, gifted_to_email: string}
      */
     public function createGift(User $fromUser, Participation $participation, string $email, ?string $message = null): array
     {
+        $this->assertGiftableBeforeDraw($participation);
+
         $email = strtolower(trim($email));
         $destinatario = User::whereRaw('LOWER(email) = ?', [$email])->first();
 

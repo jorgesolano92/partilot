@@ -1745,6 +1745,10 @@ class ParticipationController extends Controller
             'can_generate_recharge_code' => $prepagoService->canGenerateCodes($administration),
             'can_donate' => (bool) ($entity?->is_non_profit ?? false),
             'can_issue_donation_certificate' => (bool) ($entity?->is_non_profit ?? false),
+            'can_gift' => app(ParticipationGiftService::class)->isGiftableBeforeDraw($participation)
+                && ! $participation->collected_at
+                && ! $participation->donated_at
+                && ! $participation->isWalletStorage(),
             'sorteo' => $this->lotteryHistorialLabel($lottery),
             'numero' => $participation->participation_number,
             'numeroReservado' => $numeroReservado,
@@ -3275,6 +3279,11 @@ class ParticipationController extends Controller
         }
         if (app(ParticipationWalletValidityService::class)->isParticipationWalletExpired($participation)) {
             return $this->walletExpiredJsonResponse();
+        }
+        try {
+            $giftService->assertGiftableBeforeDraw($participation);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
         try {
