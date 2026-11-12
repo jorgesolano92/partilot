@@ -35,6 +35,9 @@ class EntityLotteryPrizeSetting extends Model
     /** Mensaje genérico LOPD cuando el premio ya fue gestionado por otra vía. */
     public const LOPD_ALREADY_MANAGED_MESSAGE = 'Esta participación ya ha sido gestionada.';
 
+    /** Premio por décimo por encima del umbral online: contactar con la entidad. */
+    public const HIGH_DECIMO_PRIZE_MESSAGE = 'Enhorabuena, tu participación tiene un premio de {amount} €. Ponte en contacto con la entidad para gestionar el premio.';
+
     protected $fillable = [
         'entity_id',
         'lottery_id',

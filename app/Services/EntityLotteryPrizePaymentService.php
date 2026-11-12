@@ -157,6 +157,46 @@ class EntityLotteryPrizePaymentService
     }
 
     /**
+     * Máximo premio_por_decimo del escrutinio guardado para el set de la participación.
+     */
+    public function maxPremioPorDecimo(Participation $participation): float
+    {
+        $participation->loadMissing('set');
+        $setId = (int) ($participation->set_id ?? $participation->set?->id ?? 0);
+        $entityId = (int) ($participation->entity_id ?? $participation->set?->entity_id ?? 0);
+        $lotteryId = $this->resolveLotteryId($participation);
+
+        if ($setId <= 0 || $entityId <= 0 || ! $lotteryId) {
+            return 0.0;
+        }
+
+        $max = ScrutinyDetailedResult::query()
+            ->join(
+                'administration_lottery_scrutinies',
+                'scrutiny_detailed_results.scrutiny_id',
+                '=',
+                'administration_lottery_scrutinies.id'
+            )
+            ->where('scrutiny_detailed_results.set_id', $setId)
+            ->where('scrutiny_detailed_results.entity_id', $entityId)
+            ->where('administration_lottery_scrutinies.lottery_id', $lotteryId)
+            ->where('administration_lottery_scrutinies.is_scrutinized', true)
+            ->max('scrutiny_detailed_results.premio_por_decimo');
+
+        return (float) ($max ?? 0);
+    }
+
+    /**
+     * True si algún décimo asociado supera el umbral de cobro online.
+     */
+    public function exceedsOnlineDecimoThreshold(Participation $participation): bool
+    {
+        $threshold = (float) config('prize_wallet.max_online_prize_per_decimo', 2000);
+
+        return $this->maxPremioPorDecimo($participation) > $threshold;
+    }
+
+    /**
      * @return array{cobrable: bool, payment_blocked: bool, block_reason: ?string, user_message: ?string}
      */
     public function evaluateOnlineCollection(Participation $participation, ?float $prizeAmount = null): array
@@ -168,13 +208,21 @@ class EntityLotteryPrizePaymentService
             return $this->blocked('missing_context', null, $prizeAmount);
         }
 
+        if ($this->isCollectedOrReservedOnline($participation)) {
+            return $this->blocked('already_collected', EntityLotteryPrizeSetting::LOPD_ALREADY_MANAGED_MESSAGE, $prizeAmount);
+        }
+
+        if ($this->exceedsOnlineDecimoThreshold($participation)) {
+            return $this->blocked(
+                'high_decimo_prize',
+                EntityLotteryPrizeSetting::HIGH_DECIMO_PRIZE_MESSAGE,
+                $prizeAmount
+            );
+        }
+
         $setting = $this->getSettings($entityId, $lotteryId);
         if (! $setting) {
             return $this->blocked('no_settings', null, $prizeAmount);
-        }
-
-        if ($this->isCollectedOrReservedOnline($participation)) {
-            return $this->blocked('already_collected', EntityLotteryPrizeSetting::LOPD_ALREADY_MANAGED_MESSAGE, $prizeAmount);
         }
 
         if (! $setting->isModeOnline()) {
@@ -249,6 +297,14 @@ class EntityLotteryPrizePaymentService
         $setting = $this->getSettings($entityId, $lotteryId);
         if (! $setting) {
             return ['allowed' => false, 'reason' => 'no_settings', 'message' => 'El cobro de premios aún no está configurado para esta entidad.'];
+        }
+
+        $highDecimoPrize = $this->exceedsOnlineDecimoThreshold($participation);
+
+        // Premios grandes (> umbral por décimo): el gestor puede registrar cobro presencial
+        // aunque la entidad tenga modalidad online y el presencial no esté “activado”.
+        if ($highDecimoPrize) {
+            return ['allowed' => true, 'reason' => 'high_decimo_prize', 'message' => null];
         }
 
         if (! $setting->isModePresencial()) {

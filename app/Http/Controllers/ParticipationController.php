@@ -3726,12 +3726,19 @@ class ParticipationController extends Controller
         $gate = $this->prizePaymentService()->evaluateOnlineCollection($participation, $prizeAmount);
         $item = array_merge($item, $gate);
 
-        if ($prizeAmount > 0 && ! $participation->requiresOnlinePrizeCollection()) {
+        if ($prizeAmount > 0) {
             $entityId = (int) ($participation->entity_id ?? $participation->set?->entity_id ?? 0);
             $lotteryId = (int) ($participation->set?->reserve?->lottery_id ?? 0);
             if ($entityId && $lotteryId) {
                 $setting = $this->prizePaymentService()->getSettings($entityId, $lotteryId);
-                if ($setting && $setting->isModePresencial()) {
+                $needsContact = $setting && (
+                    ($gate['block_reason'] ?? null) === 'high_decimo_prize'
+                    || (
+                        $setting->isModePresencial()
+                        && ! $participation->requiresOnlinePrizeCollection()
+                    )
+                );
+                if ($needsContact) {
                     $item['presencial_contact'] = $this->prizePaymentService()->presencialContactPayload($setting);
                 }
             }
