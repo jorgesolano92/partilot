@@ -221,6 +221,7 @@
                                                         $prizeBreakdown = $result->prize_breakdown;
                                                     @endphp
                                                     @php
+                                                        $entityCategoryResults = $scrutinyResultsByEntity[$entity->id] ?? [];
                                                         $entityWinningParticipations = (int) ($result->winning_participations ?? 0);
                                                     @endphp
                                                     <tr>
