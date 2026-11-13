@@ -101,10 +101,8 @@ class ParticipationObserver
                 'description' => "Participación asignada al vendedor ID: {$newSellerId}",
                 'metadata' => $changes,
             ]);
-            
-            // Enviar notificación
-            $this->sendNotification($participation, 'assigned');
-            
+
+            // No push por participación: AppInboxNotificationService envía 1 resumen por lote.
             return; // Evitar registros duplicados
         }
 
@@ -204,10 +202,8 @@ class ParticipationObserver
                 'description' => "Participación reasignada del vendedor ID: {$oldSellerId} al vendedor ID: {$newSellerId}",
                 'metadata' => $changes,
             ]);
-            
-            // Enviar notificación
-            $this->sendNotification($participation, 'reassigned');
-            
+
+            // No push por participación: el resumen de lote evita N notificaciones en iOS/Android.
             return; // Evitar registros duplicados
         }
 
@@ -222,10 +218,8 @@ class ParticipationObserver
                 'description' => "Participación asignada al vendedor ID: {$newSellerId}",
                 'metadata' => $changes,
             ]);
-            
-            // Enviar notificación
-            $this->sendNotification($participation, 'assigned');
-            
+
+            // No push por participación: AppInboxNotificationService envía 1 resumen por lote.
             return; // Evitar registros duplicados
         }
 

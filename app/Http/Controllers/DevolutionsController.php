@@ -1426,7 +1426,13 @@ class DevolutionsController extends Controller
                     ->whereIn('action', ['devolver', 'devolver_vendedor'])
                     ->exists();
 
-                if ($hasReturnedToAdministration || $hasReturnedToEntity) {
+                $hasSellerPayment = $tipoDevolucion === 'vendedor'
+                    && round((float) collect($data['liquidacion']['pagos'] ?? [])->sum(fn ($p) => max(0, (float) ($p['amount'] ?? 0))), 2) > 0;
+
+                // Aviso al gestor de entidad también en liquidaciones vendedor sin devoluciones (solo pago).
+                $notifyEntityManager = $hasReturnedToEntity || $hasSellerPayment;
+
+                if ($hasReturnedToAdministration || $notifyEntityManager) {
                     $devolution->loadMissing(['entity.administration', 'entity.manager.user', 'lottery']);
 
                     $entityManagerUser = $devolution->entity?->manager?->user;
@@ -1443,7 +1449,7 @@ class DevolutionsController extends Controller
 
                     $communicationEmailService = app(CommunicationEmailService::class);
 
-                    if ($adminManagerUser && !empty($adminManagerUser->email)) {
+                    if ($hasReturnedToAdministration && $adminManagerUser && ! empty($adminManagerUser->email)) {
                         $communicationEmailService->sendAndLog(
                             recipientEmail: (string) $adminManagerUser->email,
                             recipientRole: 'gestor_administracion',
@@ -1456,7 +1462,7 @@ class DevolutionsController extends Controller
                         );
                     }
 
-                    if ($entityManagerUser && !empty($entityManagerUser->email) && $hasReturnedToEntity) {
+                    if ($notifyEntityManager && $entityManagerUser && ! empty($entityManagerUser->email)) {
                         $communicationEmailService->sendAndLog(
                             recipientEmail: (string) $entityManagerUser->email,
                             recipientRole: 'gestor_entidad',

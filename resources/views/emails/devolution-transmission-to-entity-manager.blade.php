@@ -26,7 +26,12 @@
         $managerName = $managerName !== '' ? $managerName : ($entityManagerUser?->email ?? 'Gestor');
         $entityName = $devolution->entity?->name ?? '-';
         $lottery = $devolution->lottery;
-        $returnedCodes = $returnedParticipations->map(fn($p) => $p->display_participation_code)->filter()->values()->all();
+        $sellerName = $devolution->seller
+            ? trim((string) ($devolution->seller->full_name ?: $devolution->seller->name ?: $devolution->seller->email))
+            : null;
+        $fmtMoney = fn ($n) => number_format((float) $n, 2, ',', '.') . ' €';
+        $returnedCodes = $returnedParticipations->map(fn ($p) => $p->display_participation_code)->filter()->values()->all();
+        $isSellerDevolution = (bool) $devolution->seller_id;
     @endphp
 
     <p>Hola <strong>{{ $managerName }}</strong>,</p>
@@ -37,7 +42,13 @@
         <p><strong>Sorteo:</strong> {{ $lottery?->name ?? 'N/A' }}</p>
         <p><strong>Fecha de devolución:</strong> {{ $devolution->devolution_date ? \Carbon\Carbon::parse($devolution->devolution_date)->format('d/m/Y') : '-' }}</p>
         <p><strong>Motivo:</strong> {{ $devolution->return_reason ?? '-' }}</p>
-        <p><strong>Participaciones devueltas:</strong> {{ count($returnedCodes) }}</p>
+        @if($sellerName)
+            <p><strong>Vendedor:</strong> {{ $sellerName }}</p>
+        @endif
+        <p><strong>Participaciones que devuelve:</strong> {{ $returnedCount }}@if($returnedCount > 0) ({{ $fmtMoney($returnedAmount) }})@endif</p>
+        <p><strong>Participaciones liquidadas (vendidas / retenidas):</strong> {{ $soldCount }}@if($soldCount > 0) ({{ $fmtMoney($soldAmount) }})@endif</p>
+        <p><strong>Importe pagado en esta operación:</strong> {{ $fmtMoney($paidAmount) }}</p>
+        <p><strong>Pendiente por pagar:</strong> {{ $fmtMoney($pendingAmount) }}</p>
     </div>
 
     @if(count($returnedCodes))
@@ -56,8 +67,10 @@
                 @endforeach
             </tbody>
         </table>
-    @else
-        <p>No se registraron participaciones con acción de devolución (entidad -> administración) para este proceso.</p>
+    @elseif($isSellerDevolution && $returnedCount === 0)
+        <p>En esta operación el vendedor no ha devuelto participaciones (p. ej. ha liquidado / vendido todo lo asignado).</p>
+    @elseif($returnedCount === 0)
+        <p>No se registraron participaciones devueltas en este proceso.</p>
     @endif
 
     <div class="footer">
@@ -67,4 +80,3 @@
 </div>
 </body>
 </html>
-
