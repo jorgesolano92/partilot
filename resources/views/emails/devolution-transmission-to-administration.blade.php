@@ -26,18 +26,23 @@
         $managerName = $managerName !== '' ? $managerName : ($adminManagerUser?->email ?? 'Gestor');
         $entityName = $devolution->entity?->name ?? '-';
         $lottery = $devolution->lottery;
-        $returnedCodes = $returnedParticipations->map(fn($p) => $p->display_participation_code)->filter()->values()->all();
+        $fmtMoney = fn ($n) => number_format((float) $n, 2, ',', '.') . ' €';
+        $returnedCodes = $returnedParticipations->map(fn ($p) => $p->display_participation_code)->filter()->values()->all();
     @endphp
 
     <p>Hola <strong>{{ $managerName }}</strong>,</p>
 
-    <p>Te informamos de que se ha procesado una <strong>devolución</strong> para la entidad <strong>{{ $entityName }}</strong>.</p>
+    <p>Te informamos de que se ha procesado una <strong>devolución</strong> de la entidad <strong>{{ $entityName }}</strong> a la administración.</p>
 
     <div class="box">
         <p><strong>Sorteo:</strong> {{ $lottery?->name ?? 'N/A' }}</p>
         <p><strong>Fecha de devolución:</strong> {{ $devolution->devolution_date ? \Carbon\Carbon::parse($devolution->devolution_date)->format('d/m/Y') : '-' }}</p>
         <p><strong>Motivo:</strong> {{ $devolution->return_reason ?? '-' }}</p>
-        <p><strong>Participaciones devueltas:</strong> {{ count($returnedCodes) }}</p>
+        <p><strong>Participaciones que devuelve:</strong> {{ $returnedCount }}@if($returnedCount > 0) ({{ $fmtMoney($returnedAmount) }})@endif</p>
+        <p><strong>Participaciones liquidadas (vendidas / retenidas):</strong> {{ $soldCount }}@if($soldCount > 0) ({{ $fmtMoney($soldAmount) }})@endif</p>
+        <p><strong>Importe de liquidación:</strong> {{ $fmtMoney($liquidationAmount) }}</p>
+        <p><strong>Importe pagado en esta operación:</strong> {{ $fmtMoney($paidAmount) }}</p>
+        <p><strong>Pendiente por pagar:</strong> {{ $fmtMoney($pendingAmount) }}</p>
     </div>
 
     @if(count($returnedCodes))
@@ -56,8 +61,8 @@
                 @endforeach
             </tbody>
         </table>
-    @else
-        <p>No se registraron participaciones con acción de devolución (entidad -> administración) para este proceso.</p>
+    @elseif($returnedCount === 0)
+        <p>No se registraron participaciones devueltas a administración en este proceso (puede ser una liquidación sin devoluciones físicas).</p>
     @endif
 
     <div class="footer">
@@ -67,4 +72,3 @@
 </div>
 </body>
 </html>
-
