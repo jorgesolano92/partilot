@@ -95,6 +95,37 @@ class Devolution extends Model
     }
 
     /**
+     * Id del movimiento más reciente (fecha/hora/id) vinculado a una reserva.
+     */
+    public static function latestIdForReserve(int $reserveId): ?int
+    {
+        $id = static::query()
+            ->where(function ($q) use ($reserveId) {
+                $q->where('reserve_id', $reserveId)
+                    ->orWhereHas('details.participation.set', fn ($sq) => $sq->where('reserve_id', $reserveId));
+            })
+            ->orderByDesc('devolution_date')
+            ->orderByDesc('devolution_time')
+            ->orderByDesc('id')
+            ->value('id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * Solo la última devolución/anulación de la reserva muestra el PDF acumulado.
+     */
+    public function isLatestForReservePdf(): bool
+    {
+        $reserveId = $this->resolvedReserveId();
+        if (! $reserveId) {
+            return false;
+        }
+
+        return static::latestIdForReserve($reserveId) === (int) $this->id;
+    }
+
+    /**
      * Etiqueta para la columna "Set / Reserva" del listado:
      * - 1 set en el detalle → nombre del set
      * - varios sets, o sin movimientos pero con reserva → "Reserva …"

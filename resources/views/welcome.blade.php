@@ -326,6 +326,67 @@
         </div>
     @endif
 
+    @if(!empty($dashboard['entity_operational_home']))
+        <div class="row g-3 mt-1">
+            <div class="col-12">
+                <div class="panel-card card">
+                    <div class="card-body">
+                        <div class="panel-head">
+                            <div>
+                                <h5 class="panel-title">Estado de reservas</h5>
+                                <p class="panel-subtitle">Ventas netas = sets emitidos − devoluciones históricas (no reserva − Σ devoluciones)</p>
+                            </div>
+                            <a href="{{ url('/reserves') }}" class="panel-link">Ver reservas</a>
+                        </div>
+                        @if(($dashboard['reserves_estado'] ?? collect())->isEmpty())
+                            <div class="panel-empty">No hay reservas activas</div>
+                        @else
+                            <div class="panel-table-wrap" style="overflow-x: auto;">
+                                <table class="table users-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Reserva</th>
+                                            <th>Sorteo</th>
+                                            <th class="text-end">Importe</th>
+                                            <th class="text-end">Sets emitidos</th>
+                                            <th class="text-end">Físicas</th>
+                                            <th class="text-end">Digitales</th>
+                                            <th class="text-end">Dev. hist.</th>
+                                            <th class="text-end">Dev. efectiva</th>
+                                            <th class="text-end">Anulado</th>
+                                            <th class="text-end">Ventas netas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($dashboard['reserves_estado'] as $estado)
+                                            <tr>
+                                                <td>
+                                                    <a href="{{ route('reserves.show', $estado['reserve_id']) }}" class="text-dark text-decoration-none">
+                                                        #{{ $estado['reserve_id'] }}
+                                                    </a>
+                                                    <div class="text-muted small">{{ $estado['reservation_numbers_label'] }}</div>
+                                                </td>
+                                                <td>{{ $estado['lottery_name'] ?? '—' }}</td>
+                                                <td class="text-end">{{ number_format($estado['reserve_amount'], 2, ',', '.') }} €</td>
+                                                <td class="text-end">{{ number_format($estado['sets_issued_amount'], 2, ',', '.') }} €</td>
+                                                <td class="text-end">{{ number_format($estado['physical_sold_amount'], 2, ',', '.') }} €</td>
+                                                <td class="text-end">{{ number_format($estado['digital_sold_amount'], 2, ',', '.') }} €</td>
+                                                <td class="text-end">{{ number_format($estado['returns_historical_amount'], 2, ',', '.') }} €</td>
+                                                <td class="text-end">{{ number_format($estado['returns_effective_amount'], 2, ',', '.') }} €</td>
+                                                <td class="text-end">{{ number_format($estado['annulled_amount'], 2, ',', '.') }} €</td>
+                                                <td class="text-end fw-semibold">{{ number_format($estado['net_sales_amount'], 2, ',', '.') }} €</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="row g-3 mt-1 panel-row-paired @if($dashboard['show_sellers_panel'] ?? false) panel-row-entity @endif">
         @php
             $entitiesPanelCol = ($dashboard['show_users_panel'] ?? false) || ($dashboard['show_sellers_panel'] ?? false)

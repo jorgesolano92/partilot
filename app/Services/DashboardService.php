@@ -15,6 +15,10 @@ use Illuminate\Support\Collection;
 
 class DashboardService
 {
+    public function __construct(
+        private readonly ReserveEconomicStatusService $reserveEconomicStatus
+    ) {}
+
     public function build(User $user): array
     {
         $showUsers = $user->isSuperAdmin();
@@ -32,6 +36,7 @@ class DashboardService
             'recent_entities' => $this->recentEntities($user),
             'recent_sets' => $entityOperationalHome ? $this->recentSets($user) : collect(),
             'operational_tasks' => $entityOperationalHome ? $this->operationalTasks($user) : [],
+            'reserves_estado' => $entityOperationalHome ? $this->reserveEconomicStatus->forUserReserves($user) : collect(),
             'recent_users' => $showUsers ? $this->recentUsers($user) : collect(),
             'recent_sellers' => $showSellersPanel ? $this->recentSellers($user) : collect(),
             'recent_administrations' => $showAdministrations ? $this->recentAdministrations() : collect(),

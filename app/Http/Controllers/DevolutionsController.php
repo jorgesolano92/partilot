@@ -512,7 +512,19 @@ class DevolutionsController extends Controller
             ->orderBy('devolution_time', 'desc')
             ->get();
 
-        return view('devolutions.index', compact('devolutions'));
+        $latestCumulativePdfByReserve = [];
+        foreach ($devolutions as $dev) {
+            $rid = $dev->resolvedReserveId();
+            if (! $rid || isset($latestCumulativePdfByReserve[$rid])) {
+                continue;
+            }
+            $latestId = Devolution::latestIdForReserve($rid);
+            if ($latestId) {
+                $latestCumulativePdfByReserve[$rid] = $latestId;
+            }
+        }
+
+        return view('devolutions.index', compact('devolutions', 'latestCumulativePdfByReserve'));
     }
 
     /**
@@ -1525,8 +1537,41 @@ class DevolutionsController extends Controller
         }
 
         $reserveIdForPdf = $devolution->resolvedReserveId();
+        $showCumulativeReservePdf = $devolution->isLatestForReservePdf();
 
-        return view('devolutions.show', compact('devolution', 'reserveIdForPdf'));
+        return view('devolutions.show', compact('devolution', 'reserveIdForPdf', 'showCumulativeReservePdf'));
+    }
+
+    /**
+     * PDF individual de esta devolución/anulación.
+     */
+    public function downloadPdf(string $id, \App\Services\DevolutionSinglePdfService $pdfService)
+    {
+        if ($redirect = $this->redirectUnlessDevolutionsWebAccess()) {
+            return $redirect;
+        }
+
+        $devolution = Devolution::query()
+            ->forUser(auth()->user())
+            ->findOrFail($id);
+
+        if (! auth()->user()->canViewDevolutionForEntity((int) $devolution->entity_id)) {
+            return redirect()->route('dashboard')->with(
+                'error',
+                'No puede ver este registro.'
+            );
+        }
+
+        try {
+            $built = $pdfService->build((int) $devolution->id);
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->route('devolutions.show', $id)->with('error', $e->getMessage());
+        }
+
+        return response($built['binary'], 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$built['filename'].'"',
+        ]);
     }
 
     /**

@@ -73,10 +73,13 @@
                                 <span class="badge bg-secondary ms-1">{{ $devolution->typeLabel() }}</span>
                             @endif
                         </h4>
-                        <div class="d-flex gap-2">
-                            @if(!empty($reserveIdForPdf))
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ route('devolutions.pdf', $devolution->id) }}" class="btn btn-outline-danger" style="border-radius: 30px;" title="PDF solo de este movimiento">
+                                <i class="ri-file-pdf-line me-1"></i>PDF esta {{ $isAnnulment ? 'anulación' : 'devolución' }}
+                            </a>
+                            @if(!empty($reserveIdForPdf) && !empty($showCumulativeReservePdf))
                                 <a href="{{ route('devolutions.reserve-pdf', $devolution->id) }}" class="btn btn-outline-primary" style="border-radius: 30px;" title="PDF acumulado de todas las devoluciones/anulaciones de la reserva">
-                                    <i class="ri-file-pdf-line me-1"></i>PDF de la reserva
+                                    <i class="ri-file-list-3-line me-1"></i>PDF acumulado reserva
                                 </a>
                             @endif
                             <a href="{{ route('devolutions.index') }}" class="btn btn-secondary" style="border-radius: 30px;">

@@ -109,6 +109,8 @@
                                                     : ($devolution->seller_id ? 'Vendedor → Entidad' : 'Entidad → Administración');
                                                 
                                                 $reserveIdForPdf = $devolution->resolvedReserveId();
+                                                $showCumulativeReservePdf = $reserveIdForPdf
+                                                    && (int) (($latestCumulativePdfByReserve[$reserveIdForPdf] ?? 0)) === (int) $devolution->id;
                                                 $setInfo = $devolution->setOrReserveLabel();
                                             @endphp
                                             <tr>
@@ -145,9 +147,12 @@
                                                     <a href="{{ route('devolutions.show', $devolution->id) }}" class="btn btn-sm btn-light" title="Ver detalle">
                                                         <img src="{{url('assets/form-groups/eye.svg')}}" alt="" width="12">
                                                     </a>
-                                                    @if($reserveIdForPdf)
-                                                        <a href="{{ route('devolutions.reserve-pdf', $devolution->id) }}" class="btn btn-sm btn-light" title="PDF acumulado de la reserva">
-                                                            <i class="ri-file-pdf-line text-danger"></i>
+                                                    <a href="{{ route('devolutions.pdf', $devolution->id) }}" class="btn btn-sm btn-light" title="PDF solo de esta devolución">
+                                                        <i class="ri-file-pdf-line text-danger"></i>
+                                                    </a>
+                                                    @if($showCumulativeReservePdf)
+                                                        <a href="{{ route('devolutions.reserve-pdf', $devolution->id) }}" class="btn btn-sm btn-light" title="PDF acumulado de toda la reserva">
+                                                            <i class="ri-file-list-3-line text-primary"></i>
                                                         </a>
                                                     @endif
                                                     @unless($esAnulacion)
