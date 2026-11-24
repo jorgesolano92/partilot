@@ -4,11 +4,33 @@ namespace App\Services;
 
 use App\Models\SepaPaymentOrder;
 use App\Support\SepaText;
+use Carbon\Carbon;
 use DOMDocument;
 use DOMElement;
 
 class SepaXmlGeneratorService
 {
+    /**
+     * BIC conocidos por código de entidad español (posiciones 5-8 del IBAN).
+     * Si no hay match se usa NOTPROVIDED.
+     */
+    private const BANK_BIC_BY_ENTITY = [
+        '0049' => 'BSCHESMMXXX', // Santander
+        '0075' => 'POPUESMMXXX', // Popular (legado)
+        '0081' => 'BSABESBBXXX', // Sabadell
+        '0128' => 'BKBKESMMXXX', // Bankinter
+        '0182' => 'BBVAESMMXXX', // BBVA
+        '1465' => 'INGDESMMXXX', // ING
+        '2080' => 'CAGLESMMXXX', // Abanca
+        '2085' => 'CAYHES2AXXX', // Liberbank (Unicaja)
+        '2100' => 'CAIXESBBXXX', // CaixaBank
+        '2103' => 'UCJAES2MXXX', // Unicaja
+        '0239' => 'EVOCESMMXXX', // Evo
+        '2038' => 'CAHMESMMXXX', // Bankia (legado)
+        '2095' => 'BASKES2BXXX', // Kutxabank
+        '3058' => 'CCRIES2AXXX', // Cajamar
+    ];
+
     /**
      * Generar XML SEPA pain.001.001.03 desde una orden de pago
      */
@@ -24,6 +46,7 @@ class SepaXmlGeneratorService
 
         $controlSum = (float) $beneficiaries->sum('amount');
         $numberOfTransactions = $beneficiaries->count();
+        $executionDate = $this->resolveExecutionDate($order->execution_date);
 
         $dom = new DOMDocument('1.0', 'UTF-8');
         $dom->formatOutput = true;
@@ -42,7 +65,7 @@ class SepaXmlGeneratorService
         $cstmrCdtTrfInitn->appendChild($grpHdr);
 
         $grpHdr->appendChild($dom->createElement('MsgId', $order->message_id));
-        $grpHdr->appendChild($dom->createElement('CreDtTm', $order->creation_date->format('Y-m-d\TH:i:s')));
+        $grpHdr->appendChild($dom->createElement('CreDtTm', now()->format('Y-m-d\TH:i:s')));
         $grpHdr->appendChild($dom->createElement('NbOfTxs', (string) $numberOfTransactions));
         $grpHdr->appendChild($dom->createElement('CtrlSum', number_format($controlSum, 2, '.', '')));
 
@@ -56,11 +79,14 @@ class SepaXmlGeneratorService
             $id = $dom->createElement('Id');
             $initgPty->appendChild($id);
 
-            $prvtId = $dom->createElement('PrvtId');
-            $id->appendChild($prvtId);
+            // Empresa / CIF → OrgId; persona física → PrvtId
+            $idContainer = $this->looksLikeCompanyTaxId($order->debtor_nif_cif)
+                ? $dom->createElement('OrgId')
+                : $dom->createElement('PrvtId');
+            $id->appendChild($idContainer);
 
             $othr = $dom->createElement('Othr');
-            $prvtId->appendChild($othr);
+            $idContainer->appendChild($othr);
 
             $othr->appendChild($dom->createElement('Id', $order->debtor_nif_cif));
         }
@@ -81,18 +107,19 @@ class SepaXmlGeneratorService
         $pmtTpInf->appendChild($svcLvl);
         $svcLvl->appendChild($dom->createElement('Cd', 'SEPA'));
 
-        // ReqdExctnDt
-        $pmtInf->appendChild($dom->createElement('ReqdExctnDt', $order->execution_date->format('Y-m-d')));
+        // ReqdExctnDt (nunca en pasado al generar)
+        $pmtInf->appendChild($dom->createElement('ReqdExctnDt', $executionDate->format('Y-m-d')));
 
-        // Dbtr (Debtor)
+        // Dbtr (Debtor) — Ctry ES siempre (bancos españoles lo exigen)
         $dbtr = $dom->createElement('Dbtr');
         $pmtInf->appendChild($dbtr);
 
         $dbtr->appendChild($dom->createElement('Nm', $this->escapeXml($order->debtor_name)));
 
+        $pstlAdr = $dom->createElement('PstlAdr');
+        $dbtr->appendChild($pstlAdr);
+        $pstlAdr->appendChild($dom->createElement('Ctry', 'ES'));
         if ($order->debtor_address) {
-            $pstlAdr = $dom->createElement('PstlAdr');
-            $dbtr->appendChild($pstlAdr);
             $pstlAdr->appendChild($dom->createElement('AdrLine', $this->escapeXml($order->debtor_address)));
         }
 
@@ -104,10 +131,10 @@ class SepaXmlGeneratorService
         $dbtrAcct->appendChild($dbtrAcctId);
         $dbtrAcctId->appendChild($dom->createElement('IBAN', $order->debtor_iban));
 
-        // DbtrAgt es obligatorio en pain.001.001.03; sin BIC se identifica como NOTPROVIDED.
+        // DbtrAgt: BIC real si se puede inferir del IBAN; si no, NOTPROVIDED
         $dbtrAgt = $dom->createElement('DbtrAgt');
         $pmtInf->appendChild($dbtrAgt);
-        $dbtrAgt->appendChild($this->notProvidedFinInstnId($dom));
+        $dbtrAgt->appendChild($this->finInstnIdForIban($dom, $order->debtor_iban));
 
         // ChrgBr
         $pmtInf->appendChild($dom->createElement('ChrgBr', $order->charge_bearer));
@@ -142,11 +169,13 @@ class SepaXmlGeneratorService
                 $cdtrId = $dom->createElement('Id');
                 $cdtr->appendChild($cdtrId);
 
-                $cdtrPrvtId = $dom->createElement('PrvtId');
-                $cdtrId->appendChild($cdtrPrvtId);
+                $cdtrIdContainer = $this->looksLikeCompanyTaxId($beneficiary->creditor_nif_cif)
+                    ? $dom->createElement('OrgId')
+                    : $dom->createElement('PrvtId');
+                $cdtrId->appendChild($cdtrIdContainer);
 
                 $cdtrOthr = $dom->createElement('Othr');
-                $cdtrPrvtId->appendChild($cdtrOthr);
+                $cdtrIdContainer->appendChild($cdtrOthr);
 
                 $cdtrOthr->appendChild($dom->createElement('Id', $beneficiary->creditor_nif_cif));
             }
@@ -203,14 +232,64 @@ class SepaXmlGeneratorService
         return htmlspecialchars(SepaText::clean($string, $maxLength), ENT_XML1, 'UTF-8');
     }
 
-    private function notProvidedFinInstnId(DOMDocument $dom): DOMElement
+    /**
+     * Si la fecha de ejecución está en el pasado, usar hoy (día hábil no se fuerza aquí).
+     */
+    private function resolveExecutionDate(mixed $executionDate): Carbon
     {
+        $date = $executionDate instanceof Carbon
+            ? $executionDate->copy()->startOfDay()
+            : Carbon::parse($executionDate)->startOfDay();
+
+        $today = now()->startOfDay();
+
+        return $date->lt($today) ? $today : $date;
+    }
+
+    /**
+     * CIF español típico: letra + 7-8 dígitos (+ letra opcional). NIF persona: 8 dígitos + letra.
+     */
+    private function looksLikeCompanyTaxId(?string $taxId): bool
+    {
+        if ($taxId === null || $taxId === '') {
+            return false;
+        }
+
+        $clean = strtoupper(preg_replace('/[\s\-]/', '', $taxId) ?? '');
+
+        return (bool) preg_match('/^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]?$/', $clean);
+    }
+
+    private function finInstnIdForIban(DOMDocument $dom, ?string $iban): DOMElement
+    {
+        $bic = $this->bicFromSpanishIban($iban);
+
         $finInstnId = $dom->createElement('FinInstnId');
-        $othr = $dom->createElement('Othr');
-        $othr->appendChild($dom->createElement('Id', 'NOTPROVIDED'));
-        $finInstnId->appendChild($othr);
+        if ($bic) {
+            $finInstnId->appendChild($dom->createElement('BIC', $bic));
+        } else {
+            $othr = $dom->createElement('Othr');
+            $othr->appendChild($dom->createElement('Id', 'NOTPROVIDED'));
+            $finInstnId->appendChild($othr);
+        }
 
         return $finInstnId;
+    }
+
+    private function bicFromSpanishIban(?string $iban): ?string
+    {
+        if ($iban === null || $iban === '') {
+            return null;
+        }
+
+        $clean = strtoupper(preg_replace('/\s+/', '', $iban) ?? '');
+        if (! str_starts_with($clean, 'ES') || strlen($clean) < 8) {
+            return null;
+        }
+
+        $entity = substr($clean, 4, 4);
+
+        return self::BANK_BIC_BY_ENTITY[$entity] ?? null;
     }
 
     /**
@@ -222,4 +301,3 @@ class SepaXmlGeneratorService
         return $this->saveXmlToFile($order, $xmlContent, $directory);
     }
 }
-
