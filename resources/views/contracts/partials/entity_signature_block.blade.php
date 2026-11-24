@@ -4,9 +4,9 @@
 
 <p>La firma electrónica del presente documento a través del sistema habilitado por PARTILOT tiene plena validez jurídica conforme al Reglamento (UE) nº 910/2014 y la Ley 6/2020, de 11 de noviembre. El sistema registrará la identidad del firmante, la marca temporal, la dirección IP y la versión del documento suscrito. Ambas partes recibirán copia del documento firmado en su correo electrónico registrado.</p>
 
-<table class="contract-signature-box">
+<table class="contract-signature-box" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:16px 0 24px;">
     <tr>
-        <td>
+        <td style="border:1px solid #333;padding:12px;vertical-align:top;width:50%;">
             <strong>Por PARTILOT, S.L.U.</strong><br><br>
             Nombre y apellidos:
             @if($isSigned)
@@ -29,7 +29,7 @@
                 <span class="contract-signature-line">&nbsp;</span>
             @endif
         </td>
-        <td>
+        <td style="border:1px solid #333;padding:12px;vertical-align:top;width:50%;">
             <strong>Por el Firmante Autorizado / Organizador</strong><br>
             <span style="font-size:10px;">(según modalidad del Anexo I)</span><br><br>
             Nombre y apellidos:

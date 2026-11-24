@@ -96,15 +96,4 @@
     <p>14.1  El presente contrato se rige íntegramente por la legislación española.</p>
     <p>14.2  Para la resolución de cualquier controversia, las partes se someten expresamente a la jurisdicción de los Juzgados y Tribunales de Logroño, con renuncia expresa a cualquier otro fuero.</p>
     <p>14.3  Con carácter previo al ejercicio de cualquier acción judicial, las partes intentarán resolver la controversia de forma amistosa durante un plazo de treinta (30) días desde la notificación por escrito del desacuerdo.</p>
-    <p>FIRMA DEL CONTRATO</p>
-    <p>En prueba de conformidad con todo lo anterior, ambas partes suscriben el presente contrato en la fecha y lugar indicados en el Anexo I, habiendo leído íntegramente su contenido y entendido su alcance y consecuencias.</p>
-    <p>La firma electrónica del presente documento a través del sistema habilitado por PARTILOT tiene plena validez jurídica conforme al Reglamento (UE) nº 910/2014 y la Ley 6/2020, de 11 de noviembre. El sistema registrará la identidad del firmante, la marca temporal, la dirección IP y la versión del documento suscrito.</p>
-    <p>Por PARTILOT, S.L.U.</p>
-    <p>Nombre y apellidos: ______________________</p>
-    <p>Cargo: ______________________</p>
-    <p>Fecha: ______________________</p>
-    <p>Por el Punto de Venta Autorizado</p>
-    <p>Nombre y apellidos: ______________________</p>
-    <p>Cargo: ______________________</p>
-    <p>Fecha: ______________________</p>
 </div>

@@ -483,8 +483,12 @@ class EntityContractService
             'managerNif' => $managerNif,
             'managerEmail' => $managerEmail,
             'isSigned' => $isSigned,
-            'acceptanceDate' => $isSigned ? $signedAt->format('d/m/Y H:i') : $pending,
-            'acceptanceTimestamp' => $isSigned ? $signedAt->format('d/m/Y H:i:s') : $pending,
+            'acceptanceDate' => $isSigned
+                ? $signedAt->timezone('Europe/Madrid')->format('d/m/Y H:i').' (Europe/Madrid)'
+                : $pending,
+            'acceptanceTimestamp' => $isSigned
+                ? $signedAt->timezone('Europe/Madrid')->format('d/m/Y H:i:s').' (Europe/Madrid)'
+                : $pending,
             'acceptanceIp' => $isSigned
                 ? (trim((string) ($signature['signer_ip'] ?? '')) ?: '—')
                 : $pending,
@@ -494,7 +498,7 @@ class EntityContractService
             'managementFeePayer' => ($entity->entity_pays_management_fee ? 'Entidad' : 'Punto de Venta Autorizado').' — configurable por Set',
             'prizePaymentStatus' => 'No contratado. Requiere Acuerdo Específico de Mandato de Pago cuando el sorteo tenga premios.',
             'mandateDelegation' => 'No',
-            'activationDate' => ($signedAt ?? now())->format('d/m/Y'),
+            'activationDate' => ($signedAt ?? now())->timezone('Europe/Madrid')->format('d/m/Y'),
             'signedAt' => $signedAt,
             'forPdf' => true,
         ];

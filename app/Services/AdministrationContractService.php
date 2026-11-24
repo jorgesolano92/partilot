@@ -222,14 +222,18 @@ class AdministrationContractService
             'paymentMode' => 'Pago puntual por TPV y domiciliación bancaria, configurable',
             'billingSwitchDefault' => 'Punto de Venta Autorizado / Entidad — configurable por Set',
             'pvaModality' => 'Administración de Lotería',
-            'activationDate' => ($signedAt ?? now())->format('d/m/Y'),
+            'activationDate' => ($signedAt ?? now())->timezone('Europe/Madrid')->format('d/m/Y'),
             'signedAt' => $signedAt,
             'signerName' => $signerName !== '' ? $signerName : '—',
             'signerNif' => $representativeNif !== '' ? $representativeNif : '—',
             'signerRole' => 'Titular / Representante',
             'isSigned' => $isSigned,
-            'acceptanceDate' => $isSigned ? $signedAt->format('d/m/Y H:i') : '—',
-            'acceptanceTimestamp' => $isSigned ? $signedAt->format('d/m/Y H:i:s') : '—',
+            'acceptanceDate' => $isSigned
+                ? $signedAt->timezone('Europe/Madrid')->format('d/m/Y H:i').' (Europe/Madrid)'
+                : '—',
+            'acceptanceTimestamp' => $isSigned
+                ? $signedAt->timezone('Europe/Madrid')->format('d/m/Y H:i:s').' (Europe/Madrid)'
+                : '—',
             'acceptanceIp' => $isSigned
                 ? (trim((string) ($signature['signer_ip'] ?? '')) ?: '—')
                 : '—',
