@@ -95,13 +95,13 @@
                                     </td>
 	                                <td>
                                         @if($order->xml_filename)
-                                            <a href="{{route('sepa-payments.generate-xml', $order->id)}}" class="btn btn-sm btn-primary" title="Descargar XML">
+                                            <button type="button" class="btn btn-sm btn-primary" title="Descargar XML" data-sepa-confirm-download="{{ $order->id }}">
                                                 <i class="ri-download-line"></i> XML
-                                            </a>
+                                            </button>
                                         @else
-                                            <a href="{{route('sepa-payments.generate-xml', $order->id)}}" class="btn btn-sm btn-success" title="Generar XML">
+                                            <button type="button" class="btn btn-sm btn-success" title="Generar XML" data-sepa-confirm-download="{{ $order->id }}">
                                                 <i class="ri-file-add-line"></i> Generar
-                                            </a>
+                                            </button>
                                         @endif
                                     </td>
 	                                <td>
@@ -253,6 +253,7 @@
 
 </script>
 
+@include('partials.sepa-confirm-debtor-modal')
 @endsection
 
 

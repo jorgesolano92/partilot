@@ -1248,8 +1248,13 @@ class ConfigurationController extends Controller
                 ->with('error', 'Error al crear la orden SEPA: ' . $e->getMessage());
         }
 
-        return redirect()->route('sepa-payments.generate-xml', $order->id)
-            ->with('success', 'Orden SEPA creada. Descargando XML.');
+        return redirect()->route('configuration.index', [
+            'section' => 'ordenes-pago-entidades',
+            'step' => 3,
+            'entity_id' => $entity->id,
+            'order_id' => $order->id,
+        ])->with('sepa_confirm_debtor_order_id', $order->id)
+            ->with('success', 'Orden SEPA creada. Confirma los datos del pagador para descargar el XML.');
     }
 
     private function normalizeIban(string $iban): string

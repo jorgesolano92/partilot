@@ -695,6 +695,7 @@ Route::get('devolutions/{id}/payments', [DevolutionsController::class, 'getPayme
 Route::post('devolutions/{id}/payments', [DevolutionsController::class, 'addPayment'])->name('devolutions.payments.store');
 Route::put('devolutions/{devolutionId}/payments/{paymentId}', [DevolutionsController::class, 'updatePayment'])->name('devolutions.payments.update');
 Route::delete('devolutions/{devolutionId}/payments/{paymentId}', [DevolutionsController::class, 'deletePayment'])->name('devolutions.payments.delete');
+Route::get('devolutions/{id}/pdf', [DevolutionsController::class, 'downloadPdf'])->name('devolutions.pdf');
 Route::get('devolutions/{id}/reserve-pdf', [DevolutionsController::class, 'downloadReservePdf'])->name('devolutions.reserve-pdf');
 
 // Resource routes (deben ir AL FINAL para evitar conflictos)
@@ -769,6 +770,8 @@ Route::group(['prefix' => 'sepa-payments', 'middleware' => 'entity.permission:pa
     Route::post('/', [SepaPaymentOrderController::class, 'store'])->name('sepa-payments.store');
     Route::get('/{sepaPaymentOrder}', [SepaPaymentOrderController::class, 'show'])->name('sepa-payments.show');
     Route::get('/{sepaPaymentOrder}/generate-xml', [SepaPaymentOrderController::class, 'generateXml'])->name('sepa-payments.generate-xml');
+    Route::get('/{sepaPaymentOrder}/debtor-data', [SepaPaymentOrderController::class, 'debtorData'])->name('sepa-payments.debtor-data');
+    Route::post('/{sepaPaymentOrder}/confirm-debtor-xml', [SepaPaymentOrderController::class, 'confirmDebtorAndDownload'])->name('sepa-payments.confirm-debtor-xml');
     Route::post('/{sepaPaymentOrder}/mark-ready', [SepaPaymentOrderController::class, 'markAsReady'])->name('sepa-payments.mark-ready');
     Route::post('/{sepaPaymentOrder}/mark-beneficiaries-paid', [SepaPaymentOrderController::class, 'markBeneficiariesPaid'])->name('sepa-payments.mark-beneficiaries-paid');
     Route::post('/{sepaPaymentOrder}/revert-beneficiaries', [SepaPaymentOrderController::class, 'revertBeneficiariesToCobrable'])->name('sepa-payments.revert-beneficiaries');

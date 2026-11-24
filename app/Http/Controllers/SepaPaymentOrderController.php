@@ -165,6 +165,85 @@ class SepaPaymentOrderController extends Controller
     }
 
     /**
+     * Datos del pagador (ordenante) para el modal de confirmación antes de descargar XML.
+     */
+    public function debtorData(SepaPaymentOrder $sepaPaymentOrder)
+    {
+        $iban = (string) $sepaPaymentOrder->debtor_iban;
+        $ibanDigits = str_starts_with(strtoupper($iban), 'ES') ? substr($iban, 2) : $iban;
+
+        return response()->json([
+            'id' => $sepaPaymentOrder->id,
+            'message_id' => $sepaPaymentOrder->message_id,
+            'debtor_name' => $sepaPaymentOrder->debtor_name,
+            'debtor_nif_cif' => $sepaPaymentOrder->debtor_nif_cif,
+            'debtor_iban' => $ibanDigits,
+            'debtor_iban_full' => $iban,
+            'debtor_address' => $sepaPaymentOrder->debtor_address,
+            'execution_date' => optional($sepaPaymentOrder->execution_date)->format('Y-m-d') ?: now()->format('Y-m-d'),
+            'control_sum' => number_format((float) $sepaPaymentOrder->control_sum, 2, '.', ''),
+            'confirm_url' => route('sepa-payments.confirm-debtor-xml', $sepaPaymentOrder->id),
+        ]);
+    }
+
+    /**
+     * Confirmar/actualizar datos del pagador y descargar XML SEPA.
+     */
+    public function confirmDebtorAndDownload(Request $request, SepaPaymentOrder $sepaPaymentOrder)
+    {
+        $validated = $request->validate([
+            'debtor_name' => 'required|string|max:255',
+            'debtor_nif_cif' => ['nullable', 'string', 'max:50', new \App\Rules\SpanishDocument],
+            'debtor_iban' => ['required', 'string', 'max:24'],
+            'debtor_address' => 'nullable|string|max:500',
+            'execution_date' => ValidCalendarDate::onOrAfterToday(),
+        ]);
+
+        $debtorIban = strtoupper(preg_replace('/\s+/', '', $validated['debtor_iban']) ?? '');
+        if (! str_starts_with($debtorIban, 'ES')) {
+            $debtorIban = 'ES'.$debtorIban;
+        }
+
+        $ibanValidator = \Validator::make(['iban' => $debtorIban], [
+            'iban' => [new \App\Rules\SpanishIban],
+        ]);
+        if ($ibanValidator->fails()) {
+            return back()->withErrors(['debtor_iban' => 'El IBAN del pagador no es válido.'])->withInput();
+        }
+
+        $sepaPaymentOrder->load('beneficiaries');
+        $exportableCount = $sepaPaymentOrder->beneficiaries
+            ->filter(fn ($beneficiary) => $beneficiary->isExportableToSepa())
+            ->count();
+
+        if ($exportableCount === 0) {
+            return back()->withErrors([
+                'error' => 'No hay beneficiarios para incluir en el XML. Las solicitudes revertidas se excluyen.',
+            ]);
+        }
+
+        $sepaPaymentOrder->update([
+            'debtor_name' => $validated['debtor_name'],
+            'debtor_nif_cif' => $validated['debtor_nif_cif'] ?? null,
+            'debtor_iban' => $debtorIban,
+            'debtor_address' => $validated['debtor_address'] ?? null,
+            'execution_date' => $validated['execution_date'],
+        ]);
+
+        try {
+            $sepaPaymentOrder->refresh();
+            $sepaPaymentOrder->load('beneficiaries');
+            $filePath = $this->xmlGenerator->generateAndSave($sepaPaymentOrder);
+
+            return response()->download($filePath, $sepaPaymentOrder->xml_filename, [
+                'Content-Type' => 'application/xml',
+            ])->deleteFileAfterSend(false);
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Error al generar el XML: '.$e->getMessage()]);
+        }
+    }
+
+    /**
      * Generar XML para una orden de pago
      */
     public function generateXml(SepaPaymentOrder $sepaPaymentOrder)

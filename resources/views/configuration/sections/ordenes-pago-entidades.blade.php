@@ -154,7 +154,7 @@
                             </td>
                             <td>
                                 @if($order->beneficiaries->isNotEmpty())
-                                    <a href="{{ route('sepa-payments.generate-xml', $order->id) }}" class="btn btn-sm btn-light" title="Descargar XML" onclick="event.stopPropagation();"><i class="fe-download"></i></a>
+                                    <button type="button" class="btn btn-sm btn-light" title="Descargar XML" data-sepa-confirm-download="{{ $order->id }}" onclick="event.stopPropagation();"><i class="fe-download"></i></button>
                                 @endif
                                 @if(in_array($order->status ?? '', ['descargado', 'generated']))
                                     <form action="{{ route('sepa-payments.mark-ready', $order->id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Marcar como Listo (pago realizado)?');" onclick="event.stopPropagation();">
@@ -420,7 +420,7 @@
                 <i class="ri-arrow-left-line me-1"></i> Volver a órdenes
             </a>
             @if($sepaOrder->beneficiaries->contains(fn ($b) => $b->isExportableToSepa()))
-                <a href="{{ route('sepa-payments.generate-xml', $sepaOrder->id) }}" class="btn btn-md btn-light" style="border-radius: 30px;"><i class="fe-download me-1"></i> Descargar XML</a>
+                <button type="button" class="btn btn-md btn-light" style="border-radius: 30px;" data-sepa-confirm-download="{{ $sepaOrder->id }}"><i class="fe-download me-1"></i> Descargar XML</button>
             @endif
             @if($canManagePayments)
                 <button type="button" id="btn-marcar-pagados" class="btn btn-md btn-success" style="border-radius: 30px;" disabled>
@@ -718,6 +718,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endif
+
+@include('partials.sepa-confirm-debtor-modal')
 
 @if($step === 3 && isset($entity))
 <script>

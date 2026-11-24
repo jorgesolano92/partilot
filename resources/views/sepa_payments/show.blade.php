@@ -73,13 +73,13 @@
                         <div class="col-md-3">
                             <strong>Archivo XML:</strong><br>
                             @if($sepaPaymentOrder->xml_filename)
-                                <a href="{{route('sepa-payments.generate-xml', $sepaPaymentOrder->id)}}" class="btn btn-sm btn-primary">
+                                <button type="button" class="btn btn-sm btn-primary" data-sepa-confirm-download="{{ $sepaPaymentOrder->id }}">
                                     <i class="ri-download-line"></i> Descargar XML
-                                </a>
+                                </button>
                             @else
-                                <a href="{{route('sepa-payments.generate-xml', $sepaPaymentOrder->id)}}" class="btn btn-sm btn-success">
+                                <button type="button" class="btn btn-sm btn-success" data-sepa-confirm-download="{{ $sepaPaymentOrder->id }}">
                                     <i class="ri-file-add-line"></i> Generar XML
-                                </a>
+                                </button>
                             @endif
                         </div>
                     </div>
@@ -187,13 +187,13 @@
                         <div class="col-12">
                             <a href="{{route('sepa-payments.index')}}" class="btn btn-secondary">Volver</a>
                             @if($sepaPaymentOrder->xml_filename)
-                                <a href="{{route('sepa-payments.generate-xml', $sepaPaymentOrder->id)}}" class="btn btn-primary">
+                                <button type="button" class="btn btn-primary" data-sepa-confirm-download="{{ $sepaPaymentOrder->id }}">
                                     <i class="ri-download-line"></i> Descargar XML
-                                </a>
+                                </button>
                             @else
-                                <a href="{{route('sepa-payments.generate-xml', $sepaPaymentOrder->id)}}" class="btn btn-success">
+                                <button type="button" class="btn btn-success" data-sepa-confirm-download="{{ $sepaPaymentOrder->id }}">
                                     <i class="ri-file-add-line"></i> Generar XML
-                                </a>
+                                </button>
                             @endif
                             @if($canManagePayments)
                                 <button type="button" id="btn-marcar-pagados" class="btn btn-success" disabled>
@@ -282,6 +282,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endif
+
+@include('partials.sepa-confirm-debtor-modal')
 @endsection
 
 
