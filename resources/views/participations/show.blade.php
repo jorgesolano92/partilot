@@ -11,6 +11,39 @@
 	.form-check-input:checked {
 		border-color: #333;
 	}
+
+	/* Solo esta vista: columna izq. en flex para que Atrás no use absolute sobre el footer */
+	.participation-show-layout {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: stretch;
+	}
+	.participation-show-sidebar {
+		display: flex;
+		flex-direction: column;
+		position: relative;
+	}
+	.participation-show-sidebar .participation-show-back {
+		margin-top: auto;
+		border-radius: 30px;
+		width: 200px;
+		max-width: 100%;
+		background-color: #333;
+		color: #fff;
+		padding: 8px;
+		font-weight: bolder;
+		position: relative;
+	}
+	.participation-show-sidebar .participation-show-back i {
+		top: 6px;
+		left: 32%;
+		font-size: 18px;
+		position: absolute;
+	}
+	.participation-show-sidebar .participation-show-back span {
+		display: block;
+		margin-left: 16px;
+	}
 </style>
 
 <!-- Start Content-->
@@ -43,9 +76,9 @@
 
                     <br>
 
-                    <div class="row">
+                    <div class="row participation-show-layout">
                     	
-                    	<div class="col-md-3" style="position: relative;">
+                    	<div class="col-md-3 participation-show-sidebar">
 
                     		@php
                     		    $participationSeller = $participation->seller
@@ -190,8 +223,9 @@
 
                     		</div>
 
-                    		<a href="{{url('participations/add')}}" style="border-radius: 30px; width: 200px; background-color: #333; color: #fff; padding: 8px; font-weight: bolder; position: absolute; bottom: 16px;" class="btn btn-md btn-light mt-2">
-                    						<i style="top: 6px; left: 32%; font-size: 18px; position: absolute;" class="ri-arrow-left-circle-line"></i> <span style="display: block; margin-left: 16px;">Atrás</span></a>
+                    		<a href="{{url('participations/add')}}" class="btn btn-md btn-light mt-3 participation-show-back">
+                    			<i class="ri-arrow-left-circle-line"></i> <span>Atrás</span>
+                    		</a>
                     	</div>
                     	<div class="col-md-9">
 
