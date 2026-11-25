@@ -66,10 +66,8 @@ class ParticipationObserver
                 'description' => "Participación devuelta por el vendedor ID: {$oldSellerId}",
                 'metadata' => $changes,
             ]);
-            
-            // Enviar notificación
-            $this->sendNotification($participation, 'returned_by_seller');
 
+            // No push por participación: DevolutionsController envía 1 resumen por lote.
             return; // Evitar registros duplicados
         }
 
@@ -162,10 +160,8 @@ class ParticipationObserver
                     'return_reason' => $participation->return_reason ?? null,
                 ]),
             ]);
-            
-            // Enviar notificación
-            $this->sendNotification($participation, 'returned_to_administration');
-            
+
+            // No push por participación: DevolutionsController envía 1 resumen por lote.
             return; // Evitar registros duplicados
         }
 

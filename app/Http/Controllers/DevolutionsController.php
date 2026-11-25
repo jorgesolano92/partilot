@@ -1526,6 +1526,12 @@ class DevolutionsController extends Controller
                 \Log::warning('Fallo enviando emails devolución: ' . $e->getMessage());
             }
 
+            $this->notifyDevolutionReturnedBulk(
+                (int) $devolution->entity_id,
+                (int) $devolution->id,
+                (string) ($tipoDevolucion ?? 'administracion')
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Devolución procesada correctamente',
@@ -3356,6 +3362,84 @@ class DevolutionsController extends Controller
             }
         } catch (\Throwable $e) {
             \Log::warning('No se pudo enviar el aviso de anulación al gestor', ['entity_id' => $entityId, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Un solo push por operación de devolución (evita N avisos en iOS/Android).
+     */
+    private function notifyDevolutionReturnedBulk(int $entityId, int $devolutionId, string $tipoDevolucion): void
+    {
+        try {
+            $countAdmin = DevolutionDetail::query()
+                ->where('devolution_id', $devolutionId)
+                ->where('action', 'devolver')
+                ->count();
+            $countSeller = DevolutionDetail::query()
+                ->where('devolution_id', $devolutionId)
+                ->where('action', 'devolver_vendedor')
+                ->count();
+            $count = $countAdmin + $countSeller;
+            if ($count <= 0) {
+                return;
+            }
+
+            $entity = Entity::with(['manager.user.fcmTokens'])->find($entityId);
+            $recipients = collect();
+            $manager = $entity?->manager?->user;
+            if ($manager) {
+                $recipients->push($manager);
+            }
+
+            if ($tipoDevolucion === 'vendedor') {
+                $sellerId = Devolution::query()->whereKey($devolutionId)->value('seller_id');
+                if ($sellerId) {
+                    $sellerUser = Seller::with('user.fcmTokens')->find($sellerId)?->user;
+                    if ($sellerUser) {
+                        $recipients->push($sellerUser);
+                    }
+                }
+            }
+
+            $title = '↩️ Participaciones devueltas';
+            $body = $countAdmin > 0
+                ? ($count === 1
+                    ? '1 participación ha sido devuelta a la administración.'
+                    : "{$count} participaciones han sido devueltas a la administración.")
+                : ($count === 1
+                    ? '1 participación ha sido devuelta por el vendedor.'
+                    : "{$count} participaciones han sido devueltas por el vendedor.");
+
+            $firebase = app(\App\Services\FirebaseServiceModern::class);
+            $seenTokens = [];
+            foreach ($recipients->unique('id') as $user) {
+                if (! $user || $user->fcmTokens->isEmpty() || $user->shouldExcludeFromOperationalPushRecipients()) {
+                    continue;
+                }
+                foreach ($user->fcmTokens->pluck('token')->unique() as $token) {
+                    if (isset($seenTokens[$token])) {
+                        continue;
+                    }
+                    $seenTokens[$token] = true;
+                    $firebase->sendToDevice(
+                        $token,
+                        $title,
+                        $body,
+                        [
+                            'type' => 'participation_update',
+                            'event' => 'returned_bulk',
+                            'entity_id' => (string) $entityId,
+                            'devolution_id' => (string) $devolutionId,
+                            'count' => (string) $count,
+                        ]
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('No se pudo enviar el aviso agrupado de devolución', [
+                'devolution_id' => $devolutionId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
