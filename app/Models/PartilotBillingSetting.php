@@ -99,4 +99,18 @@ class PartilotBillingSetting extends Model
 
         return 'ES'.$nif.'001';
     }
+
+    /**
+     * Documento del ordenante PARTILOT en órdenes SEPA de pago (pain.001).
+     * Prioriza Identificador acreedor SEPA (config) sobre el NIF/CIF legal.
+     */
+    public function paymentDebtorDocument(): string
+    {
+        $creditorId = trim((string) ($this->sepa_creditor_id ?? ''));
+        if ($creditorId !== '') {
+            return strtoupper(preg_replace('/\s+/', '', $creditorId) ?? $creditorId);
+        }
+
+        return strtoupper(preg_replace('/\s+/', '', (string) ($this->nif_cif ?? '')) ?? '');
+    }
 }

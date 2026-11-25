@@ -697,7 +697,7 @@ class EntityLotteryPrizePaymentService
             'message' => null,
             'payer' => $payer,
             'name' => $settings->company_name ?: 'PARTILOT',
-            'nif' => $settings->nif_cif,
+            'nif' => $settings->paymentDebtorDocument() ?: $settings->nif_cif,
             'address' => $settings->address,
             'iban' => $iban,
         ];
