@@ -27,15 +27,16 @@
                             @endif
                         </ul>
                         <p class="mb-2 small text-muted">
-                            Debes registrar una decisión para esta entidad. «Asumir deuda» mantiene las participaciones activas;
-                            «Anular participaciones» registrará la anulación (procesamiento en fase posterior).
+                            Debes liquidar/cerrar esta entidad ahora.
+                            «Asumir deuda» marca las no devueltas como vendidas y genera la deuda.
+                            «Anular por impago» invalida las pendientes; al escanear mostrarán que no son válidas.
                         </p>
                         <div class="d-flex flex-wrap gap-2 justify-content-end">
                             <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 lottery-deadline-admin-annul-btn">
-                                Anular participaciones
+                                Anular por impago
                             </button>
                             <button type="button" class="btn btn-dark btn-sm rounded-pill px-3 lottery-deadline-admin-assume-btn">
-                                Asumir deuda
+                                Liquidar · Asumir deuda
                             </button>
                         </div>
                     </div>

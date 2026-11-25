@@ -288,10 +288,14 @@ class Set extends Model
 
     /**
      * Siguiente número de set para una reserva (solo sets FÍSICOS; los digitales no cuentan).
+     * Si existen otras reservas de la misma entidad+sorteo con los mismos números jugados,
+     * continúa la numeración del pool (inventario unificado).
      */
     private static function getNextSetNumberPhysical($reserveId)
     {
-        $lastPhysical = self::where('reserve_id', $reserveId)
+        $siblingIds = static::siblingReserveIdsForNumbering((int) $reserveId);
+
+        $lastPhysical = self::whereIn('reserve_id', $siblingIds)
             ->where('physical_participations', '>', 0)
             ->orderBy('set_number', 'desc')
             ->first();
@@ -301,11 +305,22 @@ class Set extends Model
 
     /**
      * Renumerar sets en una reserva después de eliminar uno: solo físicos (1, 2, 3...); digitales quedan en 1.
+     * Respeta el offset del pool de reservas hermanas (mismos números) para no pisar códigos ya impresos.
      */
     private static function renumberSetsInReserve($reserveId)
     {
-        $sets = self::where('reserve_id', $reserveId)->orderBy('id')->get();
+        $reserveId = (int) $reserveId;
+        $siblingIds = static::siblingReserveIdsForNumbering($reserveId);
+        $otherIds = array_values(array_filter($siblingIds, fn ($id) => (int) $id !== $reserveId));
+
         $physicalNumber = 0;
+        if ($otherIds !== []) {
+            $physicalNumber = (int) (self::whereIn('reserve_id', $otherIds)
+                ->where('physical_participations', '>', 0)
+                ->max('set_number') ?? 0);
+        }
+
+        $sets = self::where('reserve_id', $reserveId)->orderBy('id')->get();
         foreach ($sets as $set) {
             $isDigitalOnly = $set->digital_participations > 0 && (int) ($set->physical_participations ?? 0) === 0;
             $newNumber = $isDigitalOnly ? 1 : ++$physicalNumber;
@@ -321,24 +336,80 @@ class Set extends Model
      */
     public static function getNextParticipationNumberForReserve($reserveId)
     {
-        $maxParticipationNumber = \App\Models\Participation::whereHas('set', function ($query) use ($reserveId) {
-            $query->where('reserve_id', $reserveId);
+        $siblingIds = static::siblingReserveIdsForNumbering((int) $reserveId);
+
+        $maxParticipationNumber = \App\Models\Participation::whereHas('set', function ($query) use ($siblingIds) {
+            $query->whereIn('reserve_id', $siblingIds);
         })->max('participation_number') ?? 0;
 
         return $maxParticipationNumber + 1;
     }
 
     /**
-     * Obtener el siguiente número de participación solo entre sets FÍSICOS de la reserva.
+     * Obtener el siguiente número de participación solo entre sets FÍSICOS del pool de números.
      * Las participaciones digitales no comparten esta consecución; cada set digital empieza en 1.
      */
     public static function getNextParticipationNumberForReservePhysical($reserveId)
     {
-        $maxParticipationNumber = \App\Models\Participation::whereHas('set', function ($query) use ($reserveId) {
-            $query->where('reserve_id', $reserveId)->where('physical_participations', '>', 0);
+        $siblingIds = static::siblingReserveIdsForNumbering((int) $reserveId);
+
+        $maxParticipationNumber = \App\Models\Participation::whereHas('set', function ($query) use ($siblingIds) {
+            $query->whereIn('reserve_id', $siblingIds)->where('physical_participations', '>', 0);
         })->max('participation_number') ?? 0;
 
         return $maxParticipationNumber + 1;
+    }
+
+    /**
+     * Reservas de la misma entidad + sorteo con el mismo conjunto de números jugados.
+     * Sirve para tratar 2ª/3ª reserva del mismo número como continuación de inventario.
+     *
+     * @return array<int>
+     */
+    public static function siblingReserveIdsForNumbering(int $reserveId): array
+    {
+        $reserve = Reserve::query()->find($reserveId);
+        if (! $reserve) {
+            return [$reserveId];
+        }
+
+        $targetKey = static::normalizeReservationNumbersKey($reserve->reservation_numbers ?? []);
+        $ids = [$reserveId];
+
+        $candidates = Reserve::query()
+            ->where('entity_id', $reserve->entity_id)
+            ->where('lottery_id', $reserve->lottery_id)
+            ->where('id', '!=', $reserveId)
+            ->whereIn('status', [0, 1])
+            ->get(['id', 'reservation_numbers']);
+
+        foreach ($candidates as $candidate) {
+            if (static::normalizeReservationNumbersKey($candidate->reservation_numbers ?? []) === $targetKey) {
+                $ids[] = (int) $candidate->id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * Clave comparable de números de reserva (ordenada, sin ceros a la izquierda).
+     *
+     * @param  array<int, mixed>|null  $numbers
+     */
+    public static function normalizeReservationNumbersKey($numbers): string
+    {
+        if (! is_array($numbers) || $numbers === []) {
+            return '';
+        }
+
+        $normalized = array_map(static function ($n) {
+            return (string) intval($n);
+        }, $numbers);
+
+        sort($normalized, SORT_STRING);
+
+        return implode('|', $normalized);
     }
 
     /**

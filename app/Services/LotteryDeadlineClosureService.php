@@ -7,8 +7,10 @@ use App\Models\DevolutionDetail;
 use App\Models\Entity;
 use App\Models\EntityLotteryPrizeSetting;
 use App\Models\Lottery;
+use App\Models\LotteryDeadlineAdminDecision;
 use App\Models\LotteryDeadlineClosureLog;
 use App\Models\Participation;
+use App\Models\ParticipationActivityLog;
 use App\Models\Reserve;
 use App\Models\Set;
 use App\Models\User;
@@ -19,6 +21,10 @@ use Illuminate\Support\Facades\Log;
 
 class LotteryDeadlineClosureService
 {
+    public const ANNUL_REASON = 'Anulada por impago tras fecha límite de devolución';
+
+    public const ANNUL_PUBLIC_MESSAGE = 'Esta participación ha sido anulada por impago y no es válida.';
+
     public function __construct(
         private LotteryDeadlineReminderService $reminderService
     ) {}
@@ -26,6 +32,30 @@ class LotteryDeadlineClosureService
     public function isEnabled(): bool
     {
         return (bool) config('lottery.auto_deadline_closure.enabled', false);
+    }
+
+    /**
+     * Aplica de inmediato la decisión de administración (asumir deuda / anular por impago).
+     *
+     * @return array<string, mixed>
+     */
+    public function applyAdminDecision(int $entityId, int $lotteryId, string $decision, bool $force = true): array
+    {
+        $entity = Entity::query()->findOrFail($entityId);
+        $lottery = Lottery::query()->findOrFail($lotteryId);
+        $deadline = $this->reminderService->resolveEffectiveDeadline($entity, $lottery) ?? now()->startOfDay();
+
+        return $this->processCandidate(
+            [
+                'entity' => $entity,
+                'lottery' => $lottery,
+                'deadline' => $deadline,
+            ],
+            now()->startOfDay(),
+            false,
+            $force,
+            $decision
+        );
     }
 
     /**
@@ -105,8 +135,13 @@ class LotteryDeadlineClosureService
      * @param  array{entity: Entity, lottery: Lottery, deadline: Carbon}  $candidate
      * @return array<string, mixed>
      */
-    public function processCandidate(array $candidate, Carbon $asOf, bool $dryRun = false, bool $force = false): array
-    {
+    public function processCandidate(
+        array $candidate,
+        Carbon $asOf,
+        bool $dryRun = false,
+        bool $force = false,
+        ?string $forcedDecision = null
+    ): array {
         /** @var Entity $entity */
         $entity = $candidate['entity'];
         /** @var Lottery $lottery */
@@ -126,7 +161,24 @@ class LotteryDeadlineClosureService
             );
         }
 
-        if ($this->requiresSpecialPrizeSettlement($lottery)) {
+        $decision = $forcedDecision
+            ?? LotteryDeadlineAdminDecision::query()
+                ->where('entity_id', $entity->id)
+                ->where('lottery_id', $lottery->id)
+                ->value('decision');
+
+        if (! $decision) {
+            // No persistir log: si no, wasAlreadyProcessed bloquearía el reintento tras la decisión.
+            return $this->result(
+                'skipped',
+                $label,
+                'Pendiente de decisión de administración (asumir deuda / anular por impago).',
+                LotteryDeadlineClosureLog::STATUS_SKIPPED_NO_PENDING
+            );
+        }
+
+        if ($this->requiresSpecialPrizeSettlement($lottery)
+            && $decision === LotteryDeadlineAdminDecision::DECISION_ASSUME_DEBT) {
             return $this->persistSkip(
                 $entity,
                 $lottery,
@@ -160,11 +212,18 @@ class LotteryDeadlineClosureService
         }
 
         // AUD-046: solo cerrar sets cuya fecha límite ya ha pasado (no la más temprana de todos).
+        // Si la decisión se aplica en el día 0, permitir sets cuya deadline es hoy o ya pasó.
         $setIds = Set::query()
             ->whereIn('reserve_id', $reserveIds)
             ->where('status', 1)
             ->get()
-            ->filter(fn (Set $set) => $this->setDeadlineHasPassed($set, $lottery, $asOf))
+            ->filter(function (Set $set) use ($lottery, $asOf, $forcedDecision) {
+                if ($forcedDecision !== null) {
+                    return $this->setDeadlineHasPassedOrIsToday($set, $lottery, $asOf);
+                }
+
+                return $this->setDeadlineHasPassed($set, $lottery, $asOf);
+            })
             ->pluck('id')
             ->all();
 
@@ -181,11 +240,181 @@ class LotteryDeadlineClosureService
             );
         }
 
+        $pendingIds = Participation::query()
+            ->where('entity_id', $entity->id)
+            ->whereIn('set_id', $setIds)
+            ->whereIn('status', ['disponible', 'asignada'])
+            ->pluck('id')
+            ->all();
+
+        if ($pendingIds === []) {
+            return $this->persistSkip(
+                $entity,
+                $lottery,
+                $deadline,
+                $dryRun,
+                $force,
+                $label,
+                'No hay participaciones pendientes de cierre.',
+                LotteryDeadlineClosureLog::STATUS_SKIPPED_NO_PENDING
+            );
+        }
+
+        if ($decision === LotteryDeadlineAdminDecision::DECISION_ANNUL) {
+            return $this->processAnnulCandidate(
+                $entity,
+                $lottery,
+                $deadline,
+                $setIds,
+                $pendingIds,
+                $label,
+                $dryRun,
+                $force
+            );
+        }
+
+        return $this->processAssumeDebtCandidate(
+            $entity,
+            $lottery,
+            $deadline,
+            $setIds,
+            $label,
+            $dryRun,
+            $force
+        );
+    }
+
+    /**
+     * @param  array<int>  $setIds
+     * @param  array<int>  $pendingIds
+     * @return array<string, mixed>
+     */
+    private function processAnnulCandidate(
+        Entity $entity,
+        Lottery $lottery,
+        Carbon $deadline,
+        array $setIds,
+        array $pendingIds,
+        string $label,
+        bool $dryRun,
+        bool $force
+    ): array {
+        if ($dryRun) {
+            return $this->result(
+                'completed',
+                $label,
+                'Simulación: anular por impago '.count($pendingIds).' participaciones pendientes.',
+                LotteryDeadlineClosureLog::STATUS_COMPLETED,
+                ['participations_annulled' => count($pendingIds)]
+            );
+        }
+
+        try {
+            $annulled = DB::transaction(function () use ($entity, $lottery, $deadline, $pendingIds, $force) {
+                if ($force) {
+                    $this->deletePreviousLogs($entity->id, $lottery->id);
+                }
+
+                $now = now();
+                $userId = $this->resolveSystemUserId();
+                $reason = self::ANNUL_REASON;
+                $count = 0;
+
+                Participation::query()->whereIn('id', $pendingIds)->orderBy('id')->chunkById(200, function ($chunk) use ($now, $userId, $reason, &$count) {
+                    $ids = $chunk->pluck('id')->all();
+                    Participation::whereIn('id', $ids)->update([
+                        'status' => 'anulada',
+                        'cancellation_reason' => $reason,
+                        'cancelled_by' => $userId,
+                        'cancellation_date' => $now->format('Y-m-d'),
+                        'updated_at' => $now,
+                    ]);
+
+                    foreach ($chunk as $participation) {
+                        ParticipationActivityLog::log($participation->id, 'cancelled', [
+                            'entity_id' => $participation->entity_id,
+                            'seller_id' => $participation->seller_id,
+                            'old_status' => $participation->status,
+                            'new_status' => 'anulada',
+                            'description' => 'Participación anulada por impago (decisión administración)',
+                            'metadata' => [
+                                'cancellation_reason' => $reason,
+                                'cancelled_by' => $userId,
+                                'cancellation_date' => $now->format('Y-m-d'),
+                                'source' => 'lottery_deadline_admin_annul',
+                            ],
+                        ]);
+                    }
+
+                    $count += count($ids);
+                });
+
+                LotteryDeadlineClosureLog::create([
+                    'entity_id' => $entity->id,
+                    'lottery_id' => $lottery->id,
+                    'effective_deadline' => $deadline->toDateString(),
+                    'devolution_id' => null,
+                    'participations_sold' => 0,
+                    'participations_returned_digital' => 0,
+                    'total_liquidation' => 0,
+                    'status' => LotteryDeadlineClosureLog::STATUS_COMPLETED,
+                    'message' => "Anulación por impago completada ({$count} participaciones).",
+                    'processed_at' => $now,
+                ]);
+
+                return $count;
+            });
+
+            return $this->result(
+                'completed',
+                $label,
+                "Anulación por impago completada ({$annulled} participaciones).",
+                LotteryDeadlineClosureLog::STATUS_COMPLETED,
+                [
+                    'decision' => LotteryDeadlineAdminDecision::DECISION_ANNUL,
+                    'participations_annulled' => $annulled,
+                ]
+            );
+        } catch (\Throwable $e) {
+            LotteryDeadlineClosureLog::create([
+                'entity_id' => $entity->id,
+                'lottery_id' => $lottery->id,
+                'effective_deadline' => $deadline->toDateString(),
+                'devolution_id' => null,
+                'participations_sold' => 0,
+                'participations_returned_digital' => 0,
+                'total_liquidation' => 0,
+                'status' => LotteryDeadlineClosureLog::STATUS_FAILED,
+                'message' => $e->getMessage(),
+                'processed_at' => now(),
+            ]);
+
+            return $this->result(
+                'failed',
+                $label,
+                $e->getMessage(),
+                LotteryDeadlineClosureLog::STATUS_FAILED
+            );
+        }
+    }
+
+    /**
+     * @param  array<int>  $setIds
+     * @return array<string, mixed>
+     */
+    private function processAssumeDebtCandidate(
+        Entity $entity,
+        Lottery $lottery,
+        Carbon $deadline,
+        array $setIds,
+        string $label,
+        bool $dryRun,
+        bool $force
+    ): array {
         $physicalToSell = Participation::query()
             ->where('entity_id', $entity->id)
             ->whereIn('set_id', $setIds)
             ->whereIn('status', ['disponible', 'asignada'])
-            ->where('status', '!=', 'anulada')
             ->whereRaw("(participation_code IS NULL OR participation_code NOT LIKE '1D/%')")
             ->pluck('id')
             ->all();
@@ -195,7 +424,6 @@ class LotteryDeadlineClosureService
             ->whereIn('set_id', $setIds)
             ->whereRaw("participation_code LIKE '1D/%'")
             ->whereIn('status', ['disponible', 'asignada'])
-            ->where('status', '!=', 'anulada')
             ->pluck('id')
             ->all();
 
@@ -259,7 +487,7 @@ class LotteryDeadlineClosureService
                     'devolution_date' => $now->format('Y-m-d'),
                     'devolution_time' => $now->format('H:i:s'),
                     'status' => 'procesada',
-                    'notes' => 'Cierre automático por fecha límite ('.$deadline->format('d/m/Y').')',
+                    'notes' => 'Liquidación por decisión de administración — se asume la deuda ('.$deadline->format('d/m/Y').')',
                     'special_prize_settlement' => null,
                 ]);
 
@@ -297,7 +525,7 @@ class LotteryDeadlineClosureService
                             'sale_date' => $now->format('Y-m-d'),
                             'sale_time' => $now->format('H:i:s'),
                             'sale_amount' => $saleAmount,
-                            'notes' => 'Liquidación automática por cierre de fecha límite',
+                            'notes' => 'Liquidación por asunción de deuda (fecha límite)',
                             'updated_at' => $now,
                         ]);
                         $details[] = [
@@ -322,7 +550,7 @@ class LotteryDeadlineClosureService
                     'participations_returned_digital' => count($digitalToReturn),
                     'total_liquidation' => $totalLiquidation,
                     'status' => LotteryDeadlineClosureLog::STATUS_COMPLETED,
-                    'message' => 'Cierre automático completado.',
+                    'message' => 'Liquidación por asunción de deuda completada.',
                     'processed_at' => $now,
                 ]);
 
@@ -351,9 +579,10 @@ class LotteryDeadlineClosureService
             return $this->result(
                 'completed',
                 $label,
-                "Cierre completado. Devolución #{$devolutionId}, liquidación {$totalLiquidation} €.",
+                "Liquidación completada. Devolución #{$devolutionId}, liquidación {$totalLiquidation} €.",
                 LotteryDeadlineClosureLog::STATUS_COMPLETED,
                 [
+                    'decision' => LotteryDeadlineAdminDecision::DECISION_ASSUME_DEBT,
                     'devolution_id' => $devolutionId,
                     'participations_sold' => count($physicalToSell),
                     'participations_returned_digital' => count($digitalToReturn),
@@ -494,6 +723,15 @@ class LotteryDeadlineClosureService
             : ($lottery->deadline_date ? $lottery->deadline_date->copy()->startOfDay() : null);
 
         return $setDeadline !== null && $setDeadline->lt($asOf);
+    }
+
+    private function setDeadlineHasPassedOrIsToday(Set $set, Lottery $lottery, Carbon $asOf): bool
+    {
+        $setDeadline = $set->deadline_date
+            ? Carbon::parse($set->deadline_date)->startOfDay()
+            : ($lottery->deadline_date ? $lottery->deadline_date->copy()->startOfDay() : null);
+
+        return $setDeadline !== null && $setDeadline->lte($asOf);
     }
 
     private function hasDueSetsStillOpen(Entity $entity, Lottery $lottery, Carbon $asOf): bool

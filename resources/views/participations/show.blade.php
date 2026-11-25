@@ -223,6 +223,30 @@
 						                    			</div>
 			                    					</div>
 
+			                    					@php
+			                    						if ($participation->isStoredAsDigitalCode()) {
+			                    							$participationChannelLabel = 'Digital';
+			                    						} elseif ($participation->isWalletDigital()) {
+			                    							$participationChannelLabel = 'Física (digitalizada)';
+			                    						} else {
+			                    							$participationChannelLabel = 'Física';
+			                    						}
+			                    					@endphp
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Tipo</label>
+
+							                    			<div class="input-group input-group-merge group-form">
+
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
+							                                    </div>
+
+							                                    <input readonly="" value="{{ $participationChannelLabel }}" class="form-control" type="text" placeholder="Física / Digital" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
+
 			                    					<div class="col-2">
 			                    						<div class="form-group mt-3 mb-3">
 			                    							<label class="label-control">Fecha Sorteo</label>

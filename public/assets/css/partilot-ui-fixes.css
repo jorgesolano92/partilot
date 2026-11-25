@@ -593,11 +593,22 @@ small.text-muted,
 /*
  * Card + footer unidos (como listados Administraciones / Sorteos).
  * Debe ir al final del CSS para ganar al .footer { position:absolute } del tema.
+ *
+ * Importante: en #wrapper (flex row) el .content-page del tema trae width:100%,
+ * lo que lo hace desbordar bajo el .app-menu sticky. El footer heredaba ese ancho
+ * y pasaba por debajo del menú. Forzamos flex:1 + width:auto para alinearlo
+ * con la columna de contenido (el card de la derecha).
  */
-.content-page {
+html body:not(.auth-fluid-pages) #wrapper .content-page {
     display: flex !important;
     flex-direction: column !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
     min-height: 100vh;
+    position: relative !important;
+    overflow-x: hidden !important;
 }
 
 .content-page > .content {
@@ -655,21 +666,27 @@ html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer,
 html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer,
 html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
     position: relative !important;
+    inset: auto !important;
     bottom: auto !important;
     left: auto !important;
     right: auto !important;
+    top: auto !important;
+    /* 15px = padding horizontal de .content → mismo eje que el card */
     width: auto !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
     flex-shrink: 0 !important;
     height: 60px !important;
     display: flex !important;
     align-items: center !important;
-    margin: -1px 27px 24px !important;
+    margin: -1px 15px 24px !important;
     padding: 0 1.5rem !important;
     border: 1px solid #d9dde8 !important;
     border-top: 0 !important;
     border-radius: 0 0 18px 18px !important;
     background: #fff !important;
     box-shadow: none !important;
+    z-index: 1 !important;
 }
 
 html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer > .container-fluid {

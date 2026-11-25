@@ -627,9 +627,12 @@
                 overflow-x: hidden;
             }
             .content-page {
+                flex: 1 1 auto !important;
+                width: auto !important;
                 max-width: 100%;
                 min-width: 0;
                 overflow-x: hidden;
+                position: relative;
             }
             .content-page .content {
                 max-width: 100%;
@@ -813,26 +816,29 @@
                 overflow: visible !important;
             }
 
-            /* Footer unido (también si el DOM lo anida dentro de .content) */
+            /* Footer unido al card (mismo eje horizontal que .content padding 15px) */
             #wrapper .content-page > footer.footer,
             #wrapper .content-page footer.footer,
             #wrapper .content-page .content > footer.footer {
                 position: relative !important;
                 flex-shrink: 0 !important;
+                inset: auto !important;
                 bottom: auto !important;
                 left: auto !important;
                 right: auto !important;
+                top: auto !important;
                 width: auto !important;
                 height: 60px !important;
                 display: flex !important;
                 align-items: center !important;
-                margin: -1px 27px 24px !important;
+                margin: -1px 15px 24px !important;
                 padding: 0 1.5rem !important;
                 border: 1px solid #d9dde8 !important;
                 border-top: 0 !important;
                 border-radius: 0 0 18px 18px !important;
                 background: #fff !important;
                 box-shadow: none !important;
+                z-index: 1 !important;
             }
 
             #wrapper .content-page footer.footer > .container-fluid {
@@ -853,7 +859,7 @@
             }
 
             html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
-                margin: -1px 12px 24px !important;
+                margin: -1px 15px 24px !important;
                 border-radius: 0 0 18px 18px !important;
                 box-shadow: none !important;
             }
@@ -1587,8 +1593,8 @@
                     @php
                         $isDashboardPanel = request()->routeIs('dashboard');
                         $footerStyle = $isDashboardPanel
-                            ? 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;'
-                            : 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;';
+                            ? 'position:relative!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;z-index:1!important;'
+                            : 'position:relative!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;z-index:1!important;';
                     @endphp
                     <footer class="footer" style="{{ $footerStyle }}">
                         <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
@@ -2390,7 +2396,7 @@
                             postEntityDecision(
                                 item,
                                 assumeUrl,
-                                '¿Confirmas que deseas ASUMIR LA DEUDA de esta entidad? Las participaciones seguirán activas y la administración asumirá el riesgo si la entidad no paga.'
+                                '¿Confirmas LIQUIDAR asumiendo la deuda? Las participaciones no devueltas se marcarán como vendidas y se generará la deuda correspondiente.'
                             );
                         });
                     }
@@ -2399,7 +2405,7 @@
                             postEntityDecision(
                                 item,
                                 annulUrl,
-                                '¿Confirmas que deseas ANULAR LAS PARTICIPACIONES de esta entidad? Esta acción es irreversible y se notificará a los compradores cuando el proceso esté completo.'
+                                '¿Confirmas ANULAR POR IMPAGO? Las participaciones pendientes quedarán invalidadas de inmediato; al escanear se indicará que no son válidas. Esta acción es irreversible.'
                             );
                         });
                     }

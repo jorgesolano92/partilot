@@ -82,9 +82,17 @@ class ParticipationPublicCheckService
         // Solo se bloquean estados inválidos (anulada / perdida).
         $blockedStatuses = ['anulada', 'perdida'];
         if (in_array($status, $blockedStatuses, true)) {
+            $reason = (string) ($participation->cancellation_reason ?? '');
+            $isImpago = $status === 'anulada' && (
+                str_contains(mb_strtolower($reason), 'impago')
+                || $reason === LotteryDeadlineClosureService::ANNUL_REASON
+            );
+
             return [
                 'success' => false,
-                'error' => 'Esta participación no está disponible para comprobación.',
+                'error' => $isImpago
+                    ? LotteryDeadlineClosureService::ANNUL_PUBLIC_MESSAGE
+                    : 'Esta participación no está disponible para comprobación.',
                 'ticket' => null,
             ];
         }
