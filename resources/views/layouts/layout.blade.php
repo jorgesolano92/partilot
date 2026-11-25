@@ -824,10 +824,8 @@
                 overflow: visible !important;
             }
 
-            /* Footer unido al card (mismo eje horizontal que .content padding 15px) */
-            #wrapper .content-page > footer.footer,
-            #wrapper .content-page footer.footer,
-            #wrapper .content-page .content > footer.footer {
+            /* Footer dentro de .content → mismo ancho que el card (padding 15px del padre) */
+            #wrapper .content-page > .content > footer.footer {
                 position: static !important;
                 flex-shrink: 0 !important;
                 inset: auto !important;
@@ -835,12 +833,12 @@
                 left: auto !important;
                 right: auto !important;
                 top: auto !important;
-                width: calc(100% - 30px) !important;
-                max-width: calc(100% - 30px) !important;
+                width: 100% !important;
+                max-width: 100% !important;
                 height: 60px !important;
                 display: flex !important;
                 align-items: center !important;
-                margin: -1px 15px 24px !important;
+                margin: -1px 0 24px !important;
                 padding: 0 1.5rem !important;
                 border: 1px solid #d9dde8 !important;
                 border-top: 0 !important;
@@ -851,13 +849,13 @@
                 box-sizing: border-box !important;
             }
 
-            #wrapper .content-page footer.footer > .container-fluid {
+            #wrapper .content-page > .content > footer.footer > .container-fluid {
                 width: 100%;
                 padding-left: 0 !important;
                 padding-right: 0 !important;
             }
 
-            #wrapper .content-page footer.footer .row {
+            #wrapper .content-page > .content > footer.footer .row {
                 align-items: center !important;
                 margin-left: 0 !important;
                 margin-right: 0 !important;
@@ -866,12 +864,6 @@
 
             html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page .content {
                 min-height: 0 !important;
-            }
-
-            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
-                margin: -1px 15px 24px !important;
-                border-radius: 0 0 18px 18px !important;
-                box-shadow: none !important;
             }
 
             .header-title {margin: 0 !important;}
@@ -1596,34 +1588,27 @@
 
                     @yield('content')
 
-                </div> <!-- content -->
-
-                @if (!request()->is('configuration*'))
-                    <!-- Footer Start -->
-                    @php
-                        $isDashboardPanel = request()->routeIs('dashboard');
-                        $footerStyle = $isDashboardPanel
-                            ? 'position:static!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:calc(100% - 30px)!important;max-width:calc(100% - 30px)!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;z-index:1!important;box-sizing:border-box!important;'
-                            : 'position:static!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:calc(100% - 30px)!important;max-width:calc(100% - 30px)!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;z-index:1!important;box-sizing:border-box!important;';
-                    @endphp
-                    <footer class="footer" style="{{ $footerStyle }}">
-                        <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
-                            <div class="row align-items-center" style="margin:0;width:100%;">
-                                <div class="col-md-6">
-                                    <div><script>document.write(new Date().getFullYear())</script> © Partilot - <a href="https://partilot.es/" target="_blank">partilot.es</a></div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="d-none d-md-flex gap-4 align-items-center justify-content-md-end footer-links">
-                                        <a href="javascript: void(0);">About</a>
-                                        <a href="javascript: void(0);">Support</a>
-                                        <a href="javascript: void(0);">Contact Us</a>
+                    @if (!request()->is('configuration*'))
+                        {{-- Dentro de .content (mismo padding 15px que el card) para no salirse del eje --}}
+                        <footer class="footer">
+                            <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
+                                <div class="row align-items-center" style="margin:0;width:100%;">
+                                    <div class="col-md-6">
+                                        <div><script>document.write(new Date().getFullYear())</script> © Partilot - <a href="https://partilot.es/" target="_blank">partilot.es</a></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-none d-md-flex gap-4 align-items-center justify-content-md-end footer-links">
+                                            <a href="javascript: void(0);">About</a>
+                                            <a href="javascript: void(0);">Support</a>
+                                            <a href="javascript: void(0);">Contact Us</a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </footer>
-                    <!-- end Footer -->
-                @endif
+                        </footer>
+                    @endif
+
+                </div> <!-- content -->
 
             </div>
 

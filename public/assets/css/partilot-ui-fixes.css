@@ -693,25 +693,23 @@ html body:not(.auth-fluid-pages) #wrapper .content-page {
     overflow: visible !important;
 }
 
-html body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer,
-html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer,
-html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer,
-html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
+/* Footer va DENTRO de .content (ver layout.blade.php): hereda el padding 15px */
+html body:not(.auth-fluid-pages) #wrapper .content-page > .content > footer.footer,
+html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-page > .content > footer.footer {
     position: static !important;
     inset: auto !important;
     bottom: auto !important;
     left: auto !important;
     right: auto !important;
     top: auto !important;
-    /* Mismo eje horizontal que .content (padding 15px) → alinea con el card */
-    width: calc(100% - 30px) !important;
-    max-width: calc(100% - 30px) !important;
+    width: 100% !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
     flex-shrink: 0 !important;
     height: 60px !important;
     display: flex !important;
     align-items: center !important;
-    margin: -1px 15px 24px !important;
+    margin: -1px 0 24px !important;
     padding: 0 1.5rem !important;
     border: 1px solid #d9dde8 !important;
     border-top: 0 !important;
@@ -721,13 +719,13 @@ html[data-layout-mode="detached"] body:not(.auth-fluid-pages) #wrapper .content-
     z-index: 1 !important;
 }
 
-html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer > .container-fluid {
+html body:not(.auth-fluid-pages) #wrapper .content-page > .content > footer.footer > .container-fluid {
     width: 100%;
     padding-left: 0 !important;
     padding-right: 0 !important;
 }
 
-html body:not(.auth-fluid-pages) #wrapper .content-page footer.footer .row {
+html body:not(.auth-fluid-pages) #wrapper .content-page > .content > footer.footer .row {
     align-items: center !important;
     margin-left: 0 !important;
     margin-right: 0 !important;

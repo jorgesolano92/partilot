@@ -259,17 +259,19 @@
     min-height: calc(100vh - 335px);
 }
 
-body:not(.auth-fluid-pages) #wrapper .content-page > footer.footer {
-    position: relative !important;
+body:not(.auth-fluid-pages) #wrapper .content-page > .content > footer.footer {
+    position: static !important;
     left: auto !important;
     right: auto !important;
     bottom: auto !important;
-    width: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
     flex-shrink: 0 !important;
-    margin: -1px 27px 0 !important;
+    margin: -1px 0 24px !important;
     border: 1px solid #d9dde8 !important;
     border-top: 0 !important;
     border-radius: 0 0 18px 18px !important;
     background: #fff !important;
     box-shadow: none !important;
+    box-sizing: border-box !important;
 }

@@ -204,20 +204,21 @@
         margin-bottom: 0 !important;
     }
     /* Si no hay Administraciones, ocultar pie en Panel (sin pelear con inline display) */
-    body:has(.dashboard-panel):not(:has(.panel-row-footer-join)) #wrapper .content-page footer.footer {
+    body:has(.dashboard-panel):not(:has(.panel-row-footer-join)) #wrapper .content-page > .content > footer.footer {
         display: none !important;
     }
-    body:has(.dashboard-panel):has(.panel-row-footer-join) #wrapper .content-page footer.footer {
+    body:has(.dashboard-panel):has(.panel-row-footer-join) #wrapper .content-page > .content > footer.footer {
         display: flex !important;
-        position: relative !important;
+        position: static !important;
         bottom: auto !important;
         left: auto !important;
         right: auto !important;
-        width: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
         height: 60px !important;
         align-items: center !important;
         flex-shrink: 0 !important;
-        margin: -1px 15px 24px !important;
+        margin: -1px 0 24px !important;
         padding: 0 1.5rem !important;
         border: 1px solid #d9dde8 !important;
         border-top: 0 !important;
