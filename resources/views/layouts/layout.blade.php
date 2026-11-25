@@ -626,21 +626,10 @@
                 min-width: 0;
                 overflow-x: hidden;
             }
-            #wrapper {
-                display: flex !important;
-                flex-wrap: nowrap !important;
-                align-items: stretch !important;
-            }
-            #wrapper > .app-menu {
-                flex: 0 0 var(--ct-leftbar-width) !important;
-            }
             .content-page {
-                flex: 1 1 0% !important;
-                width: 0 !important;
                 max-width: 100%;
                 min-width: 0;
                 overflow-x: hidden;
-                position: relative;
             }
             .content-page .content {
                 max-width: 100%;
@@ -824,38 +813,35 @@
                 overflow: visible !important;
             }
 
-            /* Footer dentro de .content → mismo ancho que el card (padding 15px del padre) */
-            #wrapper .content-page > .content > footer.footer {
-                position: static !important;
+            /* Footer unido (también si el DOM lo anida dentro de .content) */
+            #wrapper .content-page > footer.footer,
+            #wrapper .content-page footer.footer,
+            #wrapper .content-page .content > footer.footer {
+                position: relative !important;
                 flex-shrink: 0 !important;
-                inset: auto !important;
                 bottom: auto !important;
                 left: auto !important;
                 right: auto !important;
-                top: auto !important;
-                width: 100% !important;
-                max-width: 100% !important;
+                width: auto !important;
                 height: 60px !important;
                 display: flex !important;
                 align-items: center !important;
-                margin: -1px 0 24px !important;
+                margin: -1px 27px 24px !important;
                 padding: 0 1.5rem !important;
                 border: 1px solid #d9dde8 !important;
                 border-top: 0 !important;
                 border-radius: 0 0 18px 18px !important;
                 background: #fff !important;
                 box-shadow: none !important;
-                z-index: 1 !important;
-                box-sizing: border-box !important;
             }
 
-            #wrapper .content-page > .content > footer.footer > .container-fluid {
+            #wrapper .content-page footer.footer > .container-fluid {
                 width: 100%;
                 padding-left: 0 !important;
                 padding-right: 0 !important;
             }
 
-            #wrapper .content-page > .content > footer.footer .row {
+            #wrapper .content-page footer.footer .row {
                 align-items: center !important;
                 margin-left: 0 !important;
                 margin-right: 0 !important;
@@ -864,6 +850,12 @@
 
             html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page .content {
                 min-height: 0 !important;
+            }
+
+            html[data-layout-mode="detached"]:not([data-layout="horizontal"]) body:not(.auth-fluid-pages) #wrapper .content-page footer.footer {
+                margin: -1px 12px 24px !important;
+                border-radius: 0 0 18px 18px !important;
+                box-shadow: none !important;
             }
 
             .header-title {margin: 0 !important;}
@@ -1588,27 +1580,34 @@
 
                     @yield('content')
 
-                    @if (!request()->is('configuration*'))
-                        {{-- Dentro de .content (mismo padding 15px que el card) para no salirse del eje --}}
-                        <footer class="footer">
-                            <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
-                                <div class="row align-items-center" style="margin:0;width:100%;">
-                                    <div class="col-md-6">
-                                        <div><script>document.write(new Date().getFullYear())</script> © Partilot - <a href="https://partilot.es/" target="_blank">partilot.es</a></div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="d-none d-md-flex gap-4 align-items-center justify-content-md-end footer-links">
-                                            <a href="javascript: void(0);">About</a>
-                                            <a href="javascript: void(0);">Support</a>
-                                            <a href="javascript: void(0);">Contact Us</a>
-                                        </div>
+                </div> <!-- content -->
+
+                @if (!request()->is('configuration*'))
+                    <!-- Footer Start -->
+                    @php
+                        $isDashboardPanel = request()->routeIs('dashboard');
+                        $footerStyle = $isDashboardPanel
+                            ? 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;'
+                            : 'position:relative!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 27px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;';
+                    @endphp
+                    <footer class="footer" style="{{ $footerStyle }}">
+                        <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
+                            <div class="row align-items-center" style="margin:0;width:100%;">
+                                <div class="col-md-6">
+                                    <div><script>document.write(new Date().getFullYear())</script> © Partilot - <a href="https://partilot.es/" target="_blank">partilot.es</a></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-none d-md-flex gap-4 align-items-center justify-content-md-end footer-links">
+                                        <a href="javascript: void(0);">About</a>
+                                        <a href="javascript: void(0);">Support</a>
+                                        <a href="javascript: void(0);">Contact Us</a>
                                     </div>
                                 </div>
                             </div>
-                        </footer>
-                    @endif
-
-                </div> <!-- content -->
+                        </div>
+                    </footer>
+                    <!-- end Footer -->
+                @endif
 
             </div>
 
@@ -2391,7 +2390,7 @@
                             postEntityDecision(
                                 item,
                                 assumeUrl,
-                                '¿Confirmas LIQUIDAR asumiendo la deuda? Las participaciones no devueltas se marcarán como vendidas y se generará la deuda correspondiente.'
+                                '¿Confirmas que deseas ASUMIR LA DEUDA de esta entidad? Las participaciones seguirán activas y la administración asumirá el riesgo si la entidad no paga.'
                             );
                         });
                     }
@@ -2400,7 +2399,7 @@
                             postEntityDecision(
                                 item,
                                 annulUrl,
-                                '¿Confirmas ANULAR POR IMPAGO? Las participaciones pendientes quedarán invalidadas de inmediato; al escanear se indicará que no son válidas. Esta acción es irreversible.'
+                                '¿Confirmas que deseas ANULAR LAS PARTICIPACIONES de esta entidad? Esta acción es irreversible y se notificará a los compradores cuando el proceso esté completo.'
                             );
                         });
                     }
