@@ -403,6 +403,26 @@
 		                    				</table>
 		                    			</div>
 
+			                    			<h4 class="mb-0 mt-1">
+			                    				Comentarios
+			                    			</h4>
+			                    			<small><i>Puedes editar el comentario de la participación directamente aquí.</i></small>
+
+			                    			<div class="row">
+			                    				<div class="col-8">
+			                    					<div class="form-group mt-2">
+						                    			<label class="label-control">Comentario</label>
+						                    			<div class="input-group input-group-merge group-form" style="border: none">
+						                                    <textarea class="form-control" placeholder="Añade tu comentario" name="notes" id="participation-notes" rows="6">{{ old('notes', $participation->notes ?? '') }}</textarea>
+						                                </div>
+						                                <button type="button" class="btn btn-primary mt-2" id="btn-guardar-comentario" style="border-radius: 30px;">
+						                                    <i class="ri-save-line"></i> Guardar comentario
+						                                </button>
+					                    			</div>
+			                    				</div>
+			                    				<div class="col-4 text-end"></div>
+			                    			</div>
+
 			                    		</div>
                     				</div>
 
@@ -411,28 +431,19 @@
                     					<div class="form-card bs" style="min-height: 658px;">
 			                    			<h4 class="mb-0 mt-1">
 			                    				Datos de contacto
-			                    				{{-- Sin botón Editar vendedor cuando la participación está asignada: se edita desde el perfil del vendedor si hace falta --}}
 			                    			</h4>
 			                    			<small><i>Datos del vendedor asignado (solo lectura)</i></small>
 			                    			<div style="clear: both;"></div>
-
-			                    			
 			                    			<br>
-
 			                    			<div>
-
 			                    				<div class="row">
-			                    					
 			                    					<div class="col-4">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Nombre</label>
-
 							                    			<div class="input-group input-group-merge group-form">
-
 							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
 							                                      	<img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
-
                                             <input readonly="" value="{{ $participationSeller->name }}" class="form-control" type="text" placeholder="Nombre completo" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
@@ -440,146 +451,84 @@
 			                    					<div class="col-4">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Primer Apellido</label>
-
 							                    			<div class="input-group input-group-merge group-form">
-
 							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
 							                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
-
                                             <input readonly="" value="{{ optional($participationSeller)->user ? optional($participationSeller->user)->last_name : (optional($participationSeller)->last_name ?? '-') }}" class="form-control" type="text" placeholder="Primer Apellido" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
-
 			                    					<div class="col-4">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Segundo Apellido</label>
-
 							                    			<div class="input-group input-group-merge group-form">
-
 							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
 							                                        <img src="{{url('assets/form-groups/admin/11.svg')}}" alt="">
 							                                    </div>
-
                                             <input readonly="" value="{{ optional($participationSeller)->user ? optional($participation->seller->user)->last_name2 : (optional($participationSeller)->last_name2 ?? '-') }}" class="form-control" type="text" placeholder="Segundo Apellido" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
-			                    					
 			                    					<div class="col-2">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">NIF/CIF</label>
-
 							                    			<div class="input-group input-group-merge group-form">
-
 							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
 							                                        <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
 							                                    </div>
-
                                         <input readonly="" value="{{ optional($participationSeller)->user ? optional($participation->seller->user)->nif_cif : (optional($participationSeller)->nif_cif ?? 'N/A') }}" class="form-control" type="text" placeholder="B26262626" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
-
 			                    					<div class="col-3">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">F. Nacimiento</label>
-
 							                    			<div class="input-group input-group-merge group-form">
-
 							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
 							                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
 							                                    </div>
-
                                         <input readonly="" value="{{ optional(optional($participationSeller)->user)->birthday ? \Carbon\Carbon::parse(optional(optional($participationSeller)->user)->birthday)->format('Y-m-d') : '' }}" class="form-control" type="date" placeholder="01/01/1990" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
-
 			                    					<div class="col-4">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Email</label>
-
 							                    			<div class="input-group input-group-merge group-form">
-
 							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
 							                                        <img src="{{url('assets/form-groups/admin/9.svg')}}" alt="">
 							                                    </div>
-
                                         <input readonly="" value="{{ optional($participationSeller)->email ?? optional(optional($participationSeller)->user)->email ?? 'N/A' }}" class="form-control" type="email" placeholder="ejemplo@cuentaemail.com" style="border-radius: 0 30px 30px 0;">
 							                                </div>
 						                    			</div>
 			                    					</div>
-
 			                    					<div class="col-3">
 			                    						<div class="form-group mt-2 mb-3">
 			                    							<label class="label-control">Teléfono</label>
-
 							                    			<div class="input-group input-group-merge group-form">
-
 							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
 							                                        <img src="{{url('assets/form-groups/admin/10.svg')}}" alt="">
 							                                    </div>
-
                                         <input readonly="" value="{{ optional($participationSeller)->phone ?? optional(optional($participationSeller)->user)->phone ?? 'N/A' }}" class="form-control" type="phone" placeholder="940 200 200" style="border-radius: 0 30px 30px 0;">
 							                                </div>
-                        @endif
 						                    			</div>
 			                    					</div>
-
 			                    				</div>
-			                    				
 			                    			</div>
-
-			                    			<h4 class="mb-0 mt-1">
-			                    				Comentarios
-			                    			</h4>
-			                    			<small><i>Puedes editar el comentario de la participación directamente aquí.</i></small>
-
-			                    			<div class="row">
-			                    				
-			                    				<div class="col-8">
-			                    					
-			                    					<div class="form-group mt-2">
-						                    			<label class="label-control">Comentario</label>
-
-						                    			<div class="input-group input-group-merge group-form" style="border: none">
-
-						                                    <textarea class="form-control" placeholder="Añade tu comentario" name="notes" id="participation-notes" rows="6">{{ old('notes', $participation->notes ?? '') }}</textarea>
-						                                </div>
-						                                <button type="button" class="btn btn-primary mt-2" id="btn-guardar-comentario" style="border-radius: 30px;">
-						                                    <i class="ri-save-line"></i> Guardar comentario
-						                                </button>
-					                    			</div>
-
-			                    				</div>
-
-			                    				<div class="col-4 text-end">
-			                    					
-			                    				</div>
-
-			                    			</div>
-
 			                    		</div>
                     				</div>
+                        @endif
 
                     			</div>
-
-
                     		</div>
-
                     	</div>
-
                     </div>
-
-                    
                 </div> <!-- end card body-->
             </div> <!-- end card -->
         </div><!-- end col-->
     </div>
     <!-- end row-->
-
 </div> <!-- container -->
 
 @endsection
