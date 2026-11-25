@@ -1059,6 +1059,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Liquidación / devolución entidad→administración: solo superadmin o administración.
+     * El gestor de entidad no puede auto-liquidarse (registrar pagos hacia la admin).
+     */
+    public function canLiquidateEntityToAdministration(int $entityId): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        return $this->isAdministration() && $this->canAccessEntity($entityId);
+    }
+
+    /**
      * Acceso al módulo web de devoluciones (menú y pantallas).
      * Incluye cuenta panel de entidad en modo solo consulta; gestores no responsables quedan excluidos.
      */

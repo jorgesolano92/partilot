@@ -79,7 +79,16 @@
                                                 </div>
                                             </div>
 
-                                                                                         <div class="row show-content mt-4">
+                                                                                         @php
+                                                 if ($participation->isStoredAsDigitalCode()) {
+                                                     $participationChannelLabel = 'Digital';
+                                                 } elseif ($participation->isWalletDigital()) {
+                                                     $participationChannelLabel = 'Física (digitalizada)';
+                                                 } else {
+                                                     $participationChannelLabel = 'Física';
+                                                 }
+                                             @endphp
+                                             <div class="row show-content mt-4">
                                                  <div class="col-md-6">
                                                      <div class="form-group mt-2 mb-3">
                                                          <label class="label-control">Código de Participación</label>
@@ -99,6 +108,20 @@
                                                                  <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
                                                              </div>
                                                              <input class="form-control" type="text" value="{{ $participation->participation_number ?? 'N/A' }}" style="border-radius: 0 30px 30px 0;" readonly>
+                                                         </div>
+                                                     </div>
+                                                 </div>
+                                             </div>
+
+                                             <div class="row show-content">
+                                                 <div class="col-md-6">
+                                                     <div class="form-group mt-2 mb-3">
+                                                         <label class="label-control">Tipo</label>
+                                                         <div class="input-group input-group-merge group-form">
+                                                             <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+                                                                 <img src="{{url('assets/form-groups/admin/4.svg')}}" alt="">
+                                                             </div>
+                                                             <input class="form-control" type="text" value="{{ $participationChannelLabel }}" style="border-radius: 0 30px 30px 0;" readonly>
                                                          </div>
                                                      </div>
                                                  </div>

@@ -103,9 +103,9 @@ class DevolutionsController extends Controller
     }
 
     /**
-     * Resumen entidad→administración: las digitales disponibles/asignadas del pool
-     * se devuelven automáticamente al confirmar, por tanto cuentan como "devueltas" en la UI.
-     * "Disponibles" en resumen = solo físicas que aún no se devuelven manualmente.
+     * Resumen entidad→administración (paso liquidar): las digitales disponibles/asignadas del pool
+     * se auto-devuelven al liquidar, por tanto cuentan como "devueltas" en esa UI.
+     * En devolución parcial (Aceptar) no se tocan. "Disponibles" = físicas aún no devueltas a mano.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Participation>  $baseQuery
      * @param  iterable<\App\Models\Participation>  $manualReturnParticipations
@@ -423,6 +423,26 @@ class DevolutionsController extends Controller
         ], 403);
     }
 
+    /**
+     * En liquidaciones entidad→admin el gestor de entidad no puede registrar/editar pagos.
+     */
+    private function forbidEntityManagerAdminLiquidationPayments(Devolution $devolution): ?\Illuminate\Http\JsonResponse
+    {
+        if ($devolution->seller_id) {
+            return null;
+        }
+
+        $user = auth()->user();
+        if ($user && $user->canLiquidateEntityToAdministration((int) $devolution->entity_id)) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Los pagos de liquidación a administración solo los gestiona la administración (o superadmin).',
+        ], 403);
+    }
+
     private function redirectUnlessDevolutionsWebAccess(): ?\Illuminate\Http\RedirectResponse
     {
         $user = auth()->user();
@@ -544,8 +564,10 @@ class DevolutionsController extends Controller
         }
 
         $autoSelectEntityId = \App\Support\PanelSelectionResolver::implicitEntityId(auth()->user());
+        $user = auth()->user();
+        $canLiquidateToAdministration = $user->isSuperAdmin() || $user->isAdministration();
 
-        return view('devolutions.create', compact('autoSelectEntityId'));
+        return view('devolutions.create', compact('autoSelectEntityId', 'canLiquidateToAdministration'));
     }
 
     /**
@@ -682,6 +704,17 @@ class DevolutionsController extends Controller
                 DB::rollBack();
 
                 return $response;
+            }
+
+            // Entidad→administración: solo superadmin / administración (no gestor de entidad).
+            if ($tipoDevolucionEarly !== 'vendedor'
+                && ! auth()->user()->canLiquidateEntityToAdministration((int) $data['entity_id'])) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La liquidación o devolución a administración solo la puede tramitar la administración (o superadmin). El gestor de la entidad no puede registrar ese cobro.',
+                ], 403);
             }
 
             // VALIDAR: Si hay seller_id, verificar que pertenezca a la entidad
@@ -1224,7 +1257,8 @@ class DevolutionsController extends Controller
                 }
             }
 
-            // Devolución entidad→administración: participaciones DIGITALES no vendidas de la reserva se marcan como devueltas
+            // Entidad→admin: digitales no vendidas solo se auto-devuelven al LIQUIDAR.
+            // En devolución parcial (Aceptar / solo_devolucion) se dejan disponibles para seguir vendiendo.
             $reserveIdForDigital = $data['reserve_id'] ?? null;
             if ($reserveIdForDigital === null && !empty($participationsToReturn)) {
                 $firstSetId = Participation::forUser(auth()->user())->whereIn('id', $participationsToReturn)->value('set_id');
@@ -1235,7 +1269,7 @@ class DevolutionsController extends Controller
             if ($reserveIdForDigital === null && !empty($data['set_id'])) {
                 $reserveIdForDigital = Set::forUser(auth()->user())->find((int) $data['set_id'])?->reserve_id;
             }
-            if ($tipoDevolucion !== 'vendedor' && $reserveIdForDigital && !empty($data['entity_id']) && !empty($data['lottery_id'])) {
+            if (! $soloDevolucion && $tipoDevolucion !== 'vendedor' && $reserveIdForDigital && !empty($data['entity_id']) && !empty($data['lottery_id'])) {
                 $setIdsReserve = Set::forUser(auth()->user())
                     ->where('reserve_id', $reserveIdForDigital)
                     ->where('status', 1)
@@ -2553,7 +2587,7 @@ class DevolutionsController extends Controller
         if ($participation && str_starts_with((string) $participation->participation_code, '1D/')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Las participaciones digitales no se seleccionan a mano: las no vendidas se devuelven solas al confirmar; las vendidas van a la liquidación.',
+                'message' => 'Las participaciones digitales no se seleccionan a mano: las no vendidas se auto-devuelven al liquidar (no en devolución parcial); las vendidas van a la liquidación.',
                 'participations' => [],
             ], 422);
         }
@@ -3182,6 +3216,9 @@ class DevolutionsController extends Controller
             if (! auth()->user()->canManageEntityDevolutions((int) $devolution->entity_id)) {
                 return response()->json(['success' => false, 'message' => 'Sin permiso.'], 403);
             }
+            if ($resp = $this->forbidEntityManagerAdminLiquidationPayments($devolution)) {
+                return $resp;
+            }
 
             $data = $request->validate([
                 'pagos' => 'required|array',
@@ -3233,6 +3270,9 @@ class DevolutionsController extends Controller
             if (! auth()->user()->canManageEntityDevolutions((int) $devolution->entity_id)) {
                 return response()->json(['success' => false, 'message' => 'Sin permiso.'], 403);
             }
+            if ($resp = $this->forbidEntityManagerAdminLiquidationPayments($devolution)) {
+                return $resp;
+            }
 
             $payment = DevolutionPayment::where('devolution_id', $devolution->id)
                 ->where('id', $paymentId)
@@ -3274,6 +3314,9 @@ class DevolutionsController extends Controller
             $devolution = Devolution::forUser(auth()->user())->findOrFail($devolutionId);
             if (! auth()->user()->canManageEntityDevolutions((int) $devolution->entity_id)) {
                 return response()->json(['success' => false, 'message' => 'Sin permiso.'], 403);
+            }
+            if ($resp = $this->forbidEntityManagerAdminLiquidationPayments($devolution)) {
+                return $resp;
             }
 
             $payment = DevolutionPayment::where('devolution_id', $devolution->id)

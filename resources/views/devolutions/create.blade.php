@@ -449,11 +449,13 @@
                                                             <h4 class="mb-0">Devolución <br> Vendedor</h4>
                                                         </button>
 
+                                                        @if(!empty($canLiquidateToAdministration))
                                                         <button class="btn btn-light btn-xl text-center m-2 bs" id="btn-devolucion-administracion" style="border: 1px solid #f0f0f0; padding: 16px; width: 180px; border-radius: 16px; position: relative;">
                                                             {{-- <img class="mt-2 mb-1" src="{{url('assets/admin.svg')}}" alt="" width="60%"> --}}
                                                             <img class="mt-2 mb-1" src="{{url('assets/vendedor.svg')}}" alt="" width="60%">
                                                             <h4 class="mb-0">Devolución <br> Administración</h4>
                                                         </button>
+                                                        @endif
 
                                                         <button class="btn btn-light btn-xl text-center m-2 bs" id="btn-anulacion-participaciones" style="border: 1px solid #f0f0f0; padding: 16px; width: 180px; border-radius: 16px; position: relative;">
                                                             {{-- <img class="mt-2 mb-1" src="{{url('assets/cancel.svg')}}" alt="" width="60%"> --}}
@@ -969,7 +971,7 @@
                                                             <h5 class="card-title mb-1">Resumen Devolución</h5>
                                                             <small class="text-muted d-block mb-2" id="liquidacion-resumen-subtitulo">Resumen Devolución Administración</small>
                                                             <div class="alert alert-info py-2 mb-2 small" id="liquidacion-resumen-aviso-digitales">
-                                                                <strong>Digitales (pool de la entidad):</strong> las no vendidas de la reserva se devuelven automáticamente a administración al confirmar.
+                                                                <strong>Digitales (pool de la entidad):</strong> en una devolución parcial (Aceptar) no se tocan; al liquidar, las no vendidas se devuelven automáticamente a administración.
                                                                 Las vendidas entran en la liquidación. Las físicas no devueltas se liquidan como vendidas.
                                                             </div>
 
@@ -993,7 +995,7 @@
                                                                     <div class="mb-2">
                                                                         <strong>Físicas pendientes:</strong>
                                                                         <span id="liquidacion-disponibles">0</span>
-                                                                        <small class="text-muted d-block">Solo físicas; las digitales del pool van en devueltas</small>
+                                                                        <small class="text-muted d-block">Solo físicas; las digitales del pool solo se auto-devuelven al liquidar</small>
                                                                     </div>
                                                                 </div>
                                                             </div>

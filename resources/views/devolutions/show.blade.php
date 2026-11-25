@@ -162,6 +162,30 @@
                                 return $importe !== null ? $n.' ('.number_format($importe, 2, ',', '.').'€)' : (string) $n;
                             };
                             $disponibles = max(0, (int) $devolution->total_participations - $devueltas->count() - $ventasRegistradas->count());
+                            $detalleFilas = $details->filter(fn ($d) => in_array((string) $d->action, ['devolver', 'devolver_vendedor', 'vender'], true));
+                            $channelLabel = function ($p) {
+                                if (! $p) {
+                                    return 'Física';
+                                }
+                                if ($p->isStoredAsDigitalCode()) {
+                                    return 'Digital';
+                                }
+                                if ($p->isWalletDigital()) {
+                                    return 'Física (digitalizada)';
+                                }
+
+                                return 'Física';
+                            };
+                            $isDigitalDetail = fn ($d) => $d->participation && $d->participation->isStoredAsDigitalCode();
+                            $detalleDigitales = $detalleFilas->filter($isDigitalDetail)->values();
+                            $detalleFisicas = $detalleFilas->reject($isDigitalDetail)->values();
+                            $accionLabel = function ($action) {
+                                return match ((string) $action) {
+                                    'devolver', 'devolver_vendedor' => 'Devuelta',
+                                    'vender' => 'Vendida / liquidada',
+                                    default => (string) $action,
+                                };
+                            };
                         @endphp
 
                         <div class="resumen-devolucion">
@@ -176,6 +200,14 @@
                                 <span class="resumen-valor text-danger">{{ $fmt($devueltas->count()) }}</span>
                             </div>
                             <div class="resumen-linea">
+                                <span class="resumen-etiqueta">— Físicas:</span>
+                                <span class="resumen-valor">{{ $fmt($detalleFisicas->whereIn('action', ['devolver', 'devolver_vendedor'])->count()) }}</span>
+                            </div>
+                            <div class="resumen-linea">
+                                <span class="resumen-etiqueta">— Digitales:</span>
+                                <span class="resumen-valor">{{ $fmt($detalleDigitales->whereIn('action', ['devolver', 'devolver_vendedor'])->count()) }}</span>
+                            </div>
+                            <div class="resumen-linea">
                                 <span class="resumen-etiqueta">Ventas registradas:</span>
                                 <span class="resumen-valor text-success">{{ $fmt($ventasRegistradas->count()) }}</span>
                             </div>
@@ -185,12 +217,9 @@
                             </div>
                         </div>
 
-                        @php
-                            $detalleFilas = $details->filter(fn ($d) => in_array((string) $d->action, ['devolver', 'devolver_vendedor', 'vender'], true));
-                        @endphp
-                        <div class="resumen-devolucion">
-                            <div class="resumen-titulo mb-2">Desglose de participaciones</div>
-                            @if($detalleFilas->isEmpty() && (int) $devolution->total_participations > 0)
+                        @if($detalleFilas->isEmpty() && (int) $devolution->total_participations > 0)
+                            <div class="resumen-devolucion">
+                                <div class="resumen-titulo mb-2">Desglose de participaciones</div>
                                 <p class="text-muted small mb-2">
                                     Sin movimientos de participaciones en esta operación
                                     (confirmación / liquidación sin devoluciones nuevas).
@@ -198,44 +227,50 @@
                                         <br>{{ $devolution->notes }}
                                     @endif
                                 </p>
-                            @endif
-                            <div class="table-responsive">
-                                <table id="tabla-desglose-devoluciones" class="table table-sm table-hover participaciones-table w-100 mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Nº</th>
-                                            <th>Código</th>
-                                            <th>Acción</th>
-                                            <th>Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($detalleFilas as $detail)
-                                            @php
-                                                $p = $detail->participation;
-                                                $accion = match ((string) $detail->action) {
-                                                    'devolver', 'devolver_vendedor' => 'Devuelta',
-                                                    'vender' => 'Vendida / liquidada',
-                                                    default => (string) $detail->action,
-                                                };
-                                            @endphp
-                                            <tr>
-                                                <td>{{ $p?->participation_number ?? '—' }}</td>
-                                                <td>
-                                                    @if($p)
-                                                        <a href="{{ route('participations.show', $p->id) }}" target="_blank" rel="noopener noreferrer"><code>{{ $p->display_participation_code ?: ('#'.$p->id) }}</code></a>
-                                                    @else
-                                                        <code>—</code>
-                                                    @endif
-                                                </td>
-                                                <td>{{ $accion }}</td>
-                                                <td>{{ $p?->status_text ?? '—' }}</td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
                             </div>
-                        </div>
+                        @endif
+
+                        @foreach([
+                            ['id' => 'tabla-desglose-fisicas', 'title' => 'Participaciones físicas', 'rows' => $detalleFisicas],
+                            ['id' => 'tabla-desglose-digitales', 'title' => 'Participaciones digitales', 'rows' => $detalleDigitales],
+                        ] as $bloque)
+                            @if($bloque['rows']->isNotEmpty())
+                                <div class="resumen-devolucion">
+                                    <div class="resumen-titulo mb-2">{{ $bloque['title'] }} ({{ $bloque['rows']->count() }})</div>
+                                    <div class="table-responsive">
+                                        <table id="{{ $bloque['id'] }}" class="table table-sm table-hover participaciones-table w-100 mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Nº</th>
+                                                    <th>Código</th>
+                                                    <th>Tipo</th>
+                                                    <th>Acción</th>
+                                                    <th>Estado</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($bloque['rows'] as $detail)
+                                                    @php $p = $detail->participation; @endphp
+                                                    <tr>
+                                                        <td>{{ $p?->participation_number ?? '—' }}</td>
+                                                        <td>
+                                                            @if($p)
+                                                                <a href="{{ route('participations.show', $p->id) }}" target="_blank" rel="noopener noreferrer"><code>{{ $p->display_participation_code ?: ('#'.$p->id) }}</code></a>
+                                                            @else
+                                                                <code>—</code>
+                                                            @endif
+                                                        </td>
+                                                        <td>{{ $channelLabel($p) }}</td>
+                                                        <td>{{ $accionLabel($detail->action) }}</td>
+                                                        <td>{{ $p?->status_text ?? '—' }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            @endif
+                        @endforeach
 
                         @php
                             $sp = is_array($devolution->special_prize_settlement) ? $devolution->special_prize_settlement : [];
@@ -429,9 +464,11 @@ $(function () {
     if ($('#tabla-desglose-anuladas').length && $('#tabla-desglose-anuladas tbody tr').length) {
         $('#tabla-desglose-anuladas').DataTable(opts);
     }
-    if ($('#tabla-desglose-devoluciones').length && $('#tabla-desglose-devoluciones tbody tr').length) {
-        $('#tabla-desglose-devoluciones').DataTable(opts);
-    }
+    ['#tabla-desglose-fisicas', '#tabla-desglose-digitales', '#tabla-desglose-devoluciones'].forEach(function (sel) {
+        if ($(sel).length && $(sel).find('tbody tr').length) {
+            $(sel).DataTable(opts);
+        }
+    });
 });
 </script>
 @endsection

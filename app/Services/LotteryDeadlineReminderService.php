@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Mail;
 
 class LotteryDeadlineReminderService
 {
-    public const REMINDER_DAYS = [3, 2, 1, 0];
+    public const REMINDER_DAYS = [6, 3, 2, 1, 0];
 
     /** @var array<string, Collection<int, array<string, mixed>>> */
     private array $cachedReminderContexts = [];
