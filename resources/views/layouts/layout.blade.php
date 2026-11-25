@@ -626,9 +626,17 @@
                 min-width: 0;
                 overflow-x: hidden;
             }
+            #wrapper {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                align-items: stretch !important;
+            }
+            #wrapper > .app-menu {
+                flex: 0 0 var(--ct-leftbar-width) !important;
+            }
             .content-page {
-                flex: 1 1 auto !important;
-                width: auto !important;
+                flex: 1 1 0% !important;
+                width: 0 !important;
                 max-width: 100%;
                 min-width: 0;
                 overflow-x: hidden;
@@ -820,14 +828,15 @@
             #wrapper .content-page > footer.footer,
             #wrapper .content-page footer.footer,
             #wrapper .content-page .content > footer.footer {
-                position: relative !important;
+                position: static !important;
                 flex-shrink: 0 !important;
                 inset: auto !important;
                 bottom: auto !important;
                 left: auto !important;
                 right: auto !important;
                 top: auto !important;
-                width: auto !important;
+                width: calc(100% - 30px) !important;
+                max-width: calc(100% - 30px) !important;
                 height: 60px !important;
                 display: flex !important;
                 align-items: center !important;
@@ -839,6 +848,7 @@
                 background: #fff !important;
                 box-shadow: none !important;
                 z-index: 1 !important;
+                box-sizing: border-box !important;
             }
 
             #wrapper .content-page footer.footer > .container-fluid {
@@ -1593,8 +1603,8 @@
                     @php
                         $isDashboardPanel = request()->routeIs('dashboard');
                         $footerStyle = $isDashboardPanel
-                            ? 'position:relative!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;z-index:1!important;'
-                            : 'position:relative!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:auto!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;z-index:1!important;';
+                            ? 'position:static!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:calc(100% - 30px)!important;max-width:calc(100% - 30px)!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;align-items:center!important;z-index:1!important;box-sizing:border-box!important;'
+                            : 'position:static!important;inset:auto!important;bottom:auto!important;left:auto!important;right:auto!important;width:calc(100% - 30px)!important;max-width:calc(100% - 30px)!important;height:60px!important;flex-shrink:0!important;margin:-1px 15px 24px!important;padding:0 1.5rem!important;border:1px solid #d9dde8!important;border-top:0!important;border-radius:0 0 18px 18px!important;background:#fff!important;box-shadow:none!important;display:flex!important;align-items:center!important;z-index:1!important;box-sizing:border-box!important;';
                     @endphp
                     <footer class="footer" style="{{ $footerStyle }}">
                         <div class="container-fluid" style="width:100%;padding-left:0!important;padding-right:0!important;">
