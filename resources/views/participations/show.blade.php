@@ -11,66 +11,6 @@
 	.form-check-input:checked {
 		border-color: #333;
 	}
-
-	.participation-detail-thumb {
-		width: 120px;
-		max-width: 100%;
-		border-radius: 12px;
-		border: 1px solid #e4e7ef;
-		display: block;
-	}
-	.participation-meta {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		min-height: 100%;
-	}
-	.participation-meta-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		letter-spacing: 0.02em;
-		text-transform: uppercase;
-		color: #6c757d;
-	}
-	.participation-meta-value {
-		font-size: 1rem;
-		font-weight: 600;
-		color: #212529;
-		line-height: 1.3;
-		word-break: break-word;
-	}
-	.participation-meta-value--numbers {
-		font-size: 1.15rem;
-		letter-spacing: 0.04em;
-	}
-	.participation-meta-value--mono {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-		font-size: 0.92rem;
-		font-weight: 500;
-	}
-	.participation-amount-card {
-		background: #f6f7fb;
-		border: 1px solid #e4e7ef;
-		border-radius: 12px;
-		padding: 12px 14px;
-		height: 100%;
-	}
-	.participation-amount-card--total {
-		background: #1f2430;
-		border-color: #1f2430;
-	}
-	.participation-amount-card--total .participation-meta-label,
-	.participation-amount-card--total .participation-amount-value {
-		color: #fff;
-	}
-	.participation-amount-value {
-		display: block;
-		margin-top: 4px;
-		font-size: 1.2rem;
-		font-weight: 700;
-		color: #212529;
-		line-height: 1.2;
-	}
 </style>
 
 <!-- Start Content-->
@@ -269,86 +209,111 @@
 			                    				Editar</a> --}}
 			                    			</h4>
 			                    			<small><i>Comprueba que el sorteo es el correcto</i></small>
-			                    			
-			                    			@php
-			                    				$lotteryName = $participation->set && $participation->set->reserve && $participation->set->reserve->lottery
-			                    					? $participation->set->reserve->lottery->name
-			                    					: 'N/A';
-			                    				$drawDateLabel = $participation->set && $participation->set->reserve && $participation->set->reserve->lottery && $participation->set->reserve->lottery->draw_date
-			                    					? \Carbon\Carbon::parse($participation->set->reserve->lottery->draw_date)->format('d/m/Y')
-			                    					: 'N/A';
-			                    				$playedNumbers = $participation->set && $participation->set->reserve && $participation->set->reserve->reservation_numbers
-			                    					? implode(' · ', $participation->set->reserve->reservation_numbers)
-			                    					: 'N/A';
-			                    				$playedAmount = $participation->set ? number_format($participation->set->played_amount, 2, ',', '.') . ' €' : 'N/A';
-			                    				$donationAmount = $participation->set ? number_format($participation->set->donation_amount, 2, ',', '.') . ' €' : 'N/A';
-			                    				$totalAmount = $participation->set ? number_format($participation->set->pricePerParticipation(), 2, ',', '.') . ' €' : 'N/A';
-			                    				$participationCode = $participation->display_participation_code ?? $participation->participation_code ?? 'N/A';
-			                    				$securityCode = $ticketReference ?? 'N/A';
-			                    			@endphp
 
-			                    			<div class="participation-detail-summary mt-3">
-			                    				<div class="row g-3 align-items-start">
-			                    					<div class="col-auto">
-			                    						<img class="participation-detail-thumb" src="{{ asset('storage/design_snapshots/design_set_'.$participation->set->id.'.png') }}" alt="Participación">
+			                    			<br>
+											<br>
+
+			                    			<div>
+			                    				<div class="row">
+
+			                    					<div class="col-2">
+			                    						<img class="mt-2" src="{{asset('storage/design_snapshots/design_set_'.$participation->set->id.'.png')}}" alt="" width="100%" style="max-width: 150px; border-radius: 12px;">
 			                    					</div>
-			                    					<div class="col">
-			                    						<div class="row g-3">
-			                    							<div class="col-6 col-lg-3">
-			                    								<div class="participation-meta">
-			                    									<span class="participation-meta-label">Número de sorteo</span>
-			                    									<span class="participation-meta-value">{{ $lotteryName }}</span>
-			                    								</div>
-			                    							</div>
-			                    							<div class="col-6 col-lg-3">
-			                    								<div class="participation-meta">
-			                    									<span class="participation-meta-label">Fecha sorteo</span>
-			                    									<span class="participation-meta-value">{{ $drawDateLabel }}</span>
-			                    								</div>
-			                    							</div>
-			                    							<div class="col-12 col-lg-6">
-			                    								<div class="participation-meta">
-			                    									<span class="participation-meta-label">Número/s jugado/s</span>
-			                    									<span class="participation-meta-value participation-meta-value--numbers">{{ $playedNumbers }}</span>
-			                    								</div>
-			                    							</div>
-			                    						</div>
 
-			                    						<div class="participation-amounts row g-2 mt-1">
-			                    							<div class="col-4">
-			                    								<div class="participation-amount-card">
-			                    									<span class="participation-meta-label">Jugado / número</span>
-			                    									<span class="participation-amount-value">{{ $playedAmount }}</span>
-			                    								</div>
-			                    							</div>
-			                    							<div class="col-4">
-			                    								<div class="participation-amount-card">
-			                    									<span class="participation-meta-label">Donativo</span>
-			                    									<span class="participation-amount-value">{{ $donationAmount }}</span>
-			                    								</div>
-			                    							</div>
-			                    							<div class="col-4">
-			                    								<div class="participation-amount-card participation-amount-card--total">
-			                    									<span class="participation-meta-label">Total participación</span>
-			                    									<span class="participation-amount-value">{{ $totalAmount }}</span>
-			                    								</div>
-			                    							</div>
-			                    						</div>
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Número de Sorteo</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/16.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $participation->set && $participation->set->reserve && $participation->set->reserve->lottery ? $participation->set->reserve->lottery->name : 'N/A' }}" class="form-control" type="text" placeholder="46/25" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
 
-			                    						<div class="row g-3 mt-1">
-			                    							<div class="col-12 col-md-4">
-			                    								<div class="participation-meta">
-			                    									<span class="participation-meta-label">Nº participación</span>
-			                    									<span class="participation-meta-value">{{ $participationCode }}</span>
-			                    								</div>
-			                    							</div>
-			                    							<div class="col-12 col-md-8">
-			                    								<div class="participation-meta">
-			                    									<span class="participation-meta-label">Nº seguridad</span>
-			                    									<span class="participation-meta-value participation-meta-value--mono">{{ $securityCode }}</span>
-			                    								</div>
-			                    							</div>
-			                    						</div>
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Fecha Sorteo</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/12.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $participation->set && $participation->set->reserve && $participation->set->reserve->lottery && $participation->set->reserve->lottery->draw_date ? \Carbon\Carbon::parse($participation->set->reserve->lottery->draw_date)->format('Y-m-d') : 'N/A' }}" class="form-control" type="date" placeholder="01/01/2025" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
+
+			                    					<div class="col-6">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Número/s Jugado/s</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/14.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $participation->set && $participation->set->reserve && $participation->set->reserve->reservation_numbers ? implode(' - ', $participation->set->reserve->reservation_numbers) : 'N/A' }}" class="form-control" type="text" placeholder="0000" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
+
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Importe Jugado (por Número)</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $participation->set ? number_format($participation->set->played_amount, 2, ',', '.') . '€' : 'N/A' }}" class="form-control" type="text" placeholder="6,00€" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
+
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Importe <br> Donativo</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $participation->set ? number_format($participation->set->donation_amount, 2, ',', '.') . '€' : 'N/A' }}" class="form-control" type="text" placeholder="6,00€" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
+
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Importe Total Participación</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/15.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $participation->set ? number_format($participation->set->pricePerParticipation(), 2, ',', '.') . '€' : 'N/A' }}" class="form-control" type="text" placeholder="6,00€" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
+
+			                    					<div class="col-2">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Número <br> Participación</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/22.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $participation->display_participation_code ?? $participation->participation_code ?? 'N/A' }}" class="form-control" type="text" placeholder="1/0001" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
+			                    					</div>
+
+			                    					<div class="col-4">
+			                    						<div class="form-group mt-3 mb-3">
+			                    							<label class="label-control">Número Seguridad <br> Participación</label>
+							                    			<div class="input-group input-group-merge group-form">
+							                                    <div class="input-group-text" style="border-radius: 30px 0 0 30px;">
+							                                        <img src="{{url('assets/form-groups/admin/21.svg')}}" alt="">
+							                                    </div>
+							                                    <input readonly="" value="{{ $ticketReference ?? 'N/A' }}" class="form-control" type="text" placeholder="12345678901234567890" style="border-radius: 0 30px 30px 0;">
+							                                </div>
+						                    			</div>
 			                    					</div>
 			                    				</div>
 			                    			</div>
